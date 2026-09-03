@@ -252,6 +252,20 @@ public partial class MainViewModel
             DeleteSelectedBone();
             return;
         }
+        // A selected guide next, and ahead of the marquee for the bone's own
+        // reason (B355): the thing on screen wearing selection chrome is the
+        // guide, and Delete erasing the drawing underneath it instead would be
+        // the key acting on something the artist cannot see is selected.
+        //
+        // Here rather than in the key handler, which is the whole of B173: a
+        // branch on Key.Delete in the view is invisible to the Configure
+        // window, so an artist who rebinds Delete would not have rebound this.
+        // The command is what the registry points at, so the command decides.
+        if (HasSelectedGuide)
+        {
+            RemoveSelectedGuideCommand.Execute(null);
+            return;
+        }
         if (HasSelection)
         {
             if (!CanEdit(ActiveLayer, "erase on it")) return;
