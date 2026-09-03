@@ -382,7 +382,7 @@ public partial class MainViewModel
                     guide.X += dx;
                     guide.Y += dy;
                 }
-                NotifyGuides();
+                NotifyGuidesView();
             },
             _ =>
             {
@@ -391,9 +391,9 @@ public partial class MainViewModel
                     guide.X -= dx;
                     guide.Y -= dy;
                 }
-                NotifyGuides();
+                NotifyGuidesView();
             });
-        NotifyGuides();
+        NotifyGuidesView();
     }
 
     /// <summary>Begin moving selected reference boxes.</summary>

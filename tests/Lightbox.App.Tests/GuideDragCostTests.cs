@@ -50,12 +50,9 @@ public class GuideDragCostTests : BrushStateIsolated
 
         vm.EndGuideDrag(guide);
 
-        // Non-zero rather than exactly one, on purpose. Closing the gesture
-        // currently notifies twice for the one recorded move — the editor's
-        // own change raises it, and MoveGuide's NotifyGuides raises it again
-        // (B354). That is a separate defect and a separate branch; pinning the
-        // exact count here would make this guard fail when B354 is fixed.
-        Assert.True(edits > 0, "the gesture must record the move");
+        // Exactly one, now that B354 has landed: the editor's own change is
+        // the single source of the mark, and MoveGuide no longer adds a second.
+        Assert.Equal(1, edits);
         Assert.Equal(120, guide.X);
     }
 
@@ -77,7 +74,7 @@ public class GuideDragCostTests : BrushStateIsolated
 
         vm.EndHeightScaleResize(guide);
 
-        Assert.True(edits > 0, "the gesture must record the resize");
+        Assert.Equal(1, edits);
     }
 
     [AvaloniaFact]
@@ -123,7 +120,7 @@ public class GuideDragCostTests : BrushStateIsolated
 
         vm.EndGuidesMove();
 
-        Assert.True(edits > 0, "the gesture must record the move");
+        Assert.Equal(1, edits);
         Assert.Equal(60, first.X);
         Assert.Equal(140, second.X);
     }
