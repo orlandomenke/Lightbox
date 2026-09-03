@@ -142,7 +142,7 @@ public partial class MainViewModel
         var before = guide.Spacing;
         if (Math.Abs(before - clamped) < 1e-9) return;
         _editor.PerformDelta(_ => guide.Spacing = clamped, _ => guide.Spacing = before);
-        NotifyGuides();
+        NotifyGuidesView();
     }
 
     /// <summary>Change a placed grid's angle, as one undoable step.</summary>
@@ -151,7 +151,7 @@ public partial class MainViewModel
         var before = guide.Angle;
         if (Math.Abs(before - angle) < 1e-9) return;
         _editor.PerformDelta(_ => guide.Angle = angle, _ => guide.Angle = before);
-        NotifyGuides();
+        NotifyGuidesView();
     }
 
     /// <summary>Turn a placed guide's drawing or snapping on or off, undoably.</summary>
@@ -162,7 +162,7 @@ public partial class MainViewModel
         _editor.PerformDelta(
             _ => { guide.Visible = visible; guide.Snaps = snaps; },
             _ => { guide.Visible = before.Visible; guide.Snaps = before.Snaps; });
-        NotifyGuides();
+        NotifyGuidesView();
     }
 
 
@@ -173,7 +173,7 @@ public partial class MainViewModel
     {
         if (guide.Locked == locked) return;
         _editor.PerformDelta(_ => guide.Locked = locked, _ => guide.Locked = !locked);
-        NotifyGuides();
+        NotifyGuidesView();
     }
 
     // ---- the selected guide, and the numbers behind it ---------------------------
@@ -301,7 +301,7 @@ public partial class MainViewModel
         _editor.PerformDelta(
             _ => { guide.X = x; guide.Y = y; },
             _ => { guide.X = before.X; guide.Y = before.Y; });
-        NotifyGuides();
+        NotifyGuidesView();
     }
 
     /// <summary>Change how many rays a vanishing point is drawn with, undoably.</summary>
@@ -311,7 +311,7 @@ public partial class MainViewModel
         var before = guide.Divisions;
         if (before == clamped) return;
         _editor.PerformDelta(_ => guide.Divisions = clamped, _ => guide.Divisions = before);
-        NotifyGuides();
+        NotifyGuidesView();
     }
 
     public double GuideX
@@ -534,7 +534,7 @@ public partial class MainViewModel
             Name = name, Divisions = divisions,
         };
         _editor.Perform(doc => (doc.Scene.Guides ??= []).Add(guide));
-        NotifyGuides();
+        NotifyGuidesView();
         return guide;
     }
 
@@ -555,7 +555,7 @@ public partial class MainViewModel
         _editor.PerformDelta(
             _ => { guide.Spacing = clampedUnit; guide.Divisions = clampedDivisions; },
             _ => { guide.Spacing = before.Spacing; guide.Divisions = before.Divisions; });
-        NotifyGuides();
+        NotifyGuidesView();
     }
 
     private double? _heightScaleUnitBefore;
@@ -595,7 +595,7 @@ public partial class MainViewModel
         // step — so undo returns the top to where it was picked up.
         guide.Spacing = before;
         _editor.PerformDelta(_ => guide.Spacing = after, _ => guide.Spacing = before);
-        NotifyGuides();
+        NotifyGuidesView();
     }
 
     public void RemoveGuide(Guide guide)
@@ -608,7 +608,7 @@ public partial class MainViewModel
             // guide key again.
             if (doc.Scene.Guides is { Count: 0 }) doc.Scene.Guides = null;
         });
-        NotifyGuides();
+        NotifyGuidesView();
     }
 
     /// <summary>Move a guide's anchor, in document pixels.</summary>
@@ -618,7 +618,7 @@ public partial class MainViewModel
         _editor.PerformDelta(
             _ => { guide.X += dx; guide.Y += dy; },
             _ => { guide.X -= dx; guide.Y -= dy; });
-        NotifyGuides();
+        NotifyGuidesView();
     }
 
     private (double X, double Y) _guideDragTotal;
@@ -667,15 +667,23 @@ public partial class MainViewModel
     {
         if (!HasGuides) return;
         _editor.Perform(doc => doc.Scene.Guides = null);
-        NotifyGuides();
+        NotifyGuidesView();
     }
 
-    private void NotifyGuides()
-    {
-        NotifyGuidesView();
-        PublishSnapshot();
-        MarkDocumentEdited();
-    }
+    // NotifyGuides used to live here, and did three things: the view, a
+    // PublishSnapshot, and a MarkDocumentEdited (B354).
+    //
+    // Every one of its seventeen call sites turned out to sit inside a method
+    // that had just performed an editor operation — enumerated rather than
+    // assumed — and an editor operation already runs OnDocumentChanged, which
+    // does all three of those itself. So the recording half was a second
+    // helping: two autosave marks, two reference-view cache invalidations, two
+    // reference-strip re-flattens and two publishes for one guide edit.
+    //
+    // The remaining callers say NotifyGuidesView, which is what they meant.
+    // If a guide is ever mutated *without* going through the editor, it will
+    // need its own mark rather than this one back: a notifier that dirties the
+    // document is indistinguishable from one that does not until you count.
 
     /// <summary>
     /// Tell everything that shows guides to re-read them, without recording an
@@ -836,7 +844,7 @@ public partial class MainViewModel
                 doc.Scene.Guides?.RemoveAll(g => ids.Contains(g.Id));
                 if (doc.Scene.Guides is { Count: 0 }) doc.Scene.Guides = null;
             });
-        NotifyGuides();
+        NotifyGuidesView();
         AiStatus = $"Added {copies.Count} guide{(copies.Count == 1 ? "" : "s")} from “{set.Name}”.";
     }
 
