@@ -313,4 +313,57 @@ public class McpReadBudgetTests(ITestOutputHelper output)
             "three inbetweens of a dense frame now fit inside a typical response budget — "
             + "if a delta encoding landed, close the bug this test documents");
     }
+
+    /// <summary>
+    /// A picture of the frame is far cheaper than its strokes — and that is not
+    /// why sending one is refused.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Written down because the obvious guess about B359 is backwards.</b>
+    /// "Send a bitmap instead of strokes" sounds like it trades quality for
+    /// size; measured, it is not a trade at all on size — a PNG of this frame is
+    /// roughly a fiftieth of its own geometry, because pixels do not grow with
+    /// stroke count and JSON numbers do. Anyone reaching for that idea should
+    /// find the number here rather than re-deriving it and concluding, wrongly,
+    /// that it was rejected as expensive.
+    /// </para>
+    /// <para>
+    /// It is refused for two reasons that have nothing to do with cost.
+    /// <b>A model cannot author a PNG</b> — the channel is text, so a bitmap
+    /// would arrive as base64 of a deflate stream, which no language model
+    /// emits validly; the cheapness is unreachable from the write side at any
+    /// price. And <b>invariant 1</b>: a frame is a list of strokes and the
+    /// pixels are derived, so a raster frame could not be re-rendered, re-timed,
+    /// inbetweened again or recoloured. The document already has a lawful place
+    /// for pixels in <c>Frame.Checkpoint</c>, and what makes that lawful is
+    /// exactly what an authored bitmap lacks: a record behind it and a
+    /// fingerprint recomputed before use.
+    /// </para>
+    /// <para>
+    /// The fixture's art is synthetic and repetitive, so it compresses better
+    /// than a real drawing — treat the ratio as an optimistic bound. The
+    /// assertion is loose for that reason; it exists to keep the direction of
+    /// the finding true, not the number.
+    /// </para>
+    /// </remarks>
+    [AvaloniaFact]
+    public void ABitmapOfTheFrameIsCheaperThanItsStrokes_WhichIsNotWhyItIsRefused()
+    {
+        var api = new IpcDocumentApi(VmWithDenseDrawing());
+        var strokes = Raw(api.Handle(Req("get_frame_strokes", new { frameIndex = 0 })));
+        var render = api.Handle(Req("render_frame", new { frameIndex = 0 }));
+        Assert.True(render.Ok, render.Error);
+        var png = render.Payload!.Value.GetProperty("pngBase64").GetString()!;
+
+        output.WriteLine(
+            $"same 120-stroke frame — as a 768px PNG: {png.Length / 1024.0:F1} KB (~{png.Length / 4} tokens); "
+            + $"as strokes: {strokes.Length / 1024.0:F1} KB (~{strokes.Length / 4} tokens); "
+            + $"ratio {strokes.Length / (double)png.Length:F0}x");
+
+        Assert.True(
+            png.Length < strokes.Length,
+            "a picture of the frame is no longer cheaper than its geometry — the reasoning in "
+            + "Q179 about why bitmaps are refused should be re-read, because it assumes it is");
+    }
 }

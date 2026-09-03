@@ -49,6 +49,74 @@ So the two vetoes point at each other: ai-engineer's ceiling is real and
 art-director's expression cost is real, and neither is measurable from the other
 side. Gate G12 says that goes here rather than to whoever ran last.
 
+## "Could an agent send a bitmap instead?" — asked 2026-09-04, and the cost half of it is backwards
+
+Worth recording in full, because the intuition behind the question is right and
+the number people expect is wrong in the other direction.
+
+**On size, a picture wins and it is not close.** The same 120-stroke frame,
+measured through the real path:
+
+| | Size | ≈ output tokens |
+| --- | --- | --- |
+| as stroke JSON | 147.4 KB | ~37,700 |
+| as a 768 px PNG, base64 | 3.0 KB | **~770** |
+
+**~49×**, because pixels do not grow with stroke count and JSON numbers do. (The
+fixture is synthetic and repetitive, so it compresses better than real art —
+an optimistic bound, and the direction survives any plausible correction.)
+`ABitmapOfTheFrameIsCheaperThanItsStrokes_WhichIsNotWhyItIsRefused` keeps the
+number, and is named so that the next person to have this idea finds the
+reasoning rather than re-deriving it and concluding it was rejected as expensive.
+
+**It is refused for two reasons, neither of them cost.**
+
+1. **A model cannot author a PNG.** The channel is text; a bitmap arrives as
+   base64 of a deflate stream, and no language model emits one validly. The 49×
+   is real and unreachable from the write side at any price. This is the
+   decisive one, and it is worth separating from the second, because it would
+   still hold in a codebase with no invariants at all.
+2. **Invariant 1.** A frame is a list of strokes and the pixels are derived. A
+   raster frame cannot be re-rendered at another size, re-timed, inbetweened
+   again, recoloured through a swatch, or exported through a camera. It would be
+   a drawing that stops being editable at the moment an agent touches it.
+
+**The precedent that makes this a distinction rather than a prohibition:**
+`Frame.Checkpoint` already stores pixels *in the document* (`DESIGN-raster-checkpoint.md`,
+276× on reopening a 1 000-stroke painting). What makes that lawful is precisely
+what an authored bitmap lacks — a record behind it, and a `CheckpointFingerprint`
+recomputed before the pixels are ever used. **Pixels are allowed exactly when
+something can prove what they were made from.** So the answer is not "no pixels";
+it is "no pixels without a record".
+
+### The version of the idea that does work, and it is option (c)
+
+Raster as an **intermediate**, never as the record: an *image* model — not the
+text agent — draws the inbetween as pixels, and Lightbox traces it back into
+strokes. The text agent never emits geometry, so the ceiling does not shrink,
+it **dissolves**; and invariant 1 holds, because what lands in the document is
+strokes.
+
+What it costs, and why it is not obviously better than the delta:
+
+- **Nothing traces today.** There is no vectoriser anywhere in the solution, so
+  this is a build rather than a wiring job.
+- **A traced stroke loses what inbetweening runs on.** Pressure and tilt are
+  gone, so the line is dead in the way `DESIGN-pen-dynamics.md` cares about —
+  but the worse loss is **identity**: a trace produces *some* strokes, not
+  *these* strokes, so labels and the correspondence to key A and key B are gone.
+  The next inbetween of that frame has nothing to match against, and Q34's
+  golden set scores label retention precisely because losing it is invisible
+  until weeks later.
+- It moves the expression risk rather than removing it: instead of a model
+  taking the cheap path within a wire format, an image model draws something
+  plausible and on-model-ish that no longer corresponds to the artist's lines.
+
+So the three options for the pair are now: **(a)** per-stroke delta, **(b)**
+per-frame delta, **(c)** raster intermediate plus a tracer. (c) is the only one
+that removes the ceiling outright, and the only one that can lose stroke
+identity — which is the same trade the other two make, one level up.
+
 ## What an answer needs to settle
 
 - Whether a delta is **per stroke** (this one moved, that one is redrawn) or
