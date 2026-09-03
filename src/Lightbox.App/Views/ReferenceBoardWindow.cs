@@ -44,6 +44,20 @@ public sealed class ReferenceBoardWindow : Window
     private readonly Button _sheetsButton = new() { Content = "Sheets ▾", Classes = { "tertiary" } };
 
     /// <summary>
+    /// Which folder this wall belongs to, and the way to change it (B361).
+    /// </summary>
+    /// <remarks>
+    /// The default is the nearest folder at or above the open document that has
+    /// a wall, which is right for most layouts and cannot be right for all of
+    /// them: the folder tree does not say which folder is the *subject*.
+    /// <c>Knight/Locomotion</c> wants one wall on the knight, and
+    /// <c>characters/Ren</c> wants one per character, and those are the same
+    /// shape. So the guess is shown rather than hidden, and it is one click to
+    /// correct.
+    /// </remarks>
+    private readonly Button _ownerButton = new() { Classes = { "tertiary" } };
+
+    /// <summary>
     /// The board's own voice. A drop or paste that fails used to say so only on
     /// the main window's status line, which the artist looking at this window
     /// cannot see — so the failure read as total silence (B285).
@@ -154,13 +168,15 @@ public sealed class ReferenceBoardWindow : Window
         add.Click += async (_, _) => await AddImageAsync();
 
         _sheetsButton.Click += (_, _) => ShowSheetsMenu();
+        _ownerButton.Click += (_, _) => ShowOwnerMenu();
+        RefreshOwnerButton();
 
         var bar = new StackPanel
         {
             Orientation = Avalonia.Layout.Orientation.Horizontal,
             Spacing = 6,
             Margin = new Thickness(8, 6),
-            Children = { arrange, fit, add, _sheetsButton, _status },
+            Children = { arrange, fit, add, _sheetsButton, _ownerButton, _status },
         };
         Grid.SetRow(bar, 0);
         return bar;
@@ -267,6 +283,36 @@ public sealed class ReferenceBoardWindow : Window
         }
         menu.PlacementTarget = _sheetsButton;
         menu.Open(_sheetsButton);
+    }
+
+    /// <summary>Keep the button saying whose wall is on screen.</summary>
+    private void RefreshOwnerButton()
+    {
+        _ownerButton.IsVisible = BoardModel.CanChooseOwner;
+        _ownerButton.Content = $"Wall for: {BoardModel.OwnerLabel} ▾";
+    }
+
+    /// <summary>
+    /// Offer every folder above the open document, nearest first, and the
+    /// project-wide wall last.
+    /// </summary>
+    private void ShowOwnerMenu()
+    {
+        var menu = new ContextMenu();
+        foreach (var (label, folder, isCurrent) in BoardModel.OwnerChoices)
+        {
+            var item = new MenuItem { Header = isCurrent ? $"{label}  ✓" : label };
+            var target = folder;
+            item.Click += (_, _) =>
+            {
+                BoardModel.SetOwner(target);
+                RefreshOwnerButton();
+                Say($"This wall belongs to {BoardModel.OwnerLabel}.");
+            };
+            menu.Items.Add(item);
+        }
+        menu.PlacementTarget = _ownerButton;
+        menu.Open(_ownerButton);
     }
 
     // ---- drawing the wall ---------------------------------------------------------

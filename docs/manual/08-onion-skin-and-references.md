@@ -268,6 +268,15 @@ network and cannot be refused.
 
 **The board accepts the drag and then tells you.** The pointer will not refuse a drag on the way in, even one holding nothing Lightbox can use — because a cursor that says *no* explains nothing and leaves no trace. Let go, and the board says what happened.
 
+**Whose wall is this?** In a project a board belongs to a folder, so every
+animation of the same character looks at the same reference. The board takes
+the nearest folder at or above the open document that already has a wall, and
+starts a new one on the document’s own folder when nothing above has one — so
+a project organised `characters/Ren` beside `characters/Goblin Archer` gives
+each of them their own. The toolbar says which folder it is, and **Wall for…**
+moves it: pick a folder further down to split a shared wall into one per
+character, or further up to merge them back. The pictures move with it.
+
 **A drop that brings nothing says so — on the board.** Browsers hand a picture
 over in more than one way — sometimes the file it cached, sometimes an address,
 sometimes the picture itself — and they label those differently on Windows, on

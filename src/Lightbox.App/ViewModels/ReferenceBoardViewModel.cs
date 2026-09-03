@@ -55,8 +55,62 @@ public sealed class ReferenceBoardViewModel
     /// <summary>The document whose scope owns the board, or null.</summary>
     private DocumentRef? Source => (_vm.SaveTargetTab ?? _vm.ActiveTab)?.Source;
 
+    /// <summary>
+    /// The folder whose wall is on screen — the nearest at or above this
+    /// document that has one — and where a change to it is written.
+    /// </summary>
+    /// <remarks>
+    /// Read and write are the same scope on purpose (B361). Writing to the
+    /// document's own folder while reading an inherited wall would make the
+    /// first pin appear to erase everything else on it.
+    /// </remarks>
     private ProjectFolder? Scope =>
-        Project is { } project ? ProjectBoards.ScopeOf(project.Manifest, Source) : null;
+        Project is { } project ? ProjectBoards.OwnerOf(project, Source) : null;
+
+    /// <summary>What the wall on screen belongs to, for the board's own toolbar.</summary>
+    public string OwnerLabel => Project is null
+        ? "This document"
+        : Scope?.Name ?? "The whole project";
+
+    /// <summary>Whether re-filing is on offer at all — a loose document has one wall.</summary>
+    public bool CanChooseOwner => Project is not null;
+
+    /// <summary>
+    /// Every folder this document could hang its wall on, nearest first, ending
+    /// with the project-wide wall.
+    /// </summary>
+    public IReadOnlyList<(string Label, ProjectFolder? Folder, bool IsCurrent)> OwnerChoices
+    {
+        get
+        {
+            if (Project is not { } project) return [];
+            var current = Scope;
+            var choices = new List<(string, ProjectFolder?, bool)>();
+            foreach (var folder in ProjectBoards.OwnerChoicesFor(project.Manifest, Source))
+            {
+                choices.Add((folder?.Name ?? "The whole project", folder, folder?.Id == current?.Id));
+            }
+            return choices;
+        }
+    }
+
+    /// <summary>
+    /// Hang this wall on <paramref name="folder"/> instead.
+    /// </summary>
+    /// <remarks>
+    /// The pictures come with it, which is the whole point: an artist splitting
+    /// a shared wall into one per character is separating what they have, not
+    /// throwing it away and starting again. Moving it further up deletes the
+    /// walls in between, or the nearer one would keep winning and the choice
+    /// would look ignored (B361).
+    /// </remarks>
+    public void SetOwner(ProjectFolder? folder)
+    {
+        if (Project is not { } project) return;
+        ProjectBoards.SetOwner(project, Source, folder, Board);
+        Board = LoadBoard();
+        Changed?.Invoke();
+    }
 
     private ReferenceBoard LoadBoard()
     {

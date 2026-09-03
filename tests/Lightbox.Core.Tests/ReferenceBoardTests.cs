@@ -228,11 +228,17 @@ public class ReferenceBoardTests
             var a = new DocumentRef { Id = "a", Name = "walk", Path = "x", FolderId = walk.Id };
             var b = new DocumentRef { Id = "b", Name = "swing", Path = "y", FolderId = run.Id };
 
-            // The scope is the top of the subtree — the same rule a sheet made
-            // from either document is filed under, so the wall and the sheets on
-            // it agree about who they belong to.
-            Assert.Equal(knight.Id, ProjectBoards.ScopeOf(project.Manifest, a)?.Id);
-            Assert.Equal(knight.Id, ProjectBoards.ScopeOf(project.Manifest, b)?.Id);
+            // The wall is filed on the knight, so both animations see it: the
+            // owner is the NEAREST folder at or above the document that has one
+            // (B361), and neither Locomotion nor Combat has a wall of its own.
+            // This used to be the top of the subtree unconditionally, which is
+            // right here and wrong for characters/Ren beside characters/Goblin.
+            var wall = new ReferenceBoard();
+            wall.Tiles.Add(new BoardTile { Name = "Knight · front", ViewId = "v1" });
+            ProjectBoards.Save(project, knight, wall);
+
+            Assert.Equal(knight.Id, ProjectBoards.OwnerOf(project, a)?.Id);
+            Assert.Equal(knight.Id, ProjectBoards.OwnerOf(project, b)?.Id);
         }
         finally
         {
@@ -343,5 +349,157 @@ public class ReferenceBoardTests
         Assert.DoesNotContain("\"png\"", json);
         Assert.DoesNotContain("\"path\"", json);
         Assert.DoesNotContain("\"origin\"", json);
+    }
+
+    // ---- whose wall is it (B361) -------------------------------------------------
+
+    /// <summary>A document filed in <paramref name="folder"/>.</summary>
+    private static DocumentRef In(ProjectFolder? folder, string name) =>
+        new() { Id = Ids.NewId("doc"), Name = name, FolderId = folder?.Id };
+
+    [Fact]
+    public void TwoCharactersUnderOneParentDoNotShareAWall()
+    {
+        // The report: "if I set up a board for Ren I do not want to see the
+        // same reference pictures for an enemy named Goblin Archer". Organised
+        // the way anyone organises characters, both used to resolve to the
+        // parent — the scope was the *root* ancestor, which is where a sheet is
+        // filed, not where a board is looked at.
+        var (project, root) = TempProject();
+        try
+        {
+            var characters = ProjectFolders.Add(project.Manifest, "characters", null);
+            var ren = ProjectFolders.Add(project.Manifest, "Ren", characters);
+            var goblin = ProjectFolders.Add(project.Manifest, "Goblin Archer", characters);
+
+            var renScope = ProjectBoards.OwnerOf(project, In(ren, "Ren walk"));
+            var goblinScope = ProjectBoards.OwnerOf(project, In(goblin, "Goblin idle"));
+
+            Assert.Equal(ren.Id, renScope!.Id);
+            Assert.Equal(goblin.Id, goblinScope!.Id);
+            Assert.NotEqual(renScope.Id, goblinScope.Id);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void EveryAnimationOfOneCharacterStillSharesThatCharactersWall()
+    {
+        // Q87's point, and the half that must survive: the roadmap calls losing
+        // this the highest-friction gap in reference handling.
+        var (project, root) = TempProject();
+        try
+        {
+            var ren = ProjectFolders.Add(project.Manifest, "Ren", null);
+
+            var walk = ProjectBoards.OwnerOf(project, In(ren, "Ren walk"));
+            var idle = ProjectBoards.OwnerOf(project, In(ren, "Ren idle"));
+
+            Assert.Equal(walk!.Id, idle!.Id);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ADocumentWithNoWallOfItsOwnSeesTheNearestOneAbove()
+    {
+        // Reading inherits, so narrowing the scope cannot orphan a board that
+        // was filed on a top-level folder before this change. An artist must
+        // not open a document and find an empty wall where their reference was.
+        var (project, root) = TempProject();
+        try
+        {
+            var characters = ProjectFolders.Add(project.Manifest, "characters", null);
+            var ren = ProjectFolders.Add(project.Manifest, "Ren", characters);
+            var inherited = new ReferenceBoard();
+            inherited.Tiles.Add(new BoardTile { Name = "Shared", ViewId = "v1" });
+            ProjectBoards.Save(project, characters, inherited);
+
+            var doc = In(ren, "Ren walk");
+            var visible = ProjectBoards.OwnerOf(project, doc);
+
+            Assert.Equal(characters.Id, visible!.Id);
+            Assert.Single(ProjectBoards.Load(project, visible).Tiles);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void OnceItHasItsOwnWallItStopsInheriting()
+    {
+        // Writing does not inherit: the first pin lands on the document's own
+        // folder, and from then on that is what it sees.
+        var (project, root) = TempProject();
+        try
+        {
+            var characters = ProjectFolders.Add(project.Manifest, "characters", null);
+            var ren = ProjectFolders.Add(project.Manifest, "Ren", characters);
+            var shared = new ReferenceBoard();
+            shared.Tiles.Add(new BoardTile { Name = "Shared", ViewId = "v1" });
+            ProjectBoards.Save(project, characters, shared);
+
+            var own = new ReferenceBoard();
+            own.Tiles.Add(new BoardTile { Name = "Ren only", ViewId = "v2" });
+            own.Tiles.Add(new BoardTile { Name = "Ren also", ViewId = "v3" });
+            ProjectBoards.Save(project, ren, own);
+
+            var doc = In(ren, "Ren walk");
+            var visible = ProjectBoards.OwnerOf(project, doc);
+
+            Assert.Equal(ren.Id, visible!.Id);
+            Assert.Equal(2, ProjectBoards.Load(project, visible).Tiles.Count);
+            // And the parent's wall is untouched — inheriting never wrote to it.
+            Assert.Single(ProjectBoards.Load(project, characters).Tiles);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ADocumentFiledNowhereStillSeesTheProjectWideWall()
+    {
+        var (project, root) = TempProject();
+        try
+        {
+            Assert.Null(ProjectBoards.ScopeOf(project.Manifest, In(null, "Loose")));
+            Assert.Null(ProjectBoards.OwnerOf(project, In(null, "Loose")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SheetsStillFileOnTheRootAncestor()
+    {
+        // The guard against the change leaking. Boards and sheets shared one
+        // call and are not the same question: a sheet is filed once where the
+        // subject lives, a board is looked at from wherever you are working.
+        var (project, root) = TempProject();
+        try
+        {
+            var characters = ProjectFolders.Add(project.Manifest, "characters", null);
+            var ren = ProjectFolders.Add(project.Manifest, "Ren", characters);
+            var doc = In(ren, "Ren walk");
+
+            Assert.Equal(characters.Id, ProjectSheets.DefaultScope(project.Manifest, doc)!.Id);
+            Assert.Equal(ren.Id, ProjectBoards.ScopeOf(project.Manifest, doc)!.Id);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 }
