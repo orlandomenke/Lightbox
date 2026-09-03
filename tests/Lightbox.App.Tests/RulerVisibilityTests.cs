@@ -1,3 +1,4 @@
+using System.Linq;
 using Lightbox.App.Docking;
 using Lightbox.App.ViewModels;
 
@@ -90,5 +91,71 @@ public class RulerVisibilityTests
 
         Assert.NotNull(store.Session);
         Assert.True(store.Session!.Rulers);
+    }
+
+    // ---- and they cross a workspace switch (B356) --------------------------------
+
+    [Fact]
+    public void SwitchingWorkspacesKeepsTheRulersUp()
+    {
+        // The mechanism the report actually hit, and it needs no reopen. Every
+        // built-in workspace stores Rulers = false, so applying one used to
+        // overwrite the live toggle — rearranging panels turned the rulers off.
+        var store = Store();
+        var vm = new WorkspaceViewModel(store);
+        vm.RulersVisible = true;
+        var other = store.Workspaces.First(w => w.Name != vm.SelectedName).Name;
+        Assert.False(store.Find(other)!.Layout.Rulers, "the premise: the target workspace has rulers off");
+
+        vm.Apply(other);
+
+        Assert.Equal(other, vm.SelectedName);
+        Assert.True(vm.RulersVisible, "rulers say how you are working, not which panels are open");
+    }
+
+    [Fact]
+    public void SwitchingWorkspacesKeepsTheGuideFlagsToo()
+    {
+        var store = Store();
+        var vm = new WorkspaceViewModel(store);
+        vm.GuidesVisible = false;
+        vm.GuidesLocked = true;
+        vm.ReferencesLocked = true;
+
+        vm.Apply(store.Workspaces.First(w => w.Name != vm.SelectedName).Name);
+
+        Assert.False(vm.GuidesVisible);
+        Assert.True(vm.GuidesLocked);
+        // Both locks, because the code pairs them itself (Q108).
+        Assert.True(vm.ReferencesLocked);
+    }
+
+    [Fact]
+    public void SwitchingWorkspacesStillMovesThePanels()
+    {
+        // The guard against fixing this too broadly: the arrangement is what a
+        // workspace is *for*, so it must still be taken wholesale.
+        var store = Store();
+        var vm = new WorkspaceViewModel(store);
+        var other = store.Workspaces.First(w => w.Name != vm.SelectedName).Name;
+        var expected = store.Find(other)!.Layout.Placements.Count;
+
+        vm.Apply(other);
+
+        Assert.Equal(expected, vm.Layout.Placements.Count);
+        Assert.Equal(other, vm.SelectedName);
+    }
+
+    [Fact]
+    public void ACallerThatMeansThisLayoutExactlyCanSaySo()
+    {
+        // The way out, so a deliberate wholesale load is still expressible.
+        var store = Store();
+        var vm = new WorkspaceViewModel(store);
+        vm.RulersVisible = true;
+
+        vm.Replace(DockLayout.Default(), keepViewingFlags: false);
+
+        Assert.False(vm.RulersVisible);
     }
 }
