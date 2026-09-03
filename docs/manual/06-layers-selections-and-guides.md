@@ -415,6 +415,9 @@ usually do with an emptied region is put something else in it, and both are
 ordinary undo steps. With no selection up, Delete falls back to deleting
 whatever lines the Arrow has picked.
 
+**A selected guide takes Delete first**, ahead of the selection — the thing
+wearing the selection marks is the guide, so that is what the key acts on.
+
 **Every one of those is on the Select menu too**, next to Image in the menu
 bar: *All*, *Deselect*, *Invert*, *Grow*, *Shrink*, *Delete contents* and
 *Fill with background*. The keys are faster once you know them; the menu is
@@ -683,7 +686,7 @@ lit over a drawing you are painting.
 | Grid | **Cell size** — the pitch of *this* lattice |
 | Character height scale | **Head height** and **Heads** — the same two numbers the top-rung drag changes, typed exactly |
 | Vanishing point | **Rays** — how many lines are drawn out of the point |
-| Any guide | **Shown**, **Snaps** and **Locked** — and **Remove** |
+| Any guide | **Shown**, **Snaps** and **Locked** — and **Remove**, or select it and press `Delete` |
 
 Every one of those changes *this guide, on this drawing*, and every one is an
 undo step. A locked guide ignores the fields exactly as it ignores a drag.
