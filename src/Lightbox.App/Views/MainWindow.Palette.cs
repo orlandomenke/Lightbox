@@ -170,11 +170,17 @@ public partial class MainWindow
             return;
         }
 
+        // All three taken before the first await (B352): the platform releases
+        // the drag's data object when the drop returns, and this method returns
+        // at its first await, so a read after that throws and answers empty.
+        // The format names were the casualty — the log said "(unreadable)"
+        // against every one of them, which is the one thing it exists not to say.
         var uris = DroppedWebImages(e);
         var embedded = Services.WebImageDrop.EmbeddedImageIn(e.DataTransfer);
+        var carriedFormats = Services.WebImageDrop.DescribeFormats(e.DataTransfer);
         if (uris.Count == 0 && embedded is null) return;
         e.Handled = true;
-        await ImportWebImage(uris, embedded, e.DataTransfer);
+        await ImportWebImage(uris, embedded, carriedFormats);
     }
 
     /// <summary>
@@ -184,7 +190,7 @@ public partial class MainWindow
     /// importing them all would tape up duplicates.
     /// </summary>
     private async Task ImportWebImage(
-        IReadOnlyList<Uri> uris, byte[]? embedded, Avalonia.Input.IDataTransfer? data)
+        IReadOnlyList<Uri> uris, byte[]? embedded, string carriedFormats)
     {
         _vm.AiStatus = "Fetching the image…";
         // Each step below is more of a guess than the one above it (B344):
@@ -223,8 +229,7 @@ public partial class MainWindow
                 // success, so it leaves a trace (B344).
                 Services.DiagnosticLog.WriteNote(
                     "reference-drop",
-                    "a page named the picture; the drag carried "
-                        + Services.WebImageDrop.DescribeFormats(data));
+                    "a page named the picture; the drag carried " + carriedFormats);
                 _vm.AiStatus = $"Drawing against “{name}” — the picture that page names, which is "
                     + "a guess. Drag the image itself if that is not the one.";
                 _vm.ReferenceDockerVisible = true;
@@ -236,7 +241,7 @@ public partial class MainWindow
         // no image Lightbox can read. What the drag carried goes to the log,
         // because the format names are the whole diagnosis (B294).
         Services.DiagnosticLog.WriteNote(
-            "reference-drop", "carried " + Services.WebImageDrop.DescribeFormats(data));
+            "reference-drop", "carried " + carriedFormats);
         _vm.AiStatus = "That drop did not contain an image Lightbox could read — what it did carry is "
             + "in the diagnostics log (Help ▸ Open the diagnostics folder).";
     }
