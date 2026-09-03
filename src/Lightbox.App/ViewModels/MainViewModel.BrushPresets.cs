@@ -201,9 +201,33 @@ public partial class MainViewModel
     private static Doc StartupDoc() =>
         DocumentFactory.CreateDoc(paperColor: Scene.DefaultBackgroundColor);
 
+    /// <summary>Whether an artist could put a mark on this layer right now.</summary>
+    /// <remarks>
+    /// <b>The same question <c>CanEdit</c> asks before every mark (B357)</b>,
+    /// and asking it differently here is what put the caret on a locked layer:
+    /// "paintable" used to mean only <em>not the paper</em>, so a document
+    /// whose first real layer was locked — or hidden, or inside a locked
+    /// folder — opened with that layer selected and the first stroke went
+    /// nowhere. <c>Scene.IsLayerEditable</c> is what accounts for the folder,
+    /// which is why this defers to it rather than reading <c>Locked</c>.
+    /// </remarks>
+    private static bool Paintable(Doc doc, Layer layer) =>
+        !layer.IsBackground && doc.Scene.IsLayerVisible(layer) && doc.Scene.IsLayerEditable(layer);
+
     /// <summary>Index of the first layer an artist can actually draw on.</summary>
-    private static int FirstPaintableLayer(Doc doc) =>
-        doc.Scene.Layers.FindIndex(l => !l.IsBackground) is var i && i >= 0 ? i : 0;
+    /// <remarks>
+    /// Falls back twice rather than once. With nothing paintable at all — every
+    /// layer locked, hidden, or paper — the caret goes to the first layer that
+    /// is at least not the paper, so it is somewhere an artist recognises and
+    /// <c>CanEdit</c> gets to say <em>why</em> the mark did not land. Returning
+    /// the paper instead would trade one silent failure for another.
+    /// </remarks>
+    private static int FirstPaintableLayer(Doc doc)
+    {
+        var layers = doc.Scene.Layers;
+        if (layers.FindIndex(l => Paintable(doc, l)) is var paintable && paintable >= 0) return paintable;
+        return layers.FindIndex(l => !l.IsBackground) is var loose && loose >= 0 ? loose : 0;
+    }
 
     /// <summary>Create a document from the File → New dialog in a new tab.</summary>
     /// <summary>

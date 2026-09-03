@@ -804,6 +804,10 @@ which is a weak test and still far better than none.
   - Bounded, and only on import: nothing in the paint path does this, and a
     document already imported pays none of it again.
 
+### layers
+
+- [ ] **B358** `P2` `layers` A document reopens on the first paintable layer rather than the one it was left on
+
 ### project
 
 - [ ] **B295** `P1` `project` `ids --fix` renumbers both entries of a duplicate filed inside this branch's own range, so the duplicate survives at the new number `evidence: _keeping_spots,cmd_selftest`
@@ -2540,6 +2544,14 @@ test reopens the bug.
   - Cost: M
 
 ### layers
+
+- [x] **B357** `P1` `layers` Opening a document lands on a locked or hidden layer, because paintable only means not-background `evidence: OpenLayerTests, ALockedFirstLayerIsNotWhereTheCaretLands, AHiddenFirstLayerIsNotEither, WithNothingPaintableTheCaretIsStillOffThePaper, AnUnlockedDocumentIsUnchanged, ThePaperIsStillNeverTheAnswer`
+  - Reported 2026-09-03, inside a request for something else: *“starting painting with a locked layer always results in first select a non-locked layer.”*
+  - **B136 fixed half of this and the half it left is the same bug.** B136’s symptom was *“unable to draw on the last build”* — index 0 is the locked paper on any document that has one — and its fix asked `!l.IsBackground`, which is the paper and nothing else. A document whose first real layer is **locked**, **hidden**, or inside a **locked folder** still opened with that layer selected, and the first stroke still went nowhere.
+  - **`CanEdit` has always known the answer**, and asks it before every mark: `Scene.IsLayerVisible` and `Scene.IsLayerEditable`, the second of which accounts for the enclosing folder. **Two places asking “can this be painted on” two different ways is the whole defect**, so there is one `Paintable` predicate now and both use it. Deferring to `IsLayerEditable` rather than reading `Locked` is what buys the folder case for nothing.
+  - **Two fallbacks rather than one.** With nothing paintable at all — every layer locked, hidden or paper — the caret goes to the first layer that is at least not the paper. Somewhere the artist recognises, and somewhere `CanEdit` gets to say *which* lock is in the way; returning the paper instead would trade one silent failure for another.
+  - Reverting turns exactly the two new-behaviour guards red and leaves the three that pin preserved behaviour green — `AnUnlockedDocumentIsUnchanged` and `ThePaperIsStillNeverTheAnswer` pass on both sides, which is what makes them worth having.
+  - Found while scoping [[B358]] (reopening on the layer you left), and worth fixing first: restoring a remembered layer is pointless if the restore can land somewhere unpaintable.
 
 - [x] **B136** `P1` `layers` Every document opened from disk starts on the locked paper layer, so drawing does nothing `evidence: ADocumentOpenedFromDiskOpensOnAPaintableLayer`
   - Reported as "unable to draw on the last build — the cursor showed, no strokes appeared", and reproduced under Xvfb in one open-from-recents: the status strip says *Layer "Background" is locked — unlock it to draw on it* while every stroke bounces off the paper.
