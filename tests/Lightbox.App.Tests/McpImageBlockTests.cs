@@ -81,8 +81,13 @@ public class McpImageBlockTests
         Assert.Equal(expected, data);
 
         using var bitmap = SKBitmap.Decode(png);
-        Assert.Equal(960, bitmap.Width);
-        Assert.NotEqual(SKColors.White, bitmap.GetPixel(65, 50)); // the stroke survived the trip
+        // Derived from the cap rather than written out, because the size is
+        // incidental to what this test guards: the seam is base64 text against
+        // raw bytes, and it would fail identically at any dimensions. Asserting
+        // the literal 960 here coupled a B192 regression test to a size contract
+        // it has nothing to do with, and duly broke when the cap landed.
+        Assert.Equal(IpcDocumentApi.RenderedFrameLongEdge, bitmap.Width);
+        Assert.NotEqual(SKColors.White, bitmap.GetPixel(52, 40)); // the stroke survived the trip
     }
 
     /// <summary>
@@ -101,8 +106,41 @@ public class McpImageBlockTests
         var (_, png) = OnTheWire(LightboxTools.ImageBlock(payload));
 
         using var bitmap = SKBitmap.Decode(png);
-        Assert.Equal(960, bitmap.Width);
-        Assert.Equal(vm.Doc.Scene.Height, bitmap.Height);
+        // The cap scales, it does not crop: the frame keeps its aspect.
+        var scale = IpcDocumentApi.RenderedFrameLongEdge / (double)vm.Doc.Scene.Width;
+        Assert.Equal(IpcDocumentApi.RenderedFrameLongEdge, bitmap.Width);
+        Assert.Equal((int)Math.Round(vm.Doc.Scene.Height * scale), bitmap.Height);
+    }
+
+    /// <summary>
+    /// A capped render says so, and a full-size one says nothing.
+    /// </summary>
+    /// <remarks>
+    /// <b>The condition under which Q178's cap was allowed to stand.</b>
+    /// G12's art-director measured that 768 keeps a frame's pose and loses 84%
+    /// of the fine dark pixels on a 1080p face — eyebrows and eyes go entirely
+    /// at 4K — so an agent checking its own inbetween would see a browless head
+    /// whether it drew one or not. The cap was kept and the silence was not: the
+    /// reply now says what fraction of the canvas the picture is. The absent
+    /// half matters as much as the present one, because a note on every render
+    /// is a note nobody reads by the time it counts.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ACappedRenderSaysHowMuchOfTheCanvasYouAreSeeing()
+    {
+        var vm = new MainViewModel(null);
+
+        var capped = LightboxTools.RenderFrame_ForTests(Answer(vm, "render_frame", new { frameIndex = 0 }));
+        var note = Assert.IsType<TextContentBlock>(Assert.Single(capped.OfType<TextContentBlock>()));
+        Assert.Contains("768", note.Text);
+        Assert.Contains($"{vm.Doc.Scene.Width}×{vm.Doc.Scene.Height}", note.Text);
+        Assert.Contains("longEdge 0", note.Text);
+        Assert.Single(capped.OfType<ImageContentBlock>());
+
+        var full = LightboxTools.RenderFrame_ForTests(
+            Answer(vm, "render_frame", new { frameIndex = 0, longEdge = 0 }));
+        Assert.Empty(full.OfType<TextContentBlock>());
+        Assert.Single(full.OfType<ImageContentBlock>());
     }
 
     /// <summary>

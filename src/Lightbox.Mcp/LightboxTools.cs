@@ -103,27 +103,98 @@ public static class LightboxTools
     /// <summary>Test seam: <see cref="WithBuild"/> without a running app on the pipe.</summary>
     internal static string WithBuildForTests(JsonElement payload) => WithBuild(payload);
 
-    [McpServerTool(Name = "get_frame_strokes"), Description(
-        "Get the strokes of the drawing exposed at a timeline frame (JSON, " +
-        "same stroke format used for drawing). Optional layerId; defaults to " +
-        "the active layer. Also returns keyIndex — the frame the drawing is " +
-        "actually keyed on.")]
-    public static Task<string> GetFrameStrokes(
+    /// <summary>
+    /// Test seam: the blocks <see cref="RenderFrame"/> would return for a
+    /// payload the app really produced, without a running app on the pipe.
+    /// </summary>
+    internal static IEnumerable<ContentBlock> RenderFrame_ForTests(JsonElement payload) =>
+        ReductionNote(payload) is { } note ? [note, ImageBlock(payload)] : [ImageBlock(payload)];
+
+    [McpServerTool(Name = "list_frame_strokes"), Description(
+        "List what a drawing contains without its geometry: one line per stroke " +
+        "with index, label, colour, pointCount and box [x,y,w,h]. About a " +
+        "twelfth the size of get_frame_strokes — read this first, then fetch " +
+        "geometry only for the strokes you will actually change. A box says " +
+        "where a stroke is, never what it does: a straight line and a curve " +
+        "between the same endpoints list almost identically, and strokes an " +
+        "artist drew carry no label at all. Fetch the geometry before treating " +
+        "a stroke as one you can carry over unchanged.")]
+    public static Task<string> ListFrameStrokes(
         [Description("Timeline frame index, 0-based")] int frameIndex,
         CancellationToken ct,
         [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null) =>
-        Text("get_frame_strokes", new { frameIndex, layerId }, ct);
+        Text("list_frame_strokes", new { frameIndex, layerId }, ct);
+
+    [McpServerTool(Name = "get_frame_strokes"), Description(
+        "Get stroke geometry from the drawing exposed at a timeline frame (JSON, " +
+        "same stroke format used for drawing). Returns every stroke unless you " +
+        "pass labels or indices, which fetch just those (indices are the ones " +
+        "list_frame_strokes reports). A whole dense frame can run to tens of " +
+        "thousands of tokens, so prefer naming what you need. Also returns " +
+        "keyIndex — the frame the drawing is actually keyed on.")]
+    public static Task<string> GetFrameStrokes(
+        [Description("Timeline frame index, 0-based")] int frameIndex,
+        CancellationToken ct,
+        [Description("Layer id from get_scene; omit for the active layer, required with labels/indices")] string? layerId = null,
+        [Description("Stroke labels to fetch; omit for all")] string[]? labels = null,
+        [Description("Stroke indices from list_frame_strokes; omit for all")] int[]? indices = null) =>
+        Text("get_frame_strokes", new { frameIndex, layerId, labels, indices }, ct);
 
     [McpServerTool(Name = "render_frame"), Description(
         "Render a timeline frame to an image so you can SEE the drawing. " +
         "Use this to inspect keyframes before inbetweening and to check your " +
-        "own results after inserting frames.")]
-    public static async Task<ImageContentBlock> RenderFrame(
+        "own results after inserting frames. Capped at 768px on the long edge: " +
+        "enough for pose, timing and staging, and NOT enough for fine marks — " +
+        "eyebrows, eyes and small hands thin out or vanish at the cap, more so " +
+        "the larger the canvas. Pass longEdge 0 for the authored size whenever " +
+        "you are judging detail that small, or a smaller number for a cheap look.")]
+    public static async Task<IEnumerable<ContentBlock>> RenderFrame(
         [Description("Timeline frame index, 0-based")] int frameIndex,
-        CancellationToken ct)
+        CancellationToken ct,
+        [Description("Long-edge cap in px; omit for 768, 0 for authored size")] int? longEdge = null)
     {
-        var result = await PipeBridge.CallAsync("render_frame", new { frameIndex }, ct);
-        return ImageBlock(result);
+        var result = await PipeBridge.CallAsync("render_frame", new { frameIndex, longEdge }, ct);
+        var image = ImageBlock(result);
+        return ReductionNote(result) is { } note ? [note, image] : [image];
+    }
+
+    /// <summary>
+    /// A line saying the picture is smaller than the canvas, when it is.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Absent at full size, on purpose.</b> Saying "1.00×" on every
+    /// unreduced render is the noise this surface is trying to remove, and it
+    /// would train a reader to skip the line in the one case it matters.
+    /// </para>
+    /// <para>
+    /// It exists because G12's art-director measured what the cap costs and the
+    /// answer was not "a bit softer": at 768 a 1080p frame keeps its pose and
+    /// loses 84% of the fine dark pixels on a face, and a 4K frame loses
+    /// eyebrows and eyes entirely. The cap survives that finding because it is
+    /// right for what the tool is mostly for — pose, timing, staging. What did
+    /// not survive is the reduction being <em>silent</em>: an agent checking its
+    /// own inbetween would see a browless head whether it had drawn one or not,
+    /// and would have no way to know it was looking at a fifth of the picture.
+    /// </para>
+    /// </remarks>
+    private static TextContentBlock? ReductionNote(JsonElement result)
+    {
+        if (result.ValueKind != JsonValueKind.Object
+            || !result.TryGetProperty("scale", out var s)
+            || s.GetDouble() >= 1.0)
+        {
+            return null;
+        }
+        static int Int(JsonElement e, string name) =>
+            e.TryGetProperty(name, out var v) ? v.GetInt32() : 0;
+        return new TextContentBlock
+        {
+            Text = $"Shown at {Int(result, "width")}×{Int(result, "height")}, "
+                   + $"{s.GetDouble():0.##}× of the {Int(result, "sceneWidth")}×{Int(result, "sceneHeight")} canvas. "
+                   + "Pose, timing and staging are reliable at this size; fine marks — eyebrows, eyes, "
+                   + "small hands — are thinned or gone. Re-render with longEdge 0 before judging those.",
+        };
     }
 
     [McpServerTool(Name = "insert_inbetweens"), Description(

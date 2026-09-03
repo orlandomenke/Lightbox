@@ -137,7 +137,7 @@ sealed class ReferenceViewImages(FrameBitmapCache frames)
         // Composed at the authored size so the warm per-layer cache entries are the ones
         // every other consumer already made, then scaled once.
         using var image = SceneRenderer.Compose(view.Width, view.Height, passes);
-        using var sized = Downscaled(image, longEdge);
+        using var sized = Rendering.OutboundImage.Downscaled(image, longEdge);
         using var data = (sized ?? image).Encode(SKEncodedImageFormat.Png, 100)
             ?? throw new InvalidOperationException("PNG encode failed.");
         return Convert.ToBase64String(data.AsSpan());
@@ -153,29 +153,5 @@ sealed class ReferenceViewImages(FrameBitmapCache frames)
         var encoded = Render(view, LongEdge);
         _encoded[view.Id] = encoded;
         return encoded;
-    }
-
-    /// <summary>The image no larger than <paramref name="longEdge"/>, or null if it already is.</summary>
-    private static SKImage? Downscaled(SKImage image, int longEdge)
-    {
-        var longest = Math.Max(image.Width, image.Height);
-        if (longEdge <= 0 || longest <= longEdge) return null;
-
-        var scale = longEdge / (double)longest;
-        var w = Math.Max(1, (int)Math.Round(image.Width * scale));
-        var h = Math.Max(1, (int)Math.Round(image.Height * scale));
-
-        var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Premul);
-        using var surface = SKSurface.Create(info);
-        if (surface is null) return null; // no surface, no downscale — send the full size
-        surface.Canvas.Clear(SKColors.Transparent);
-        // Mipmapped linear: a plain bilinear minification of line art drops thin strokes
-        // entirely, which is the one thing the model must not lose.
-        surface.Canvas.DrawImage(
-            image,
-            new SKRect(0, 0, w, h),
-            new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
-        surface.Canvas.Flush();
-        return surface.Snapshot();
     }
 }

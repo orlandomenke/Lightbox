@@ -2,6 +2,7 @@ using System.Text.Json;
 using Lightbox.Ai;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Geometry;
 using Lightbox.Core.Timeline;
 
 namespace Lightbox.App.Services;
@@ -46,6 +47,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
             return request.Op switch
             {
                 "get_scene" => GetScene(),
+                "list_frame_strokes" => ListFrameStrokes(request),
                 "get_frame_strokes" => GetFrameStrokes(request),
                 "render_frame" => RenderFrame(request),
                 "insert_inbetweens" => InsertInbetweens(request),
@@ -142,7 +144,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         });
     }
 
-    private sealed class FrameRef
+    private class FrameRef
     {
         public int FrameIndex { get; set; }
         public string? LayerId { get; set; }
@@ -218,30 +220,253 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         });
     }
 
-    private IpcProtocol.Response GetFrameStrokes(IpcProtocol.Request request)
+    private sealed class StrokeQuery : FrameRef
+    {
+        public List<string>? Labels { get; set; }
+        public List<int>? Indices { get; set; }
+    }
+
+    /// <summary>
+    /// The drawing at a frame, as the effective stroke list both stroke ops
+    /// number from.
+    /// </summary>
+    /// <remarks>
+    /// <b>One list, so an index means one thing.</b> <c>list_frame_strokes</c>
+    /// hands an agent a position and <c>get_frame_strokes</c> takes one back, so
+    /// the two must number the same strokes by the same rule — a second call to
+    /// <c>EffectiveStrokes</c> under different filtering would make the round
+    /// trip silently fetch the wrong line. The list is the effective record
+    /// (B233): erasures and the ink they erased are not part of the drawing, so
+    /// an agent can never address them.
+    /// </remarks>
+    private (Layer Layer, int KeyIndex, IReadOnlyList<Stroke> Strokes)? DrawingAt(int frameIndex, string? layerId)
+    {
+        var layer = ResolveLayer(layerId);
+        var keyIndex = ExposureSheet.KeyIndexAtOrBefore(layer, frameIndex);
+        if (keyIndex < 0) return null;
+        var frame = layer.Cels[keyIndex].Frame!;
+        return (layer, keyIndex, Core.Inbetween.StrokeRecordCleaner.EffectiveStrokes(StrokesOf(frame)));
+    }
+
+    /// <summary>
+    /// Every stroke in a drawing as one cheap line each — position, label and
+    /// size, but no geometry.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This exists because a tool result is spent out of the agent's context,
+    /// not out of a request.</b> <c>docs/DESIGN-ai-payload.md</c> costs an AI
+    /// request, which is sent once and paid once; an MCP reply is different in
+    /// kind, because it stays in the conversation and is re-read on every turn
+    /// after it. A 120-stroke frame is ~39k tokens of geometry through
+    /// <c>get_frame_strokes</c> — paid once to fetch and then again every turn —
+    /// and in most tasks an agent needed it only to learn which strokes exist.
+    /// This answers that question for about 8% of the tokens.
+    /// </para>
+    /// <para>
+    /// <b>The box is why this is usable rather than merely small.</b> A list of
+    /// labels says what is in the drawing; a label plus a box says which strokes
+    /// a change would touch, which is the actual question in front of an agent
+    /// about to redraw a limb. It comes from <see cref="TransformOps.Bounds(Stroke)"/>
+    /// so it is padded by the brush radius and agrees with the transform gizmo.
+    /// </para>
+    /// <para>
+    /// Flat <c>[x, y, w, h]</c> for the box and named keys for everything else —
+    /// Q18's answer applied where it was aimed. Numbers are the volume here and
+    /// carry no meaning in their names; <c>label</c> is the field whose loss
+    /// costs the agent the drawing, so it keeps its key.
+    /// </para>
+    /// </remarks>
+    private IpcProtocol.Response ListFrameStrokes(IpcProtocol.Request request)
     {
         var p = Payload<FrameRef>(request);
-        var layer = ResolveLayer(p.LayerId);
-        var keyIndex = ExposureSheet.KeyIndexAtOrBefore(layer, p.FrameIndex);
-        if (keyIndex < 0) return IpcProtocol.Response.Fail("No drawing at or before that frame on this layer.");
-        var frame = layer.Cels[keyIndex].Frame!;
-        // Effective record only: erased strokes are not part of the drawing.
-        var strokes = Core.Inbetween.StrokeRecordCleaner.EffectiveStrokes(StrokesOf(frame));
+        if (DrawingAt(p.FrameIndex, p.LayerId) is not { } drawing)
+            return IpcProtocol.Response.Fail("No drawing at or before that frame on this layer.");
+        var (layer, keyIndex, strokes) = drawing;
         return IpcProtocol.Response.Success(new
         {
             p.FrameIndex,
             LayerId = layer.Id,
             KeyIndex = keyIndex,
-            Strokes = strokes.Select(StrokeWire.ToWire),
+            StrokeCount = strokes.Count,
+            Strokes = strokes.Select((s, i) => new
+            {
+                Index = i,
+                // Absent unless it says something, the same rule the document
+                // model follows: a listing whose job is to be cheap must not
+                // spend bytes writing "brush" 120 times.
+                Tool = s.Tool == ToolKind.Brush ? null : s.Tool.ToString().ToLowerInvariant(),
+                Label = string.IsNullOrWhiteSpace(s.Label) ? null : s.Label,
+                s.Color,
+                // Not `points`: that key means an array of {x,y,pressure} in
+                // get_frame_strokes, and one name for two shapes across two tools
+                // on the same surface is a trap for whoever diffs them (G12).
+                PointCount = s.Points.Count,
+                Box = TransformOps.Bounds(s) is { } b
+                    ? new[]
+                    {
+                        Math.Round(b.MinX, 1), Math.Round(b.MinY, 1),
+                        Math.Round(b.MaxX - b.MinX, 1), Math.Round(b.MaxY - b.MinY, 1),
+                    }
+                    : null,
+            }),
         });
     }
 
+    /// <summary>
+    /// The geometry of a drawing's strokes — all of them, or only the ones the
+    /// caller names.
+    /// </summary>
+    /// <remarks>
+    /// <b>Unfiltered stays the default, and that is a deliberate cost.</b>
+    /// Making the cheap answer the default would save more and would change what
+    /// every existing agent gets from a call it already makes; the filter is
+    /// additive, and <c>list_frame_strokes</c> is what makes it usable — an
+    /// agent cannot ask for labels it has not been told exist.
+    /// </remarks>
+    private IpcProtocol.Response GetFrameStrokes(IpcProtocol.Request request)
+    {
+        var p = Payload<StrokeQuery>(request);
+        if (DrawingAt(p.FrameIndex, p.LayerId) is not { } drawing)
+            return IpcProtocol.Response.Fail("No drawing at or before that frame on this layer.");
+        var (layer, keyIndex, strokes) = drawing;
+
+        List<(int Index, Stroke Item)>? picked = null;
+        var labels = p.Labels is { Count: > 0 } ? p.Labels : null;
+        var indices = p.Indices is { Count: > 0 } ? p.Indices : null;
+        if (labels is not null || indices is not null)
+        {
+            // A filter names strokes on a *particular* layer, so it may not ride
+            // on the active-layer default. `layerId` omitted resolves afresh on
+            // every call, and the artist clicking a different layer between the
+            // listing and this fetch is an ordinary thing to do — after which
+            // index 3 silently means a different drawing's third stroke and the
+            // reply is a cheerful Ok. Found by G12's ai-engineer, who reproduced
+            // it rather than reasoned about it. `list_frame_strokes` returns the
+            // id it numbered against for exactly this purpose.
+            if (p.LayerId is null)
+            {
+                return IpcProtocol.Response.Fail(
+                    "labels and indices name strokes on one layer, so layerId is required with them — "
+                    + "pass the layerId that list_frame_strokes returned. Without it the active layer "
+                    + "is resolved again now, and it may not be the layer you listed.");
+            }
+            // A refusal beats a silent no-op, because an agent cannot see the
+            // drawing: an empty list back from a label it misspelled reads as
+            // "that stroke is gone" and sends it redrawing something that is
+            // already there. Naming what is present is the ImportCharacter rule
+            // — the shelf's contents are what makes the retry a decision.
+            // Cast through int? on purpose: FirstOrDefault over ints answers 0
+            // for "nothing matched", and 0 is a perfectly good stroke index.
+            if (indices?.Cast<int?>().FirstOrDefault(i => i < 0 || i >= strokes.Count) is { } bad)
+            {
+                return IpcProtocol.Response.Fail(
+                    $"index {bad} is out of range — this drawing has {strokes.Count} strokes (0..{strokes.Count - 1}).");
+            }
+            if (labels is not null)
+            {
+                var present = strokes.Select(s => s.Label).Where(l => !string.IsNullOrWhiteSpace(l)).Distinct().ToList();
+                if (labels.FirstOrDefault(l => !present.Contains(l)) is { } missing)
+                {
+                    return IpcProtocol.Response.Fail(
+                        present.Count == 0
+                            ? $"No stroke here is labelled \"{missing}\" — this drawing carries no labels at all."
+                            : $"No stroke here is labelled \"{missing}\" — present: {string.Join(", ", present)}.");
+                }
+            }
+            // Either/or rather than both: an agent asking for two labels and an
+            // index wants the three strokes, not their empty intersection.
+            picked = strokes.Index()
+                .Where(e => (indices?.Contains(e.Index) ?? false)
+                            || (labels?.Contains(e.Item.Label ?? "") ?? false))
+                .ToList();
+        }
+        // The record's order, never the order they were asked for — and said out
+        // loud, because a wire stroke carries no index of its own. G12: asking
+        // for [4, 1] returns 1 then 4, and an agent zipping its request against
+        // the reply (the natural thing to do) would attribute each stroke to the
+        // wrong one. Adding an index to StrokeDto would have fixed it by putting
+        // a field into every AI request that pays for it too, so the positions
+        // ride in the envelope instead — a few bytes, once.
+        //
+        // Null on an unfiltered read, where it would be 0..n-1 and would say
+        // nothing: this is the answer to a filter, and a reply that has not been
+        // filtered should not carry a list of every number in it.
+        return IpcProtocol.Response.Success(new
+        {
+            p.FrameIndex,
+            LayerId = layer.Id,
+            KeyIndex = keyIndex,
+            StrokeCount = strokes.Count,
+            Indices = picked?.Select(e => e.Index).ToList(),
+            Strokes = (picked?.Select(e => e.Item) ?? strokes).Select(StrokeWire.ToWire),
+        });
+    }
+
+    private sealed class RenderFrameRef : FrameRef
+    {
+        /// <summary>Null means the default cap; 0 or less means the authored size.</summary>
+        public int? LongEdge { get; set; }
+    }
+
+    /// <summary>
+    /// The longest edge of a frame rendered for an agent.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Its own constant, not <c>ReferenceViewImages.LongEdge</c>, even though
+    /// both are 768 today.</b> They cap for different reasons — that one because
+    /// a provider bills an AI request by area, this one because the picture is
+    /// spent out of the agent's own context — and Q27's answer will make the
+    /// reference cap a per-view heuristic. Sharing the number would drag
+    /// <c>render_frame</c> along with a decision that was never about it, which
+    /// is B31's mistake pointed the other way.
+    /// </para>
+    /// <para>
+    /// <b>Capped by default here, uncapped by default next door, and the
+    /// difference is what the tool is for.</b> <c>render_reference_view</c>
+    /// answers with a view, and an agent that asks for a view should get the
+    /// view — B31 recorded shrinking that reply as the bug, and
+    /// <c>RenderReferenceView_ProducesDecodablePng</c> has asserted the authored
+    /// width since the feature landed. <c>render_frame</c> is not that: its own
+    /// description says it exists so an agent can *see* a drawing and check its
+    /// own results, which is inspection. At 1080p that inspection costs ~2,764
+    /// image tokens against ~442 capped, on every look. <c>longEdge: 0</c> is
+    /// the way out for a caller that genuinely wants the pixels.
+    /// </para>
+    /// </remarks>
+    internal const int RenderedFrameLongEdge = 768;
+
     private IpcProtocol.Response RenderFrame(IpcProtocol.Request request)
     {
-        var p = Payload<FrameRef>(request);
+        var p = Payload<RenderFrameRef>(request);
         if (p.FrameIndex < 0 || p.FrameIndex >= Vm.Doc.Scene.FrameCount)
             return IpcProtocol.Response.Fail($"frameIndex must be 0..{Vm.Doc.Scene.FrameCount - 1}.");
-        return IpcProtocol.Response.Success(new { PngBase64 = Vm.RenderFramePng(p.FrameIndex) });
+        // The one place the cap applies, the same shape as EncodedReferenceView:
+        // the view model keeps answering at the authored size for every in-app
+        // caller, and only this reply — the one that leaves the machine — is capped.
+        var longEdge = p.LongEdge ?? RenderedFrameLongEdge;
+        var scene = Vm.Doc.Scene;
+        var longest = Math.Max(scene.Width, scene.Height);
+        var scale = longEdge <= 0 || longest <= longEdge ? 1.0 : longEdge / (double)longest;
+        return IpcProtocol.Response.Success(new
+        {
+            PngBase64 = Vm.RenderFramePng(p.FrameIndex, longEdge),
+            // What the caller is actually looking at. G12's art-director measured
+            // the reason: at 768 a 1080p frame keeps its pose and loses 84% of the
+            // fine dark pixels on a face, and a 4K frame loses eyebrows and eyes
+            // outright — so an agent checking its own inbetween would see a
+            // browless head whether it drew one or not. The cap stays, because it
+            // is right for the thing the tool is mostly used for; what was
+            // indefensible was that the reduction was *invisible*. Q27 recorded
+            // "the request shows what cap each view got" as a condition of
+            // choosing a cap at all, and this is that condition, here.
+            Width = (int)Math.Round(scene.Width * scale),
+            Height = (int)Math.Round(scene.Height * scale),
+            SceneWidth = scene.Width,
+            SceneHeight = scene.Height,
+            Scale = Math.Round(scale, 3),
+        });
     }
 
     private sealed class InsertPayload
