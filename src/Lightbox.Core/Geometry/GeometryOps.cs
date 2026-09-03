@@ -21,6 +21,51 @@ public static class GeometryOps
         return len;
     }
 
+    /// <summary>
+    /// How far one polyline sits from another, as the mean distance between
+    /// corresponding points once both are resampled to the same count.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This exists because the centroid is not a drawing.</b> B360: the
+    /// inbetween verifier judged "did this stay between the keys" on the
+    /// distance between two centres of mass, which is blind to everything a
+    /// centre of mass throws away — orientation, mirroring, shape. A rod
+    /// reflected through its own midpoint has *the same centroid*, so a
+    /// pendulum swung to the wrong side of its pivot scored exactly as well as
+    /// the correct answer, to one decimal place. Comparing along the stroke
+    /// cannot miss that, because the points themselves have to line up.
+    /// </para>
+    /// <para>
+    /// <b>Orientation is the caller's business, and this does not second-guess
+    /// it.</b> Taking the better of the two traversals was tried and is wrong
+    /// here: the mirrored rod above, read backwards, lines up with the expected
+    /// one well enough to score identically again — the reversal *is* the
+    /// error, so a measure free to undo it cannot see it. Callers that need
+    /// direction normalised should get it from
+    /// <c>StrokeInterpolator.Aligned</c>, which is the one place that decides
+    /// which point on A is which point on B.
+    /// </para>
+    /// <para>
+    /// <b>It agrees with the centroid exactly when the centroid was right.</b>
+    /// For a rigid translation every point moves by the same vector, so the
+    /// mean per-point distance *is* the centroid distance. The two numbers
+    /// diverge only when the shapes genuinely differ, which is the case the
+    /// centroid could not see.
+    /// </para>
+    /// </remarks>
+    public static double ShapeDeviation(
+        IReadOnlyList<StrokePoint> a, IReadOnlyList<StrokePoint> b, int samples = 16)
+    {
+        if (a.Count == 0 || b.Count == 0) return 0;
+        var n = Math.Max(2, samples);
+        var pa = Resample(a, n);
+        var pb = Resample(b, n);
+        double total = 0;
+        for (var i = 0; i < n; i++) total += Dist(pa[i], pb[i]);
+        return total / n;
+    }
+
     public static StrokePoint Centroid(IReadOnlyList<StrokePoint> points)
     {
         if (points.Count == 0) return new StrokePoint(0, 0, 0.5);

@@ -205,9 +205,20 @@ public static class CapabilityProfiler
     }
 
     /// <summary>
-    /// Mean centroid distance between the model's answer and the deterministic
-    /// one at the same <c>t</c>.
+    /// How far the model's answer sits from the deterministic one at the same
+    /// <c>t</c>, measured along matched strokes.
     /// </summary>
+    /// <remarks>
+    /// <b>Per stroke and along its length — B360, and the old version failed at
+    /// the one job this number has.</b> It used to flatten every stroke in the
+    /// frame into a single point cloud and compare two centroids, which cannot
+    /// tell an arc from the same arc drawn backwards: on the `arc` golden pair
+    /// the correct answer and its mirror image both reported **21.6 px**, for
+    /// drawings whose tips were 154 px apart. Since the whole reason this exists
+    /// is to separate a model that arced from one that interpolated along the
+    /// chord, a measure that pairs a good arc with a wrong one was reporting
+    /// noise in the Arc row and calling it evidence.
+    /// </remarks>
     private static double DepartureFrom(GoldenPair pair, IReadOnlyList<CandidateInbetween> candidates)
     {
         var distances = new List<double>(candidates.Count);
@@ -216,9 +227,13 @@ public static class CapabilityProfiler
             var free = Inbetweener.Inbetween(
                 pair.Request.KeyframeA, pair.Request.KeyframeB, candidate.T, pair.Request.Easing);
             if (free.Count == 0 || candidate.Strokes.Count == 0) continue;
-            distances.Add(GeometryOps.Dist(
-                GeometryOps.Centroid([.. free.SelectMany(s => s.Points)]),
-                GeometryOps.Centroid([.. candidate.Strokes.SelectMany(s => s.Points)])));
+            // The same matcher the verifier uses, so "which stroke is which"
+            // has one answer across the two halves of the correctness machinery.
+            var perStroke = StrokeMatcher.Match(free, candidate.Strokes)
+                .Where(m => m.A is not null && m.B is not null)
+                .Select(m => GeometryOps.ShapeDeviation(m.A!.Points, m.B!.Points))
+                .ToList();
+            if (perStroke.Count > 0) distances.Add(perStroke.Average());
         }
         return distances.Count == 0 ? 0 : distances.Average();
     }

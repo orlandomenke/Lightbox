@@ -288,7 +288,20 @@ public static class InbetweenVerifier
                 state.Fault = InbetweenFault.NotBetween;
                 return state;
             }
+            // Coherence stays centroid-based, and deliberately so: it asks
+            // whether a frame's *displacement* zigzags against its neighbours,
+            // which needs a signed vector rather than a magnitude. Shape
+            // deviation is the right measure for "is this the same drawing" and
+            // the wrong one for "did this jitter", so the two checks use
+            // different measures on purpose.
             state.Deviations[index] = (cCentroid.X - eCentroid.X, cCentroid.Y - eCentroid.Y);
+
+            if (AnchorFault(ctx, pair.B, et, index) is { } anchor)
+            {
+                state.Refusal = anchor;
+                state.Fault = InbetweenFault.NotBetween;
+                return state;
+            }
 
             if (VolumeFault(ctx, pair.A, pair.B, index) is { } volume)
             {
@@ -367,6 +380,82 @@ public static class InbetweenVerifier
         if (width < 1 && height < 1) return "every point is in the same place, so it is a dot, not a drawing.";
 
         return null;
+    }
+
+    /// <summary>
+    /// A point that does not move between the keys may not move in the
+    /// inbetween — the pivot rule (B360).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why the centroid check above cannot do this job.</b> Betweenness is
+    /// judged on the distance between two centres of mass, and a centre of mass
+    /// throws away orientation. Reflect a rod through the interpolated position
+    /// and its centroid moves by *exactly* as much as the correct answer's —
+    /// 21.6 px either way on the `arc` golden pair — so a pendulum swung to the
+    /// wrong side of its pivot scored identically to the right one and was
+    /// accepted clean. No threshold on that number could ever have separated
+    /// them, because the two numbers were equal. It needed a different question,
+    /// not a tighter answer.
+    /// </para>
+    /// <para>
+    /// <b>The question that does separate them is where the still points went.</b>
+    /// A pendulum's pivot is in the same place in both keys; so is a shoulder a
+    /// limb swings from, and the corner a lid hinges on. Those are the points an
+    /// inbetween has no licence to move, and moving one is the signature of a
+    /// drawing that has been flipped, rotated or re-anchored rather than
+    /// inbetweened. It fires on the mirrored rod under either orientation, which
+    /// is what makes it robust: reversing the candidate does not rescue it.
+    /// </para>
+    /// <para>
+    /// <b>An anchor may drift with the drawing; it may not move against it.</b>
+    /// The tolerance is the stroke's own mean deviation plus the usual scale and
+    /// floor slack, and that shape is forced rather than chosen. A whole-stroke
+    /// translation — a limb drifting, follow-through overshooting — moves the
+    /// anchor exactly as far as everything else, so it costs nothing here and
+    /// the ordinary latitude survives. A reflection moves the anchor *further
+    /// than the rest*, which is the signature being caught. Subtracting the mean
+    /// instead was tried and is wrong: the correct answer and its mirror have
+    /// identical residual profiles, differing only in which endpoint stayed put,
+    /// so only the anchor's absolute position separates them.
+    /// </para>
+    /// <para>
+    /// <b>Deliberately narrow.</b> It only looks at points whose travel between
+    /// the keys is under <see cref="MinTravel"/>; a stroke where everything moves
+    /// has no anchors and is never touched. Gross displacement is the centroid
+    /// check's job above — this one is only about a point moving relative to the
+    /// drawing it belongs to.
+    /// </para>
+    /// </remarks>
+    private static string? AnchorFault(PairContext ctx, Stroke candidate, double et, int index)
+    {
+        var (pa, pb) = StrokeInterpolator.Aligned(ctx.A, ctx.B);
+        if (pa.Count < 2 || candidate.Points.Count < 2) return null;
+
+        // The candidate read through the same correspondence the expected was
+        // built with, so "point i" means one thing across the whole check.
+        var expected = new List<StrokePoint>(pa.Count);
+        for (var i = 0; i < pa.Count; i++) expected.Add(GeometryOps.LerpPoint(pa[i], pb[i], et));
+        var pc = GeometryOps.Resample(candidate.Points, pa.Count);
+        var forward = GeometryOps.Dist(expected[0], pc[0]) + GeometryOps.Dist(expected[^1], pc[^1]);
+        var reversed = GeometryOps.Dist(expected[0], pc[^1]) + GeometryOps.Dist(expected[^1], pc[0]);
+        if (reversed < forward) pc.Reverse();
+
+        double drift = 0;
+        for (var i = 0; i < pa.Count; i++) drift += GeometryOps.Dist(expected[i], pc[i]);
+        drift /= pa.Count;
+
+        var allowed = drift + ScaleSlack * ctx.Scale + FloorSlack;
+        var worst = 0.0;
+        for (var i = 0; i < pa.Count; i++)
+        {
+            if (GeometryOps.Dist(pa[i], pb[i]) >= MinTravel) continue;
+            worst = Math.Max(worst, GeometryOps.Dist(pa[i], pc[i]));
+        }
+        return worst > allowed
+            ? Invariant(
+                $"the {Quote(ctx.Name(index))} moved a point the keys hold still — it sits {worst:0}px from where both keys put it, against {drift:0}px for the stroke as a whole, so this is a different drawing rather than one between them.")
+            : null;
     }
 
     /// <summary>

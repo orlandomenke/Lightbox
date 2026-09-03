@@ -298,7 +298,110 @@ public class InbetweenVerifierTests(ITestOutputHelper output)
         Assert.True(judged.AllAccepted);
     }
 
+    /// <summary>
+    /// A pendulum swung to the wrong side of its own pivot is refused (B360).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The keys are the committed <c>arc</c> golden pair, on purpose.</b>
+    /// This is not a constructed edge case — it is the exact drawing a boxes-only
+    /// reading produced during the Q180 experiment, and every arm of that
+    /// experiment scored it <c>Arc: clean (1/1)</c>. A rod pivots at
+    /// <c>(128,128)</c> and reaches up-left in one key, up-right in the other;
+    /// both keys are entirely above the pivot, and the mirrored answer hangs
+    /// below it.
+    /// </para>
+    /// <para>
+    /// <b>Why it used to pass is the whole lesson: the centroid is not a
+    /// drawing.</b> Betweenness was the distance between two centres of mass,
+    /// and reflecting a rod through its midpoint moves its centroid by exactly
+    /// as much as the correct answer does — 21.6 px in both directions. The old
+    /// check could not have caught this at any threshold, because the two
+    /// numbers were equal.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AMirroredArcIsRefusedBecauseItIsNotBetweenTheKeys()
+    {
+        var keyA = new List<Stroke> { Rod((128, 128), (40, 60)) };
+        var keyB = new List<Stroke> { Rod((128, 128), (216, 60)) };
+
+        InbetweenJudgement Judge(Stroke answer) =>
+            InbetweenVerifier.Verify(
+                keyA, keyB, [new CandidateInbetween(0.5, [answer])], Easing.Linear).Frames[0];
+
+        // The rod straight up: the arc the keys imply, and the answer to keep.
+        var correct = Judge(Rod((128, 128), (128, 16.8)));
+        // The same rod reflected through the interpolated position: pivot
+        // displaced 68px, tip 111px the wrong way, below a swing that never
+        // goes below its pivot.
+        var mirrored = Judge(Rod((128, 60), (128, 171.2)));
+
+        output.WriteLine($"correct : {correct.Refusal ?? "accepted"}");
+        output.WriteLine($"mirrored: {mirrored.Refusal ?? "accepted"}");
+
+        Assert.True(correct.Accepted, $"the real arc must survive: {correct.Refusal}");
+        Assert.False(mirrored.Accepted, "a rod hanging below a pivot both keys stay above is not between them");
+        Assert.Equal(InbetweenFault.NotBetween, mirrored.Fault);
+    }
+
+    /// <summary>
+    /// The chord answer still passes, so the fix refuses wrongness rather than
+    /// interpretation.
+    /// </summary>
+    /// <remarks>
+    /// The verifier's stated latitude is to reject "not between the keys at
+    /// all" and never "not where I would have put it" (Q33). A straight
+    /// interpolation is the most defensible answer there is, so if tightening
+    /// betweenness had made *it* fail, the fix would have been a regression
+    /// wearing a bug fix's clothes.
+    /// </remarks>
+    [Fact]
+    public void TheChordAnswerIsStillAccepted_TighteningRefusedWrongnessNotInterpretation()
+    {
+        var keyA = new List<Stroke> { Rod((128, 128), (40, 60)) };
+        var keyB = new List<Stroke> { Rod((128, 128), (216, 60)) };
+        var judged = InbetweenVerifier.Verify(
+            keyA, keyB,
+            [new CandidateInbetween(0.5, [Rod((128, 128), (128, 60))])], Easing.Linear).Frames[0];
+
+        output.WriteLine(judged.Refusal ?? $"accepted; notes: {string.Join("; ", judged.Notes)}");
+        Assert.True(judged.Accepted);
+        Assert.True(judged.MatchesDeterministic, "the chord is the deterministic answer and should say so");
+    }
+
+    /// <summary>
+    /// A stroke recorded end-to-start is the same mark, and is not refused for
+    /// it.
+    /// </summary>
+    /// <remarks>
+    /// The cost of comparing along a stroke rather than between two centroids
+    /// is that point order suddenly matters — so <c>ShapeDeviation</c> measures
+    /// both traversals and keeps the better. Without that, this correct answer
+    /// would be refused for a property no artist can see, which would be a
+    /// worse bug than B360.
+    /// </remarks>
+    [Fact]
+    public void AnAnswerDrawnEndToStartIsStillTheSameDrawing()
+    {
+        var keyA = new List<Stroke> { Rod((128, 128), (40, 60)) };
+        var keyB = new List<Stroke> { Rod((128, 128), (216, 60)) };
+        var judged = InbetweenVerifier.Verify(
+            keyA, keyB,
+            [new CandidateInbetween(0.5, [Rod((128, 16.8), (128, 128))])], Easing.Linear).Frames[0];
+
+        output.WriteLine(judged.Refusal ?? "accepted");
+        Assert.True(judged.Accepted, $"a reversed but identical stroke must pass: {judged.Refusal}");
+    }
+
     // ---- helpers ------------------------------------------------------------
+
+    private static Stroke Rod((double X, double Y) a, (double X, double Y) b) => new()
+    {
+        Label = "rod",
+        Points = [new(a.X, a.Y, 0.6), new(b.X, b.Y, 0.6)],
+        Brush = new BrushSettings { Size = 4 },
+    };
 
     private static Stroke ClosedBox(string label, double x, double y, double side) =>
         ClosedRect(label, x, y, side, side);
