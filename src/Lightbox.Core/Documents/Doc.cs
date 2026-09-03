@@ -255,6 +255,37 @@ public sealed class Doc
     public int? PlayheadFrame { get; set; }
 
     /// <summary>
+    /// The layer the artist was working on when the document was saved, by id,
+    /// or null — and null is every document left on the layer it would have
+    /// opened on anyway, which is most of them. Restored on open, so a file
+    /// reopens on the layer it was put down on instead of the first paintable
+    /// one (B358).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>By id rather than by index.</b> A frame is a number, so
+    /// <see cref="PlayheadFrame"/> stores one; a layer has identity, and an
+    /// index silently means a *different* layer once anything is reordered,
+    /// added or deleted. Restoring the wrong layer is worse than restoring
+    /// none, because the artist finds out by drawing on it.
+    /// </para>
+    /// <para>
+    /// Same shape as <see cref="PlayheadFrame"/> otherwise, for its reasons:
+    /// nullable because optional means absent, and stamped by the save funnel
+    /// rather than tracked live — which layer is selected is view state
+    /// (invariant 5) and only crosses into the record at the moment the record
+    /// is written.
+    /// </para>
+    /// <para>
+    /// An id naming a layer that is gone, or one that is now locked or hidden,
+    /// is ignored rather than honoured: the open falls back to the first
+    /// paintable layer (B357), so a remembered selection can never be the
+    /// reason a first stroke goes nowhere.
+    /// </para>
+    /// </remarks>
+    public string? ActiveLayerId { get; set; }
+
+    /// <summary>
     /// Marks this document as a template: a starting point other animations are
     /// copied from. Q12's answer, and deliberately the whole of it.
     /// </summary>
@@ -397,6 +428,7 @@ public sealed class Doc
         shell.ReferenceSheets = [];
         shell.ReferenceBoard = null;
         shell.PlayheadFrame = null;
+        shell.ActiveLayerId = null;
         return shell;
     }
 
