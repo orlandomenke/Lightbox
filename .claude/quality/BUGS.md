@@ -123,6 +123,16 @@ which is a weak test and still far better than none.
 
 ### ai
 
+- [ ] **B360** `P2` `ai` The verifier accepts an arc mirrored through its own pivot, so a wrong inbetween scores clean `evidence: AMirroredArcIsRefusedBecauseItIsNotBetweenTheKeys, TheDepartureMetricSeesAFlippedStrokeAsAFlippedStroke`
+  - Repro, on the committed `arc` golden pair. Keys are a rod pivoting at `(128,128)`, reaching up-left to `(40,60)` and up-right to `(216,60)` — both keys lie entirely **above** the pivot. Put these three answers at `t=0.5` through `InbetweenVerifier.Verify`:
+    - correct, rod straight up `(128,128)-(128,16.8)` → **accepted**, right;
+    - chord `(128,128)-(128,60)` → accepted with the Q33 "added nothing" note, right;
+    - **mirrored, rod straight down `(128,60)-(128,171.2)`** → **accepted, no fault, no note.**
+  - The third is wrong in the way an animator would spot instantly: the pivot has moved 68 px and the rod hangs below it, on a swing where neither key has any ink below `y=128`. It is not "not where I would have put it" — it is *not between the keys*, which is the one thing the verifier exists to catch. `TravelSlack` is 0.40 of a stroke's own travel and the deviation here is ~89 px mean against ~88 px mean travel, so it should refuse on the numbers it already computes.
+  - **Worse, the departure figure cannot see it either**: the correct answer and the mirrored one both report **21.6 px from the free engine**, identical to one decimal, for drawings whose tips are 154 px apart. That is consistent with the metric pairing points by proximity rather than by order, so a stroke flipped end-for-end reads as barely moved — which is why the second evidence anchor is named separately. Confirm the mechanism before fixing; this entry reports the observation, not the cause.
+  - **Filed rather than fixed only because the branch in hand was not this** — `CLAUDE.md` says a P2 gets fixed, always, and it also says finish the branch you are on and give the next bug its own. This is the second half of that rule, not an exception to the first: the harness branch that found it is one objective and refusing a mirrored arc is another. It is next, not later.
+  - **Found by the Q180 harness, and it is the reason that harness was worth building** — three arms (geometry, picture, boxes-only) all scored *identically clean* on this pair while one of them had drawn the pendulum backwards. A golden set that reports "Arc: clean (1/1)" for a mirrored arc is certifying the wrong thing, and this is exactly the "well-formed but not good" gap the art-director role exists for. Cost: S to refuse it, M if the departure metric turns out to need reworking.
+
 - [ ] **B32** `P3` `ai` A third of the Windows download is a second copy of .NET, because the MCP server targets net10.0 `evidence: manual`
   - Repro: publish both projects as CI does and measure. **286 MB on disk, 105 MB zipped** — of which the app is 69.5 MB and `mcp/` is **35.3 MB**, a full second self-contained runtime.
   - It is not accidental duplication that a shared output folder would fix. `Lightbox.App` targets `net8.0` and `Lightbox.Mcp` targets **`net10.0`** (with `Microsoft.Extensions.Hosting 10.0.10`), so of the 224 files in `mcp/`, **182 have the same name as one in the parent and different contents** and only 2 are byte-identical. They are genuinely two runtimes.
