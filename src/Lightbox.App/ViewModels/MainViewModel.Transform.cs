@@ -306,7 +306,12 @@ public partial class MainViewModel
             guide.Y += dy;
         }
         _guidesMoveDelta = (_guidesMoveDelta.X + dx, _guidesMoveDelta.Y + dy);
-        NotifyGuides();
+        // The view only, for the same reason as DragGuide (B353) — and this is
+        // the group case of exactly that, as the remark above already says.
+        // NotifyGuides would publish a frame and re-flatten every taped
+        // reference strip once per pointer event; EndGuidesMove records the
+        // whole move as one step.
+        NotifyGuidesView();
     }
 
     /// <summary>Close a group guide drag: the whole of it becomes one undo step.</summary>

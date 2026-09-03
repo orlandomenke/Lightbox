@@ -578,7 +578,10 @@ public partial class MainViewModel
         // evenly over the divisions. Floored so it cannot be dragged inside
         // out — a scale of no height has no top to pull back.
         guide.Spacing = Math.Max(1, guide.Spacing - dy / divisions);
-        NotifyGuides();
+        // The view only, for the reason above (B353) — and this method's own
+        // remark already promised it: "nothing is recorded until
+        // EndHeightScaleResize closes the gesture into one step."
+        NotifyGuidesView();
     }
 
     /// <summary>Close a height-scale resize: the whole of it becomes one undo step.</summary>
@@ -635,7 +638,14 @@ public partial class MainViewModel
         guide.X += dx;
         guide.Y += dy;
         _guideDragTotal = (_guideDragTotal.X + dx, _guideDragTotal.Y + dy);
-        NotifyGuides();
+        // The view only (B353). This runs once per pointer event, and the
+        // recording half of NotifyGuides is not free: it publishes a frame
+        // through the whole compose pipeline and calls MarkDocumentEdited,
+        // which re-flattens every taped reference strip and invalidates the
+        // reference-view cache. None of that is wanted mid-gesture — the
+        // guide is chrome, the canvas redraws it from GuidesChanged, and
+        // EndGuideDrag records the whole move as one step.
+        NotifyGuidesView();
     }
 
     /// <summary>Close a guide drag: the whole of it becomes one undo step.</summary>
