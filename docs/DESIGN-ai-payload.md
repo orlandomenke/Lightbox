@@ -223,6 +223,83 @@ ratio under 2× and `AJitterRepairCostsMoreBecauseItShipsTheNeighbours` holds th
 expensive one under 3×, on the grounds that a repair costing a whole second
 request has stopped being a correction.
 
+## The other surface: MCP, where the arithmetic is different
+
+Everything above costs a **request** — built, sent, paid once, gone. The MCP
+surface is not that, and the difference was missed for as long as this document
+existed because "payload" reads like one thing.
+
+**A tool result lands in the agent's context and is re-read on every turn after
+it.** That makes a fat reply a standing charge rather than a one-off, and it
+gives this surface three cost classes where a request has two:
+
+| Class | What it is | Measured, 2026-09-03 |
+| --- | --- | --- |
+| **Resident** | Tool schemas, re-sent every turn all session | ~1,564 tokens of description text over 13 tools |
+| **Accumulating** | A reply, paid once to fetch and again every turn after | `get_frame_strokes` on a 120-stroke frame: 147.4 KB, **~37,700 tokens** |
+| **Output** | What the agent must *emit* to write a frame back | three inbetweens: 442.2 KB, **~113,200 tokens** |
+
+**The first row went up to buy the second, and that is the trade rather than a
+regression.** It was ~1,243 tokens over 12 tools before this work; the listing
+tool and the warnings G12 required — that a box says where a stroke is and never
+what it does, that 768 px loses eyebrows — cost ~320 tokens resident, once per
+turn, to save ~35,000 accumulating, once per look. It is a good trade at any
+plausible number of looks and it is still a trade: **a description is the only
+thing here billed whether or not the tool is used.**
+
+`McpReadBudgetTests` holds these the way `AiPayloadBudgetTests` holds the
+request figures.
+
+**The output row is not a cost, it is a ceiling.** 113k output tokens does not
+fit in one response at any provider here, so an agent cannot inbetween a dense
+drawing over MCP however much anybody is willing to spend. Every other number in
+this document is something you pay; that one is something you cannot do. B359,
+and its fix is blocked on Q179 rather than on effort — a delta encoding removes
+the ceiling and risks making the cheap path "translate these strokes", which is
+the deterministic answer wearing the AI's clothes.
+
+**The accumulating row has the same shape as the lever in the section above, and
+it was cheaper to build here.** Order item 3 wants the request to carry the
+strokes that need judgement; on this surface the equivalent is letting the agent
+*ask* for them, which needs no judgement at all — only a way to see what is
+there. `list_frame_strokes` answers a 120-stroke drawing in 10.1 KB against
+147.4, a **14× reduction**, because index, label, colour, point count and a box
+are all an agent needs to decide which strokes it cares about. Naming three of
+them costs 2.5% of the frame.
+
+That is worth stating plainly, because it cuts against the instinct this
+document otherwise encourages: **the read side of MCP got its 14× without
+anybody solving stroke triage.** Triage is hard because the *sender* must decide
+what matters; here the receiver decides, and the receiver is the one who knows.
+
+**Images on this surface cap too, and the cap needed a condition attached.**
+`render_frame` sends at most 768 px on the long edge — ~442 image tokens against
+~2,764 at 1080p — while `render_reference_view` stays uncapped, because an agent
+asking for a view should get the view (B31). The constants are separate for that
+reason and must stay separate. What the reference-side reasoning did *not*
+transfer is the legibility question: measured through the real path, 768 keeps a
+frame's pose and staging and removes **84% of the fine dark pixels from a 1080p
+face**, with eyebrows and eyes gone outright at 4K — worse in a scene than on a
+sheet, because a face is a smaller share of a full frame. So a reduced render
+now reports the scale it used, and a full-size one reports nothing. Q178 carries
+the numbers and the alternative that is still live.
+
+**The resident row is small today and is the one that scales worst.** Tool
+schemas are the only cost here paid on every turn regardless of what the agent
+does, and the roadmap still owes an agent "the rest of the ~38 document-level
+commands" — layers, camera, effects, export, selection. At today's ~120 tokens
+per tool that is roughly **5k tokens resident, forever, before any work**. The
+implication for anyone adding to this surface: a tool description is not
+documentation and is not free. Say what the tool does and what it costs, and
+stop.
+
+### The rule the halves become here
+
+The document's own rule — *say which half you are optimising* — still holds and
+needs a third term. On MCP: **resident scales with the size of the surface,
+accumulating with how much an agent looks at, and output with how much it
+writes.** They have different fixes and only one of them is a wire format.
+
 ## Order
 
 1. ~~**B31** — cache the encoded reference views.~~ **Done.** 225 ms cold,

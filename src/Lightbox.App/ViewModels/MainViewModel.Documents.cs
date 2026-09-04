@@ -1367,8 +1367,30 @@ public partial class MainViewModel
     /// <summary>The layer external tools target when they don't name one.</summary>
     public Layer ActiveLayerForIpc => ActiveLayer;
 
-    /// <summary>Composite one timeline frame to PNG (no onion skin, no live stroke).</summary>
-    public string RenderFramePng(int frameIndex)
+    /// <summary>
+    /// Composite one timeline frame to PNG at the scene's size (no onion skin,
+    /// no live stroke).
+    /// </summary>
+    /// <remarks>
+    /// <b>Uncapped, and that is the contract</b> — the same split
+    /// <see cref="RenderReferenceViewPng(ReferenceView)"/> keeps. Every in-app
+    /// caller wants the frame at the size it was drawn; the cap belongs to the
+    /// one reply that leaves the machine, and lives at that call site
+    /// (<c>IpcDocumentApi.RenderedFrameLongEdge</c>) where its reason is true.
+    /// B31 is the entry that records what putting it here instead costs.
+    /// </remarks>
+    public string RenderFramePng(int frameIndex) => RenderFramePng(frameIndex, 0);
+
+    /// <summary>
+    /// Composite one timeline frame to PNG, no wider or taller than
+    /// <paramref name="longEdge"/>.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="longEdge"/> of 0 or less means the authored size.
+    /// Explicit rather than defaulted, so a new caller has to say which of the
+    /// two it wants.
+    /// </remarks>
+    public string RenderFramePng(int frameIndex, int longEdge)
     {
         var scene = Scene;
         var passes = new List<RenderPass>();
@@ -1396,8 +1418,11 @@ public partial class MainViewModel
                 Style: EffectPasses.SelfStyle(layer, frameIndex)));
         }
         if (EffectPasses.SceneStackPass(scene, frameIndex) is { } grade) passes.Add(grade);
+        // Composed at the authored size so the warm per-layer cache entries are
+        // the ones every other consumer already made, then scaled once.
         using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));
-        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
+        using var sized = Rendering.OutboundImage.Downscaled(image, longEdge);
+        using var data = (sized ?? image).Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
             ?? throw new InvalidOperationException("PNG encode failed.");
         return Convert.ToBase64String(data.AsSpan());
     }
