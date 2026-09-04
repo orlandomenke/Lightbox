@@ -316,6 +316,57 @@ afterwards. Everything it does goes through the same stroke record as
 everything else, so its work is undoable and indistinguishable in kind from
 yours.
 
+### Reading a drawing without reading all of it
+
+An agent has a working memory, and everything it looks at stays in it for the
+rest of the session. A busy drawing is a lot to look at: a 120-stroke frame is
+around 37,000 tokens of geometry, and an agent that fetches two of those has
+spent a good part of what it had before it draws anything. So there are two ways
+to read a drawing, and the cheap one comes first:
+
+| Tool | What it does |
+| --- | --- |
+| `list_frame_strokes` | One line per stroke — its number, its label, its colour, how many points it has and the box it occupies. No geometry, and about a twelfth the size. |
+| `get_frame_strokes` | The actual points. Give it `labels` or `indices` and it returns only those strokes; give it neither and it returns the whole drawing. |
+
+The pairing is the point: an agent lists the drawing, sees that a stroke labelled
+`near-arm` sits where it is about to work, and asks for that one stroke instead
+of the other hundred and nineteen.
+
+**Labels come from strokes an agent or the AI drew, not from ones you drew.**
+There is no way to name a stroke by hand today, so a drawing you made yourself
+lists as numbers, colours, point counts and boxes — still enough to find a
+stroke by where it sits, and less pointed than a name. It also means the listing
+is a starting point rather than an answer: a box says *where* a line is and never
+*what it does*, and a straight line and a curve between the same two points look
+almost identical in a listing. An agent that treats a stroke as unchanged
+without looking at it is guessing.
+
+If it asks for a label that is not there, it gets an error naming the labels
+that *are*, rather than an empty answer. An agent cannot see your drawing, and
+an empty answer would read as "that line is gone" and send it redrawing
+something you already have. For the same reason, a request that names strokes
+has to say which layer it means rather than relying on whichever layer is
+active — otherwise clicking a different layer while an agent works would quietly
+point it at the wrong drawing.
+
+**Pictures are capped.** `render_frame` comes back at up to 768 pixels on the
+long edge — a fraction of the cost of a full canvas, and enough to judge pose,
+timing and staging by. It is **not** enough for fine marks: eyebrows, eyes and
+small hands thin out or disappear at that size, and the bigger your canvas the
+more of them go. On a 4K scene a face can arrive with no eyes at all.
+
+So a reduced picture arrives **with a line saying so** — what fraction of the
+canvas it is, and that fine marks are gone at that size — and an agent can
+re-render at full size before judging them. A picture that was not reduced comes
+with no such line. If you are ever puzzled that an agent seems blind to a small
+detail it should have caught, this is the first thing to check: ask it what
+scale it looked at the frame at.
+
+Character sheet views are never capped: `render_reference_view` gives the view
+exactly as you drew it, because there the reference art is the thing being asked
+for rather than a look at it.
+
 ### Timing, not just drawing
 
 An agent can author the exposure sheet as well as read it. Four tools cover it,

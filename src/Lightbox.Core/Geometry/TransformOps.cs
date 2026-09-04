@@ -276,6 +276,34 @@ public static class TransformOps
     }
 
     /// <summary>
+    /// Bounds of one stroke, padded by its brush radius so the box wraps the
+    /// painted pixels rather than the centerline; null when it has no points.
+    /// </summary>
+    /// <remarks>
+    /// Split out of the frames overload below so that "where is this stroke"
+    /// has one answer. The MCP surface reports a box per stroke so an agent can
+    /// tell which strokes a change touches without reading their geometry, and
+    /// a second implementation of the padding rule would let that box and the
+    /// transform gizmo disagree about the same stroke.
+    /// </remarks>
+    public static (double MinX, double MinY, double MaxX, double MaxY)? Bounds(Stroke stroke)
+    {
+        double minX = double.MaxValue, minY = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue;
+        var any = false;
+        var reach = stroke.Brush.Size / 2;
+        foreach (var p in stroke.Points)
+        {
+            any = true;
+            if (p.X - reach < minX) minX = p.X - reach;
+            if (p.Y - reach < minY) minY = p.Y - reach;
+            if (p.X + reach > maxX) maxX = p.X + reach;
+            if (p.Y + reach > maxY) maxY = p.Y + reach;
+        }
+        return any ? (minX, minY, maxX, maxY) : null;
+    }
+
+    /// <summary>
     /// Bounds of all (filtered) strokes across frames, padded by each
     /// stroke's brush radius so the box wraps the painted pixels, not just
     /// the centerlines; null when empty.
@@ -291,15 +319,12 @@ public static class TransformOps
             foreach (var stroke in StrokesOf(frame))
             {
                 if (filter is not null && !filter(stroke)) continue;
-                var reach = stroke.Brush.Size / 2;
-                foreach (var p in stroke.Points)
-                {
-                    any = true;
-                    if (p.X - reach < minX) minX = p.X - reach;
-                    if (p.Y - reach < minY) minY = p.Y - reach;
-                    if (p.X + reach > maxX) maxX = p.X + reach;
-                    if (p.Y + reach > maxY) maxY = p.Y + reach;
-                }
+                if (Bounds(stroke) is not { } b) continue;
+                any = true;
+                if (b.MinX < minX) minX = b.MinX;
+                if (b.MinY < minY) minY = b.MinY;
+                if (b.MaxX > maxX) maxX = b.MaxX;
+                if (b.MaxY > maxY) maxY = b.MaxY;
             }
         }
         return any ? (minX, minY, maxX, maxY) : null;
