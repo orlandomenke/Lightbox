@@ -91,6 +91,10 @@ binding must be refused, or must rebind. Note this is *not* invariant 7 — that
 governs render, and forbids multiplying stroke coordinates to render bigger.
 Nothing here multiplies a stroke at all.
 
+**Nothing here is blocked.** The rig landed in full — armature, bone tool, pose
+keys, IK, constraints, correctives, layer links — so there is something to put
+in a library today; only the library is missing.
+
 **Compatibility falls out of absence.** A set saved before this exists carries no
 authored-canvas key and pulls exactly as it does today, which is the
 `optional-settings` rule doing the migration for free.
