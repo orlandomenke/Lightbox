@@ -806,7 +806,7 @@ which is a weak test and still far better than none.
 
 ### layers
 
-- [ ] **B358** `P2` `layers` A document reopens on the first paintable layer rather than the one it was left on
+- [ ] **B358** `P2` `layers` A document reopens on the first paintable layer rather than the one it was left on `evidence: LastLayerTests, ReopeningLandsOnTheLayerItWasLeftOn, TheLayerItWouldHaveOpenedOnAnywayWritesNoKey, ADeletedLayerIsNotHonoured, ALayerLockedSinceTheSaveIsNotHonouredEither, TheLayerRidesAlongsideThePlayheadNotInsteadOfIt`
 
 ### project
 
