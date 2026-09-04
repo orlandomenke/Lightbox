@@ -789,6 +789,11 @@ public partial class MainViewModel
         }
         if (name.Trim() is { Length: > 0 } trimmed) set.Name = trimmed;
         set.Guides = [.. guides.Select(g => g.Clone())];
+        // The paper they were drawn on, so a pull onto other paper can put
+        // them back where they belong (Q181). Recorded on every save,
+        // including a save over an older set — the guides are this document's
+        // now, so the canvas has to be this document's too.
+        set.Canvas = GuideSetCanvas.Of(Scene);
         SaveProject();
         NotifyGuideSetOffers();
         AiStatus = $"Guides saved as “{set.Name}”. Share it onto a folder from the project window.";
@@ -820,22 +825,29 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Copy a set's guides into this document, as one undoable step.
+    /// Copy a set's guides into this document, fitted to its paper, as one
+    /// undoable step.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Fresh ids on the copies: pulling the same set twice is two independent
     /// batches, and removing one guide by id must not take its twin with it.
+    /// </para>
+    /// <para>
+    /// <b>Fitted, not copied verbatim</b> (Q181). A set authored on 4K landing
+    /// on 1080p at its authored pixel coordinates is four times too tall with
+    /// its anchor off the paper, which made a shared height chart useless
+    /// across the resolutions one project actually holds.
+    /// <see cref="GuideSetFit"/> carries it; a set saved before sets recorded
+    /// their paper has no canvas and lands exactly as it always did.
+    /// </para>
     /// </remarks>
     [RelayCommand]
     private void PullGuideSet(GuideSet? set)
     {
         if (set is null || set.Guides.Count == 0) return;
-        var copies = set.Guides.Select(g =>
-        {
-            var copy = g.Clone();
-            copy.Id = Ids.NewId("gd");
-            return copy;
-        }).ToList();
+        var copies = GuideSetFit.Onto(set, GuideSetCanvas.Of(Scene));
+        foreach (var copy in copies) copy.Id = Ids.NewId("gd");
         var ids = copies.Select(c => c.Id).ToHashSet();
         _editor.PerformDelta(
             apply: doc => (doc.Scene.Guides ??= []).AddRange(copies),

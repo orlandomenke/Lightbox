@@ -816,6 +816,24 @@ dragging one afterwards changes this drawing only, never the set, and never
 another drawing that pulled from it. Refresh the set deliberately from the
 editor when the rig itself should change.
 
+**A set lands on the paper it arrives at.** Sets remember the document size
+they were saved from, so a rig drawn on a 4K sheet and pulled into a 1080p one
+arrives at the same place in the frame at the same share of the height — a
+six-head knight that filled 70% of the tall sheet fills 70% of the small one,
+still six heads, still standing on the same ground. That is what keeps a
+character the same height across a project whose documents are not all one
+size.
+
+Where the two documents have different *shapes* rather than different sizes,
+height wins: everything is scaled by one factor taken from the height, and only
+the anchors move sideways to keep their place across the frame. A line keeps
+its angle, a grid stays square, and an isometric rig stays isometric — which
+scaling the two axes separately would quietly have ruined.
+
+Sets saved before this existed have no size recorded and arrive exactly as they
+always did, in the pixels they were saved at. Save one again from an open
+document to teach it its paper.
+
 **Sharing decides what "Add from set" offers.** Out of the box every set in
 the project is offered to every document. In the project window, right-click a
 folder to **share** a set onto it — from the first share onwards the project is

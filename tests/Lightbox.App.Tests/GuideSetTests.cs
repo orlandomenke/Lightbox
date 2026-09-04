@@ -184,4 +184,68 @@ public sealed class GuideSetTests(ITestOutputHelper output) : BrushStateIsolated
         editor.Show();
         editor.Close();
     }
+
+    /// <summary>
+    /// Saving a set records the paper it was drawn on, and pulling it onto
+    /// other paper puts it back where it belongs — Q181, the owner's report
+    /// that a 4K set arrived on a 1080p document four times too tall.
+    /// </summary>
+    [AvaloniaFact]
+    public void AGuideSetRemembersTheCanvasItWasAuthoredOn()
+    {
+        var vm = Vm();
+        vm.NewDocument(new NewDocumentSettings("Knight 4K", 3840, 2160, 12, 72, "#ffffff", false));
+
+        // A six-head knight standing on the floor, filling 70% of the frame.
+        var unit = 2160 * 0.7 / 6;
+        vm.AddGuide(GuideKind.HeightScale, 1920, 1944, spacing: unit, divisions: 6);
+        var set = vm.SaveGuidesAsSet("Knight");
+
+        Assert.NotNull(set!.Canvas);
+        Assert.Equal(3840, set.Canvas!.Width);
+        Assert.Equal(2160, set.Canvas.Height);
+        output.WriteLine($"saved on {set.Canvas.Width}×{set.Canvas.Height}, {unit:0.##} px/head");
+
+        // Same project, half the paper, same ratio — the case the owner named.
+        vm.NewDocument(new NewDocumentSettings("Knight HD", 1920, 1080, 12, 72, "#ffffff", false));
+        Assert.Empty(vm.Guides);
+
+        vm.PullGuideSetCommand.Execute(set);
+
+        var landed = Assert.Single(vm.Guides);
+        Assert.Equal(GuideKind.HeightScale, landed.Kind);
+        Assert.Equal(6, landed.Divisions);                 // still six heads
+        Assert.Equal(unit / 2, landed.Spacing, 6);         // half the paper, half the head
+        Assert.Equal(960, landed.X, 6);
+        Assert.Equal(972, landed.Y, 6);
+        // Verbatim, it would have stood at y=1944 on 1080 px of paper with its
+        // top 570 px above the sky. Fitted, the whole chart is on the page.
+        Assert.InRange(landed.Y, 0, 1080);
+        Assert.InRange(landed.Y - landed.Spacing * 6, 0, 1080);
+        output.WriteLine($"landed at ({landed.X:0.#}, {landed.Y:0.#}), {landed.Spacing:0.##} px/head");
+    }
+
+    /// <summary>
+    /// The pull is still a copy, and fitting must not have made the library
+    /// drift: pulling the same set onto three sizes leaves it as authored.
+    /// </summary>
+    [AvaloniaFact]
+    public void FittingASetOntoThreeDocumentsNeverEditsTheLibrary()
+    {
+        var vm = Vm();
+        vm.NewDocument(new NewDocumentSettings("Author", 2000, 1000, 12, 72, "#ffffff", false));
+        vm.AddGuide(GuideKind.Grid, 0, 0, spacing: 100);
+        var set = vm.SaveGuidesAsSet("Grid")!;
+
+        foreach (var (w, h) in new[] { (1000, 500), (4000, 2000), (800, 600) })
+        {
+            vm.NewDocument(new NewDocumentSettings($"{w}", w, h, 12, 72, "#ffffff", false));
+            vm.PullGuideSetCommand.Execute(set);
+            var landed = Assert.Single(vm.Guides);
+            Assert.Equal(100 * (h / 1000.0), landed.Spacing, 6);
+        }
+
+        Assert.Equal(100, set.Guides[0].Spacing, 9);
+        Assert.Equal(2000, set.Canvas!.Width);
+    }
 }
