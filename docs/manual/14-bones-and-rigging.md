@@ -73,6 +73,29 @@ are creating, moving, re-aiming or extruding follows the pointer, computed by
 the same code the release runs — so where the drag shows it is where letting
 go puts it, and the whole gesture is still a single undo step.
 
+## More than one character on a drawing
+
+A drawing can carry several skeletons, and they are all real: each one poses,
+each one animates on the timeline, and drawings can be bound to any of them.
+That is what lets you put a second character in as a **reference you can pose**
+— rough out where the dog is standing frame by frame and draw over it — without
+the reference being a dead outline you have to keep re-imagining.
+
+**One of them is in hand.** The bone tool edits that one: drawing a bone adds to
+it, and rename, delete and the options rows all mean it. The others draw
+**dimmer**, so which is in hand reads without clicking anything, and they have
+no grab handles.
+
+**Click another character to take it in hand.** The first click selects it and
+does nothing else; a second click moves the bone you clicked. Two clicks rather
+than one, deliberately: the other characters are standing on the drawing you are
+making, and a stray drag there is expensive. When a drawing has more than one
+skeleton the tool options also list them, so you can switch without hunting for
+a bone.
+
+The list of characters is absent when there is only one — a picker over a single
+rig can only tell you what you already know, and the canvas says it anyway.
+
 ## Skeleton sets — the same character on the next drawing
 
 A skeleton you built once is worth keeping: the human, the dog, the goblin.

@@ -88,6 +88,21 @@ public partial class BoneOptionsBar : UserControl
             _vm.RemoveCorrective(row.Id);
     }
 
+    /// <summary>
+    /// Take a rig in hand from the picker (Q182).
+    /// </summary>
+    /// <remarks>
+    /// The bone list's rule, for its reason: only a row is a pick, and a
+    /// cleared selection is the control reacting to its items changing —
+    /// echoing that into the view model would drop the artist's rig every time
+    /// a bone was added.
+    /// </remarks>
+    private void OnRigChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_syncing || _vm is null) return;
+        if ((sender as ListBox)?.SelectedItem is RigRow row) _vm.EditRig(row.Id);
+    }
+
     private void OnBoneListSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_syncing || _vm is null) return;

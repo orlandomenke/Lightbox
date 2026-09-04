@@ -39,6 +39,25 @@
                  TextWrapping="Wrap" Opacity="0.6"
                  IsVisible="{Binding !HasArmature}" />
 
+      <!--
+        Which character is in hand (Q182). Absent until there are two, because
+        a picker over one rig is a control that can only tell you what you
+        already know — and the drawing itself says it, since the other
+        skeletons draw dimmed.
+      -->
+      <StackPanel Spacing="6" IsVisible="{Binding HasManyRigs}">
+        <TextBlock Text="Editing" Opacity="0.7" />
+        <ListBox ItemsSource="{Binding RigRows}" MaxHeight="96"
+                 SelectionChanged="OnRigChanged"
+                 ToolTip.Tip="Which skeleton the bone tool edits. The others draw dimmed; clicking one on the canvas takes it in hand.">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:RigRow">
+              <TextBlock Text="{Binding Label}" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </StackPanel>
+
       <!-- The bones themselves: findable by name, not only by hitting them.
            A list rather than a combo — in a docker there is room to show the
            rig whole, and the hierarchy is the thing worth seeing. Items and
