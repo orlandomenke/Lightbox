@@ -55,6 +55,14 @@ public class DocCloneTests(ITestOutputHelper output)
     /// that the fingerprint refuses anyway. Copying it per undo snapshot would buy a
     /// guarantee nothing needs and pay megabytes a step for it.</item>
     /// </list>
+    /// <para>
+    /// <b>The one rule rather than an entry:</b> a zero-length array is skipped
+    /// wherever it appears. <c>[]</c> on a derived getter — <c>Doc.Rigs</c> is
+    /// the first — compiles to <c>Array.Empty&lt;T&gt;()</c>, a runtime
+    /// singleton that cannot gain an element, so two graphs holding it hold
+    /// nothing in common. It is the value-type skip's argument one shape along,
+    /// which is why it is a rule in the walker and not a type in this list.
+    /// </para>
     /// </remarks>
     private static readonly HashSet<Type> DeliberatelyShared =
         [typeof(AnchorPoint), typeof(ShapeBox), typeof(BakedSample), typeof(StrokeCheckpoint)];
@@ -191,6 +199,12 @@ public class DocCloneTests(ITestOutputHelper output)
 
         if (ReferenceEquals(a, b))
         {
+            // A zero-length array is the runtime's own singleton — `[]` on a
+            // derived getter compiles to Array.Empty<T>() — and it cannot gain
+            // an element, so both graphs holding it are holding nothing. This
+            // is the same argument the value-type skip above makes, one shape
+            // along, and it is general rather than a carve-out for one type.
+            if (a is Array { Length: 0 }) return;
             if (!DeliberatelyShared.Contains(type)) shared.Add($"{path} : {type.Name}");
             return;                                     // no point descending into one object
         }

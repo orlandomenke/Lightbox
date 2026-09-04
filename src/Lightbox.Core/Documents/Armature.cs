@@ -141,6 +141,24 @@ public sealed class BoneJiggle
 /// </remarks>
 public sealed class Armature
 {
+    /// <summary>
+    /// This rig's own id, so a document holding several can say which one it
+    /// means (Q182).
+    /// </summary>
+    public string Id { get; set; } = Ids.NewId("rig");
+
+    /// <summary>
+    /// What the artist calls it — "Knight", "Dog". Shown wherever a rig has to
+    /// be chosen between.
+    /// </summary>
+    /// <remarks>
+    /// Not nullable and not absent, unlike most naming on the record: a rig
+    /// with no name is unpickable the moment there are two, and there is no
+    /// second place to fall back to. A document written before Q182 gets the
+    /// default on load, which is honest — it had one rig and never named it.
+    /// </remarks>
+    public string Name { get; set; } = "Skeleton";
+
     /// <summary>The bones. Order is authoring order; hierarchy comes from <see cref="Bone.ParentId"/>.</summary>
     public List<Bone> Bones { get; set; } = [];
 
