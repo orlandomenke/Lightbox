@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lightbox.App.Views.RigSetEditor"
+        Width="420" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="Skeleton sets">
+
+  <StackPanel Margin="16" Spacing="12">
+
+    <!--
+      Same orientation sentence as the guide-set editor, because the feature
+      spans the same three surfaces — made here, shared onto folders in the
+      project window, pulled onto a drawing from Skeleton - Add from set.
+    -->
+    <TextBlock TextWrapping="Wrap" Opacity="0.8"
+               Text="A skeleton set is a named copy of a drawing's armature, kept in the project. Share one onto a folder from the project window; put one on a drawing from Skeleton › Add skeleton from set." />
+
+    <!-- The head count is the point, so the list says it per row. -->
+    <ListBox x:Name="Sets" Height="140" SelectionChanged="OnSelectionChanged" />
+
+    <!--
+      The one thing an artist has to know before saving: without a character
+      height scale on the drawing there is no head count to measure, and the
+      set can only ever be scaled by canvas share.
+    -->
+    <TextBlock x:Name="NoHeightScaleNote" TextWrapping="Wrap" Opacity="0.8"
+               IsVisible="False"
+               Text="This drawing has no character height scale, so a set saved from it has no head count and cannot be scaled by proportion. Add one under View › Guides first." />
+
+    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+      <TextBlock Grid.Column="0" Text="Name" VerticalAlignment="Center" />
+      <TextBox Grid.Column="1" x:Name="NameBox" Watermark="Goblin" />
+      <Button Grid.Column="2" x:Name="RenameButton" Content="Rename" Click="OnRename"
+              ToolTip.Tip="Apply the name to the selected set" />
+    </Grid>
+
+    <StackPanel Spacing="6">
+      <Button x:Name="SaveNewButton" Click="OnSaveNew" HorizontalAlignment="Stretch"
+              Content="Save this drawing's skeleton as a new set" />
+      <Button x:Name="OverwriteButton" Click="OnOverwrite" HorizontalAlignment="Stretch"
+              Content="Replace the selected set with this drawing's skeleton" />
+      <Button x:Name="DeleteButton" Click="OnDelete" HorizontalAlignment="Stretch"
+              Content="Delete the selected set (and its shares)" />
+    </StackPanel>
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Close" Click="OnClose" IsCancel="True" Classes="tertiary" />
+    </StackPanel>
+  </StackPanel>
+</Window>

@@ -427,6 +427,15 @@ public sealed class ProjectManifest
     /// </remarks>
     public List<GuideSet>? GuideSets { get; set; }
 
+    /// <summary>
+    /// The named skeletons this project keeps, or null — and absent — until
+    /// one is saved (Q181).
+    /// </summary>
+    /// <remarks>
+    /// <inheritdoc cref="RigSet" path="/remarks/para[1]"/>
+    /// </remarks>
+    public List<RigSet>? RigSets { get; set; }
+
     /// <summary>Export presets belonging to this project, once there are any.</summary>
     /// <remarks>
     /// <b>Q30.</b> A preset used to be a user setting in <c>ExportPresetStore</c>,

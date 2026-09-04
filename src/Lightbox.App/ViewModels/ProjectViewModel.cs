@@ -1301,6 +1301,10 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public IReadOnlyList<GuideSet> ShareableGuideSets =>
         Project?.Manifest.GuideSets ?? (IReadOnlyList<GuideSet>)[];
 
+    /// <summary>The skeletons an artist can share onto the selected scope.</summary>
+    public IReadOnlyList<RigSet> ShareableRigSets =>
+        Project?.Manifest.RigSets ?? (IReadOnlyList<RigSet>)[];
+
     /// <summary>The documents marked as templates, for a scope to start from.</summary>
     /// <remarks>
     /// Reads each document to find the flag, which is why this is a method's
@@ -1330,6 +1334,16 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         if (Already(scope, GuideScopes.Kind, id)) return;
         ResourceScopes.Declare(project.Manifest, scope, GuideScopes.Kind, id);
         AfterScopeChange(project, $"{guides.Name} shared with {ShareScopeLabel}.");
+    }
+
+    [RelayCommand]
+    private void ShareRigSetEntry(RigSet? rig)
+    {
+        if (Project is not { } project || rig?.Id is not { Length: > 0 } id) return;
+        var scope = ScopeOfSelected();
+        if (Already(scope, RigScopes.Kind, id)) return;
+        ResourceScopes.Declare(project.Manifest, scope, RigScopes.Kind, id);
+        AfterScopeChange(project, $"{rig.Name} shared with {ShareScopeLabel}.");
     }
 
     /// <summary>Say what a new document made in this scope starts from.</summary>
@@ -1386,6 +1400,9 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
     public IReadOnlyList<ScopeMenuEntry> GuideSetMenu =>
         Entries(ShareableGuideSets, g => g.Name, ShareGuideSetEntryCommand);
 
+    public IReadOnlyList<ScopeMenuEntry> RigSetMenu =>
+        Entries(ShareableRigSets, r => r.Name, ShareRigSetEntryCommand);
+
     public IReadOnlyList<ScopeMenuEntry> TemplateMenu =>
         Entries(ShareableTemplates, t => t.Name, SetDefaultTemplateEntryCommand);
 
@@ -1416,6 +1433,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
             PaletteScopes.Kind => Project?.Palettes.FirstOrDefault(p => p.Id == resource.Id)?.Name,
             GradientScopes.Kind => Project?.Gradients.GetValueOrDefault(resource.Id)?.Name,
             GuideScopes.Kind => Project?.Manifest.GuideSets?.FirstOrDefault(g => g.Id == resource.Id)?.Name,
+            RigScopes.Kind => Project?.Manifest.RigSets?.FirstOrDefault(r => r.Id == resource.Id)?.Name,
             SymbolScopes.Kind => Project?.Symbols.GetValueOrDefault(resource.Id)?.Name,
             TipScopes.Kind => Project?.Manifest.Tips?.FirstOrDefault(t => t.Id == resource.Id)?.Name,
             ExportScopes.Kind => ShareableExportPresets.FirstOrDefault(p => p.Id == resource.Id)?.Name,

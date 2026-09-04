@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4891
+budget: 4907
 
 ## Why it is here despite being XAML
 
@@ -292,3 +292,20 @@ leaves a number nobody can account for. So every reason above stays, and
   this file's standing exception — and it is the exact case the exception is
   for: the feature existed and the missing five lines were the whole of what
   kept an artist from it.
+
+- **4,891 → 4,907** (2026-09-04): the **Skeleton** menu — Q181's rig library.
+  Sixteen lines for four verbs an artist cannot otherwise reach: pull a saved
+  skeleton from the sets this drawing is offered, open the set editor, and the
+  three-way choice of what decides a pulled skeleton's size.
+  It is the standing exception again, and deliberately the *cheap* half of it.
+  The submenu reuses the `ScopeMenuEntry` item template the guide-set pull
+  already defines rather than inventing a second one, the three size options
+  are plain radio items with no block of their own, and every word of the
+  reasoning — why heads rather than a percentage, why "the size it was saved"
+  has to exist, why a bound skeleton refuses the pull — lives in
+  `ArmatureFit`, `MainViewModel.RigSets.cs` and Q181, which is where a reader
+  asking *why* ends up regardless.
+  The lesson being paid for here is the guide sets': a record, a resolver and a
+  share menu shipped with nothing that could feed them, and the whole chain was
+  reachable only from tests until somebody noticed. Sixteen lines is what it
+  costs not to repeat that.

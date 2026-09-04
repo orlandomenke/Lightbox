@@ -476,4 +476,19 @@ public partial class MainWindow
         _vm.NotifyGuideSetOffers();
         new GuideSetEditor(_vm).ShowDialog(this);
     }
+
+    /// <summary>
+    /// Open the skeleton-set editor. Needs a project for the same reason the
+    /// guide-set editor does — the library lives in one.
+    /// </summary>
+    private void OnRigSets(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.ProjectDocker.Project is null)
+        {
+            _vm.AiStatus = "Skeleton sets live in a project — open or create one first.";
+            return;
+        }
+        _vm.NotifyRigSetOffers();
+        new RigSetEditor(_vm).ShowDialog(this);
+    }
 }
