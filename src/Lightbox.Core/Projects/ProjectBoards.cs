@@ -51,11 +51,100 @@ public static class ProjectBoards
         [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"], StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// The scope whose board this document looks at — the top folder above it,
-    /// or null for a document filed nowhere, which sees the project-wide board.
+    /// The folder a document would start a wall of its own on: the folder it
+    /// is actually in, or null for a document filed nowhere.
     /// </summary>
+    /// <remarks>
+    /// <b>Not where it looks</b> — that is <see cref="OwnerOf"/>. This is only
+    /// the default owner for a wall that does not exist yet, and it is the
+    /// document's own folder because a fresh project organised
+    /// <c>characters/Ren</c> beside <c>characters/Goblin Archer</c> should give
+    /// each of them their own wall without being asked.
+    /// </remarks>
     public static ProjectFolder? ScopeOf(ProjectManifest manifest, DocumentRef? document) =>
-        ProjectSheets.DefaultScope(manifest, document);
+        ProjectFolders.ById(manifest, document?.FolderId);
+
+    /// <summary>
+    /// The folder whose wall this document looks at: the nearest folder at or
+    /// above it that has one, or its own folder when nothing above has a wall
+    /// yet.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Nearest, not topmost (B361).</b> This used to be the *root* ancestor,
+    /// via <see cref="ProjectSheets.DefaultScope"/> — which is the right rule
+    /// for filing a sheet and the wrong one for finding a wall. It works when
+    /// the subject is a top-level folder with animation folders under it
+    /// (<c>Knight/Locomotion</c>, <c>Knight/Combat</c> — one knight, one wall)
+    /// and fails when characters are nested under a category
+    /// (<c>characters/Ren</c>, <c>characters/Goblin Archer</c> — two
+    /// characters, one wall, which is how this was reported).
+    /// </para>
+    /// <para>
+    /// <b>The folder tree cannot say which folder is the subject</b>, so this
+    /// does not try. It answers the question the files can answer — *whose wall
+    /// is nearest* — and the artist re-files it from the board window when the
+    /// answer is wrong. A default that is usually right and always correctable
+    /// beats a rule that is silently wrong for half of the layouts people use.
+    /// </para>
+    /// <para>
+    /// Inheriting on read is also what makes narrowing the scope safe: a wall
+    /// already filed on a top-level folder keeps being seen by everything under
+    /// it, so nobody opens a document to find their reference gone.
+    /// </para>
+    /// </remarks>
+    public static ProjectFolder? OwnerOf(Project project, DocumentRef? document)
+    {
+        var manifest = project.Manifest;
+        var own = ScopeOf(manifest, document);
+        if (own is not null && HasBoard(project, own)) return own;
+        if (ProjectFolders.NearestAbove(manifest, document, f => HasBoard(project, f)) is { } above) return above;
+        return HasBoard(project, null) ? null : own;
+    }
+
+    /// <summary>
+    /// Every folder this document could hang its wall on, nearest first, ending
+    /// with null for the project-wide wall.
+    /// </summary>
+    public static IReadOnlyList<ProjectFolder?> OwnerChoicesFor(
+        ProjectManifest manifest, DocumentRef? document)
+    {
+        var choices = new List<ProjectFolder?>();
+        if (ProjectFolders.ById(manifest, document?.FolderId) is { } folder)
+        {
+            var chain = ProjectFolders.AncestryOf(manifest, folder);
+            for (var i = chain.Count - 1; i >= 0; i--) choices.Add(chain[i]);
+        }
+        choices.Add(null);
+        return choices;
+    }
+
+    /// <summary>
+    /// File this wall on <paramref name="target"/>, so every document under it
+    /// sees it — and stop anything nearer shadowing it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Moving down splits, moving up merges.</b> Choosing a folder nearer
+    /// the document writes the wall there, and it stops inheriting. Choosing one
+    /// further up writes it there and deletes the walls in between, because a
+    /// nearer wall would otherwise keep winning and the choice would look
+    /// ignored. Only this document's own ancestry is touched — a sibling's wall
+    /// is not on that chain.
+    /// </remarks>
+    public static void SetOwner(
+        Project project, DocumentRef? document, ProjectFolder? target, ReferenceBoard board)
+    {
+        foreach (var folder in OwnerChoicesFor(project.Manifest, document))
+        {
+            if (folder?.Id == target?.Id) break;
+            if (HasBoard(project, folder)) Save(project, folder, new ReferenceBoard());
+        }
+        Save(project, target, board);
+    }
+
+    /// <summary>Whether a scope has a wall of its own.</summary>
+    private static bool HasBoard(Project project, ProjectFolder? folder) =>
+        ProjectIo.ResolveInProject(project, PathFor(folder)) is { } path && File.Exists(path);
 
     /// <summary>The project-relative path of a scope's board file.</summary>
     public static string PathFor(ProjectFolder? folder) =>
