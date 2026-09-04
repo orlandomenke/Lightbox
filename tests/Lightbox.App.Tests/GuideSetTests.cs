@@ -248,4 +248,152 @@ public sealed class GuideSetTests(ITestOutputHelper output) : BrushStateIsolated
         Assert.Equal(100, set.Guides[0].Spacing, 9);
         Assert.Equal(2000, set.Canvas!.Width);
     }
+
+    // ---- applied on create (Q181, decision 3) ---------------------------------
+
+    /// <summary>
+    /// Put the caret in a folder, so a document made now is filed there.
+    /// </summary>
+    private static void WorkingIn(MainViewModel vm, ProjectFolder folder)
+    {
+        vm.ProjectDocker.Refresh();
+        vm.ProjectDocker.Selected =
+            vm.ProjectDocker.Rows.First(r => r.Folder?.Id == folder.Id);
+        Assert.Equal(folder.Id, vm.ProjectDocker.TargetFolder?.Id);
+    }
+
+    /// <summary>A six-head knight saved as a set from a 4K document.</summary>
+    private static GuideSet KnightChart(MainViewModel vm)
+    {
+        vm.NewDocument(new NewDocumentSettings("Knight 4K", 3840, 2160, 12, 72, "#ffffff", false));
+        vm.AddGuide(GuideKind.HeightScale, 1920, 1944, spacing: 2160 * 0.7 / 6, divisions: 6);
+        return vm.SaveGuidesAsSet("Knight")!;
+    }
+
+    /// <summary>
+    /// The point of declaring a height chart on the knight's folder: every
+    /// drawing made under it is measured against the same figure without
+    /// anybody remembering to ask.
+    /// </summary>
+    [AvaloniaFact]
+    public void ANewDocumentInAScopedFolderOpensWithItsGuides()
+    {
+        var vm = Vm();
+        var manifest = vm.ProjectDocker.Project!.Manifest;
+        var knight = ProjectFolders.Add(manifest, "Knight");
+        var set = KnightChart(vm);
+        ResourceScopes.Declare(manifest, knight, GuideScopes.Kind, set.Id);
+
+        WorkingIn(vm, knight);
+        vm.NewDocument(new NewDocumentSettings("walk", 1920, 1080, 12, 72, "#ffffff", false));
+
+        var opened = Assert.Single(vm.Guides);
+        Assert.Equal(GuideKind.HeightScale, opened.Kind);
+        Assert.Equal(6, opened.Divisions);
+        output.WriteLine($"opened with {vm.Guides.Count} guide from “{set.Name}”");
+
+        // A fresh id, not the library's, so the two cannot be confused.
+        Assert.NotEqual(set.Guides[0].Id, opened.Id);
+        // And the library is untouched by having been handed out.
+        Assert.Equal(1920, set.Guides[0].X, 6);
+    }
+
+    /// <summary>
+    /// Applied on create is the same pull, so it is fitted the same way — the
+    /// two halves of Q181 are one mechanism, not two.
+    /// </summary>
+    [AvaloniaFact]
+    public void AGuideSetAppliedOnCreateIsFittedLikeAnyOtherPull()
+    {
+        var vm = Vm();
+        var manifest = vm.ProjectDocker.Project!.Manifest;
+        var knight = ProjectFolders.Add(manifest, "Knight");
+        var set = KnightChart(vm);
+        ResourceScopes.Declare(manifest, knight, GuideScopes.Kind, set.Id);
+
+        WorkingIn(vm, knight);
+        vm.NewDocument(new NewDocumentSettings("walk", 1920, 1080, 12, 72, "#ffffff", false));
+
+        var opened = Assert.Single(vm.Guides);
+        Assert.Equal(2160 * 0.7 / 6 / 2, opened.Spacing, 6);   // half the paper, half the head
+        Assert.Equal(960, opened.X, 6);
+        Assert.Equal(972, opened.Y, 6);
+        // The whole chart is on the page, which is the report this all started from.
+        Assert.InRange(opened.Y - opened.Spacing * 6, 0, 1080);
+    }
+
+    /// <summary>
+    /// Auto-apply follows a deliberate share and never a default: an unscoped
+    /// project offers every set to every document, and declares nothing.
+    /// </summary>
+    [AvaloniaFact]
+    public void ADocumentInAnUnscopedProjectOpensWithNoGuides()
+    {
+        var vm = Vm();
+        var manifest = vm.ProjectDocker.Project!.Manifest;
+        var knight = ProjectFolders.Add(manifest, "Knight");
+        var set = KnightChart(vm);
+        Assert.NotNull(set);   // the set exists; nothing declares it
+
+        WorkingIn(vm, knight);
+        vm.NewDocument(new NewDocumentSettings("walk", 1920, 1080, 12, 72, "#ffffff", false));
+
+        Assert.Empty(vm.Guides);
+        // And it is still offered, so the artist can ask for it by hand.
+        Assert.Contains(vm.OfferedGuideSets, s => s.Id == set.Id);
+    }
+
+    /// <summary>
+    /// Nearest wins, as every other scoped resource resolves: a knight under a
+    /// project that also publishes a studio rig draws against the knight's.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheNearestDeclarationDecidesWhichGuidesADocumentOpensWith()
+    {
+        var vm = Vm();
+        var manifest = vm.ProjectDocker.Project!.Manifest;
+        var knight = ProjectFolders.Add(manifest, "Knight");
+
+        vm.NewDocument(new NewDocumentSettings("Studio", 1920, 1080, 12, 72, "#ffffff", false));
+        vm.AddGuide(GuideKind.Grid, 0, 0, spacing: 128, name: "Studio grid");
+        var studio = vm.SaveGuidesAsSet("Studio")!;
+        var chart = KnightChart(vm);
+
+        ResourceScopes.Declare(manifest, null, GuideScopes.Kind, studio.Id);   // project-wide
+        ResourceScopes.Declare(manifest, knight, GuideScopes.Kind, chart.Id);  // and on the knight
+
+        WorkingIn(vm, knight);
+        vm.NewDocument(new NewDocumentSettings("walk", 1920, 1080, 12, 72, "#ffffff", false));
+
+        var opened = Assert.Single(vm.Guides);
+        Assert.Equal(GuideKind.HeightScale, opened.Kind);   // the knight's, not the studio's
+        output.WriteLine("nearest declaration won, as palettes resolve");
+    }
+
+    /// <summary>
+    /// The guides are what the document was created with, not an edit to it:
+    /// undo before the first stroke must not mean "take away the guides I
+    /// opened with", and a drawing nobody has touched must not read as unsaved
+    /// work.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheGuidesADocumentOpensWithAreNotAnEditToIt()
+    {
+        var vm = Vm();
+        var manifest = vm.ProjectDocker.Project!.Manifest;
+        var knight = ProjectFolders.Add(manifest, "Knight");
+        var set = KnightChart(vm);
+        ResourceScopes.Declare(manifest, knight, GuideScopes.Kind, set.Id);
+
+        WorkingIn(vm, knight);
+        vm.NewDocument(new NewDocumentSettings("walk", 1920, 1080, 12, 72, "#ffffff", false));
+
+        Assert.Single(vm.Guides);
+        Assert.Equal(0, vm.ActiveTab!.Editor.Revision);   // created that way, not edited into it
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Single(vm.Guides);
+        Assert.Equal(0, vm.ActiveTab!.Editor.Revision);
+    }
 }

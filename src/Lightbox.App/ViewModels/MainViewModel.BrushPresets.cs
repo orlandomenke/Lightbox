@@ -313,6 +313,10 @@ public partial class MainViewModel
         // document, and `Source` still being null at that instant costs nothing
         // because adopting has already put the id in the docker's dirty set.
         fresh.Source = ProjectDocker.AdoptNewDocument(settings.Name, doc);
+        // And the guides its folder declares, fitted to this paper (Q181).
+        // After adoption because that is what decides which folder it is in —
+        // there is no scope to resolve until the document has a home.
+        ApplyScopedGuides(doc, fresh.Source);
         // The kind of work chosen at creation is a reason to offer that kind's
         // panels — offered, not imposed, which is why it is a choice on the
         // dialog and defaults to leaving the arrangement alone.

@@ -841,6 +841,20 @@ scoped, and a document is offered what its own folder (or the folders above
 it) declares: the knight's height guide stops appearing in the goblin's menu.
 This is the same scoping palettes, gradients and brush tips use.
 
+**A shared set is also what a new drawing opens with.** Make a document while
+you are in the knight's folder and the knight's guides are already on it,
+fitted to whatever size you chose — which is the point of declaring a height
+chart on a character at all, since *Add from set* on every new drawing is the
+step that gets skipped. The nearest share wins, exactly as a palette resolves:
+a drawing under the knight gets the knight's rig rather than a project-wide
+one, and only that one. Nothing is applied in a project where you have never
+shared a set, so this follows a deliberate share and never a default.
+
+The guides a drawing opens with are part of it rather than an edit to it: the
+drawing does not read as unsaved work you did not do, and undo before your
+first stroke will not take them away. Delete them like any other guide if a
+particular drawing does not want them.
+
 #### Guide defaults, and the guides already placed
 
 **Edit → Configure → Guides and grid** holds what new guides are made from —
