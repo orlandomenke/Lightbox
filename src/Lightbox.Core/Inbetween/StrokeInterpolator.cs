@@ -8,7 +8,19 @@ public static class StrokeInterpolator
     /// <summary>Points each stroke is resampled to before interpolation.</summary>
     public const int Samples = 64;
 
-    public static Stroke Interpolate(Stroke a, Stroke b, double t)
+    /// <summary>
+    /// Two strokes resampled to <see cref="Samples"/> points and oriented so
+    /// their endpoints correspond — the point pairing everything downstream
+    /// means by "the same point on both drawings".
+    /// </summary>
+    /// <remarks>
+    /// Extracted so the verifier reads correspondence the same way the
+    /// interpolator writes it (B360). Two implementations of "which point on A
+    /// is which point on B" would let a frame be judged against a pairing that
+    /// is not the one it was interpolated from, and the disagreement would be
+    /// invisible — both answers look like plausible geometry.
+    /// </remarks>
+    public static (List<StrokePoint> A, List<StrokePoint> B) Aligned(Stroke a, Stroke b)
     {
         var pa = GeometryOps.Resample(a.Points, Samples);
         var pb = GeometryOps.Resample(b.Points, Samples);
@@ -20,6 +32,12 @@ public static class StrokeInterpolator
             var reversed = GeometryOps.Dist(pa[0], pb[^1]) + GeometryOps.Dist(pa[^1], pb[0]);
             if (reversed < forward) pb.Reverse();
         }
+        return (pa, pb);
+    }
+
+    public static Stroke Interpolate(Stroke a, Stroke b, double t)
+    {
+        var (pa, pb) = Aligned(a, b);
 
         var points = new List<StrokePoint>(pa.Count);
         for (var i = 0; i < pa.Count; i++)

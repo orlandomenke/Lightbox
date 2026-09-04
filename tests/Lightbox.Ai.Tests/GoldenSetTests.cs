@@ -248,6 +248,57 @@ public class GoldenSetTests(ITestOutputHelper output)
     /// interpreted rather than interpolated. Deliberately still between the
     /// keys, so acceptance cannot be what tells it apart.
     /// </summary>
+    /// <summary>
+    /// The departure figure tells a drawing from its mirror image (B360).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This number has exactly one job and it used to fail at it.</b> Its own
+    /// documentation says it is "the only one that separates a model that arced
+    /// from a model that interpolated along the chord" — and it was the mean
+    /// distance between two *centroids*, taken over every stroke in the frame
+    /// flattened into one point cloud. A centroid cannot see orientation, so on
+    /// the committed `arc` pair the correct answer and the same rod reflected
+    /// through the interpolated position both reported <b>21.6 px</b>, to one
+    /// decimal, for drawings whose tips are 154 px apart.
+    /// </para>
+    /// <para>
+    /// The Arc row was therefore reporting a number that could not distinguish
+    /// the thing it exists to distinguish — a check that cannot fire, which
+    /// <c>DESIGN-ai-correctness.md</c> calls worse than no check at all.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task TheDepartureMetricSeesAFlippedStrokeAsAFlippedStroke()
+    {
+        var arc = GoldenSet.Short().Single(p => p.Id == "arc");
+
+        var correct = await Profile(new FixedAnswerArtist((128, 128), (128, 16.8)), [arc]);
+        var mirrored = await Profile(new FixedAnswerArtist((128, 60), (128, 171.2)), [arc]);
+
+        double Departure(CapabilityProfile p) => p.Outcomes.Single().DepartureFromFree ?? 0;
+        output.WriteLine($"correct {Departure(correct):F1}px, mirrored {Departure(mirrored):F1}px");
+
+        Assert.True(
+            Departure(mirrored) > Departure(correct) * 2,
+            $"a mirrored arc reports {Departure(mirrored):F1}px against the correct answer's "
+            + $"{Departure(correct):F1}px — the metric still cannot see a flipped stroke");
+    }
+
+    /// <summary>Answers every pair with one hard-coded two-point rod.</summary>
+    private sealed class FixedAnswerArtist((double X, double Y) a, (double X, double Y) b) : StubArtist
+    {
+        public override Task<AiResult<List<InbetweenFrameResult>>> GenerateInbetweensAsync(
+            InbetweenRequest request, CancellationToken ct) =>
+            Task.FromResult(AiResult<List<InbetweenFrameResult>>.Success(
+                [.. request.Ts.Select(t => new InbetweenFrameResult(t, [new Stroke
+                {
+                    Label = request.KeyframeA[0].Label,
+                    Points = [new(a.X, a.Y, 0.6), new(b.X, b.Y, 0.6)],
+                    Brush = new BrushSettings { Size = 4 },
+                }]))]));
+    }
+
     private sealed class ArcingArtist(double bulge) : StubArtist
     {
         private readonly FreeEngineArtist _free = new();
