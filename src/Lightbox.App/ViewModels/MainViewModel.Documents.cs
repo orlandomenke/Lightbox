@@ -423,7 +423,7 @@ public partial class MainViewModel
         // the one layer that refuses strokes: the cursor showed, the status
         // strip said "locked", and nothing appeared. Reported as "unable to
         // draw on the last build".
-        tab.State.LayerIndex = FirstPaintableLayer(doc);
+        tab.State.LayerIndex = LayerToOpenOn(doc);
         // Q111: reopen where the artist was parked. Negative-proofed only —
         // past the end is a place the playhead is allowed to stand
         // (PlayheadPastTheEnd), so capping at FrameCount would snap a
@@ -1239,7 +1239,7 @@ public partial class MainViewModel
             return;
         }
         var opened = new DocumentTab(new DocumentEditor(doc), reference.Name) { Source = reference };
-        opened.State.LayerIndex = FirstPaintableLayer(doc);
+        opened.State.LayerIndex = LayerToOpenOn(doc);
         AddTab(opened);
     }
 
@@ -1367,8 +1367,30 @@ public partial class MainViewModel
     /// <summary>The layer external tools target when they don't name one.</summary>
     public Layer ActiveLayerForIpc => ActiveLayer;
 
-    /// <summary>Composite one timeline frame to PNG (no onion skin, no live stroke).</summary>
-    public string RenderFramePng(int frameIndex)
+    /// <summary>
+    /// Composite one timeline frame to PNG at the scene's size (no onion skin,
+    /// no live stroke).
+    /// </summary>
+    /// <remarks>
+    /// <b>Uncapped, and that is the contract</b> — the same split
+    /// <see cref="RenderReferenceViewPng(ReferenceView)"/> keeps. Every in-app
+    /// caller wants the frame at the size it was drawn; the cap belongs to the
+    /// one reply that leaves the machine, and lives at that call site
+    /// (<c>IpcDocumentApi.RenderedFrameLongEdge</c>) where its reason is true.
+    /// B31 is the entry that records what putting it here instead costs.
+    /// </remarks>
+    public string RenderFramePng(int frameIndex) => RenderFramePng(frameIndex, 0);
+
+    /// <summary>
+    /// Composite one timeline frame to PNG, no wider or taller than
+    /// <paramref name="longEdge"/>.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="longEdge"/> of 0 or less means the authored size.
+    /// Explicit rather than defaulted, so a new caller has to say which of the
+    /// two it wants.
+    /// </remarks>
+    public string RenderFramePng(int frameIndex, int longEdge)
     {
         var scene = Scene;
         var passes = new List<RenderPass>();
@@ -1396,8 +1418,11 @@ public partial class MainViewModel
                 Style: EffectPasses.SelfStyle(layer, frameIndex)));
         }
         if (EffectPasses.SceneStackPass(scene, frameIndex) is { } grade) passes.Add(grade);
+        // Composed at the authored size so the warm per-layer cache entries are
+        // the ones every other consumer already made, then scaled once.
         using var image = SceneRenderer.Compose(scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));
-        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
+        using var sized = Rendering.OutboundImage.Downscaled(image, longEdge);
+        using var data = (sized ?? image).Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
             ?? throw new InvalidOperationException("PNG encode failed.");
         return Convert.ToBase64String(data.AsSpan());
     }
@@ -1552,7 +1577,7 @@ public partial class MainViewModel
         if (Tabs.Count == 0)
         {
             var opened = new DocumentTab(new DocumentEditor(doc), doc.Scene.Name);
-            opened.State.LayerIndex = FirstPaintableLayer(doc);
+            opened.State.LayerIndex = LayerToOpenOn(doc);
             opened.State.FrameIndex = Math.Max(0, doc.PlayheadFrame ?? 0);
             AddTab(opened);
             opened.MarkSaved();
@@ -1565,7 +1590,7 @@ public partial class MainViewModel
         AttachEditor(tab.Editor);
         // B136's other door: index 0 is the locked paper on any document that
         // has one, and a replace is how tests and the MCP surface open files.
-        ActiveLayerIndex = FirstPaintableLayer(doc);
+        ActiveLayerIndex = LayerToOpenOn(doc);
         // Q111: reopen where the artist was parked, not at the start.
         // Negative-proofed only — past the end is legal (PlayheadPastTheEnd).
         CurrentFrameIndex = Math.Max(0, doc.PlayheadFrame ?? 0);
@@ -1585,6 +1610,43 @@ public partial class MainViewModel
     {
         var frame = tab == ActiveTab ? CurrentFrameIndex : tab.State.FrameIndex;
         tab.Doc.PlayheadFrame = frame > 0 ? frame : null;
+        StampActiveLayer(tab);
+    }
+
+    /// <summary>
+    /// The selected layer crosses into the record here too, and only here
+    /// (B358) — by id, and null when it is the layer the document would have
+    /// opened on anyway, because optional means absent.
+    /// </summary>
+    private void StampActiveLayer(DocumentTab tab)
+    {
+        var index = tab == ActiveTab ? ActiveLayerIndex : tab.State.LayerIndex;
+        var layers = tab.Doc.Scene.Layers;
+        tab.Doc.ActiveLayerId = index >= 0 && index < layers.Count
+                                && index != FirstPaintableLayer(tab.Doc)
+            ? layers[index].Id
+            : null;
+    }
+
+    /// <summary>
+    /// The layer index to open a document on: the one it was left on where that
+    /// is still somewhere an artist can paint, and the first paintable layer
+    /// otherwise (B358).
+    /// </summary>
+    /// <remarks>
+    /// The fallback is not politeness. An id can name a layer that has been
+    /// deleted, or one that has since been locked or hidden — and honouring
+    /// either would put the caret somewhere the first stroke goes nowhere,
+    /// which is the whole of B357 reintroduced through the back door.
+    /// </remarks>
+    private static int LayerToOpenOn(Doc doc)
+    {
+        if (doc.ActiveLayerId is { Length: > 0 } id)
+        {
+            var remembered = doc.Scene.Layers.FindIndex(l => l.Id == id);
+            if (remembered >= 0 && Paintable(doc, doc.Scene.Layers[remembered])) return remembered;
+        }
+        return FirstPaintableLayer(doc);
     }
 
     /// <summary>Serialize the save target (a reference tab serializes its owning document).</summary>
@@ -1596,6 +1658,10 @@ public partial class MainViewModel
             return DocJson.Serialize(tab.Doc);
         }
         Doc.PlayheadFrame = CurrentFrameIndex > 0 ? CurrentFrameIndex : null;
+        Doc.ActiveLayerId = ActiveLayerIndex >= 0 && ActiveLayerIndex < Scene.Layers.Count
+                            && ActiveLayerIndex != FirstPaintableLayer(Doc)
+            ? Scene.Layers[ActiveLayerIndex].Id
+            : null;
         return DocJson.Serialize(Doc);
     }
 }

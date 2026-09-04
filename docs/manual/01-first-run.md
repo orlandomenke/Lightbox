@@ -211,6 +211,11 @@ opening someone else's file must not rearrange your screen.
 Seven ship with the app: one per project type, plus **Default**. Switch with the
 picker at the top right of the Quick options bar.
 
+**Switching does not touch your rulers or guides.** Whether the rulers are up,
+whether guides are drawn, and whether guides and references can be grabbed say
+how you are *working* rather than which panels are open — so they cross a
+workspace switch with you. Only the arrangement changes.
+
 Every one of them opens the colour group and the work group described above.
 The ones whose deliverable **moves** — Animation, Game art, Storyboard, Asset
 library and Default — also open the **timeline group**: the track timeline in

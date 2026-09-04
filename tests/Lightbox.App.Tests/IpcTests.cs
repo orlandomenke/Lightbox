@@ -83,16 +83,73 @@ public class IpcTests
         Assert.True(pts.GetArrayLength() >= 2);
     }
 
+    /// <summary>
+    /// The reply is capped on the long edge, and the drawing survives it.
+    /// </summary>
+    /// <remarks>
+    /// <b>This assertion used to read 960 — the scene's authored width — and
+    /// changing it is the point of the change, not a concession to it.</b> A
+    /// 960-wide frame costs an agent ~1,100 image tokens where 768 costs ~442,
+    /// on every look, and a tool whose own description says it is for *seeing* a
+    /// drawing does not need the pixels. The sibling <c>render_reference_view</c>
+    /// stays uncapped for the opposite reason (B31): an agent asking for a view
+    /// should get the view. Two defaults, two reasons, and
+    /// <see cref="RenderFrame_AtLongEdgeZero_StillGivesTheAuthoredCanvas"/> is
+    /// the way back to the old behaviour.
+    /// </remarks>
     [AvaloniaFact]
-    public void RenderFrame_ReturnsDecodablePng()
+    public void RenderFrame_IsCappedOnTheLongEdge()
     {
         var api = new IpcDocumentApi(VmWithDrawing());
         var resp = api.Handle(Req("render_frame", new { frameIndex = 0 }));
         Assert.True(resp.Ok);
         var b64 = resp.Payload!.Value.GetProperty("pngBase64").GetString()!;
         using var bmp = SKBitmap.Decode(Convert.FromBase64String(b64));
+        Assert.Equal(768, bmp.Width);
+        // The stroke runs (10,10)→(120,90); its midpoint lands at 0.8 scale.
+        Assert.NotEqual(SKColors.White, bmp.GetPixel(52, 40));
+    }
+
+    [AvaloniaFact]
+    public void RenderFrame_AtLongEdgeZero_StillGivesTheAuthoredCanvas()
+    {
+        var api = new IpcDocumentApi(VmWithDrawing());
+        var resp = api.Handle(Req("render_frame", new { frameIndex = 0, longEdge = 0 }));
+        Assert.True(resp.Ok);
+        var b64 = resp.Payload!.Value.GetProperty("pngBase64").GetString()!;
+        using var bmp = SKBitmap.Decode(Convert.FromBase64String(b64));
         Assert.Equal(960, bmp.Width);
         Assert.NotEqual(SKColors.White, bmp.GetPixel(65, 50)); // stroke midpoint shows
+    }
+
+    /// <summary>
+    /// A cap is a ceiling, not a target: a canvas already inside it is not
+    /// upscaled to meet it.
+    /// </summary>
+    [AvaloniaFact]
+    public void RenderFrame_DoesNotUpscaleASmallCanvasToTheCap()
+    {
+        var vm = VmWithDrawing();
+        vm.Doc.Scene.Width = 400;
+        vm.Doc.Scene.Height = 300;
+        var api = new IpcDocumentApi(vm);
+        var resp = api.Handle(Req("render_frame", new { frameIndex = 0 }));
+        Assert.True(resp.Ok);
+        using var bmp = SKBitmap.Decode(
+            Convert.FromBase64String(resp.Payload!.Value.GetProperty("pngBase64").GetString()!));
+        Assert.Equal(400, bmp.Width);
+    }
+
+    /// <summary>
+    /// The in-app render is untouched by the MCP cap — the cap lives at the one
+    /// call site where "this leaves the machine" is true, which is the shape B31
+    /// arrived at for reference views.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheViewModelStillRendersAFrameAtItsAuthoredSize()
+    {
+        using var bmp = SKBitmap.Decode(Convert.FromBase64String(VmWithDrawing().RenderFramePng(0)));
+        Assert.Equal(960, bmp.Width);
     }
 
     [AvaloniaFact]
