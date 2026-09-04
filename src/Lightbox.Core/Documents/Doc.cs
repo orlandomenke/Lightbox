@@ -317,6 +317,14 @@ public sealed class Doc
     /// unique across a document, which is what lets one pose track drive them
     /// all.
     /// </summary>
+    /// <summary>
+    /// The rig with this id, or the first one when nothing matches — so a
+    /// caller holding a stale id after an undo edits a real rig rather than
+    /// nothing.
+    /// </summary>
+    public Armature? RigById(string? id) =>
+        (id is { Length: > 0 } ? Armatures?.FirstOrDefault(a => a.Id == id) : null) ?? Armature;
+
     public Armature? RigOfBone(string? boneId) =>
         boneId is { Length: > 0 } id ? Armatures?.FirstOrDefault(a => a.BoneById(id) is not null) : null;
 

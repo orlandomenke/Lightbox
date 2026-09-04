@@ -52,7 +52,17 @@ public readonly record struct BoneChrome(
     /// parented reads as tethered (owner's request, 2026-08-17).
     /// </summary>
     double? LinkX = null,
-    double? LinkY = null);
+    double? LinkY = null,
+    /// <summary>
+    /// Whether this bone belongs to the rig the artist is editing. False for
+    /// the other characters on the drawing (Q182): drawn dimmer so which
+    /// skeleton is in hand reads without clicking, and pressed to switch to
+    /// rather than to grab — which is the difference from a
+    /// <see cref="BoneGhost"/>, and why this is a flag of its own rather than
+    /// another value of that enum. A ghost is a pose nobody can touch; another
+    /// character is live.
+    /// </summary>
+    bool Editing = true);
 
 /// <summary>Which part of a bone a press grabbed.</summary>
 public enum BoneGrab

@@ -26,6 +26,19 @@ public sealed record BoneRow(string Id, string Name, int Depth, bool Selected)
 }
 
 /// <summary>
+/// One rig on the drawing, for the picker that says which is in hand (Q182).
+/// </summary>
+/// <remarks>
+/// The bone count is on the row because it is what distinguishes two
+/// characters at a glance when both are called "Skeleton" — the default name
+/// every document written before rigs had names comes back with.
+/// </remarks>
+public sealed record RigRow(string Id, string Name, int Bones, bool Editing)
+{
+    public string Label => $"{Name}  —  {Bones} bone{(Bones == 1 ? "" : "s")}";
+}
+
+/// <summary>
 /// The armature's editing surface: the rig mode, bone selection, the chrome
 /// the overlay draws, and the edits a bone gesture lands — phase 2 of
 /// <c>docs/DESIGN-bones.md</c>, under the Q81 decisions.
@@ -140,6 +153,45 @@ public sealed partial class MainViewModel
     /// <summary>Whether this document has a rig at all.</summary>
     public bool HasArmature => Doc.HasArmature;
 
+    // ---- which rig is in hand (Q182) --------------------------------------------
+
+    /// <summary>
+    /// The rig the bone tool is editing, by id, or null for "the first one".
+    /// </summary>
+    /// <remarks>
+    /// <b>View state, not document state</b>, for the reason the layer index
+    /// is: which character an artist happens to be working on is not a fact
+    /// about the drawing, and saving it would make opening a file somebody
+    /// else saved put you in their rig. It survives an undo because it is a
+    /// bare id — undo replaces the document, and the id still names a rig in
+    /// the new one.
+    /// </remarks>
+    [ObservableProperty]
+    private string? _editingRigId;
+
+    partial void OnEditingRigIdChanged(string? value) => NotifyArmatureSurface();
+
+    /// <summary>The rig every editing verb acts on.</summary>
+    /// <remarks>
+    /// Falls back to the first rig rather than to null, so a document with a
+    /// skeleton always has one in hand and nothing has to ask twice.
+    /// </remarks>
+    public Armature? EditingRig => Doc.RigById(EditingRigId);
+
+    /// <summary>The rigs on this document, for the picker.</summary>
+    public IReadOnlyList<RigRow> RigRows =>
+        [.. Doc.Rigs.Select(r => new RigRow(r.Id, r.Name, r.Bones.Count, r.Id == EditingRig?.Id))];
+
+    public bool HasManyRigs => Doc.Rigs.Count > 1;
+
+    /// <summary>Put a rig in hand, and drop a bone selection that is not in it.</summary>
+    public void EditRig(string? rigId)
+    {
+        if (Doc.RigById(rigId) is not { } rig) return;
+        EditingRigId = rig.Id;
+        if (SelectedBoneId is { } id && rig.BoneById(id) is null) SelectedBoneId = null;
+    }
+
     /// <summary>
     /// What the overlay draws: every bone, solved for the pose the canvas is
     /// showing — the playhead's pose when posing, the bind pose when binding.
@@ -161,7 +213,7 @@ public sealed partial class MainViewModel
             // Mid-gesture the chrome comes from the preview — a scratch clone
             // in bind mode, a provisional pose in posing mode — computed by
             // ArmatureGesture, the same construction the release lands.
-            var source = _bonePreviewArmature ?? Doc.Armature;
+            var source = _bonePreviewArmature ?? EditingRig;
             if (source is not { Bones.Count: > 0 } armature) return [];
 
             // Weights joined posing here when painting went live-pose: the
@@ -254,8 +306,41 @@ public sealed partial class MainViewModel
                     bone.Id == SelectedBoneId, handles.Contains(bone.Id),
                     LinkX: linkX, LinkY: linkY));
             }
+            // The other characters on the drawing, under the one in hand and
+            // dimmer (Q182). Posed, not at rest: a mannequin you are drawing
+            // over is only useful standing where the frame wants it, which is
+            // the whole reason the reference had to be animatable. No handles
+            // and no ghosts on them — an IK target you cannot drag and an
+            // onion trail for a rig you are not editing are both clutter.
+            chrome.InsertRange(0, OtherRigChrome(armature));
             return chrome;
         }
+    }
+
+    /// <summary>
+    /// Chrome for every rig except <paramref name="inHand"/> — the other
+    /// characters standing on this drawing.
+    /// </summary>
+    private List<BoneChrome> OtherRigChrome(Armature inHand)
+    {
+        var others = new List<BoneChrome>();
+        foreach (var rig in Doc.Rigs)
+        {
+            if (rig.Id == inHand.Id || rig.Bones.Count == 0) continue;
+            var pose = BonesShowAPose
+                ? ArmatureOps.EffectivePoseAt(rig, Doc.Scene.PoseTrack, CurrentFrameIndex)
+                : null;
+            var at = ArmatureOps.Solve(rig, pose);
+            foreach (var bone in rig.Bones)
+            {
+                if (!at.TryGetValue(bone.Id, out var p)) continue;
+                var (tx, ty) = p.Tip(bone.Length);
+                others.Add(new BoneChrome(
+                    bone.Id, bone.Name, p.X, p.Y, tx, ty,
+                    Selected: false, IsHandle: false, Editing: false));
+            }
+        }
+        return others;
     }
 
     /// <summary>The ghost skeletons at a playhead position, kept until something moves.</summary>
@@ -315,7 +400,7 @@ public sealed partial class MainViewModel
     /// unrigged document.
     /// </summary>
     private Dictionary<string, BonePose> EffectivePoseHere() =>
-        Doc.Armature is { } armature
+        EditingRig is { } armature
             ? ArmatureOps.EffectivePoseAt(armature, Doc.Scene.PoseTrack, CurrentFrameIndex)
             : [];
 
@@ -366,7 +451,7 @@ public sealed partial class MainViewModel
     private Dictionary<string, List<StrokePoint>>? PosedPointsFor(
         Frame frame, IReadOnlyDictionary<string, BonePose> pose)
     {
-        if (Doc.Armature is not { Bones.Count: > 0 } armature) return null;
+        if (EditingRig is not { Bones.Count: > 0 } armature) return null;
         var corrections = CorrectiveOps.Resolve(frame.Correctives, pose);
         if (pose.Count == 0 && corrections.Count == 0) return null;
 
@@ -393,7 +478,7 @@ public sealed partial class MainViewModel
     {
         get
         {
-            if (Doc.Armature is not { Bones.Count: > 0 } armature) return [];
+            if (EditingRig is not { Bones.Count: > 0 } armature) return [];
             var rows = new List<BoneRow>(armature.Bones.Count);
             void Walk(string? parentId, int depth)
             {
@@ -420,7 +505,7 @@ public sealed partial class MainViewModel
 
     /// <summary>The selected bone, or null.</summary>
     public Bone? SelectedBone =>
-        SelectedBoneId is { } id ? Doc.Armature?.BoneById(id) : null;
+        SelectedBoneId is { } id ? EditingRig?.BoneById(id) : null;
 
     /// <summary>The selected bone's name, editable — renaming is how X-symmetry pairs are made.</summary>
     public string SelectedBoneName
@@ -439,11 +524,15 @@ public sealed partial class MainViewModel
     /// </summary>
     public void RenameSelectedBone(string name)
     {
+        // Captured, not read at replay time: an undo that runs after the
+        // artist switched characters must edit the rig this step edited
+        // (Q182).
+        var rigId = EditingRig?.Id;
         if (SelectedBoneId is not { } id || string.IsNullOrWhiteSpace(name)) return;
         var trimmed = name.Trim();
         _editor.Perform(doc =>
         {
-            if (doc.Armature?.BoneById(id) is { } bone) bone.Name = trimmed;
+            if (doc.RigById(rigId)?.BoneById(id) is { } bone) bone.Name = trimmed;
         });
         OnPropertyChanged(nameof(BoneRows));
         OnPropertyChanged(nameof(SelectedBoneName));
@@ -465,7 +554,11 @@ public sealed partial class MainViewModel
     /// </remarks>
     public void DeleteSelectedBone()
     {
-        if (SelectedBoneId is not { } id || Doc.Armature is not { } armature) return;
+        // Captured, not read at replay time: an undo that runs after the
+        // artist switched characters must edit the rig this step edited
+        // (Q182).
+        var rigId = EditingRig?.Id;
+        if (SelectedBoneId is not { } id || EditingRig is not { } armature) return;
         if (armature.BoneById(id) is not { } doomed) return;
 
         // Solved before the edit: the placements the children must keep.
@@ -474,7 +567,7 @@ public sealed partial class MainViewModel
 
         _editor.Perform(doc =>
         {
-            if (doc.Armature is not { } target) return;
+            if (doc.RigById(rigId) is not { } target) return;
             foreach (var child in target.Bones.Where(b => b.ParentId == id).ToList())
             {
                 if (placements.TryGetValue(child.Id, out var world))
@@ -517,6 +610,8 @@ public sealed partial class MainViewModel
 
         SelectedBoneId = null;
         OnPropertyChanged(nameof(HasArmature));
+        OnPropertyChanged(nameof(RigRows));
+        OnPropertyChanged(nameof(HasManyRigs));
         OnPropertyChanged(nameof(BoneRows));
         InvalidateRiggedFrames();
     }
@@ -526,7 +621,11 @@ public sealed partial class MainViewModel
     /// </summary>
     public void SetSelectedBoneParent(string? parentId)
     {
-        if (SelectedBoneId is not { } id || Doc.Armature is not { } armature) return;
+        // Captured, not read at replay time: an undo that runs after the
+        // artist switched characters must edit the rig this step edited
+        // (Q182).
+        var rigId = EditingRig?.Id;
+        if (SelectedBoneId is not { } id || EditingRig is not { } armature) return;
         if (armature.BoneById(id) is not { } bone || bone.ParentId == parentId) return;
         // A bone cannot be its own ancestor, or the solve walks in a circle.
         for (var walk = parentId; walk is not null;)
@@ -538,7 +637,7 @@ public sealed partial class MainViewModel
         var placements = ArmatureOps.Solve(armature);
         _editor.Perform(doc =>
         {
-            if (doc.Armature?.BoneById(id) is not { } target) return;
+            if (doc.RigById(rigId)?.BoneById(id) is not { } target) return;
             if (placements.TryGetValue(id, out var world)) Rebase(world, parentId, placements, target);
             target.ParentId = parentId;
         });
@@ -557,14 +656,18 @@ public sealed partial class MainViewModel
     /// </remarks>
     public void MoveBoneBy(string id, double dx, double dy)
     {
-        if (Doc.Armature is not { } armature || armature.BoneById(id) is null) return;
+        // Captured, not read at replay time: an undo that runs after the
+        // artist switched characters must edit the rig this step edited
+        // (Q182).
+        var rigId = EditingRig?.Id;
+        if (EditingRig is not { } armature || armature.BoneById(id) is null) return;
         if (Math.Abs(dx) < 1e-9 && Math.Abs(dy) < 1e-9) return;
 
         // The edit itself lives in ArmatureGesture, shared with the live
         // preview — the drag shows the same construction the release lands.
         _editor.Perform(doc =>
         {
-            if (doc.Armature is { } target) ArmatureGesture.ApplyMoveBy(target, id, dx, dy);
+            if (doc.RigById(rigId) is { } target) ArmatureGesture.ApplyMoveBy(target, id, dx, dy);
         });
         NotifyArmatureSurface();
         InvalidateRiggedFrames();
@@ -660,7 +763,7 @@ public sealed partial class MainViewModel
         OnPropertyChanged(nameof(PointerIntent));
         // A bone that undo took away must not stay selected, or the panel
         // offers rename and delete for something that is gone.
-        if (SelectedBoneId is { } id && Doc.Armature?.BoneById(id) is null) SelectedBoneId = null;
+        if (SelectedBoneId is { } id && EditingRig?.BoneById(id) is null) SelectedBoneId = null;
         NotifyIkSurface();
         NotifyConstraintSurface();
         NotifySplineSurface();
@@ -685,7 +788,11 @@ public sealed partial class MainViewModel
     /// </remarks>
     public void ExtrudeChildFrom(string parentId, double x, double y)
     {
-        if (Doc.Armature is not { } armature || armature.BoneById(parentId) is null) return;
+        // Captured, not read at replay time: an undo that runs after the
+        // artist switched characters must edit the rig this step edited
+        // (Q182).
+        var rigId = EditingRig?.Id;
+        if (EditingRig is not { } armature || armature.BoneById(parentId) is null) return;
 
         var name = NextBoneName();
         Bone? child = null;
@@ -693,7 +800,7 @@ public sealed partial class MainViewModel
         // preview — the drag shows the same construction the release lands.
         _editor.Perform(doc =>
         {
-            if (doc.Armature is { } target)
+            if (doc.RigById(rigId) is { } target)
                 child = ArmatureGesture.ApplyExtrude(target, parentId, name, x, y);
         });
         if (child is null) return;
@@ -715,9 +822,10 @@ public sealed partial class MainViewModel
             if (SelectedBoneId is not { } id || SelectedBone is not { } bone) return;
             var wanted = Math.Max(ArmatureOverlay.MinimumLength, value);
             if (Math.Abs(bone.Length - wanted) < 1e-9) return;
+            var rigId = EditingRig?.Id;   // captured, not read at replay time (Q182)
             _editor.Perform(doc =>
             {
-                if (doc.Armature?.BoneById(id) is { } target) target.Length = wanted;
+                if (doc.RigById(rigId)?.BoneById(id) is { } target) target.Length = wanted;
             });
             NotifyArmatureSurface();
             InvalidateRiggedFrames();
@@ -735,9 +843,10 @@ public sealed partial class MainViewModel
         set
         {
             if (SelectedBoneId is not { } id || SelectedBoneJiggles == value) return;
+            var rigId = EditingRig?.Id;   // captured, not read at replay time (Q182)
             _editor.Perform(doc =>
             {
-                if (doc.Armature?.BoneById(id) is { } bone)
+                if (doc.RigById(rigId)?.BoneById(id) is { } bone)
                     bone.Jiggle = value ? new BoneJiggle() : null;
             });
             NotifyArmatureSurface();
@@ -761,10 +870,14 @@ public sealed partial class MainViewModel
 
     private void EditJiggle(Action<BoneJiggle> edit)
     {
+        // Captured, not read at replay time: an undo that runs after the
+        // artist switched characters must edit the rig this step edited
+        // (Q182).
+        var rigId = EditingRig?.Id;
         if (SelectedBoneId is not { } id || SelectedBone?.Jiggle is null) return;
         _editor.Perform(doc =>
         {
-            if (doc.Armature?.BoneById(id)?.Jiggle is { } jiggle) edit(jiggle);
+            if (doc.RigById(rigId)?.BoneById(id)?.Jiggle is { } jiggle) edit(jiggle);
         });
         NotifyArmatureSurface();
         InvalidateRiggedFrames();
@@ -798,7 +911,7 @@ public sealed partial class MainViewModel
     [RelayCommand]
     private void AddChildBone()
     {
-        if (SelectedBoneId is not { } id || Doc.Armature is not { } armature) return;
+        if (SelectedBoneId is not { } id || EditingRig is not { } armature) return;
         if (armature.BoneById(id) is not { } parent) return;
         var at = ArmatureOps.Solve(armature)[id];
         var (tipX, tipY) = at.Tip(parent.Length);
@@ -812,6 +925,17 @@ public sealed partial class MainViewModel
     public BoneHit PressArmature(double x, double y, double scale)
     {
         var hit = ArmatureOverlay.Hit(BoneChromes, x, y, scale);
+        // A press on another character takes it in hand and stops there
+        // (Q182). Two presses rather than one, deliberately: the drawing a
+        // mannequin is standing on is exactly where a stray drag does the most
+        // damage, and "select, then move" is the rule every layer and guide in
+        // the application already follows.
+        if (hit.Id is { } id && Doc.RigOfBone(id) is { } owner && owner.Id != EditingRig?.Id)
+        {
+            EditRig(owner.Id);
+            SelectedBoneId = id;
+            return new BoneHit(id, BoneGrab.None);
+        }
         SelectedBoneId = hit.Id;
         return hit;
     }
@@ -824,6 +948,10 @@ public sealed partial class MainViewModel
     /// </summary>
     public void CreateBoneFromDrag(double x0, double y0, double x1, double y1)
     {
+        // Captured, not read at replay time: an undo that runs after the
+        // artist switched characters must edit the rig this step edited
+        // (Q182).
+        var rigId = EditingRig?.Id;
         var parentId = SelectedBoneId;
         var name = NextBoneName();
         Bone? bone = null;
@@ -832,7 +960,16 @@ public sealed partial class MainViewModel
         // preview — the drag shows the same construction the release lands.
         _editor.Perform(doc =>
         {
-            var armature = doc.Armature ??= new Armature();
+            // The rig in hand, or the document's first one — and a brand new
+            // one only when the drawing has no skeleton at all. Drawing a bone
+            // means "add to what I am editing", never "start a second
+            // character", which is its own deliberate act (Q182).
+            var armature = doc.RigById(rigId);
+            if (armature is null)
+            {
+                armature = new Armature();
+                (doc.Armatures ??= []).Add(armature);
+            }
             bone = ArmatureGesture.ApplyCreate(armature, parentId, name, x0, y0, x1, y1);
         });
 
@@ -848,13 +985,17 @@ public sealed partial class MainViewModel
     /// </summary>
     public void DragBoneBind(string id, BoneGrab grab, double x, double y)
     {
-        if (Doc.Armature is not { } armature || armature.BoneById(id) is null) return;
+        // Captured, not read at replay time: an undo that runs after the
+        // artist switched characters must edit the rig this step edited
+        // (Q182).
+        var rigId = EditingRig?.Id;
+        if (EditingRig is not { } armature || armature.BoneById(id) is null) return;
 
         // The edit itself lives in ArmatureGesture, shared with the live
         // preview — the drag shows the same construction the release lands.
         _editor.Perform(doc =>
         {
-            if (doc.Armature is { } target) ArmatureGesture.ApplyDragBind(target, id, grab, x, y);
+            if (doc.RigById(rigId) is { } target) ArmatureGesture.ApplyDragBind(target, id, grab, x, y);
         });
         InvalidateRiggedFrames();
     }
@@ -866,7 +1007,7 @@ public sealed partial class MainViewModel
     /// </summary>
     public void PoseBoneTo(string id, double x, double y)
     {
-        if (Doc.Armature is not { } armature || armature.BoneById(id) is null) return;
+        if (EditingRig is not { } armature || armature.BoneById(id) is null) return;
 
         // Three bones an FK rotation would silently fail on. A chain-driven
         // bone's rotation is the solver's, so a key on it is overwritten on
@@ -940,7 +1081,7 @@ public sealed partial class MainViewModel
     /// </remarks>
     public void PoseDrag(string id, BoneGrab grab, double x0, double y0, double x, double y)
     {
-        if (Doc.Armature is not { } armature || armature.BoneById(id) is null) return;
+        if (EditingRig is not { } armature || armature.BoneById(id) is null) return;
 
         if (ChainTouching(id) is { } chain)
         {
@@ -984,7 +1125,7 @@ public sealed partial class MainViewModel
     /// </remarks>
     internal void PoseMoveBy(string id, double dx, double dy)
     {
-        if (Doc.Armature is not { } armature || armature.BoneById(id) is not { } bone) return;
+        if (EditingRig is not { } armature || armature.BoneById(id) is not { } bone) return;
 
         var frame = CurrentFrameIndex;
         var pose = ArmatureOps.PoseAt(Doc.Scene.PoseTrack, frame);
@@ -1083,7 +1224,7 @@ public sealed partial class MainViewModel
     public void BeginWeightStroke(double x, double y, double pressure)
     {
         _weightGesture = null;
-        if (SelectedBoneId is null || Doc.Armature is null) return;
+        if (SelectedBoneId is null || EditingRig is null) return;
         if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return;
 
         _weightGestureFrameId = frame.Id;
@@ -1105,7 +1246,7 @@ public sealed partial class MainViewModel
     public void WeightDab(double x, double y, double pressure)
     {
         if (_weightGesture is not { } gesture) return;
-        if (SelectedBoneId is not { } boneId || Doc.Armature is not { } armature) return;
+        if (SelectedBoneId is not { } boneId || EditingRig is not { } armature) return;
 
         // The session's frozen geometry (B247): the dab hits the points where
         // the heat shows them, and the heat does not move while painting. The
@@ -1208,7 +1349,7 @@ public sealed partial class MainViewModel
     /// <summary>Auto-weight every selected stroke against the whole armature.</summary>
     public int AutoBindSelectedStrokes()
     {
-        if (Doc.Armature is not { Bones.Count: > 0 } armature) return 0;
+        if (EditingRig is not { Bones.Count: > 0 } armature) return 0;
         return EditSelectedStrokes(stroke => Skinning.AutoBind(stroke, armature));
     }
 
@@ -1218,14 +1359,18 @@ public sealed partial class MainViewModel
     /// </summary>
     public int BakePoseHere()
     {
-        if (Doc.Armature is not { Bones.Count: > 0 }) return 0;
+        // Captured, not read at replay time: an undo that runs after the
+        // artist switched characters must edit the rig this step edited
+        // (Q182).
+        var rigId = EditingRig?.Id;
+        if (EditingRig is not { Bones.Count: > 0 }) return 0;
         if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return 0;
 
         var index = CurrentFrameIndex;
         var baked = 0;
         _editor.Perform(doc =>
         {
-            if (doc.Armature is not { } armature) return;
+            if (doc.RigById(rigId) is not { } armature) return;
             var target = ExposureSheet.ExposedFrame(
                 doc.Scene.Layers[ActiveLayerIndex], index);
             if (target is null) return;
@@ -1292,7 +1437,11 @@ public sealed partial class MainViewModel
 
     private bool InsertDrawingFromPoseAt(int layerIndex, int frameIndex)
     {
-        if (Doc.Armature is not { Bones.Count: > 0 }) return false;
+        // Captured, not read at replay time: an undo that runs after the
+        // artist switched characters must edit the rig this step edited
+        // (Q182).
+        var rigId = EditingRig?.Id;
+        if (EditingRig is not { Bones.Count: > 0 }) return false;
         if (layerIndex < 0 || layerIndex >= Scene.Layers.Count) return false;
         if (frameIndex < 0) return false;
         // Q103's rule, the same one painting follows: this is an edit landing,
@@ -1344,7 +1493,7 @@ public sealed partial class MainViewModel
                     layer.Cels[index + 1].Frame = held;
                 }
             }
-            if (doc.Armature is { } armature)
+            if (doc.RigById(rigId) is { } armature)
             {
                 baked = Skinning.BakeFrame(
                     target, armature,
@@ -1451,7 +1600,7 @@ public sealed partial class MainViewModel
     /// </summary>
     public void AddPoseKeyAt(int frame)
     {
-        if (Doc.Armature is not { Bones.Count: > 0 } || frame < 0) return;
+        if (EditingRig is not { Bones.Count: > 0 } || frame < 0) return;
         if (ArmatureOps.KeyAt(Scene.PoseTrack, frame) is not null) return;
         _editor.Perform(doc =>
         {
@@ -1535,7 +1684,7 @@ public sealed partial class MainViewModel
     }
 
     private string NameOfBone(string boneId) =>
-        Doc.Armature?.BoneById(boneId)?.Name ?? "Bone";
+        EditingRig?.BoneById(boneId)?.Name ?? "Bone";
 
     /// <summary>
     /// A pose or weight edit changes pixels the frame cache cannot key on, so
@@ -1603,7 +1752,7 @@ public sealed partial class MainViewModel
 
     private string NextBoneName()
     {
-        var count = Doc.Armature?.Bones.Count ?? 0;
+        var count = EditingRig?.Bones.Count ?? 0;
         return $"bone.{count + 1}";
     }
 

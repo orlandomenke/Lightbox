@@ -185,6 +185,17 @@ public static class ArmatureOverlayPainter
                     canvas.DrawPath(path, stroke);
                     continue;
                 }
+                // Another character on the drawing (Q182): the same silhouette,
+                // held back so the rig in hand reads as the one in hand. An
+                // outline rather than a fill, and dimmer than a ghost — a ghost
+                // is a pose of *this* rig and wants to be compared with it;
+                // another character is context to draw against.
+                if (!bone.Editing)
+                {
+                    stroke.Color = boneColour.WithAlpha(0x5a);
+                    canvas.DrawPath(path, stroke);
+                    continue;
+                }
                 canvas.DrawPath(path, rim);
                 fill.Color = colour.WithAlpha(0x50);
                 canvas.DrawPath(path, fill);
