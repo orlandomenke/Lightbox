@@ -860,6 +860,57 @@ public partial class MainViewModel
         AiStatus = $"Added {copies.Count} guide{(copies.Count == 1 ? "" : "s")} from “{set.Name}”.";
     }
 
+    /// <summary>
+    /// Put the guides a new document's folder declares onto it, fitted to its
+    /// paper — Q181, decision 3.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why it happens at all.</b> "Heights stay the same throughout a
+    /// project" is not a menu item anybody remembers to use. The knight's
+    /// height chart is declared on the knight's folder precisely so every
+    /// drawing under it is measured against the same figure, and requiring
+    /// <i>Add from set</i> on each new drawing is the step that gets skipped —
+    /// after which the whole scoping apparatus has changed nothing about the
+    /// art.
+    /// </para>
+    /// <para>
+    /// <b>Nearest wins, and only the nearest lands.</b> A document under the
+    /// knight in a project that also publishes a studio-wide rig gets the
+    /// knight's, exactly as its palette resolves — see
+    /// <see cref="ResourceScopes.Resolve(ProjectManifest, DocumentRef, string)"/>.
+    /// Pulling every visible set instead would stack a project rig on top of a
+    /// character rig and call it a feature.
+    /// </para>
+    /// <para>
+    /// <b>Only when the project is scoped.</b> An unscoped project offers every
+    /// set to every document (Q30's migration) and declares nothing, so there
+    /// is no folder saying "these guides belong here" and nothing is applied.
+    /// Auto-apply follows a deliberate share and never a default.
+    /// </para>
+    /// <para>
+    /// <b>Part of the document, not an edit to it.</b> Written straight onto
+    /// the scene before anything can be drawn, so the guides are what the
+    /// document was created with — revision 0. Performing it as an edit would
+    /// make the new drawing read as unsaved work the artist had not done, and
+    /// would put an undo before the first stroke whose meaning is "take away
+    /// the guides I opened with".
+    /// </para>
+    /// </remarks>
+    private void ApplyScopedGuides(Doc doc, DocumentRef? source)
+    {
+        if (ProjectDocker.Project is not { } project || source is null) return;
+        if (project.Manifest.GuideSets is not { Count: > 0 } sets) return;
+        if (GuideScopes.VisibleTo(project.Manifest, source) is not { Count: > 0 } visible) return;
+        if (sets.FirstOrDefault(s => s.Id == visible[0]) is not { Guides.Count: > 0 } nearest) return;
+
+        var copies = GuideSetFit.Onto(nearest, AuthoredCanvas.Of(doc.Scene));
+        foreach (var copy in copies) copy.Id = Ids.NewId("gd");
+        (doc.Scene.Guides ??= []).AddRange(copies);
+        NotifyGuidesView();
+        AiStatus = $"Opened with {copies.Count} guide{(copies.Count == 1 ? "" : "s")} from “{nearest.Name}”.";
+    }
+
     /// <summary>The references on this document, or an empty list.</summary>
     public IReadOnlyList<ReferenceStrip> References =>
         Scene.References is { } strips ? strips : [];
