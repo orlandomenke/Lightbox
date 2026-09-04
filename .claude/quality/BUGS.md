@@ -804,10 +804,6 @@ which is a weak test and still far better than none.
   - Bounded, and only on import: nothing in the paint path does this, and a
     document already imported pays none of it again.
 
-### layers
-
-- [ ] **B358** `P2` `layers` A document reopens on the first paintable layer rather than the one it was left on `evidence: LastLayerTests, ReopeningLandsOnTheLayerItWasLeftOn, TheLayerItWouldHaveOpenedOnAnywayWritesNoKey, ADeletedLayerIsNotHonoured, ALayerLockedSinceTheSaveIsNotHonouredEither, TheLayerRidesAlongsideThePlayheadNotInsteadOfIt`
-
 ### project
 
 - [ ] **B295** `P1` `project` `ids --fix` renumbers both entries of a duplicate filed inside this branch's own range, so the duplicate survives at the new number `evidence: _keeping_spots,cmd_selftest`
@@ -2558,6 +2554,16 @@ test reopens the bug.
   - `NewDocument` has landed past the paper since the Background layer existed ("Land on something paintable"); `OpenDocumentTab` — the funnel for recents, the start screen and File ▸ Open — never set `State.LayerIndex`, so it defaulted to 0, which on any saved document with paper is the one layer that refuses strokes. `ReplaceDocument` had the same door (`ActiveLayerIndex = 0`).
   - P1 by reach: it is not an edge case, it is *opening your own work*. Masked for anyone who mostly created documents in-session and kept them open; found the day opening a saved file became the first thing the application asks you to do.
   - The regression test walks the whole route — open, draw, look in the record — because asserting the index alone would stay green if a second gate ever ate the stroke.
+
+- [x] **B358** `P2` `layers` A document reopens on the first paintable layer rather than the one it was left on `evidence: LastLayerTests, ReopeningLandsOnTheLayerItWasLeftOn, TheLayerItWouldHaveOpenedOnAnywayWritesNoKey, ADeletedLayerIsNotHonoured, ALayerLockedSinceTheSaveIsNotHonouredEither, TheLayerRidesAlongsideThePlayheadNotInsteadOfIt`
+  - Asked for 2026-09-03: *“store the last selected layer when opening a file, so we can continue where we left off.”*
+  - **Built on the playhead’s pattern rather than a new one.** `Doc.PlayheadFrame` already answers exactly this question for the timeline (Q110/Q111), and its remarks carry the three decisions worth copying: nullable because *optional means absent*, **stamped by the save funnel rather than tracked live** — which layer is selected is view state (invariant 5) and only crosses into the record when the record is written — and restored at every open. `Doc.ActiveLayerId` is the same field for the layer stack, stamped in the same method.
+  - **By id, not by index, and that is the one place it deliberately differs.** A frame *is* a number; a layer has identity. An index silently means a **different layer** the moment anything is reordered, added or deleted, and restoring the wrong layer is worse than restoring none — the artist finds out by drawing on it.
+  - **Absent for the common case.** The id is written only when the layer is not the one the open would have chosen anyway, so a document left where it started carries no key. `TheLayerItWouldHaveOpenedOnAnywayWritesNoKey` checks that by dumping the JSON rather than reading the model, which is the only way that check ever holds.
+  - **The resolver asks [[B357]]’s `Paintable`, not merely “does this id exist”.** An id can name a layer that has since been deleted, locked or hidden, and honouring one would put the caret where the first stroke goes nowhere — B357 reintroduced through the back door. Two guards cover exactly that.
+  - **Four open sites, found by enumerating rather than by pattern.** Two took the change through `tab.State`/`ActiveLayerIndex`, and two more assign through a differently-named local (`opened.State.LayerIndex`) that a naive replace skipped — the same shape of miss as [[B353]]’s third live path.
+  - **Restoring a *version* deliberately does not restore either.** `MainViewModel.Versions` zeroes the frame on purpose — *“a different record in the same slot: the framing and playhead of the replaced one are not this one’s”* (B67) — so the layer follows the playhead’s existing decision rather than inventing a different one.
+  - New-document paths keep `FirstPaintableLayer`: a document nobody has saved has no layer to remember.
 
 - [x] **B286** `P2` `layers` Merge down drops live effect stacks from the render `evidence: LayerMergeTests, AMergeBakesALiveEffectStackIntoThePixels, AMergeBakesLayerStylesIntoThePixels`
   - **Evidence.** `PairIsLossless` never checks `HasLiveEffects` and `BakedFrame` applies masks, clip and blend but no filter (read 2026-08-23, while giving the merge the style chain): merging a blurred or glowing layer concatenated its strokes, the upper layer's stack vanished with the layer, and the lower's kept applying to content it never described — a silent visual change on the exact gesture whose contract is "looks exactly like the two layers did".
