@@ -271,7 +271,7 @@ public static class ProjectBoard
     [
         // reference is not among them since B133: sheets share by being filed
         // on a folder, and the parallel declaration kind was write-only.
-        PaletteScopes.Kind, GradientScopes.Kind, GuideScopes.Kind,
+        PaletteScopes.Kind, GradientScopes.Kind, GuideScopes.Kind, RigScopes.Kind,
         TemplateScopes.Kind, ExportScopes.Kind, SymbolScopes.Kind, TipScopes.Kind,
     ];
 
@@ -298,6 +298,7 @@ public static class ProjectBoard
             SymbolScopes.Kind => [.. Named(project.Symbols.Values.Select(s => new Offer(s.Id, s.Name)))],
             TipScopes.Kind => [.. Named((manifest.Tips ?? []).Select(t => new Offer(t.Id, t.Name)))],
             GuideScopes.Kind => [.. Named((manifest.GuideSets ?? []).Select(g => new Offer(g.Id, g.Name)))],
+            RigScopes.Kind => [.. Named((manifest.RigSets ?? []).Select(r => new Offer(r.Id, r.Name)))],
             // The project's own first, then the built-ins — the order the docker
             // already offers them in, so the two surfaces agree.
             ExportScopes.Kind =>

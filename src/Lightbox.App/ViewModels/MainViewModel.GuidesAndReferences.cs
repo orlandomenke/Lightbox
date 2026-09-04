@@ -793,7 +793,7 @@ public partial class MainViewModel
         // them back where they belong (Q181). Recorded on every save,
         // including a save over an older set — the guides are this document's
         // now, so the canvas has to be this document's too.
-        set.Canvas = GuideSetCanvas.Of(Scene);
+        set.Canvas = AuthoredCanvas.Of(Scene);
         SaveProject();
         NotifyGuideSetOffers();
         AiStatus = $"Guides saved as “{set.Name}”. Share it onto a folder from the project window.";
@@ -846,7 +846,7 @@ public partial class MainViewModel
     private void PullGuideSet(GuideSet? set)
     {
         if (set is null || set.Guides.Count == 0) return;
-        var copies = GuideSetFit.Onto(set, GuideSetCanvas.Of(Scene));
+        var copies = GuideSetFit.Onto(set, AuthoredCanvas.Of(Scene));
         foreach (var copy in copies) copy.Id = Ids.NewId("gd");
         var ids = copies.Select(c => c.Id).ToHashSet();
         _editor.PerformDelta(
@@ -904,7 +904,7 @@ public partial class MainViewModel
         if (GuideScopes.VisibleTo(project.Manifest, source) is not { Count: > 0 } visible) return;
         if (sets.FirstOrDefault(s => s.Id == visible[0]) is not { Guides.Count: > 0 } nearest) return;
 
-        var copies = GuideSetFit.Onto(nearest, GuideSetCanvas.Of(doc.Scene));
+        var copies = GuideSetFit.Onto(nearest, AuthoredCanvas.Of(doc.Scene));
         foreach (var copy in copies) copy.Id = Ids.NewId("gd");
         (doc.Scene.Guides ??= []).AddRange(copies);
         NotifyGuidesView();

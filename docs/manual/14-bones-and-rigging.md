@@ -73,6 +73,45 @@ are creating, moving, re-aiming or extruding follows the pointer, computed by
 the same code the release runs — so where the drag shows it is where letting
 go puts it, and the whole gesture is still a single undo step.
 
+## Skeleton sets — the same character on the next drawing
+
+A skeleton you built once is worth keeping: the human, the dog, the goblin.
+**Skeleton → Skeleton sets…** names the open drawing's armature and puts it in
+the **project**, the way a guide set keeps guides. **Skeleton → Add skeleton
+from set** puts one back on a drawing. Share a set onto a folder from the
+project manager, and only the characters that belong to a folder are offered
+under it.
+
+**A set travels in head units, and that is the point.** When you save one, its
+height is measured against the character height scale on that drawing — so the
+human is 7.5 heads, the goblin 4.5, the dog 3. Put one on another drawing and
+it is scaled to *that* drawing's height scale and stood on its ground line, at
+the same head count. The goblin stays shorter than the human on any paper at
+any resolution, and nobody has to work out a percentage.
+
+The menu says which is which: *Goblin — 4.5 heads* beside *Human — 7.5 heads*.
+
+**Three sizes to land at**, chosen once under the same menu and used by every
+pull after it:
+
+| | |
+| --- | --- |
+| **By head count** | The default, and the reason to keep a library. Needs a character height scale on the drawing you are putting it on |
+| **To this canvas** | The same share of the height it filled when it was saved — the guide-set rule, and what happens anyway if there is no height scale to measure |
+| **The size it was saved** | Untouched. Keep this for a size comparison: the goblin being short is the drawing, not a mistake to correct |
+
+**Save the height scale first.** A skeleton saved on a drawing with no
+character height scale has no head count — nothing measured it — so it can only
+ever be scaled by canvas share. The editor says so before you save rather than
+after.
+
+**You cannot swap the skeleton under work that is already attached to it.** Once
+a layer follows the rig, or strokes are bound to it, *Add skeleton from set* is
+refused: the bind pose is what every mark's grain is computed from, so replacing
+it would re-roll the lot and the character would come back boiling. Unbind, or
+start the new character on a new drawing. The same applies to a skeleton you have
+already posed — the keys name bones that would be gone.
+
 ## Posing
 
 Switch to **posing** (**Shift+K**) and the same drags edit the *pose* instead

@@ -46,20 +46,27 @@ public sealed class GuideSet
     /// document pixels, which is exactly what every set did before, so an old
     /// project keeps behaving the way its author left it.
     /// </remarks>
-    public GuideSetCanvas? Canvas { get; set; }
+    public AuthoredCanvas? Canvas { get; set; }
 }
 
 /// <summary>
-/// The paper a <see cref="GuideSet"/> was authored on: what a pull measures
-/// fractions against.
+/// The paper a library entry was authored on: what a pull measures fractions
+/// against.
 /// </summary>
 /// <remarks>
 /// Shaped like <see cref="Scene"/>'s own four numbers, origin included, because
 /// it is a copy of them and a reader should not have to work that out. The
 /// origin carries its null for <see cref="Scene.OriginX"/>'s reason — a set
 /// saved on paper nobody grew writes no origin keys.
+/// <para>
+/// Named for what it is rather than for its first caller: <see cref="RigSet"/>
+/// records the same four numbers for the same reason, and a rig referring to a
+/// type called <c>GuideSetCanvas</c> would be the kind of small lie that makes
+/// a reader distrust the rest. The rename is source-only — the JSON key comes
+/// from the property, so no file on disk changes.
+/// </para>
 /// </remarks>
-public sealed class GuideSetCanvas
+public sealed class AuthoredCanvas
 {
     public int Width { get; set; }
 
@@ -84,7 +91,7 @@ public sealed class GuideSetCanvas
     public bool IsUsable => Width > 0 && Height > 0;
 
     /// <summary>The paper a scene is offering right now.</summary>
-    public static GuideSetCanvas Of(Scene scene) => new()
+    public static AuthoredCanvas Of(Scene scene) => new()
     {
         Width = scene.Width,
         Height = scene.Height,
@@ -92,7 +99,7 @@ public sealed class GuideSetCanvas
         OriginY = scene.OriginY,
     };
 
-    public GuideSetCanvas Clone() => (GuideSetCanvas)MemberwiseClone();
+    public AuthoredCanvas Clone() => (AuthoredCanvas)MemberwiseClone();
 }
 
 /// <summary>
@@ -133,7 +140,7 @@ public static class GuideSetFit
     /// Ids are the caller's business — a pull wants fresh ones, and deciding
     /// that here would make this untestable without an id scheme.
     /// </remarks>
-    public static List<Guide> Onto(GuideSet set, GuideSetCanvas onto)
+    public static List<Guide> Onto(GuideSet set, AuthoredCanvas onto)
     {
         var copies = set.Guides.Select(g => g.Clone()).ToList();
         if (set.Canvas is not { IsUsable: true } from || !onto.IsUsable) return copies;

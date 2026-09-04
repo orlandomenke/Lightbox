@@ -653,6 +653,47 @@
                     ToolTip.Tip="Take the selected anchor's direction off this drawing. The anchor stays; drag its stalk to aim it again." />
         </MenuItem>
         <!--
+          Skeleton sets (Q181). Beside Rig rather than inside it, because Rig
+          above means anchors and hitboxes and this means the armature — one
+          menu holding both would be the app being vague about two different
+          things. Same three verbs as guide sets, and deliberately so.
+        -->
+        <MenuItem Header="Skeleton">
+          <MenuItem Header="Add skeleton from set"
+                    ItemsSource="{Binding PullRigSetMenu}"
+                    IsVisible="{Binding HasRigSetOffers}"
+                    IsEnabled="{Binding CanPullRigSet}"
+                    ToolTip.Tip="Put a saved skeleton on this drawing. Disabled once art is bound or posed to the skeleton already here.">
+            <MenuItem.ItemTemplate>
+              <DataTemplate x:DataType="vm:ScopeMenuEntry">
+                <TextBlock Text="{Binding Label}" />
+              </DataTemplate>
+            </MenuItem.ItemTemplate>
+            <MenuItem.Styles>
+              <Style Selector="MenuItem > MenuItem" x:DataType="vm:ScopeMenuEntry">
+                <Setter Property="Command" Value="{Binding Command}" />
+                <Setter Property="CommandParameter" Value="{Binding Parameter}" />
+              </Style>
+            </MenuItem.Styles>
+          </MenuItem>
+          <MenuItem Header="Skeleton sets…" Click="OnRigSets"
+                    ToolTip.Tip="Name this drawing's skeleton as a set the project keeps, or manage the sets it has. Needs a project." />
+          <Separator />
+          <!--
+            What decides a pulled skeleton's size. Heads is the default and the
+            reason the library exists; original has to be here because the
+            goblin being short is data, not an accident to normalise away.
+          -->
+          <MenuItem Header="Size it by head count" ToggleType="Radio" GroupName="RigFit"
+                    IsChecked="{Binding RigPullFitIsHeads, Mode=TwoWay}"
+                    ToolTip.Tip="As many heads tall as it was saved, measured on this drawing's character height scale — so the goblin stays shorter than the human on any paper" />
+          <MenuItem Header="Size it to this canvas" ToggleType="Radio" GroupName="RigFit"
+                    IsChecked="{Binding RigPullFitIsCanvas, Mode=TwoWay}"
+                    ToolTip.Tip="The same share of the height it filled when it was saved" />
+          <MenuItem Header="Leave it the size it was saved" ToggleType="Radio" GroupName="RigFit"
+                    IsChecked="{Binding RigPullFitIsOriginal, Mode=TwoWay}" />
+        </MenuItem>
+        <!--
           The volume checker: reads the active layer's ink and reports — a
           checker, not a guide, so it lives beside the rig rather than under
           Guides. Off is absent: no band, no dots, nothing measured.

@@ -29,7 +29,7 @@ namespace Lightbox.Core.Tests;
 /// </remarks>
 public class GuideSetFitTests(ITestOutputHelper output)
 {
-    private static GuideSetCanvas Paper(int w, int h) => new() { Width = w, Height = h };
+    private static AuthoredCanvas Paper(int w, int h) => new() { Width = w, Height = h };
 
     /// <summary>A six-head chart standing on the floor, 70% of the paper tall.</summary>
     private static GuideSet Chart(int w, int h)
@@ -135,12 +135,12 @@ public class GuideSetFitTests(ITestOutputHelper output)
         // than from the paper's corner would put the chart outside it.
         var set = new GuideSet
         {
-            Canvas = new GuideSetCanvas { Width = 1000, Height = 1000, OriginX = -500, OriginY = -500 },
+            Canvas = new AuthoredCanvas { Width = 1000, Height = 1000, OriginX = -500, OriginY = -500 },
             Guides = [new Guide { Kind = GuideKind.Line, X = 0, Y = 0 }],  // dead centre
         };
 
         var landed = Assert.Single(GuideSetFit.Onto(
-            set, new GuideSetCanvas { Width = 400, Height = 400, OriginX = 100, OriginY = 100 }));
+            set, new AuthoredCanvas { Width = 400, Height = 400, OriginX = 100, OriginY = 100 }));
 
         Assert.Equal(300, landed.X, 9);   // centre of paper that runs 100..500
         Assert.Equal(300, landed.Y, 9);
