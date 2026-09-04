@@ -57,8 +57,47 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     /// </summary>
     public bool IsDirty { get; private set; }
 
-    public void Replace(DockLayout layout, bool dirty = false)
+    /// <summary>
+    /// Take a whole arrangement, keeping the flags that say how you are
+    /// working rather than which panels are open.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Rulers and the two locks cross the switch (B356).</b> They live in
+    /// <see cref="DockLayout"/> because that is where the toggles that persist
+    /// live, and the consequence was that picking a workspace overwrote them:
+    /// every built-in stores <c>Rulers = false</c>, so switching arrangement
+    /// silently turned the rulers off. Reported as rulers not coming back, and
+    /// it needed no reopen at all.
+    /// </para>
+    /// <para>
+    /// The distinction is what the value answers. Where a docker sits is part
+    /// of an arrangement and belongs to the workspace. Whether the rulers are
+    /// up, whether guides are drawn, and whether guides and references can be
+    /// grabbed answer <em>how am I working</em> — and no artist rearranging
+    /// panels means "and hide my rulers".
+    /// </para>
+    /// <para>
+    /// Both locks, not just the guide one: the code pairs them itself (Q108,
+    /// "the guide lock's argument applied to reference"), so carrying one and
+    /// dropping the other would be arbitrary.
+    /// </para>
+    /// <para>
+    /// Here rather than at the two call sites, because this is the funnel every
+    /// switch goes through and a third one would otherwise have to remember.
+    /// <paramref name="keepViewingFlags"/> is the way out for a caller that
+    /// genuinely means "this layout, exactly".
+    /// </para>
+    /// </remarks>
+    public void Replace(DockLayout layout, bool dirty = false, bool keepViewingFlags = true)
     {
+        if (keepViewingFlags)
+        {
+            layout.Rulers = _layout.Rulers;
+            layout.GuidesVisible = _layout.GuidesVisible;
+            layout.GuidesLocked = _layout.GuidesLocked;
+            layout.ReferencesLocked = _layout.ReferencesLocked;
+        }
         _layout = layout;
         IsDirty = dirty;
         Raise();
@@ -539,12 +578,26 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     /// <summary>Apply a saved workspace by name.</summary>
     [RelayCommand]
-    public void Apply(string name)
+    public void Apply(string name) => ApplyCore(name, keepViewingFlags: true);
+
+    /// <summary>
+    /// Take a named workspace's arrangement.
+    /// </summary>
+    /// <param name="keepViewingFlags">
+    /// Whether the rulers and the two locks cross with you: true for a
+    /// <em>switch</em>, false for a <em>reset</em> — see <see cref="Reset"/>.
+    /// </param>
+    /// <remarks>
+    /// Split from <see cref="Apply"/> rather than given a second parameter,
+    /// because <c>Apply</c> is a generated relay command and the generator
+    /// takes one argument or none.
+    /// </remarks>
+    private void ApplyCore(string name, bool keepViewingFlags)
     {
         if (_store.Find(name) is not { } workspace) return;
         _store.Current = workspace.Name;
         SelectedName = workspace.Name;
-        Replace(workspace.Layout.Clone());
+        Replace(workspace.Layout.Clone(), keepViewingFlags: keepViewingFlags);
         _store.Save();
     }
 
@@ -604,7 +657,14 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         {
             builtIn.Layout = shipped;
         }
-        Apply(SelectedName);
+        // Everything, rulers included (B356). A *switch* keeps how you are
+        // working because rearranging panels does not mean "and hide my
+        // rulers" — but a **reset** is the artist saying put it back, and
+        // `ResetStillReturnsToTheSavedWorkspace` had already drawn that line
+        // before B356 existed: "going back to the snapshot is a choice, and it
+        // has to stick across a restart like any other." It is the guard that
+        // caught this fix reaching one step too far.
+        ApplyCore(SelectedName, keepViewingFlags: false);
     }
 
     /// <summary>Delete a saved workspace. Built-ins and the last one refuse.</summary>
