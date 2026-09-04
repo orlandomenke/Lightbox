@@ -231,11 +231,94 @@ public sealed class Doc
     /// its decisions are <c>docs/DESIGN-bones.md</c>.
     /// </para>
     /// </remarks>
-    public Armature? Armature { get; set; }
+    /// <remarks>
+    /// <para>
+    /// <b>Q182 made this a list.</b> Two characters interacting in one shot are
+    /// two rigs with art bound to both, and a mannequin you pose and draw over
+    /// is a second character rather than a drawing aid — so a document holds
+    /// any number of them, all equal, all posed on the one
+    /// <see cref="Documents.Scene.PoseTrack"/>. That track needed no change at
+    /// all: <see cref="PoseKey.Bones"/> is keyed by bone id and is sparse, so
+    /// it has always been able to carry several rigs' poses without ambiguity.
+    /// </para>
+    /// <para>
+    /// Null and absent for a document that never rigs, which is still the
+    /// common case and still pays nothing.
+    /// </para>
+    /// </remarks>
+    public List<Armature>? Armatures { get; set; }
+
+    /// <summary>
+    /// The document's first rig, or null — what nearly every caller means by
+    /// "the rig".
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Kept because ninety call sites say <c>Armature</c> and mean something
+    /// true.</b> Before Q182 there was one rig and this was the record; now it
+    /// is the first of a list, and the sites that need a particular rig say so
+    /// explicitly. Assigning replaces the first rig rather than the list — a
+    /// setter that cleared every other rig would turn "give this document a
+    /// skeleton" into "delete the other characters".
+    /// </para>
+    /// <para>
+    /// <b>Never serialized, and the attribute is load-bearing.</b> A public
+    /// getter beside a stored field is a property as far as
+    /// <c>System.Text.Json</c> is concerned, so without this the file would
+    /// carry every rig twice — once in <see cref="Armatures"/> and once here,
+    /// under the very key the migration exists to retire.
+    /// </para>
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Armature? Armature
+    {
+        get => Armatures is { Count: > 0 } rigs ? rigs[0] : null;
+        set
+        {
+            if (value is null)
+            {
+                if (Armatures is { Count: > 0 } rigs) rigs.RemoveAt(0);
+                if (Armatures is { Count: 0 }) Armatures = null;
+                return;
+            }
+            if (Armatures is { Count: > 0 } existing) existing[0] = value;
+            else Armatures = [value];
+        }
+    }
+
+    /// <summary>
+    /// The single rig a document written before Q182 carries. Read only —
+    /// folded into <see cref="Armatures"/> on load and never written back.
+    /// </summary>
+    /// <remarks>
+    /// The getter returns null and the serializer is configured
+    /// <c>WhenWritingNull</c>, so no document written from here on carries the
+    /// old key. Reading it is what makes every rigged document already on disk
+    /// open unchanged.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonPropertyName("armature")]
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public Armature? LegacyArmature
+    {
+        get => null;
+        set { if (value is not null) (Armatures ??= []).Insert(0, value); }
+    }
 
     /// <summary>Whether this document has a rig. Derived; never serialized.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool HasArmature => Armature is { Bones.Count: > 0 };
+    public bool HasArmature => Armatures?.Any(a => a.Bones.Count > 0) == true;
+
+    /// <summary>Every rig on the document, or an empty list. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<Armature> Rigs => Armatures ?? (IReadOnlyList<Armature>)[];
+
+    /// <summary>
+    /// The rig that owns <paramref name="boneId"/>, or null — bone ids are
+    /// unique across a document, which is what lets one pose track drive them
+    /// all.
+    /// </summary>
+    public Armature? RigOfBone(string? boneId) =>
+        boneId is { Length: > 0 } id ? Armatures?.FirstOrDefault(a => a.BoneById(id) is not null) : null;
 
     /// <summary>
     /// The timeline frame the artist was parked on when the document was
@@ -450,7 +533,7 @@ public sealed class Doc
         copy.Sims = Sims?.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.SimGroups = SimGroups?.ToDictionary(g => g.Key, g => g.Value.Clone());
         copy.LineTreatments = LineTreatments?.ToDictionary(e => e.Key, e => e.Value.Clone());
-        copy.Armature = Armature?.Clone();
+        copy.Armatures = Armatures?.Select(a => a.Clone()).ToList();
         copy.Features = Features is null ? null : new Dictionary<string, bool>(Features);
         return copy;
     }
