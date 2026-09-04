@@ -180,7 +180,14 @@ public partial class MainViewModel
         ClearSelectionState();
         // ClearFrameRenders subsumes the _cache.Clear() this used to be: it
         // empties the tile cache alongside it, through the one funnel.
-        ClearFrameRenders();
+        //
+        // Keeping the incoming document's frame bitmaps across the swap (B362).
+        // _editor is already the document being switched to by this line, so
+        // this asks what that document can still use. Measured before the
+        // change: every crossing rebuilt 4,147,200 bytes at 1080p, inside the
+        // switch, however briefly you had been away — which is the delay the
+        // owner reported between clicking a tab and seeing it.
+        ClearFrameRenders(keepFramesOf: _editor.Doc.Scene);
         // The bakes hold bitmaps folded from the old document's cache; the
         // keys would miss anyway, but a document switch should not keep two
         // document-sized bitmaps of a scene nobody is looking at.
