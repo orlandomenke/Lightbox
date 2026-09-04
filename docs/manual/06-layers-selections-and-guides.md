@@ -17,6 +17,12 @@ A new document opens with a locked **Background** layer holding the paper, and a
 paintable layer above it. On a transparent document there is no paper layer —
 just an ordinary unlocked layer.
 
+**Opening a file selects a layer you can draw on** — not merely the first one
+above the paper. A layer that is locked, hidden, or inside a locked folder is
+skipped, so the first stroke after opening lands instead of going nowhere. If
+*every* layer is out of reach the selection still goes to a real layer rather
+than the paper, and the status line says which lock is in the way.
+
 **Ctrl+click** a layer thumbnail to select its opaque pixels.
 
 **The everyday layer verbs are on the Layer menu too**, addressed to the layer
