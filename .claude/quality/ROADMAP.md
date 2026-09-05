@@ -47,12 +47,27 @@ item that a painting app is simply expected to have lives here.
   - So this is a question about the model: **is a ceiling per-point the right idea at all**, or should it build with the passes the way paint does? What comes out has to keep Q157's edge, keep B27's measured wash spread, and re-render every existing document the same way or say plainly that it does not. **A design note before any code.**
   - **Answered and landed 2026-09-02** (`docs/DESIGN-swept-ceiling.md`, B349): the ceiling stays per-point, and what changes is what the point is measured against — the brush's falloff applied to the pixel's distance from the edge of everything the stroke reached, instead of the best any single dab does there. It is a relaxation of the old ceiling by construction, so it keeps Q157's edge to the byte and cannot clip a lone dab; it is flat between passes where the maximum dipped; and the distance transform that computes it costs a live event a tenth of a millisecond fit-to-window. Existing documents re-render with fewer ridges and no other difference, and the seven fingerprints that say so are re-recorded with the reason beside each. Media stay outside it, as Q157 measured they must.
   - Cost: **L**. B349 carries the measurements this starts from.
-- [~] **The swept ceiling's timing guard says what it costs relative to something, not in milliseconds** `evidence: SweptCeilingTests, TheDistanceTermIsBoundedAgainstTheCapItReplaces, TheUnboundedTransformStillFailsTheGuard`
-  - B363. `TheDistanceTermCostsOneLiveEventLessThanItsBudget` has now failed twice on trees that never touched the brush — on `main` at its original 2 ms, and on PR #526 at 6.287 ms against the 5 ms it was raised to for the runner. It also fails both parameters on the owner's own machine on unmodified `main`. A guard in that state does not report a regression; it reports whatever else was running.
+- [x] **The swept ceiling's timing guard says what it costs relative to something, not in milliseconds** `evidence: SweptCeilingTests, TheDistanceTermIsBoundedAgainstTheCapItReplaces, TheUnboundedTransformStillFailsTheGuard`
+  - B363, fixed 2026-09-04. `TheDistanceTermCostsOneLiveEventLessThanItsBudget` had failed twice on trees that never touched the brush — on `main` at its original 2 ms, and on PR #526 at 6.287 ms against the 5 ms it was raised to for the runner. It also fails both parameters on the owner's own machine on unmodified `main`. A guard in that state does not report a regression; it reports whatever else was running.
   - The test already takes paired minima of `plain` and `swept` five times over and then compares their difference to a wall-clock constant, which is where the pairing is discarded. B347 and B339 both landed on the same answer for the same symptom: assert the relationship, print the absolutes.
   - What needs deciding first is what the guard should promise — the term bounded against the cap it replaces, or against a frame with the measurement moved off a shared runner, or split into a correctness assertion plus an owner-machine number. The three are different promises and the current one is *a live event stays under a frame*, which is the one a hosted runner cannot keep.
   - Whatever ships must include the half no raise has supplied: proof that the unbounded exact transform this guard exists to catch — 13 and 34 ms on the runner — still fails it. A limit the correct version clears easily is decoration.
   - Cost: **S**, and it is small only once the promise above is chosen.
+  - **Built 2026-09-04. The promise chosen was the first of the three:** the term is
+    bounded against the version the guard exists to catch, measured in the same run.
+    A `swept / plain` ratio was the obvious reading of "relative to something" and was
+    rejected on the numbers — 12-15x on the developer machine and ~20x on the runner,
+    against a broken version at 33-40x and ~50x, so one threshold still has to sit
+    between four numbers from two machines. Measuring the unbounded term beside the
+    banded one takes the machine out of the comparison instead of moving the guess.
+  - **The floors were set by measuring eight runs**, not chosen: the saving came out
+    2.27-3.00x at scale 1.0 and 6.99-8.52x at 0.375, so the floors sit at 1.6x and
+    3.0x with 1.4x and 2.4x to spare. `TheUnboundedTransformStillFailsTheGuard` is the
+    half no raise supplied, and it was checked by breaking the fix: pointing the banded
+    arm at the whole window fails the guard at both scales.
+  - **The runner agreed.** PR #538's `test` check passed on the hosted runner, where the
+    absolute budget had gone red three times - which is the only place the old guard's
+    failure was ever reproducible on demand.
 
 - [x] Custom brush editor `evidence: BrushPageGeneral, BrushPageEffects, BrushPagePressure`
 - [x] Brush presets and tagging `evidence: BrushPreset, PresetStore, BuiltInPresets, BrushPresetList, BrushTagChoices, BrushPresetEditingTests, TagsPersistAndFeedTheFilterList, ABrushNobodyFiledWritesNoTagsKey`

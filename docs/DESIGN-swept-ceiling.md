@@ -156,7 +156,7 @@ The plan below landed as written, with three things learned on the way:
 | band against whole mark, over the band | 0/255 |
 | pixels anywhere below the shape maximum | 0 |
 
-`SweptCeilingTests.TheDistanceTermCostsOneLiveEventLessThanItsBudget` holds
+`SweptCeilingTests.TheDistanceTermIsBoundedAgainstTheCapItReplaces` holds
 the first two under 0.5 and 2.0 ms.
 
 ## Implementation plan

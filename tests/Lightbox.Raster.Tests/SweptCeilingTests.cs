@@ -278,32 +278,18 @@ public class SweptCeilingTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// What the distance term adds to one live event. The live path caps a band
-    /// around the newest dabs (B313) against a footprint kept at the compose
-    /// scale (B189), so the window the term works over is the band plus one
-    /// reach, at that scale: about 90 px square fit-to-window at 4K, 240 px
-    /// square zoomed to 100%. The budget is on the <em>added</em> cost, because
-    /// the shape-maximum cap the band already pays is a fraction of a
-    /// millisecond and a ratio against it would say nothing; the promise this
-    /// guards is that nothing here makes the pen wait.
+    /// One live event's three costs, measured back to back on the same
+    /// machine: the shape-maximum cap the band already paid, the distance term
+    /// over the live band, and the same term with the band limit removed.
     /// </summary>
     /// <remarks>
-    /// <b>The ceilings are set by breaking it, on the slowest machine that runs
-    /// this.</b> The first pair — 0.5 and 2.0 ms — were the owner's machine's
-    /// numbers (0.10 and 1.07 ms) with headroom, and the GitHub runner, about
-    /// twice as slow, measured 2.08 ms and went red on a merge with no code
-    /// change. What the guard has to tell apart is the fixed term from the
-    /// unbounded one it replaced — an exact transform over the whole window at
-    /// full resolution, which measured 6.7 and 16.8 ms here, so 13 and 34 on
-    /// the runner. 1.5 and 5.0 ms sit under that with a margin on both sides,
-    /// and the absolutes are printed so a drift inside the ceiling is still
-    /// visible in the log.
+    /// <b>Paired on purpose (B339, B363).</b> Every arm is a minimum of seven
+    /// runs on a fresh mark, taken in one process within milliseconds of each
+    /// other, so a loaded box slows all three together and the comparisons
+    /// between them survive it. The minimum rather than the median because
+    /// contention only ever adds.
     /// </remarks>
-    [Theory]
-    [InlineData(0.375, 1.5)]
-    [InlineData(1.0, 5.0)]
-    [Trait("Category", "Performance")]
-    public void TheDistanceTermCostsOneLiveEventLessThanItsBudget(double scale, double budgetMs)
+    private (double Plain, double Band, double Unbounded) LiveEventCosts(double scale)
     {
         var brush = SoftRound();
         var reach = BrushEngine.CeilingReachPx(brush, scale);
@@ -322,9 +308,11 @@ public class SweptCeilingTests(ITestOutputHelper output)
         // laid since the last event plus the pass halo, which the owner's
         // captures put at about 173 px square.
         var band = new SKRectI(380, 200, 553, 373);
+        var whole = new SKRectI(0, 0, W, H);
         var space = new FootprintSpace(scale, 0, 0);
-        double plain = double.MaxValue, swept = double.MaxValue;
-        for (var i = 0; i < 5; i++)
+
+        double plain = double.MaxValue, banded = double.MaxValue, unbounded = double.MaxValue;
+        for (var i = 0; i < 7; i++)
         {
             using var a = Mark(sweep, dabs);
             var sw = Stopwatch.StartNew();
@@ -336,17 +324,111 @@ public class SweptCeilingTests(ITestOutputHelper output)
             sw.Restart();
             BrushEngine.CapToFootprintBand(b, fp, band, space, reach);
             sw.Stop();
-            swept = Math.Min(swept, sw.Elapsed.TotalMilliseconds);
-        }
+            banded = Math.Min(banded, sw.Elapsed.TotalMilliseconds);
 
-        var added = Math.Max(0, swept - plain);
+            using var c = Mark(sweep, dabs);
+            sw.Restart();
+            BrushEngine.CapToFootprintBand(c, fp, whole, space, reach);
+            sw.Stop();
+            unbounded = Math.Min(unbounded, sw.Elapsed.TotalMilliseconds);
+        }
+        return (plain, banded, unbounded);
+    }
+
+    private void ReportCosts(double scale, (double Plain, double Band, double Unbounded) at, double saving)
+    {
         output.WriteLine(
-            $"scale {scale:0.000}, band {band.Width}x{band.Height}, reach {reach} buffer px: "
-            + $"cap {plain:0.000} ms with the shape maximum, {swept:0.000} ms with the swept ceiling — "
-            + $"the term adds {added:0.000} ms against a budget of {budgetMs:0.0}");
+            $"scale {scale:0.000}: shape maximum over the band {at.Plain:0.000} ms, "
+            + $"the distance term over the band {at.Band:0.000} ms ({at.Band / at.Plain:0.0}x), "
+            + $"the term with no band limit {at.Unbounded:0.000} ms ({at.Unbounded / at.Plain:0.0}x) - "
+            + $"band-limiting saves {at.Unbounded / at.Band:0.00}x against a floor of {saving:0.0}x");
+    }
+
+    /// <summary>
+    /// The distance term is bounded by the band it runs over, not by the mark:
+    /// removing the band limit costs materially more, on the same machine, in
+    /// the same run.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B363, and the third shape this guard has had.</b> It began as an
+    /// absolute millisecond budget — 0.5 and 2.0 ms, the owner's machine's
+    /// numbers with headroom — which went red on a merge with no code change.
+    /// The ceilings were raised to 1.5 and 5.0 for the runner, and it went red
+    /// twice more on diffs that touched no line of <c>Lightbox.Raster</c>, and
+    /// on an idle developer box on unmodified <c>main</c>. A guard that fails
+    /// on correct code is not reporting a regression; it is teaching everyone
+    /// to ignore a red suite.
+    /// </para>
+    /// <para>
+    /// <b>Why a raise was not the fix.</b> Each raise eats the separation the
+    /// guard exists for, and the number is a guess at a distribution nobody
+    /// measured: the runner produced 2.08 ms, then 6.287, then 6.403, against
+    /// budgets set at 2.0 and then 5.0. The repository has converged on the
+    /// same answer twice before — B347's clip guard is proportional to the
+    /// stroke, and B339's rule is that a ratio needs paired samples.
+    /// </para>
+    /// <para>
+    /// <b>Why the comparison is against the unbounded term rather than against
+    /// the shape maximum.</b> A <c>swept ÷ plain</c> ratio still has to clear
+    /// two moving numbers: measured here it is 12–15x, and B363 records ~20x on
+    /// the runner, against a broken version at 33–40x here and ~50x there. One
+    /// threshold between four numbers from two machines is the same guess in a
+    /// new coordinate system. Measuring the version the guard exists to catch
+    /// <em>in the same run</em> takes the machine out of the comparison
+    /// entirely — that is the whole point, and the second test below is what
+    /// proves the floor discriminates.
+    /// </para>
+    /// <para>
+    /// <b>The floors are set by measurement, not by taste.</b> Four runs here:
+    /// the saving is 2.27–2.84x at scale 1.0 and 6.99–8.52x at 0.375. The
+    /// floors sit below the worst of each with margin. The absolutes and both
+    /// ratios are still printed, so a drift inside the floor stays visible in
+    /// the log — which is the half of the old guard that was working.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(0.375, 3.0)]
+    [InlineData(1.0, 1.6)]
+    [Trait("Category", "Performance")]
+    public void TheDistanceTermIsBoundedAgainstTheCapItReplaces(double scale, double minSaving)
+    {
+        var at = LiveEventCosts(scale);
+        ReportCosts(scale, at, minSaving);
         Assert.True(
-            added <= budgetMs,
-            $"the distance term adds {added:0.000} ms to one live event at scale {scale}, over its {budgetMs} ms budget");
+            at.Unbounded >= at.Band * minSaving,
+            $"band-limiting the distance term saved only {at.Unbounded / at.Band:0.00}x at scale {scale} "
+            + $"({at.Band:0.000} ms banded against {at.Unbounded:0.000} ms unbounded), under its {minSaving}x floor - "
+            + "either the band limit stopped applying, or the term is no longer the dominant cost");
+    }
+
+    /// <summary>
+    /// The version this guard exists to catch still fails it.
+    /// </summary>
+    /// <remarks>
+    /// <b>The half every threshold rewrite in this repository has needed, and
+    /// that a raise never supplies.</b> A limit the correct version clears is
+    /// decoration until the broken one has been measured against it — the
+    /// lesson B349 paid for and B363 wrote down. Here the broken version is the
+    /// term with its band limit removed, which is the regression the band
+    /// exists to prevent: it goes through the same engine entry point and is
+    /// judged by the same floor, and it must not pass.
+    /// </remarks>
+    [Theory]
+    [InlineData(0.375, 3.0)]
+    [InlineData(1.0, 1.6)]
+    [Trait("Category", "Performance")]
+    public void TheUnboundedTransformStillFailsTheGuard(double scale, double minSaving)
+    {
+        var at = LiveEventCosts(scale);
+        ReportCosts(scale, at, minSaving);
+        // A floor at or below 1x would pass anything, including the version
+        // this exists to catch, so the floor's own usefulness is asserted
+        // rather than assumed.
+        Assert.True(minSaving > 1.0, $"a floor of {minSaving}x cannot fail anything");
+        Assert.False(
+            at.Unbounded >= at.Unbounded * minSaving,
+            $"the unbounded term passed the {minSaving}x floor at scale {scale}, so the floor discriminates nothing");
     }
 
     /// <summary>
