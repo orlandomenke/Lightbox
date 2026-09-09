@@ -177,6 +177,108 @@ public class BandScaleTests(ITestOutputHelper output)
         Assert.Equal(900, BandScale.MapCoordinate(y, 900), 6);
     }
 
+    // ---- the cell decomposition the live preview draws ----
+
+    /// <summary>
+    /// <b>No dividers means one identity cell — the behaviour that exists
+    /// today.</b>
+    /// </summary>
+    /// <remarks>
+    /// The check that the generalisation is the right one: at zero dividers it
+    /// has to collapse back onto the single-matrix preview the transform tool
+    /// already does, or it is a second code path rather than a wider one.
+    /// </remarks>
+    [Fact]
+    public void WithNoDividersThereIsOneIdentityCell()
+    {
+        var cells = BandScale.Cells(BandScale.Axis.None(0, 200), BandScale.Axis.None(0, 400));
+
+        var only = Assert.Single(cells);
+        Assert.Equal(1, only.ScaleX, 6);
+        Assert.Equal(1, only.ScaleY, 6);
+        Assert.Equal(0, only.SrcLow, 6);
+        Assert.Equal(200, only.SrcHigh, 6);
+        Assert.Equal(0, only.DstTop, 6);
+        Assert.Equal(400, only.DstBottom, 6);
+    }
+
+    /// <summary>Each band becomes a cell, and each cell carries its own scale.</summary>
+    [Fact]
+    public void EachBandBecomesACellWithItsOwnScale()
+    {
+        var y = BandScale.Drag(Axis(0, 400, 300), 0, 150);
+
+        var cells = BandScale.Cells(BandScale.Axis.None(0, 100), y);
+
+        Assert.Equal(2, cells.Count);
+        output.WriteLine($"top    y {cells[0].SrcTop}..{cells[0].SrcBottom} -> {cells[0].DstTop}..{cells[0].DstBottom}  {cells[0].ScaleY:0.00}x");
+        output.WriteLine($"bottom y {cells[1].SrcTop}..{cells[1].SrcBottom} -> {cells[1].DstTop}..{cells[1].DstBottom}  {cells[1].ScaleY:0.00}x");
+        Assert.Equal(0.5, cells[0].ScaleY, 6);
+        Assert.Equal(2.5, cells[1].ScaleY, 6);
+        // Neither cell scales horizontally: there are no vertical dividers.
+        Assert.Equal(1, cells[0].ScaleX, 6);
+        Assert.Equal(1, cells[1].ScaleX, 6);
+    }
+
+    /// <summary>
+    /// Dividers on both axes give a grid, and the cells tile the box exactly.
+    /// </summary>
+    /// <remarks>
+    /// "Tile exactly" is the property that matters for the preview: a gap
+    /// between two cells is a seam of unpainted pixels through the drawing, and
+    /// an overlap is a doubled edge. Asserted by summing the destination areas
+    /// and comparing with the box.
+    /// </remarks>
+    [Fact]
+    public void TheCellsTileTheBoxWithNoSeamOrOverlap()
+    {
+        var x = BandScale.Drag(Axis(0, 200, 100), 0, 60);
+        var y = BandScale.Drag(Axis(0, 400, 100, 300), 1, 250);
+
+        var cells = BandScale.Cells(x, y);
+
+        Assert.Equal(2 * 3, cells.Count);
+        var area = cells.Sum(c => (c.DstHigh - c.DstLow) * (c.DstBottom - c.DstTop));
+        output.WriteLine($"{cells.Count} cells, destination area {area} vs box {200 * 400}");
+        Assert.Equal(200.0 * 400, area, 6);
+
+        // The source side tiles too, or the preview would read the same pixels
+        // twice and miss others.
+        var src = cells.Sum(c => (c.SrcHigh - c.SrcLow) * (c.SrcBottom - c.SrcTop));
+        Assert.Equal(200.0 * 400, src, 6);
+    }
+
+    /// <summary>
+    /// A cell's own scale agrees with what the point map does inside it.
+    /// </summary>
+    /// <remarks>
+    /// The preview and the commit must not be two definitions of the transform.
+    /// This is the check that the cell a pass is drawn through says the same
+    /// thing as the map the commit applies — the same discipline
+    /// <c>TransformMatrix</c> already follows for the affine and perspective
+    /// arms.
+    /// </remarks>
+    [Fact]
+    public void ACellAgreesWithThePointMapInsideIt()
+    {
+        var x = BandScale.Drag(Axis(0, 200, 100), 0, 60);
+        var y = BandScale.Drag(Axis(0, 400, 300), 0, 150);
+        var map = BandScale.Map(x, y);
+
+        foreach (var c in BandScale.Cells(x, y))
+        {
+            // A point a quarter of the way into the cell, mapped both ways.
+            var px = c.SrcLow + (c.SrcHigh - c.SrcLow) * 0.25;
+            var py = c.SrcTop + (c.SrcBottom - c.SrcTop) * 0.25;
+            var (mx, my) = map(px, py);
+            var byCell = (
+                c.DstLow + (px - c.SrcLow) * c.ScaleX,
+                c.DstTop + (py - c.SrcTop) * c.ScaleY);
+            Assert.Equal(byCell.Item1, mx, 6);
+            Assert.Equal(byCell.Item2, my, 6);
+        }
+    }
+
     // ---- the point insertion, which is the part that is not a preference ----
 
     private static Stroke Diagonal(params (double X, double Y, double P)[] pts) => new()

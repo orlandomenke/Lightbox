@@ -216,6 +216,85 @@ public static class BandScale
     }
 
     /// <summary>
+    /// One cell of the band grid: the source rectangle it reads and the
+    /// destination rectangle it fills. Within a cell the map is affine.
+    /// </summary>
+    /// <remarks>
+    /// Plain doubles rather than a rectangle type because <c>Lightbox.Core</c>
+    /// carries no rendering dependency — the caller turns these into whatever
+    /// its rasterizer wants.
+    /// </remarks>
+    public readonly record struct Cell(
+        double SrcLow, double SrcHigh, double SrcTop, double SrcBottom,
+        double DstLow, double DstHigh, double DstTop, double DstBottom)
+    {
+        /// <summary>The horizontal scale this cell applies.</summary>
+        public double ScaleX =>
+            Math.Abs(SrcHigh - SrcLow) < 1e-12 ? 1 : (DstHigh - DstLow) / (SrcHigh - SrcLow);
+
+        /// <summary>The vertical scale this cell applies.</summary>
+        public double ScaleY =>
+            Math.Abs(SrcBottom - SrcTop) < 1e-12 ? 1 : (DstBottom - DstTop) / (SrcBottom - SrcTop);
+    }
+
+    /// <summary>
+    /// The band grid as a list of affine cells — what a live preview draws.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is why the preview needs no mesh and no resampler.</b> Inside one
+    /// cell the map is a scale and an offset per axis, so a cell can be drawn by
+    /// blitting its source rectangle of the already-composited moving bitmap
+    /// into its destination rectangle. <c>ScenePassBuilder.PassSpec</c> already
+    /// carries a <c>Source</c> sub-rect and a <c>Matrix</c>, which is exactly
+    /// this pair — so the preview is N passes instead of one and the rendering
+    /// code does not change at all.
+    /// </para>
+    /// <para>
+    /// <b>With no dividers there is exactly one cell and it is the identity</b>,
+    /// which is the behaviour that exists today. A generalisation that collapses
+    /// back onto the current code at N=0 is the sign it is the right one.
+    /// </para>
+    /// <para>
+    /// Cells are emitted in reading order, top band first, and the count is
+    /// <c>(x.Count + 1) * (y.Count + 1)</c> — two or three in practice, which is
+    /// why no attempt is made to skip the ones that did not move.
+    /// </para>
+    /// </remarks>
+    public static List<Cell> Cells(Axis x, Axis y)
+    {
+        var xs = Edges(x);
+        var ys = Edges(y);
+        var cells = new List<Cell>((xs.Src.Count - 1) * (ys.Src.Count - 1));
+        for (var j = 0; j < ys.Src.Count - 1; j++)
+        {
+            for (var i = 0; i < xs.Src.Count - 1; i++)
+            {
+                cells.Add(new Cell(
+                    xs.Src[i], xs.Src[i + 1], ys.Src[j], ys.Src[j + 1],
+                    xs.Dst[i], xs.Dst[i + 1], ys.Dst[j], ys.Dst[j + 1]));
+            }
+        }
+        return cells;
+    }
+
+    /// <summary>The band edges of an axis: start, every divider, end.</summary>
+    private static (List<double> Src, List<double> Dst) Edges(Axis axis)
+    {
+        var src = new List<double>(axis.Source.Count + 2) { axis.Start };
+        var dst = new List<double>(axis.Moved.Count + 2) { axis.Start };
+        var n = Math.Min(axis.Source.Count, axis.Moved.Count);
+        for (var i = 0; i < n; i++)
+        {
+            src.Add(axis.Source[i]);
+            dst.Add(axis.Moved[i]);
+        }
+        src.Add(axis.End);
+        dst.Add(axis.End);
+        return (src, dst);
+    }
+
+    /// <summary>
     /// Insert a point wherever a stroke crosses a divider, before the map is
     /// applied.
     /// </summary>
