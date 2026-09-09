@@ -1411,11 +1411,73 @@ public partial class MainViewModel
 
 
     /// <summary>
-    /// The bitmap a thumbnail shrinks from: the full-size cached render, so the
-    /// thumbnail rides a bitmap the canvas needs anyway.
+    /// The longest side of the bitmap a thumbnail shrinks from.
     /// </summary>
+    /// <remarks>
+    /// The largest consumer is the channels docker at 64x36; the layer docker
+    /// takes 44x26 and a timeline cell 32x18. 256 gives the widest of those four
+    /// linear headroom of four, which is more than a clean downscale needs and
+    /// still two orders of magnitude off a document render.
+    /// </remarks>
+    private const int ThumbSourceLongestSide = 256;
+
+    /// <summary>
+    /// The output scale a thumbnail source is rendered at — small, and never
+    /// larger than the document itself.
+    /// </summary>
+    /// <remarks>
+    /// Both sides are constrained, not just the longest: a very wide, very short
+    /// document scaled by its width alone would come back shorter than the 36 px
+    /// the channels docker wants, and the thumbnail would be upscaled from too
+    /// little. The short side is floored at 64 for that reason.
+    /// </remarks>
+    private static double ThumbSourceScale(int width, int height)
+    {
+        var longest = Math.Max(width, height);
+        var shortest = Math.Max(1, Math.Min(width, height));
+        var forLongSide = (double)ThumbSourceLongestSide / Math.Max(1, longest);
+        var forShortSide = 64.0 / shortest;
+        return Math.Min(1.0, Math.Max(forLongSide, forShortSide));
+    }
+
+    /// <summary>
+    /// The bitmap a thumbnail shrinks from — rendered at thumbnail scale, not
+    /// at document scale.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B364.</b> This used to ask for <c>Scene.Width x Scene.Height</c>, on
+    /// the reasoning that "the thumbnail rides a bitmap the canvas needs
+    /// anyway". <b>That premise is false for every drawing except the one on
+    /// screen.</b> The canvas publishes the current frame; the timeline and the
+    /// layer docker ask about every drawing in the document. So each one
+    /// commissioned a <em>full-document</em> render — synchronous on the UI
+    /// thread, because <see cref="FrameBitmapCache.Get"/> answers a miss by
+    /// rendering — and then kept it at full document size.
+    /// </para>
+    /// <para>
+    /// At the owner's 3840x2160 that is 33 MB and around 700 ms <em>per
+    /// drawing</em>, to produce a picture 64 px wide at most. It is what the
+    /// artist feels as a gap on every pen lift (the commit ends in
+    /// <c>RefreshThumbnails</c>) and it is where the capture's 415 MB of held
+    /// frames went. A hundred-frame cycle would have asked for 3.3 GB and stayed
+    /// inside its budget while doing it.
+    /// </para>
+    /// <para>
+    /// <b>The one trade, stated because invariant 7 is about exactly this.</b>
+    /// Output scale is a canvas transform rather than a multiplication of
+    /// geometry, so a scaled render is a <em>different mark</em> —
+    /// <c>Hash01</c> seeds every dab dynamic from position. A thumbnail is
+    /// therefore not a pixel-exact miniature of the canvas, and at 32x18 that is
+    /// invisible. Nothing else reads this: the two callers are the timeline cell
+    /// and the layer row, and the artwork is untouched either way.
+    /// </para>
+    /// </remarks>
     private SKBitmap ThumbSource(Frame frame, int celIndex) =>
-        _cache.Get(frame, Scene.Width, Scene.Height, celIndex: celIndex);
+        _cache.Get(
+            frame, Scene.Width, Scene.Height,
+            outputScale: ThumbSourceScale(Scene.Width, Scene.Height),
+            celIndex: celIndex);
 
     /// <summary>How the thumbnail cache is doing — B202's guard reads this.</summary>
     internal (int Hits, int Renders, int Count) ThumbnailTraffic =>
