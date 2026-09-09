@@ -59,10 +59,14 @@
       <NumericUpDown x:Name="FpsBox" Minimum="1" Maximum="60" Increment="1" FormatString="0" Value="12" />
     </DockPanel>
 
+    <!-- No Value here, and none on the background field below: both defaults
+         are set in the constructor from the constants beside them, so there is
+         one place that says what a new document opens as rather than a literal
+         here and a fallback in Collect() drifting apart. -->
     <DockPanel>
       <TextBlock Text="Resolution (ppi)" Width="110" VerticalAlignment="Center"
                  ToolTip.Tip="Metadata only for now — relevant when print/export sizing arrives" />
-      <NumericUpDown x:Name="PpiBox" Minimum="36" Maximum="1200" Increment="1" FormatString="0" Value="72" />
+      <NumericUpDown x:Name="PpiBox" Minimum="36" Maximum="1200" Increment="1" FormatString="0" />
     </DockPanel>
 
     <DockPanel>
@@ -70,7 +74,7 @@
       <StackPanel Orientation="Horizontal" Spacing="8">
         <!-- The same picker every other colour in the app opens — wheel first,
              hex at the bottom of the flyout as the readout it is. -->
-        <controls:ColorField x:Name="BackgroundField" Hex="#ffffff" VerticalAlignment="Center"
+        <controls:ColorField x:Name="BackgroundField" VerticalAlignment="Center"
                              ToolTip.Tip="Paper color" />
         <CheckBox x:Name="TransparentBox" Content="Transparent" VerticalAlignment="Center"
                   ToolTip.Tip="No paper at all — PNG exports keep transparency" />
