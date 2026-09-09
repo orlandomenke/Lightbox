@@ -5,6 +5,15 @@
 Folders, blend modes, per-layer opacity, visibility, lock and alpha lock.
 Thumbnails show what is actually on the layer.
 
+**A thumbnail is a preview, and is drawn at preview size.** It is rendered small
+rather than rendered full-size and shrunk — which matters only because Lightbox
+decides the fine grain of a mark from *where the mark is*, so a scatter or a
+grain in a 32-pixel thumbnail will not land on exactly the pixels it lands on at
+full size. Nothing about your artwork is affected, and it is the reason the
+timeline and the layer docker cost nothing to keep up to date: making them
+faithful to the pixel would mean rendering the whole document once per drawing,
+which is what used to make the canvas pause every time you lifted the pen.
+
 **There is one kind of layer, and it holds everything.** Strokes, imported
 pixels, symbol placements — a layer is not committed to one of them. Lightbox
 used to ask you to pick Raster or Vector when you added a layer, and marked each
