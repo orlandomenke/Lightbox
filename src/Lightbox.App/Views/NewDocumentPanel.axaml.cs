@@ -14,6 +14,37 @@ namespace Lightbox.App.Views;
 /// </remarks>
 public partial class NewDocumentPanel : UserControl
 {
+    /// <summary>
+    /// What a new document's resolution says, in pixels per inch.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q183.</b> 72 was the screen convention of a generation ago and is a
+    /// number nothing prints at — it made every HD canvas claim to be 26 inches
+    /// wide. 180 is a real print resolution and puts 1920 × 1080 at roughly
+    /// 10.7 × 6 inches, which is a sketchbook page rather than a broadsheet.
+    /// PPI is metadata today, so this decides only what the document *claims*
+    /// its physical size is; the pixels are unchanged either way.
+    /// </remarks>
+    public const int DefaultPpi = 180;
+
+    /// <summary>
+    /// The paper a new document opens on: mid grey, half way between black and
+    /// white in 8-bit sRGB value.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q183.</b> White paper is the animator's default and grey is the
+    /// painter's — both are first-class purposes here, and grey was chosen for
+    /// both rather than being made to follow the <em>For</em> box, so the
+    /// Background field never changes under you while you are filling the form
+    /// in. An animator wanting white sets it once and every preset keeps it.
+    ///
+    /// <c>#808080</c> is 128/255 — mid grey by *value*, which is what an artist
+    /// means by "50% grey" and what a fill of 50% grey gives them elsewhere.
+    /// Mid grey by luminance would be nearer <c>#bcbcbc</c> and is not what
+    /// anybody asks for.
+    /// </remarks>
+    public const string DefaultBackground = "#808080";
+
     private sealed record Preset(string Label, int Width, int Height)
     {
         public override string ToString() => Label;
@@ -64,6 +95,12 @@ public partial class NewDocumentPanel : UserControl
     public NewDocumentPanel()
     {
         InitializeComponent();
+        // Set here rather than in the XAML so the constants above are the only
+        // statement of what a new document opens as — the literal in the markup
+        // and the fallback in Collect() were two places to change and one to
+        // forget.
+        PpiBox.Value = DefaultPpi;
+        BackgroundField.Hex = DefaultBackground;
         PresetBox.ItemsSource = Presets;
         PresetBox.SelectedIndex = 3; // Full HD default
         TypeBox.ItemsSource = Types;
@@ -98,15 +135,18 @@ public partial class NewDocumentPanel : UserControl
     public NewDocumentSettings Collect()
     {
         var name = string.IsNullOrWhiteSpace(NameBox.Text) ? "Untitled" : NameBox.Text.Trim();
+        // A field holding something that is not a colour falls back to the
+        // default paper, not to white: white would be a third answer, neither
+        // what the field says nor what the panel offers.
         var background = Services.ColorSpace.HexToRgb(BackgroundField.Hex ?? "") is null
-            ? "#ffffff"
+            ? DefaultBackground
             : BackgroundField.Hex!.Trim().ToLowerInvariant();
         return new NewDocumentSettings(
             name,
             (int)(WidthBox.Value ?? 1920),
             (int)(HeightBox.Value ?? 1080),
             (int)(FpsBox.Value ?? 12),
-            (int)(PpiBox.Value ?? 72),
+            (int)(PpiBox.Value ?? DefaultPpi),
             background,
             TransparentBox.IsChecked == true,
             (TypeBox.SelectedItem as TypeChoice)?.Type,

@@ -23,6 +23,22 @@ landscape in one press, without retyping either number. The **background** is a
 colour swatch that opens the same picker as every other colour in the app:
 wheel, sliders, and hex at the bottom for pasting a value in.
 
+**What a new document opens as.** Full HD 1920 × 1080, 12 fps, **180 ppi**, on
+**mid grey paper** (`#808080`). Two of those are worth a word:
+
+- **180 ppi** because PPI says how large these pixels print, and 72 — the old
+  screen number — claimed every HD canvas was 26 inches wide. At 180 the same
+  canvas is about 10.7 × 6 inches, which is a page. It is metadata either way:
+  changing it moves nothing and re-renders nothing.
+- **Mid grey paper** because that is where painting starts — you work out to
+  light and down to shadow from the middle, instead of fighting a white ground.
+  Animators want white paper for line tests, and the field is right there: type
+  `#ffffff` once, or press **Transparent**, and the presets keep it while the
+  dialog is open.
+
+Neither default touches a document that already exists. Changing what a new
+document opens as is a change to the dialog, not to your art.
+
 ### Changing the size
 
 Two operations, on the **Image** menu, and the difference between them is the
