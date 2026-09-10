@@ -42,6 +42,34 @@ public sealed class Stroke
     /// </remarks>
     public StrokePath? Path { get; set; }
 
+    /// <summary>
+    /// The symmetry this stroke was painted under, or null for an ordinary
+    /// mark — which is almost every mark, so this key is absent from almost
+    /// every stroke.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>On the stroke rather than on the scene</b>, which is Q15's answer and
+    /// the part that could not be deferred: a file written with symmetry on the
+    /// scene cannot be read back as one stroke with a mirror, so the two are not
+    /// interchangeable later. Invariant 4 agrees independently — symmetry
+    /// reaches pixels, so it is stored per stroke and changing a preference
+    /// never alters existing art.
+    /// </para>
+    /// <para>
+    /// <b>The copies are not in <see cref="Points"/>.</b> One gesture is one
+    /// stroke; the reflections are made at stamping time from this axis, which
+    /// is what makes turning symmetry off afterwards mean something rather than
+    /// leaving an orphaned half. "Break symmetry" is the deliberate act that
+    /// expands the record into several ordinary strokes and forgets the pairing.
+    /// </para>
+    /// <para>
+    /// <b>Absent unless used</b>, the <see cref="Path"/> treatment —
+    /// <c>AStrokeDrawnWithoutSymmetrySerializesNoSymmetryKey</c> ships beside it.
+    /// </para>
+    /// </remarks>
+    public SymmetryAxis? Symmetry { get; set; }
+
     /// <summary>Inner contours of a <see cref="ToolKind.Fill"/> stroke (even-odd holes); null otherwise.</summary>
     public List<List<StrokePoint>>? Holes { get; set; }
 

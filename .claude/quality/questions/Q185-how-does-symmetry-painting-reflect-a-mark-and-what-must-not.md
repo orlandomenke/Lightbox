@@ -115,4 +115,57 @@ against an analytic 1312** — 0.25% of the page — and cost follows the segmen
 rather than the page at **1.00–1.01× for four times the area**. Those are the
 numbers symmetry has to leave alone.
 
+## What happened when it was built, 2026-09-10
+
+The record, the stamping and the live preview all landed the same day, and two
+things came out differently from what is written above.
+
+**The dirty region is marked per copy and then unioned by the publish, which is
+half of what this asked for.** `FlushLivePreview` marks one region per copy —
+the right call site, and the one the publish layer will want when it can hold a
+region list — but `PublishState.MarkDirty` unions everything marked since the
+last publish into a single rectangle. So an event repaints the box enclosing the
+copies rather than the copies.
+
+It is milder than the paragraph above implies, and the reason is worth writing
+down: the box is bounded by the **distance from the axis, not by the canvas** —
+roughly `(2d + 2·reach) × (2·reach)` for a mirror at distance `d`. An axis near
+the subject, which is what character design does, stays cheap; the cost grows
+only as the artist works away from it. Measured at 6.4% of a 400×540 page
+against 0.21% for an un-mirrored event. Carrying disjoint regions through route
+selection, the compose ring and the tiled path is its own piece of work;
+`PassSpec` already carries an `SKMatrix?`, so drawing the live overlay once per
+copy at compose time is the likely shape of it.
+
+**The live copies stamp settled dabs only, which was not foreseen here and is
+better than what was.** The tail machinery in the live scratch exists because
+provisional dabs move between pointer events. A settled dab never moves again,
+so a copy of one needs no backup and no rollback — no per-copy state at all,
+which is what leaves the hottest code in the application unchanged rather than
+merely equivalent. The cost is one event of lag on the copies, and the commit
+renders every copy exactly.
+
+**And decision 3's reach turned out narrower than "everything through
+`StampStroke`".** Brush and eraser have it. Fill reflects contours rather than
+dabs; smudge and blur *read* pixels, which a canvas transform does not carry —
+see the coordinate-space note on `ToSurface`. Those were excluded on the
+reasoning above, but the reasoning was that they came free, and they do not.
+Each needs its own pass and its own evidence.
+
+**And the decision has a cost nobody named when it was made.** Reflecting the
+canvas rather than the geometry is right, and it means every pass that draws
+through that canvas using a rectangle computed in document space now gets its
+rectangle transformed **twice** — once when it was computed for the copy, once by
+the canvas. Granulation was exactly that and shipped broken: the mask landed
+outside the copy's own scratch and Skia clipped it away without a word, so a
+reflected copy kept the alpha the paper should have carved out of it. Texture and
+wet edge escaped only because they happen to run after the transform is undone.
+
+The lesson worth carrying: **reflecting the canvas moves the burden onto anything
+that mixes canvas drawing with precomputed document coordinates.** When the next
+pass joins that block — or when fill, smudge and blur are picked up — the
+question to ask of each is which space its geometry is in and how many times the
+canvas will transform it. `GranulationReachesAReflectedCopy` is the guard, and it
+exists because every other symmetry test had set `Granulation` to 0.
+
 **Blocks:** nothing. Symmetry can be built.
