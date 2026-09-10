@@ -624,7 +624,24 @@ public static class BrushEngine
             // grain.
             if (brush.Medium.Kind == MediumKind.None && !HasTexture(brush) && brush.Granulation > 0)
             {
-                ApplyGranulation(canvas, brush, rect);
+                // `rect` is THIS COPY's rectangle and the canvas still carries
+                // the copy's transform, so handing it to a draw call transforms
+                // it a SECOND time — the mask lands back over the drawn mark's
+                // position, outside this copy's own scratch, and Skia clips it
+                // away in silence. Every symmetry test set Granulation to 0, so
+                // none of them caught it.
+                //
+                // The grain is anchored to the DOCUMENT rather than to the
+                // stroke, which is what the repeating shader aligned to the
+                // origin is for. So the mask must cover the copy's pixels while
+                // the field is sampled at the copy's own document coordinates:
+                // draw the AUTHORED rectangle, which the active matrix maps onto
+                // the copy, and undo that matrix inside the shader. With no
+                // symmetry both reduce to exactly what was here before.
+                var grainRect = symmetry is null
+                    ? rect
+                    : SegmentBounds(stroke, info, margin, origin) ?? rect;
+                ApplyGranulation(canvas, brush, grainRect, symmetry);
             }
         }, symmetry);
 
@@ -3415,13 +3432,27 @@ public static class BrushEngine
             paint);
     }
 
-    private static void ApplyGranulation(SKCanvas canvas, BrushSettings brush, SKRectI rect)
+    /// <param name="symmetry">
+    /// The copy's transform when this is a symmetry copy, so the grain is
+    /// sampled at the copy's own document position instead of being carried
+    /// along by the reflection. Null for the mark as drawn.
+    /// </param>
+    private static void ApplyGranulation(
+        SKCanvas canvas, BrushSettings brush, SKRectI rect, SKMatrix? symmetry = null)
     {
         var g = (float)Math.Clamp(brush.Granulation, 0, 1);
         // Aligned to the document origin, not the scratch, so the grain field
-        // stays anchored to the canvas wherever the stroke happens to be.
-        using var noise = SKShader.CreateBitmap(
-            GrainTile(), SKShaderTileMode.Repeat, SKShaderTileMode.Repeat);
+        // stays anchored to the canvas wherever the stroke happens to be — and
+        // for a symmetry copy, anchored to where the COPY is rather than
+        // reflected along with it. Real paper is not mirrored; this is the
+        // roadmap's "the paper is anchored to the document rather than to the
+        // stroke" one feature along.
+        var undo = symmetry is { } m && m.TryInvert(out var inverse) ? inverse : (SKMatrix?)null;
+        using var noise = undo is { } localMatrix
+            ? SKShader.CreateBitmap(
+                GrainTile(), SKShaderTileMode.Repeat, SKShaderTileMode.Repeat, localMatrix)
+            : SKShader.CreateBitmap(
+                GrainTile(), SKShaderTileMode.Repeat, SKShaderTileMode.Repeat);
         // A' = g·R + (1−g): noise carves alpha away by up to its full depth at
         // g=1. (SkiaSharp color-matrix offsets are in 0..1 scale.)
         var matrix = new float[]

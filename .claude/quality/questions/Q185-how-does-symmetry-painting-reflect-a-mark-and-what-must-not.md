@@ -152,4 +152,20 @@ see the coordinate-space note on `ToSurface`. Those were excluded on the
 reasoning above, but the reasoning was that they came free, and they do not.
 Each needs its own pass and its own evidence.
 
+**And the decision has a cost nobody named when it was made.** Reflecting the
+canvas rather than the geometry is right, and it means every pass that draws
+through that canvas using a rectangle computed in document space now gets its
+rectangle transformed **twice** — once when it was computed for the copy, once by
+the canvas. Granulation was exactly that and shipped broken: the mask landed
+outside the copy's own scratch and Skia clipped it away without a word, so a
+reflected copy kept the alpha the paper should have carved out of it. Texture and
+wet edge escaped only because they happen to run after the transform is undone.
+
+The lesson worth carrying: **reflecting the canvas moves the burden onto anything
+that mixes canvas drawing with precomputed document coordinates.** When the next
+pass joins that block — or when fill, smudge and blur are picked up — the
+question to ask of each is which space its geometry is in and how many times the
+canvas will transform it. `GranulationReachesAReflectedCopy` is the guard, and it
+exists because every other symmetry test had set `Granulation` to 0.
+
 **Blocks:** nothing. Symmetry can be built.

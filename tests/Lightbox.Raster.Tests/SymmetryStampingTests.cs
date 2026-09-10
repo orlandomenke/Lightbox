@@ -299,6 +299,125 @@ public class SymmetryStampingTests(ITestOutputHelper output)
         Assert.Equal(0, differing);
     }
 
+    // ---- paper ------------------------------------------------------------
+
+    /// <summary>
+    /// Granulation reaches a reflected copy, and carves it by about as much as
+    /// it carves the mark that was drawn.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This was a real bug and every other symmetry test was blind to it.</b>
+    /// They all set <c>Granulation = 0</c>. Granulation draws a noise mask with
+    /// <c>DstIn</c> over <c>rect</c>, and <c>rect</c> is the copy's rectangle
+    /// while the canvas still carries the copy's transform — so the rectangle was
+    /// transformed a second time, landed outside the copy's own scratch, and was
+    /// clipped away in silence. The mask carves alpha, so the symptom is the
+    /// reflected copy coming out <em>more opaque</em> than the drawn one: paper
+    /// that never bit.
+    /// </para>
+    /// <para>
+    /// Mean alpha over inked pixels rather than a pixel comparison, because the
+    /// two halves are deliberately NOT identical — see
+    /// <see cref="TheGrainDoesNotTravelWithTheMark"/>.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void GranulationReachesAReflectedCopy()
+    {
+        var stroke = Mark(VerticalMirror);
+        stroke.Brush = Grainy;
+
+        using var bmp = Render(stroke);
+        var (drawnPx, drawnMean) = MeanAlpha(bmp, new SKRectI(0, 0, W / 2, H));
+        var (copyPx, copyMean) = MeanAlpha(bmp, new SKRectI(W / 2, 0, W, H));
+
+        output.WriteLine(
+            $"drawn half {drawnPx} px at mean alpha {drawnMean:0.0}; "
+            + $"reflected half {copyPx} px at mean alpha {copyMean:0.0} "
+            + $"— {copyMean / drawnMean:0.000}x");
+
+        Assert.True(drawnPx > 300 && copyPx > 300, "one of the halves did not land");
+
+        // Within a tenth. Unfixed, the copy's mask was clipped entirely, so it
+        // kept alpha the drawn half had had carved out of it.
+        Assert.True(
+            Math.Abs(copyMean - drawnMean) < drawnMean * 0.1,
+            $"the reflected copy averages {copyMean:0.0} alpha against {drawnMean:0.0} for the "
+            + "drawn mark — the paper did not bite the copy");
+    }
+
+    /// <summary>
+    /// The grain does not travel with the mark: the two halves are granulated,
+    /// and differently.
+    /// </summary>
+    /// <remarks>
+    /// The other half of the fix, and the property that decides which way it had
+    /// to be done. Paper is anchored to the document rather than to the stroke —
+    /// real paper is not mirrored — so a copy sitting elsewhere picks up the
+    /// grain that is there. Leaving the mask inside the transformed block would
+    /// have mirrored the field along with the mark, which is why the shader is
+    /// handed the copy's inverse instead.
+    /// </remarks>
+    [Fact]
+    public void TheGrainDoesNotTravelWithTheMark()
+    {
+        var stroke = Mark(VerticalMirror);
+        stroke.Brush = Grainy;
+
+        using var bmp = Render(stroke);
+        var mirrored = 0;
+        var inked = 0;
+        for (var y = 0; y < H; y++)
+        {
+            for (var x = 0; x < W / 2; x++)
+            {
+                var a = bmp.GetPixel(x, y);
+                var b = bmp.GetPixel(W - 1 - x, y);
+                if (a.Alpha == 0 && b.Alpha == 0) continue;
+                inked++;
+                if (a.Alpha == b.Alpha) mirrored++;
+            }
+        }
+
+        output.WriteLine($"{mirrored} of {inked} inked pairs have identical alpha across the axis");
+        Assert.True(inked > 300, "the mark did not land");
+
+        // If the grain were reflected with the mark the halves would agree
+        // almost everywhere, as they do when granulation is off.
+        Assert.True(
+            mirrored * 2 < inked,
+            $"{mirrored} of {inked} pairs match exactly — the grain is mirroring with the mark "
+            + "instead of staying anchored to the paper");
+    }
+
+    /// <summary>A grainy brush, for the two tests above.</summary>
+    private static BrushSettings Grainy => new()
+    {
+        Size = 18, Hardness = 0.8, Opacity = 1.0, Flow = 0.9, Spacing = 0.18,
+        Scatter = 0, RotationJitter = 0, Granulation = 0.6, WetEdge = 0,
+        PressureFlowGamma = 1,
+    };
+
+    /// <summary>Inked pixel count and their mean alpha inside a box.</summary>
+    private static (int Count, double Mean) MeanAlpha(SKBitmap b, SKRectI box)
+    {
+        var n = 0;
+        long total = 0;
+        for (var y = Math.Max(0, box.Top); y < Math.Min(b.Height, box.Bottom); y++)
+        {
+            for (var x = Math.Max(0, box.Left); x < Math.Min(b.Width, box.Right); x++)
+            {
+                var a = b.GetPixel(x, y).Alpha;
+                if (a == 0) continue;
+                n++;
+                total += a;
+            }
+        }
+
+        return (n, n == 0 ? 0 : total / (double)n);
+    }
+
     // ---- the fast path ----------------------------------------------------
 
     /// <summary>
