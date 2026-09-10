@@ -89,3 +89,49 @@ live preview is **one pass per band** — each mapping its source rows to its
 destination rows — and needs no change to the rendering code. One band is the
 behaviour that exists today, which is the good sign that the generalisation is
 the right one.
+
+## What building it added, after the answers
+
+Four things the design did not anticipate, kept here because each is a decision
+somebody will otherwise re-open.
+
+**It is a third gizmo mode, not something the ordinary box also does.** Bands are
+axis-aligned in document space, so a rotated box has no meaningful horizontal.
+Composing a band map with a rotation is possible and would hand the artist two
+gestures whose interaction nobody can predict — so band mode turns perspective
+off and vice versa, enforced in both setters so neither entry point can leave
+both on. The corner handles, the edge handles and the pivot are all inert in band
+mode, and **no pivot is drawn**: a handle that does nothing is worse than no
+handle, because it invites the drag it will ignore.
+
+**Imported raster pixels do not move, and the status line says so.** A band scale
+cannot be written as one affine matrix, so a raster baseline has nothing to be
+resampled through. `CommitTransformCore` now skips the resample when the matrix is
+identity — which also spares an ordinary identity commit a pointless PNG
+re-encode — and `CommitTransformBands` counts the drawings in scope that carry
+imported pixels and names them. Doing it silently would leave half a frame
+stretched and half of it not, with nothing to explain why.
+
+**Ctrl+Shift+B was already the reference board**, and
+`Defaults_CoverTheCoreCommands_WithoutDuplicates` caught it on the first run. The
+binding is `Ctrl+Shift+T` — "the other transform". That is the shortcut registry
+earning its place exactly as `CLAUDE.md` claims it does; the collision would have
+shipped as a dead key otherwise.
+
+**The size ratchets shaped the code, and for the better.** `CanvasControl.cs` and
+`MainWindow.axaml` are both at their budgets, and the first cut of this went 83
+lines over on the former. The fix was the one the ratchet asks for: every band
+gesture, the overlay record and the divider painting moved into
+`CanvasControl.TransformBands.cs`, leaving one-line calls behind — a press hook,
+a move hook, a release hook, an identity arm and a paint hook. Both files now sit
+*under* their budgets. The XAML's one added line was paid for by formatting the
+sibling Perspective toggle the same way, which also makes the pair consistent.
+
+## Deliberately not done
+
+**The MCP surface does not offer this.** A band scale is a document-level
+capability, so `CLAUDE.md`'s registry table says an agent should probably be able
+to reach it — but the MCP surface is charter gate G12 territory and needs the
+ai-engineer / art-director pair on the diff. That is a separate objective with a
+separate review, not a line to bolt onto this branch. Recorded here so the gap is
+a decision rather than an oversight.

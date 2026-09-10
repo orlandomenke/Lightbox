@@ -769,6 +769,49 @@ public partial class MainViewModel
     public event Action<SKMatrix?>? TransformPreviewChanged;
 
     /// <summary>
+    /// Show a band drag (Q184): the moving pixels, one band at a time.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A separate entry point from <see cref="PreviewTransform"/> rather than a
+    /// matrix, because a band scale is not one affine map. What arrives is the
+    /// grid already decomposed by the gizmo — a source crop and the rectangle it
+    /// fills — and the pass builder turns each into one pass.
+    /// </para>
+    /// <para>
+    /// <b>The dirty region is the box, always.</b> A band scale redistributes
+    /// space inside the box and never crosses it, so the box bounds the whole
+    /// change — which keeps invariant 6 without having to reason about which
+    /// bands moved. The box is a fraction of the canvas on the drawing this was
+    /// asked for, so that is bounded work rather than a full recomposite.
+    /// </para>
+    /// </remarks>
+    public void PreviewTransformBands(IReadOnlyList<(SKRectI Source, SKMatrix Matrix)> passes)
+    {
+        if (!TransformActive)
+        {
+            if (_transform.BandPasses.Count == 0) return;
+            passes = [];
+        }
+        var had = _transform.BandPasses.Count > 0;
+        if (!had && passes.Count == 0) return;
+        _transform.BandPasses = passes;
+        // The ants have no single matrix to ride in this mode, so they stay on
+        // the record's outline rather than following a band. Better an outline
+        // that has not moved than one that claims a transform it cannot express.
+        TransformPreviewChanged?.Invoke(null);
+        if (_transform.MovingBounds is { } box)
+        {
+            _publish.MarkDirty(SKRectI.Round(box));
+        }
+        else
+        {
+            _publish.InvalidateWholeCanvas();
+        }
+        PublishSnapshot();
+    }
+
+    /// <summary>
     /// Show the drag. Null clears the preview and puts the pixels back where
     /// the record says they are.
     /// </summary>
@@ -1045,6 +1088,65 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// Commit a band scale (Q184): space redistributed inside the box, the box
+    /// itself unmoved.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Points are inserted before the map is applied, and that order is the
+    /// whole of its correctness.</b> The map is piecewise-linear, so a stroke
+    /// crossing a divider gains a kink — and a kink can only exist at a sampled
+    /// point. Mapping first and inserting afterwards would put the bend at
+    /// whichever sample was nearest, which on a coarsely sampled diagonal is
+    /// tens of pixels from the line the artist dragged (measured at 150 px in
+    /// <c>BandScaleTests</c>).
+    /// </para>
+    /// <para>
+    /// <b>Identity is the baseline matrix, and raster pixels are told about
+    /// it.</b> A band scale cannot be written as one affine matrix, so an
+    /// imported raster baseline has nothing to resample through and its pixels
+    /// stay where they are. That is said out loud rather than left to be
+    /// discovered — a stroke-only transform on a frame that is half imported
+    /// pixels is a surprising result, and the artist should hear it from the
+    /// status line rather than from the drawing.
+    /// </para>
+    /// </remarks>
+    public void CommitTransformBands(BandScale.Axis x, BandScale.Axis y)
+    {
+        if (!TransformActive) return;
+        if (!x.Moves && !y.Moves)
+        {
+            CancelTransform();
+            return;
+        }
+
+        var filter = _transform.Filter;
+        var baselines = 0;
+        var inserted = 0;
+        foreach (var frame in _transform.Frames)
+        {
+            if (frame is Frame { PngBase64.Length: > 0 }) baselines++;
+            foreach (var stroke in TransformOps.StrokesOf(frame))
+            {
+                if (filter is not null && !filter(stroke)) continue;
+                inserted += BandScale.Insert(stroke, x, y);
+            }
+        }
+
+        // sizeScale 1: a band scale has a different factor per band and along
+        // one axis only, so there is no single number for brush size. A
+        // stretched leg keeps the weight it was drawn with, which is what
+        // correcting a proportion means.
+        CommitTransformCore(BandScale.Map(x, y), 1, SKMatrix.Identity);
+
+        AiStatus = baselines > 0
+            ? $"Bands applied — {inserted} point(s) added on the dividers. "
+              + $"{baselines} drawing(s) carry imported pixels, which a band scale cannot resample; "
+              + "those pixels stayed where they were."
+            : $"Bands applied — {inserted} point(s) added on the dividers.";
+    }
+
+    /// <summary>
     /// The drawing a single-cel gesture is borrowing, when a commit here must
     /// key the cel instead of writing through to it. Null when the cel has a
     /// drawing of its own, when the scope covers more than this cel, or when
@@ -1103,6 +1205,7 @@ public partial class MainViewModel
         // The preview goes first, and not only for tidiness: it borrows the
         // cache's own bitmaps, and the invalidation below disposes them.
         _transform.ClearPreview();
+        _transform.ClearBands();
         // Invalidate before the edit so the Changed refresh re-renders from
         // the transformed record.
         foreach (var frame in frames) InvalidateFrameRender(frame.Id);
@@ -1129,7 +1232,12 @@ public partial class MainViewModel
                     frame, map, sizeScale, filter, split?.For(frame), travel.Carry);
                 // Raster baselines resample once per commit; a region-limited
                 // transform moves strokes only (baseline pixels stay put).
-                if (filter is null && frame is Frame { PngBase64.Length: > 0 } painted)
+                // Identity means "there is no matrix for this transform" — a
+                // band scale, which cannot be one — so there is nothing to
+                // resample through and re-encoding the PNG would cost a commit
+                // for no change. CommitTransformBands says so in the status line.
+                if (filter is null && !baselineMatrix.IsIdentity
+                    && frame is Frame { PngBase64.Length: > 0 } painted)
                 {
                     ResampleBaseline(painted, baselineMatrix);
                 }

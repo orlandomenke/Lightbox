@@ -44,12 +44,29 @@ public partial class MainWindow
         {
             Canvas.EndTransformGizmo();
             TransformPerspectiveToggle.IsChecked = false; // gizmo resets per session
+            TransformBandsToggle.IsChecked = false;
             SyncCanvasToolMode();
         };
         // The gizmo is the authority on the shape of the drag; the view model
         // owns the pixels. Feeding the matrix across on every gizmo change is
         // what makes the drawing move with the box instead of after it.
-        Canvas.TransformGizmoChanged += () => _vm.PreviewTransform(Canvas.TransformMatrix);
+        Canvas.TransformGizmoChanged += () =>
+        {
+            // Band mode has no single matrix to hand over — it is one per band
+            // — so the two modes feed different preview entry points. Clearing
+            // the other one on every change is what stops a mode switch leaving
+            // a stale preview of the mode you just left on screen.
+            if (Canvas.TransformBands)
+            {
+                _vm.PreviewTransform(null);
+                _vm.PreviewTransformBands(Canvas.TransformBandPasses);
+            }
+            else
+            {
+                _vm.PreviewTransformBands([]);
+                _vm.PreviewTransform(Canvas.TransformMatrix);
+            }
+        };
         // The ants ride the same matrix the moving pixels composite through,
         // so the outline follows the drag instead of catching up on release.
         _vm.TransformPreviewChanged += Canvas.SetSelectionPreviewTransform;
@@ -64,7 +81,12 @@ public partial class MainWindow
             _vm.CancelTransform(); // nothing changed — don't record an undo step
             return;
         }
-        if (Canvas.TransformIsPerspectiveResult)
+        if (Canvas.TransformBands)
+        {
+            var (bx, by) = Canvas.TransformBandsResult;
+            _vm.CommitTransformBands(bx, by);
+        }
+        else if (Canvas.TransformIsPerspectiveResult)
         {
             var (src, dst) = Canvas.TransformQuadResult;
             _vm.CommitTransformPerspective(src, dst);
@@ -76,8 +98,40 @@ public partial class MainWindow
         }
     }
 
-    private void OnTransformPerspectiveToggled(object? sender, RoutedEventArgs e) =>
+    private void OnTransformPerspectiveToggled(object? sender, RoutedEventArgs e)
+    {
         Canvas.TransformPerspective = TransformPerspectiveToggle.IsChecked == true;
+        // Turning perspective on leaves band mode behind — the gizmo enforces
+        // that, and the button has to say so or it claims a mode that is off.
+        if (Canvas.TransformPerspective) Canvas.TransformBands = false;
+        TransformBandsToggle.IsChecked = Canvas.TransformBands;
+    }
+
+    private void OnTransformBandsToggled(object? sender, RoutedEventArgs e)
+    {
+        // The ToggleButton has already flipped itself by the time this runs, so
+        // the shared toggle is told what to become rather than asked to invert —
+        // otherwise the button and the gizmo end up one press out of step.
+        var wanted = TransformBandsToggle.IsChecked == true;
+        if (Canvas.TransformBands != wanted) ToggleTransformBands();
+        TransformBandsToggle.IsChecked = Canvas.TransformBands;
+    }
+
+    /// <summary>
+    /// Turn band mode on or off (Q184) — reachable from the gizmo menu and from
+    /// a rebindable shortcut, so it is not a gesture only the initiated know.
+    /// </summary>
+    internal void ToggleTransformBands()
+    {
+        if (!_vm.TransformActive) return;
+        Canvas.TransformBands = !Canvas.TransformBands;
+        if (Canvas.TransformBands) TransformPerspectiveToggle.IsChecked = false;
+        TransformBandsToggle.IsChecked = Canvas.TransformBands;
+        _vm.AiStatus = Canvas.TransformBands
+            ? "Bands: click to place a line, Shift+click for an upright one, "
+              + "drag to move it, Alt+click to take it away."
+            : "Box mode.";
+    }
 
     private void OnTransformMirrorH(object? sender, RoutedEventArgs e) =>
         Canvas.MirrorTransformGizmo(horizontal: true);
@@ -127,6 +181,8 @@ public partial class MainWindow
                 Item("Mirror horizontally", () => Canvas.MirrorTransformGizmo(horizontal: true)),
                 Item("Mirror vertically", () => Canvas.MirrorTransformGizmo(horizontal: false)),
                 new Separator(),
+                Item(Canvas.TransformBands ? "Box mode (affine)" : "Band mode (divide and redistribute)",
+                    ToggleTransformBands),
                 Item(Canvas.TransformPerspective ? "Box mode (affine)" : "Perspective mode (free corners)",
                     () =>
                     {

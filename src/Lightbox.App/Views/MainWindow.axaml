@@ -2835,9 +2835,8 @@
                                   HorizontalAlignment="Stretch" Margin="4,0,0,0"
                                   ToolTip.Tip="Pixel solver for raster baselines: Bilinear (smooth), Nearest (pixel art), Bicubic (highest quality). Strokes are geometry and never resample." />
                       </DockPanel>
-                      <ToggleButton x:Name="TransformPerspectiveToggle" Content="Perspective" FontSize="12"
-                                    Click="OnTransformPerspectiveToggled"
-                                    ToolTip.Tip="Drag the four corners freely instead of the affine box" />
+                      <ToggleButton x:Name="TransformPerspectiveToggle" Content="Perspective" FontSize="12" Click="OnTransformPerspectiveToggled" ToolTip.Tip="Drag the four corners freely instead of the affine box" />
+                      <ToggleButton x:Name="TransformBandsToggle" Content="Bands" FontSize="12" Click="OnTransformBandsToggled" ToolTip.Tip="Divide the box with draggable lines and redistribute the space inside it — the outer edges never move, so the drawing keeps its overall size. Click to place a line, Shift+click for an upright one, Alt+click to remove one. (Q184: beside Perspective because it is the same kind of choice, and the docker is where an artist finds a mode.)" />
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <Button Click="OnTransformMirrorH"
                                 ToolTip.Tip="Mirror horizontally in place (around the pivot)">

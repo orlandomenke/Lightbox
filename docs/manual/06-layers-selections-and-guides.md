@@ -523,6 +523,52 @@ session is also under **Edit ▸ Transform** — start it there, and apply,
 cancel, mirror either way, switch perspective on or reset without leaving the
 menu; the same verbs are on a right-click over the gizmo.
 
+#### Band mode: stretch part of a drawing, keep the whole
+
+**The legs are too short and the figure is the right height.** A scale is the
+wrong tool — it changes the whole sketch — so **Ctrl+Shift+T** switches the
+gizmo to **band mode**, where the box is pinned and you redistribute the space
+inside it instead. It is also on the gizmo's right-click menu, and it is
+rebindable like any other shortcut.
+
+| To do this | Do that |
+| --- | --- |
+| Place a line across the box | Click where it goes — at the hip, say |
+| Place an upright line instead | **Shift**+click |
+| Move a line | Drag it |
+| Take a line away | **Alt**+click it |
+| Apply | **Enter**, as ever |
+
+Drag the hip line up and **the legs lengthen while the torso shortens**: the
+outer edges of the box never move, so the figure keeps the height it had and
+only its proportions change. That is the whole idea, and it is why the corner
+and edge handles do nothing in this mode — a box that resized would be a scale
+again.
+
+**Only the two bands either side of the line you dragged can change.** Place
+two lines and you have three bands; move the lower one and the top band is
+untouched, because it is held by a line that did not move. Nothing you did not
+touch moves.
+
+Placing a line changes nothing on its own, so you can lay out the bands you want
+before touching any of them — and pressing Enter without having dragged anything
+leaves the drawing exactly as it was, with no undo step to step back over.
+
+Two things worth knowing:
+
+- **A line weight is not stretched.** A scale carries brush size with it; a band
+  does not, because it has a different factor per band and only along one axis.
+  A lengthened leg keeps the weight it was drawn with, which is what correcting
+  a proportion means.
+- **Imported pixels stay where they are.** A band scale cannot be written as a
+  single transform, so there is nothing for a raster layer's pixels to be
+  resampled through. Strokes move exactly; imported pixels do not, and the
+  status line says so when a drawing in scope has any.
+
+The band layout is a gesture rather than part of the document: apply, and the
+lines are gone. If you want a proportion you can come back and adjust next week,
+that is what a **rig** is for.
+
 **Scaling holds the side you did not touch.** Drag a corner and the opposite
 corner stays put; drag an edge and the opposite edge does — which is what every
 other tool does, and what your hand expects when it pulls one side of a box.

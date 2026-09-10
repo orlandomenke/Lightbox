@@ -1362,6 +1362,7 @@ public partial class MainViewModel
             _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedPoints,
             _liveShape, _liveGradient, LiveTextPaint, _strokeBuilder.Current,
             _transform.Preview, _transform.Frames,
+            _transform.BandPasses,
             // The moving/staying split stays behind a delegate because building
             // it caches bitmaps and owns their disposal — state with a lifetime,
             // which is the one thing the pure builder must not hold. Held in a

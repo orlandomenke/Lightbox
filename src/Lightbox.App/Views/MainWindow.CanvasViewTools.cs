@@ -413,6 +413,15 @@ public partial class MainWindow
             case "canvas.transform":
                 if (!_vm.TransformActive) _vm.BeginTransform();
                 break;
+            case "canvas.transformBands":
+                // Begins a session if there is not one, so the key is one press
+                // rather than two — Ctrl+T then Ctrl+Shift+B is the sequence
+                // nobody would guess, and band mode is a way of transforming
+                // rather than a thing you do to a transform already open.
+                if (!_vm.TransformActive) _vm.BeginTransform();
+                ToggleTransformBands();
+                e.Handled = true;
+                break;
             case "project.refresh":
                 // Harmless with no project — the command guards on it — so this
                 // does not need a HasProject check that could drift from the one

@@ -217,6 +217,7 @@ internal static class ScenePassBuilder
         Stroke? BrushStroke = null,
         SKMatrix? TransformPreview = null,
         IReadOnlyList<Frame>? TransformFrames = null,
+        IReadOnlyList<(SKRectI Source, SKMatrix Matrix)>? TransformBands = null,
         Func<Frame, TransformSplit?>? PartsFor = null,
         bool MaskEditing = false,
         SKBitmap? TipScratch = null,
@@ -523,7 +524,8 @@ internal static class ScenePassBuilder
             // it. The strokes that move are drawn through the gizmo's matrix
             // and the ones that stay (a region-limited transform) are drawn
             // where they are, which is exactly the split the commit makes.
-            if (live.TransformPreview is { } preview
+            var bands = live.TransformBands;
+            if ((live.TransformPreview is not null || bands is { Count: > 0 })
                 && Moving(live.TransformFrames, frame)
                 && live.PartsFor?.Invoke(frame) is { } parts)
             {
@@ -534,14 +536,35 @@ internal static class ScenePassBuilder
                         SceneRenderer.ToSkia(layer.BlendMode), Matrix: parallax,
                         Shapes: shapes, Fx: fx));
                 }
-                // The drag nests inside the layer's plane: the moved strokes
-                // still live on this layer, so the preview matrix applies in
-                // plane-local document space and the parallax wraps it.
-                passes.Add(new PassSpec(
-                    null, state.FrameIndex, parts.Moving, null, layer.Opacity,
-                    SceneRenderer.ToSkia(layer.BlendMode), overlay,
-                    parallax is { } pm ? SKMatrix.Concat(pm, preview) : preview,
-                    Shapes: shapes, Fx: fx));
+                if (bands is { Count: > 0 })
+                {
+                    // **A band scale is one pass per band (Q184).** Inside a
+                    // band the map is a scale and an offset, so each one is a
+                    // crop of the moving bitmap drawn into its own rectangle —
+                    // no mesh and no resampler, and the rendering code below
+                    // is the same code the single-matrix preview already uses.
+                    foreach (var (source, cell) in bands)
+                    {
+                        passes.Add(new PassSpec(
+                            null, state.FrameIndex, parts.Moving, null, layer.Opacity,
+                            SceneRenderer.ToSkia(layer.BlendMode), overlay,
+                            parallax is { } bpm ? SKMatrix.Concat(bpm, cell) : cell,
+                            Source: source,
+                            Shapes: shapes, Fx: fx));
+                    }
+                }
+                else
+                {
+                    // The drag nests inside the layer's plane: the moved strokes
+                    // still live on this layer, so the preview matrix applies in
+                    // plane-local document space and the parallax wraps it.
+                    var preview = live.TransformPreview!.Value;
+                    passes.Add(new PassSpec(
+                        null, state.FrameIndex, parts.Moving, null, layer.Opacity,
+                        SceneRenderer.ToSkia(layer.BlendMode), overlay,
+                        parallax is { } pm ? SKMatrix.Concat(pm, preview) : preview,
+                        Shapes: shapes, Fx: fx));
+                }
                 if (state.Onion.DrawOver) passes.AddRange(ghosts);
                 if (isActive) activeEnd = passes.Count;
                 continue;

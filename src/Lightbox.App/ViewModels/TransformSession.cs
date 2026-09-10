@@ -74,6 +74,17 @@ sealed class TransformSession
     internal SKMatrix? Preview { get; set; }
 
     /// <summary>
+    /// The band grid being previewed: a source crop and where it goes (Q184).
+    /// </summary>
+    /// <remarks>
+    /// A list rather than a matrix because a band scale is not one affine map —
+    /// it is one per band, and that is the whole reason it can do something a
+    /// scale cannot. Empty in every other mode, which is what the pass builder
+    /// keys on.
+    /// </remarks>
+    internal IReadOnlyList<(SKRectI Source, SKMatrix Matrix)> BandPasses { get; set; } = [];
+
+    /// <summary>
     /// Doc-space bounds of everything the gesture moves, render reach included
     /// — or null when the moving pixels cannot be bounded from the stroke
     /// record (a raster baseline or a placement moves with the layer), in
@@ -146,6 +157,8 @@ sealed class TransformSession
     /// Drop the preview and every split cached for it, freeing the bitmaps this
     /// session rendered and leaving the borrowed ones alone.
     /// </summary>
+    internal void ClearBands() => BandPasses = [];
+
     internal void ClearPreview()
     {
         Preview = null;
