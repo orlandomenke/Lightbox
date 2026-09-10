@@ -1248,7 +1248,7 @@ public sealed partial class CanvasControl : Control
         set
         {
             if (_txPerspective == value) return;
-            if (value) SeedQuadFromCorners();
+            if (value) { SeedQuadFromCorners(); TxDropBands(); }
             _txPerspective = value;
             InvalidateVisual();
         }
@@ -1262,6 +1262,7 @@ public sealed partial class CanvasControl : Control
         _txPivotY = (minY + maxY) / 2;
         _txScaleX = 1; _txScaleY = 1; _txAngle = 0; _txDx = 0; _txDy = 0;
         _txPerspective = false;
+        TxResetBands();
         _txDrag = TxDrag.None;
         SeedQuadFromCorners();
         InvalidateVisual();
@@ -1271,6 +1272,7 @@ public sealed partial class CanvasControl : Control
     {
         _txActive = false;
         _txDrag = TxDrag.None;
+        TxDropBands();
         InvalidateVisual();
     }
 
@@ -1358,10 +1360,8 @@ public sealed partial class CanvasControl : Control
     }
 
     /// <summary>True when the gizmo is still identity (nothing to commit).</summary>
-    public bool TransformIsIdentity =>
-        !_txPerspective
-        && Math.Abs(_txScaleX - 1) < 1e-9 && Math.Abs(_txScaleY - 1) < 1e-9
-        && Math.Abs(_txAngle) < 1e-9 && Math.Abs(_txDx) < 1e-9 && Math.Abs(_txDy) < 1e-9;
+    /// <remarks>Band mode asks its own axes — see TxAffineIsIdentity.</remarks>
+    public bool TransformIsIdentity => _txBands ? TransformBandsAreIdentity : TxAffineIsIdentity;
 
     private (double X, double Y) TxMap(double x, double y)
     {
@@ -1899,7 +1899,7 @@ public sealed partial class CanvasControl : Control
                 new SKPoint((float)c[2].X, (float)c[2].Y),
                 new SKPoint((float)c[3].X, (float)c[3].Y),
                 new SKPoint((float)pivot.X, (float)pivot.Y),
-                _txPerspective);
+                _txPerspective, TxBandOverlayNow());
         }
 
         // Take the queued context work, if any, and hand it over exactly once.
@@ -2408,6 +2408,7 @@ public sealed partial class CanvasControl : Control
 
             if (_txActive && ToolMode == CanvasToolMode.Transform)
             {
+                if (TxBandPressHandled(x, y, e)) return;
                 (_txDrag, _txHandle) = TxHitTest(x, y);
                 _txDragStart = (x, y);
                 _txStart = (_txScaleX, _txScaleY, _txAngle, _txDx, _txDy);
@@ -3118,6 +3119,8 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
+            if (TxBandMoveHandled(e)) return;
+
             if (_txActive && _txDrag != TxDrag.None)
             {
                 var (tx, ty) = ViewToDoc(e.GetPosition(this));
@@ -3404,6 +3407,7 @@ public sealed partial class CanvasControl : Control
             e.Handled = true;
             return;
         }
+        if (TxBandReleaseHandled(e)) return;
         if (_txActive && _txDrag != TxDrag.None)
         {
             _txDrag = TxDrag.None;
@@ -3830,7 +3834,8 @@ public sealed partial class CanvasControl : Control
 
     /// <summary>Transform gizmo, all in document space: the transformed quad, pivot, and mode.</summary>
     private readonly record struct TxGizmoData(
-        SKPoint C0, SKPoint C1, SKPoint C2, SKPoint C3, SKPoint Pivot, bool Perspective);
+        SKPoint C0, SKPoint C1, SKPoint C2, SKPoint C3, SKPoint Pivot, bool Perspective,
+        TxBandOverlay? Bands = null);
 
     /// <summary>
     /// Decomposed view transform for the render thread — primitive canvas ops
@@ -4668,6 +4673,8 @@ public sealed partial class CanvasControl : Control
                     canvas.DrawCircle(mx, my, half * 0.9f, handleRim);
                 }
             }
+
+            if (DrawBandsInstead(canvas, g, scale)) return;
 
             // Pivot: ring + crosshair, clearly grabbable.
             using var pivotPaint = new SKPaint

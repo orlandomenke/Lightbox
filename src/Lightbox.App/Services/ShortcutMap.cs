@@ -321,6 +321,15 @@ public sealed class ShortcutMap
             new("canvas.redoAlt", "Redo (second key)", "Canvas",
                 G(Key.Z, KeyModifiers.Control | KeyModifiers.Shift)),
             new("canvas.transform", "Transform (move/scale/rotate/perspective)", "Tools", G(Key.T, KeyModifiers.Control)),
+            // Q184. Registered rather than wired straight to the gizmo menu:
+            // an action that only a context menu can reach cannot be searched,
+            // seen or rebound, and an artist's remap would not apply to it.
+            // Ctrl+Shift+T reads as "the other transform", and the obvious first
+            // choice — Ctrl+Shift+B for "bands" — is the reference board's.
+            // Defaults_CoverTheCoreCommands_WithoutDuplicates caught that, which
+            // is the registry earning its place.
+            new("canvas.transformBands", "Transform: band mode (divide and redistribute)", "Tools",
+                G(Key.T, KeyModifiers.Control | KeyModifiers.Shift)),
             new("canvas.mirror", "Mirror view", "Canvas", G(Key.M)),
             // Photoshop's three, on Photoshop's keys. Rulers are where a guide
             // is made, so the one that makes them reachable comes first.
