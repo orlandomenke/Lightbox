@@ -137,8 +137,23 @@ public static class BrushEngine
             }
         }
 
-        if (draft) StampPaintDraft(target, stroke, info, targetPixels, origin);
-        else StampPaint(target, stroke, info, targetPixels, outputScale, origin);
+        // Symmetry, and only on the paint path — every tool above has already
+        // returned. Fill reflects contours rather than dabs, and smudge and
+        // blur READ pixels, which a canvas transform does not carry (see the
+        // coordinate-space note on ToSurface): both need their own pass and
+        // their own evidence, so an axis is deliberately ignored for them
+        // rather than half-honoured. Q185 records that narrowing.
+        //
+        // One walk, N stamps. The placements come off the axis alone, so this
+        // is a small array per render and nothing per dab; each copy then
+        // computes its own bounded region inside StampPaint.
+        // One entry, holding null, for every ordinary stroke — so this is the
+        // same call it always was, through a loop that runs once.
+        foreach (var m in SymmetryCopies(stroke))
+        {
+            if (draft) StampPaintDraft(target, stroke, info, targetPixels, origin, m);
+            else StampPaint(target, stroke, info, targetPixels, outputScale, origin, m);
+        }
     }
 
     /// <summary>
@@ -539,9 +554,16 @@ public static class BrushEngine
 
     // ---- paint (the default pipeline) ----------------------------------------
 
+    /// <param name="symmetry">
+    /// Where this copy lands, for a stroke painted under symmetry. The bounds
+    /// below are the <em>transformed</em> mark's, so each copy gets a scratch
+    /// and a composite of its own — N copies are N bounded regions rather than
+    /// one rectangle enclosing them, which for a radial order would be very
+    /// nearly the whole page (invariant 6, charter O3).
+    /// </param>
     private static void StampPaint(
         SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels, double outputScale,
-        SKPointI origin)
+        SKPointI origin, SKMatrix? symmetry = null)
     {
         // The scratch covers only what the stroke can reach — dabs, effects
         // and feathered clips all happen inside it. This is what keeps a
@@ -551,7 +573,7 @@ public static class BrushEngine
         var margin = DabReach(brush);
         var region = stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId);
         if (region is { Feather: > 0 }) margin += (float)(region.Feather * 2);
-        if (SegmentBounds(stroke, info, margin, origin) is not { } rect) return;
+        if (SegmentBounds(stroke, info, margin, origin, symmetry) is not { } rect) return;
 
         // Bigger surface, same geometry. The scratch is allocated at output
         // resolution but the dabs are stamped in unchanged document
@@ -590,8 +612,9 @@ public static class BrushEngine
             {
                 // The footprint has to be laid down in the same space as the
                 // dabs, so it takes the same transform rather than a rebuilt one.
-                InDocumentSpace(footprint.Canvas, dev, outputScale, origin, () =>
-                    StampDabs(canvas, stroke, footprint.Canvas));
+                InDocumentSpace(
+                    footprint.Canvas, dev, outputScale, origin,
+                    () => StampDabs(canvas, stroke, footprint.Canvas), symmetry);
                 CapToFootprint(scratch, footprint, local, CeilingReachPx(brush, outputScale));
             }
 
@@ -603,7 +626,7 @@ public static class BrushEngine
             {
                 ApplyGranulation(canvas, brush, rect);
             }
-        });
+        }, symmetry);
 
         if (brush.Medium.Kind != MediumKind.None)
         {
@@ -832,16 +855,94 @@ public static class BrushEngine
     /// what lets everything inside <paramref name="draw"/> keep speaking
     /// document coordinates, which is what every <c>Hash01</c> seed needs.
     /// </param>
+    /// <param name="symmetry">
+    /// Where this copy of the mark lands, for a stroke painted under symmetry.
+    /// Concatenated <b>innermost</b>, which is the whole of why symmetry is
+    /// cheap and correct here: everything inside <paramref name="draw"/> keeps
+    /// speaking the coordinates the artist drew, so every <c>Hash01</c> seed
+    /// receives its authored position and a reflected mark is a true mirror
+    /// rather than a mark re-rolled at a mirrored place. Invariant 7's argument
+    /// — <em>scale the surface, never the geometry</em> — generalises to
+    /// reflection unchanged, and this is the line that does it.
+    /// </param>
     private static void InDocumentSpace(
-        SKCanvas canvas, SKRectI dev, double scale, SKPointI origin, Action draw)
+        SKCanvas canvas, SKRectI dev, double scale, SKPointI origin, Action draw,
+        SKMatrix? symmetry = null)
     {
         canvas.Save();
         canvas.Translate(-dev.Left, -dev.Top);
         if (scale != 1.0) canvas.Scale((float)scale);
         if (origin.X != 0 || origin.Y != 0) canvas.Translate(-origin.X, -origin.Y);
+        if (symmetry is { } m) canvas.Concat(m);
         draw();
         canvas.Restore();
     }
+
+    // ---- symmetry -----------------------------------------------------------
+
+    /// <summary>
+    /// The transform one <see cref="SymmetryPlacement"/> asks for, about its
+    /// axis centre.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Null for the identity placement, and that is not an optimisation — it is
+    /// what keeps the mark the artist drew byte-identical to the same mark
+    /// painted with no symmetry at all. A matrix that is arithmetically the
+    /// identity still sends coordinates through Skia's transform path, and an
+    /// antialiased edge that moves by one ULP changes pixels. The render
+    /// fingerprint in <c>DrawingCostBaselineTests</c> is what would notice.
+    /// </para>
+    /// <para>
+    /// <c>rotate ∘ flip</c>, both about the centre, so a reflection across a
+    /// line at angle β is <c>rotate(2β) ∘ flipY</c> — see
+    /// <see cref="SymmetryAxis.Placements"/>, which decides the angles.
+    /// </para>
+    /// </remarks>
+    private static SKMatrix? SymmetryMatrix(SymmetryAxis axis, SymmetryPlacement placement)
+    {
+        if (placement.IsIdentity) return null;
+        var cx = (float)axis.CenterX;
+        var cy = (float)axis.CenterY;
+        var m = SKMatrix.CreateRotationDegrees((float)placement.RotationDeg, cx, cy);
+        return placement.Mirrored ? m.PreConcat(SKMatrix.CreateScale(1, -1, cx, cy)) : m;
+    }
+
+    /// <summary>
+    /// Every transform a stroke's symmetry asks for, the mark as drawn first and
+    /// always as <c>null</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one place anything asks "how many copies, and where" — the live
+    /// preview walks this to stamp and to publish, and
+    /// <see cref="StampStroke"/> walks it to render. Two answers to that
+    /// question is charter O5's bug report waiting to happen, and this one would
+    /// show up as the preview disagreeing with the commit.
+    /// </para>
+    /// <para>
+    /// A stroke with no axis gets a single <c>null</c>, so every caller is a
+    /// loop over one thing that does nothing rather than a branch — and the
+    /// <c>null</c> is what keeps the drawn mark off Skia's transform path
+    /// entirely. See <see cref="SymmetryMatrix"/> for why that matters.
+    /// </para>
+    /// </remarks>
+    public static SKMatrix?[] SymmetryCopies(Stroke stroke)
+    {
+        if (stroke.Symmetry is not { IsIdentity: false } axis) return NoSymmetry;
+
+        var placements = axis.Placements();
+        var copies = new SKMatrix?[placements.Length];
+        for (var i = 0; i < placements.Length; i++) copies[i] = SymmetryMatrix(axis, placements[i]);
+        return copies;
+    }
+
+    /// <summary>The single do-nothing copy every ordinary stroke gets.</summary>
+    /// <remarks>
+    /// Shared and never mutated, so the overwhelmingly common case allocates
+    /// nothing at all — this is walked once per pointer event per stroke.
+    /// </remarks>
+    private static readonly SKMatrix?[] NoSymmetry = [null];
 
     /// <summary>
     /// One dab, with every stroke-global quantity already resolved.
@@ -1231,15 +1332,37 @@ public static class BrushEngine
     /// </param>
     public static SKRectI? RangeBounds(
         IReadOnlyList<Dab> dabs, int from, BrushSettings brush, SKImageInfo info,
-        SKPointI origin = default)
+        SKPointI origin = default) =>
+        RangeBounds(dabs, from, dabs.Count, brush, info, null, origin);
+
+    /// <summary>
+    /// The same, for a half-open range of dabs and optionally one symmetry copy
+    /// of them.
+    /// </summary>
+    /// <param name="to">One past the last dab to bound.</param>
+    /// <param name="symmetry">
+    /// Which copy to bound, from <see cref="SymmetryCopies"/> — null for the
+    /// mark as drawn.
+    /// </param>
+    /// <remarks>
+    /// The dab positions are transformed and then inflated, rather than the
+    /// finished rectangle being mapped: a placement is a rigid motion, so the
+    /// reach is direction-independent and this is exact where mapping the box
+    /// would grow it by up to √2 in each direction. <see cref="RawBounds"/>
+    /// carries the same argument for a stroke's points.
+    /// </remarks>
+    public static SKRectI? RangeBounds(
+        IReadOnlyList<Dab> dabs, int from, int to, BrushSettings brush, SKImageInfo info,
+        SKMatrix? symmetry = null, SKPointI origin = default)
     {
-        if (from >= dabs.Count) return null;
+        var last = Math.Min(to, dabs.Count);
+        if (from >= last) return null;
         var reach = DabReach(brush);
 
         float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
-        for (var i = Math.Max(0, from); i < dabs.Count; i++)
+        for (var i = Math.Max(0, from); i < last; i++)
         {
-            var pos = dabs[i].Pos;
+            var pos = symmetry is { } m ? m.MapPoint(dabs[i].Pos) : dabs[i].Pos;
             if (pos.X < minX) minX = pos.X;
             if (pos.Y < minY) minY = pos.Y;
             if (pos.X > maxX) maxX = pos.X;
@@ -2551,16 +2674,31 @@ public static class BrushEngine
     }
 
     /// <summary>The stroke's points inflated by the dab reach, unclamped; null for an empty stroke.</summary>
-    private static SKRectI? RawBounds(Stroke stroke, float margin)
+    /// <param name="symmetry">
+    /// Where this copy of the mark lands, for a stroke painted under symmetry —
+    /// null for the mark as drawn, which is every ordinary stroke.
+    /// </param>
+    /// <remarks>
+    /// <b>The points are transformed, not the finished rectangle.</b> Mapping an
+    /// axis-aligned box through a rotation and re-taking its bounds grows it by
+    /// up to √2 in each direction, which is a region an artist pays to repaint
+    /// for nothing. A placement is a rigid motion — rotation and reflection, no
+    /// scale — so the dab reach is direction-independent and inflating after the
+    /// transform is exact rather than merely safe.
+    /// </remarks>
+    private static SKRectI? RawBounds(Stroke stroke, float margin, SKMatrix? symmetry = null)
     {
         if (stroke.Points.Count == 0) return null;
         float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
         foreach (var p in stroke.Points)
         {
-            minX = Math.Min(minX, (float)p.X);
-            maxX = Math.Max(maxX, (float)p.X);
-            minY = Math.Min(minY, (float)p.Y);
-            maxY = Math.Max(maxY, (float)p.Y);
+            var at = symmetry is { } m
+                ? m.MapPoint(new SKPoint((float)p.X, (float)p.Y))
+                : new SKPoint((float)p.X, (float)p.Y);
+            minX = Math.Min(minX, at.X);
+            maxX = Math.Max(maxX, at.X);
+            minY = Math.Min(minY, at.Y);
+            maxY = Math.Max(maxY, at.Y);
         }
         return new SKRectI(
             (int)Math.Floor(minX - margin),
@@ -2591,9 +2729,10 @@ public static class BrushEngine
     /// invariant 2 broken in the one way that looks like nothing.
     /// </para>
     /// </remarks>
-    private static SKRectI? SegmentBounds(Stroke stroke, SKImageInfo info, float margin, SKPointI origin)
+    private static SKRectI? SegmentBounds(
+        Stroke stroke, SKImageInfo info, float margin, SKPointI origin, SKMatrix? symmetry = null)
     {
-        if (RawBounds(stroke, margin) is not { } raw) return null;
+        if (RawBounds(stroke, margin, symmetry) is not { } raw) return null;
         var left = Math.Clamp(raw.Left, origin.X, origin.X + info.Width);
         var top = Math.Clamp(raw.Top, origin.Y, origin.Y + info.Height);
         var right = Math.Clamp(raw.Right, origin.X, origin.X + info.Width);
@@ -2636,8 +2775,14 @@ public static class BrushEngine
     /// a bitmap's (0,0) is the document's top-left corner whatever that corner
     /// is called in stroke coordinates.
     /// </remarks>
-    public static SKRectI? DraftSegmentBounds(Stroke tail, SKImageInfo info, SKPointI origin = default) =>
-        SegmentBounds(tail, info, DabReach(tail.Brush), origin) is { } rect
+    /// <param name="symmetry">
+    /// Which copy to bound, for a stroke painted under symmetry — from
+    /// <see cref="SymmetryCopies"/>. Null, the default, is the mark as drawn,
+    /// which is what every caller that predates symmetry wants and gets.
+    /// </param>
+    public static SKRectI? DraftSegmentBounds(
+        Stroke tail, SKImageInfo info, SKPointI origin = default, SKMatrix? symmetry = null) =>
+        SegmentBounds(tail, info, DabReach(tail.Brush), origin, symmetry) is { } rect
             ? ToSurface(rect, origin)
             : null;
 
@@ -2712,12 +2857,13 @@ public static class BrushEngine
         composite.Restore();
     }
 
+    /// <param name="symmetry">Where this copy lands — see <see cref="StampPaint"/>.</param>
     private static void StampPaintDraft(
         SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels = null,
-        SKPointI origin = default)
+        SKPointI origin = default, SKMatrix? symmetry = null)
     {
         var brush = stroke.Brush;
-        if (SegmentBounds(stroke, info, DabReach(brush), origin) is not { } rect) return;
+        if (SegmentBounds(stroke, info, DabReach(brush), origin, symmetry) is not { } rect) return;
         // Document rect for the dabs, surface rect for the two bitmaps and the
         // composite — the scratch translate below stays document because that
         // is the space StampDabs draws in.
@@ -2729,6 +2875,10 @@ public static class BrushEngine
         var canvas = scratch.Canvas;
         canvas.Clear(SKColors.Transparent);
         canvas.Translate(-rect.Left, -rect.Top);
+        // Innermost, after the translate, for the reason InDocumentSpace gives:
+        // StampDabs then still draws at the coordinates the artist drew and
+        // every Hash01 seed is the authored one.
+        if (symmetry is { } sm) canvas.Concat(sm);
         if (NeedsFootprintCap(brush))
         {
             using var footprint = SKSurface.Create(
@@ -2737,6 +2887,7 @@ public static class BrushEngine
             {
                 footprint.Canvas.Clear(SKColors.Black);
                 footprint.Canvas.Translate(-rect.Left, -rect.Top);
+                if (symmetry is { } fm) footprint.Canvas.Concat(fm);
                 StampDabs(canvas, stroke, footprint.Canvas);
                 CapToFootprint(scratch, footprint, boundsInfo);
             }

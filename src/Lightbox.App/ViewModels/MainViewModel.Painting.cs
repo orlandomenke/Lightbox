@@ -1634,6 +1634,29 @@ public partial class MainViewModel
     /// end and runs straight to here, which is how Photoshop draws a long
     /// straight without a ruler — and, chained, how a polyline gets drawn.
     /// </param>
+    /// <summary>
+    /// The symmetry the next stroke will be painted under, or null for none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Authoring state, not the record.</b> The axis an artist is working
+    /// with lives here the way a guide does; what a finished mark was painted
+    /// under lives on the <see cref="Stroke"/> itself, cloned at
+    /// <see cref="BeginStroke"/>. Q15 settled that split and invariant 4 wants
+    /// it independently — turning the axis afterwards must not reach art
+    /// already made.
+    /// </para>
+    /// <para>
+    /// Where this belongs <em>permanently</em> is the document, beside rulers
+    /// and guides, so reopening a scene finds the axis where it was left. It is
+    /// view-model state for now because the gesture and the gizmo that place it
+    /// are the next branch, and a key that nothing can author yet would be a
+    /// key written for no reason.
+    /// </para>
+    /// </remarks>
+    [ObservableProperty]
+    private SymmetryAxis? _activeSymmetry;
+
     public void BeginStroke(
         double x, double y, double pressure, bool eraseWithCurrentBrush, bool joinFromLast)
     {
@@ -1698,6 +1721,9 @@ public partial class MainViewModel
         // Live preview clips to the selection too (the registry already knows
         // the region; the document copy is added at commit).
         if (PrepareClipForSelection() is { } liveClip) _strokeBuilder.Current!.ClipId = liveClip.Id;
+        // A clone, so turning the axis afterwards never reaches this mark — and
+        // only when it would do something, so an ordinary stroke grows no key.
+        if (ActiveSymmetry is { IsIdentity: false } axis) _strokeBuilder.Current!.Symmetry = axis.Clone();
         // Stamped onto the stroke, not read from the layer at render time, so
         // unlocking the layer later cannot repaint what is already down.
         // The layer's alpha lock guards its content, not its mask — coverage
@@ -2044,9 +2070,35 @@ public partial class MainViewModel
             ClipId = live.ClipId,
             AlphaLocked = live.AlphaLocked,
             Points = points.Skip(from).ToList(),
+            // Or the segment would be bounded as though the mark had no
+            // reflections, and every copy but the drawn one would stay on
+            // screen from the previous event.
+            Symmetry = live.Symmetry,
         };
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+
+        // Where this segment landed, per symmetry copy — worked out once here
+        // because two consumers want it: the scratch's extent and the publish.
+        //
+        // The drawn mark keeps its own single call. An earlier version of this
+        // asked SymmetryCopies for the lot and looped twice, which cost a stroke
+        // with no symmetry a second DraftSegmentBounds every pointer event —
+        // found by leak-hunter, and the one cost this feature may not add.
+        // copies[0] is always the drawn mark and always null, so `segment` is
+        // exactly the call that was here before symmetry existed.
+        var copies = BrushEngine.SymmetryCopies(live);
         var segment = BrushEngine.DraftSegmentBounds(tail, info);
+
+        // Null for the overwhelmingly common case: no array, no loop, nothing.
+        SKRectI?[]? copyRegions = null;
+        if (copies.Length > 1)
+        {
+            copyRegions = new SKRectI?[copies.Length - 1];
+            for (var i = 1; i < copies.Length; i++)
+            {
+                copyRegions[i - 1] = BrushEngine.DraftSegmentBounds(tail, info, default, copies[i]);
+            }
+        }
 
         if (_live.Composite is not null)
         {
@@ -2089,14 +2141,60 @@ public partial class MainViewModel
             // has to run from the start for its phase, travel and heading to match the
             // commit, and only the drawing is incremental.
             StampLiveDabs(live, info);
+            // Every copy's extent, not just the drawn mark's. ScratchUsed is
+            // what the scratch is cleared over when the stroke ends, so a copy
+            // missing from it is ink left behind for the next stroke to
+            // composite — and a union is the right shape here precisely because
+            // this is not a per-event repaint.
             if (segment is { } used)
             {
-                _live.ScratchUsed = _live.ScratchUsed is { } prior ? LivePaintSession.UnionRect(prior, used) : used;
+                _live.ScratchUsed = _live.ScratchUsed is { } prior
+                    ? LivePaintSession.UnionRect(prior, used)
+                    : used;
+            }
+
+            if (copyRegions is not null)
+            {
+                foreach (var region in copyRegions)
+                {
+                    if (region is not { } copied) continue;
+                    _live.ScratchUsed = _live.ScratchUsed is { } prior
+                        ? LivePaintSession.UnionRect(prior, copied)
+                        : copied;
+                }
             }
         }
-        // Only the segment's neighbourhood changed on screen.
-        if (segment is { } rect) _publish.MarkDirty(rect);
-        else _publish.InvalidateWholeCanvas();
+        // Only the segment's neighbourhood changed on screen — once per copy,
+        // because a symmetric mark changed N neighbourhoods and they are not
+        // adjacent.
+        //
+        // NOTE: PublishState.MarkDirty unions into one pending rectangle, so N
+        // calls currently repaint the box enclosing the copies rather than the
+        // copies. That is the union this stroke's own baseline
+        // (DrawingCostBaselineTests, DrawingRegionBaselineTests) exists to
+        // measure, and carrying disjoint regions through route selection, the
+        // compose ring and the tiled path is its own piece of work. Calling per
+        // copy is right either way: it is what the publish layer will want when
+        // it can hold a region list, and until then the union is at least
+        // correct rather than stale.
+        var published = false;
+        if (segment is { } rect)
+        {
+            _publish.MarkDirty(rect);
+            published = true;
+        }
+
+        if (copyRegions is not null)
+        {
+            foreach (var region in copyRegions)
+            {
+                if (region is not { } copied) continue;
+                _publish.MarkDirty(copied);
+                published = true;
+            }
+        }
+
+        if (!published) _publish.InvalidateWholeCanvas();
         _live.StampedCount = points.Count;
 
         // The cap-only brushes never queue a pass: StampLiveDabs has already
@@ -2239,6 +2337,86 @@ public partial class MainViewModel
     /// scratch in index order for the accumulation to match a single-pass render: take
     /// back the old tail, add whatever became settled, then lend the new tail.
     /// </remarks>
+    /// <summary>
+    /// Stamp symmetry's copies of the dabs whose position has settled, and
+    /// report the region each one changed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Settled dabs only, and that is the whole design.</b> The tail
+    /// machinery either side of this exists because provisional dabs <em>move</em>
+    /// between pointer events, so their pixels have to be taken back before the
+    /// next ones land. A settled dab never moves again, so a copy of one can be
+    /// stamped permanently — no backup, no rollback, and no per-copy state at
+    /// all. That is what keeps the hottest code in the application unchanged by
+    /// symmetry rather than merely equivalent.
+    /// </para>
+    /// <para>
+    /// <b>What it costs is one event of lag.</b> A copy trails the drawn mark by
+    /// the provisional range — the few dabs still under the pen — so at 60 Hz
+    /// the mirrored tip sits a few pixels behind the real one and catches up
+    /// continuously. The commit renders every dab of every copy exactly, so this
+    /// is a property of the preview and never of the art. An artist working with
+    /// a mirror is watching the shape, not the last few pixels of the reflected
+    /// tip; giving the copies their own tails would buy those pixels for a
+    /// backup and a rollback per copy per event.
+    /// </para>
+    /// <para>
+    /// <b>Called before the drawn mark lends its tail, deliberately.</b> Copy 0
+    /// backs up the region under its provisional dabs and restores it next
+    /// event. A copy landing inside that region — a stroke crossing its own axis
+    /// — must therefore already be in the backup, or the rollback would erase
+    /// it. Stamping the copies first is what makes that true.
+    /// </para>
+    /// </remarks>
+    private void StampSettledCopies(
+        Stroke live, IReadOnlyList<BrushEngine.Dab> dabs, int from, int to, SKImageInfo info,
+        bool carriesFootprint)
+    {
+        if (_live.ScratchCanvas is null || to <= from) return;
+
+        var copies = BrushEngine.SymmetryCopies(live);
+        if (copies.Length <= 1) return;
+
+        foreach (var copy in copies)
+        {
+            // The drawn mark is copy 0 and is stamped by the caller, on the
+            // path it took before symmetry existed.
+            if (copy is not { } m) continue;
+
+            _live.ScratchCanvas.Save();
+            _live.ScratchCanvas.Concat(m);
+            BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, from, to);
+            _live.ScratchCanvas.Restore();
+
+            if (carriesFootprint && _live.CoverageCanvas is { } cover)
+            {
+                // The coverage canvas already carries the document-to-coverage
+                // scale (B189), so concatenating a document-space matrix onto it
+                // composes correctly: a point goes through the reflection and
+                // then through the scale.
+                cover.Save();
+                cover.Concat(m);
+                BrushEngine.StampDabRange(cover, live, dabs, from, to, cover, footprintOnly: true);
+                cover.Restore();
+            }
+        }
+
+        _live.ScratchCanvas.Flush();
+        _live.CoverageCanvas?.Flush();
+
+        // The scratch now holds ink outside the drawn mark's extent, so the
+        // clear at stroke end has to know about it.
+        foreach (var copy in copies)
+        {
+            if (BrushEngine.RangeBounds(dabs, from, to, live.Brush, info, copy) is not { } band) continue;
+            _live.ScratchUsed = _live.ScratchUsed is { } prior
+                ? LivePaintSession.UnionRect(prior, band)
+                : band;
+            NotePostProcessDirty(band);
+        }
+    }
+
     private void StampLiveDabs(Stroke live, SKImageInfo info)
     {
         if (_live.ScratchCanvas is null) return;
@@ -2324,7 +2502,24 @@ public partial class MainViewModel
             // 2. Everything whose position has stopped moving, accumulated once
             //    and never again. THIS is the whole win: a stroke of twelve
             //    thousand dabs stamps the thirty that are new.
-            BrushEngine.AccumulateCoverage(coverage, live.Brush, dabs, _live.StableDabs, settledCut);
+            var coverageFrom = _live.StableDabs;
+            BrushEngine.AccumulateCoverage(coverage, live.Brush, dabs, coverageFrom, settledCut);
+
+            // 2c. Symmetry's copies of the same settled dabs. Accumulated here,
+            //     before the loan below, for the reason StampSettledCopies
+            //     gives: a copy inside the drawn mark's tail has to be in the
+            //     backup or the rollback erases it. The ink conversion waits
+            //     until step 4, when every copy's coverage is final — coverage
+            //     is a running maximum, so converting early in a region another
+            //     copy still has to touch would read a half-built value.
+            foreach (var copy in BrushEngine.SymmetryCopies(live))
+            {
+                if (copy is not { } m) continue;
+                coverage.Save();
+                coverage.Concat(m);
+                BrushEngine.AccumulateCoverage(coverage, live.Brush, dabs, coverageFrom, settledCut);
+                coverage.Restore();
+            }
 
             // 3. The rest on loan, so the mark reaches the pen tip.
             var lendNow = BrushEngine.RangeBounds(dabs, settledCut, live.Brush, info);
@@ -2389,6 +2584,27 @@ public partial class MainViewModel
                     ? LivePaintSession.UnionRect(prior, band)
                     : band;
                 NotePostProcessDirty(band);
+            }
+
+            // 4b. And each copy's own band, from the coverage they accumulated
+            //     at 2c. Separate bands rather than one enclosing them: the
+            //     copies of a radial order ring the centre, and their union is
+            //     most of the page.
+            foreach (var copy in BrushEngine.SymmetryCopies(live))
+            {
+                if (copy is not { } m) continue;
+                if (BrushEngine.RangeBounds(dabs, coverageFrom, settledCut, live.Brush, info, m)
+                    is not { } copyBand)
+                {
+                    continue;
+                }
+
+                BrushEngine.CoverageToInk(_live.ScratchCanvas, buffer, live, copyBand);
+                _live.ScratchCanvas.Flush();
+                _live.ScratchUsed = _live.ScratchUsed is { } held
+                    ? LivePaintSession.UnionRect(held, copyBand)
+                    : copyBand;
+                NotePostProcessDirty(copyBand);
             }
 
             _live.DabCount = dabs.Count;
@@ -2457,6 +2673,11 @@ public partial class MainViewModel
         }
 
         StampSettledMs.Add(Ms(settledAt));
+
+        // 2c. Symmetry's copies of the same settled dabs. Before the loan
+        //     below, so a copy landing inside the drawn mark's tail is in the
+        //     backup and survives next event's rollback.
+        StampSettledCopies(live, dabs, settledFrom, _live.StableDabs, info, carriesFootprint);
 
         // 3. The rest on loan, so the mark reaches the pen tip.
         var backupAt = System.Diagnostics.Stopwatch.GetTimestamp();
