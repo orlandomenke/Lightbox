@@ -113,6 +113,38 @@ public class NavigatorTests : BrushStateIsolated
         Assert.Null(vm.NavigatorThumb);
     }
 
+    /// <summary>
+    /// B365: the navigator's cache key was the exposed frame's id plus its
+    /// mask and effect state — nothing that changes when a stroke is added to or
+    /// rubbed from the frame's own record in place, so a stroke or an eraser
+    /// dragged over the drawing the navigator was already showing kept coming
+    /// back the same stale picture, erased ink included, until the playhead left
+    /// the frame and came back.
+    /// </summary>
+    [AvaloniaFact]
+    public void ANewStrokeOnTheSameFrameIsNotHiddenBehindAStaleThumbnail()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.Workspace.NavigatorVisible = true;
+
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(200, 100, 1);
+        vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var afterInk = vm.NavigatorThumb;
+        Assert.NotNull(afterInk);
+
+        vm.ActiveTool = ToolId.Eraser;
+        vm.BeginStroke(100, 100, 1);
+        vm.MoveStroke(200, 100, 1);
+        vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var afterErase = vm.NavigatorThumb;
+
+        Assert.NotNull(afterErase);
+        Assert.NotSame(afterInk, afterErase);
+    }
+
     [AvaloniaFact]
     public void TheViewportIsWhateverTheCanvasLastReported()
     {
