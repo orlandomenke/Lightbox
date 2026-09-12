@@ -60,33 +60,71 @@ permissions:
   # only because a Release has to be created.
 
 jobs:
-  # `changes` first, because `test` now asks it whether there is anything to
-  # test. It is a git diff and costs about five seconds, so the serialisation
-  # is cheaper than the four minutes it saves on a documentation-only change.
+  # ---------------------------------------------------------------------------
+  # The suite, as several legs running at once.
+  #
+  # MEASURED 2026-09-12, Release, 4 cores: Core 6 s, Ai 4 s, Raster 125 s,
+  # App 557 s — 742 s in total, of which Lightbox.App.Tests is 75%. One serial
+  # `dotnet test Lightbox.sln` therefore spends three quarters of its wall clock
+  # in a single process, and Q186 records why that decides the shape here.
+  #
+  # Two things had to be true at once, and neither is the obvious one:
+  #
+  #   * **Selecting by what changed is the weak lever, not the strong one.**
+  #     Lightbox.App.Tests references Core, Raster, Ai, Import and Mcp, so a
+  #     sound rule can skip it only for a change touching none of them. It is
+  #     kept because it is nearly free once the matrix exists, not because it is
+  #     where the time goes.
+  #   * **The expensive assembly is one process, and no in-process setting
+  #     fixes that.** `HeadlessSessionSerialisation.cs` turns collection
+  #     parallelism off assembly-wide (B93), and most of its classes are
+  #     `[AvaloniaFact]` classes that serialise on the headless dispatcher
+  #     whatever xUnit is told. Splitting across *runners* is the only split
+  #     that sidesteps both — and it sidesteps B93's own mechanism, because two
+  #     headless sessions on two machines cannot race each other.
+  #
+  # `scripts/testplan.py` owns both decisions. The rules are NOT duplicated into
+  # this file: a filter written twice is a filter that disagrees with itself,
+  # and the copy in YAML is the one with no selftest. It has one, CI runs it,
+  # and `PlanGateTests` asserts this workflow reads its plan from the script.
+  #
+  # THE SAFETY PROPERTY, because a skipped test looks exactly like a passing
+  # one and B269/B281 are what that costs: the shard filters **partition** each
+  # assembly — the last shard is the complement of the others, so a class the
+  # planner never enumerated still runs — and every leg proves it ran its whole
+  # slice with `testcount.py verify`, which evaluates the filter itself rather
+  # than trusting VSTest to agree about it.
+  # ---------------------------------------------------------------------------
   test:
-    runs-on: ubuntu-latest
-    # A ceiling well above the real cost (~15 min) and far below GitHub's
-    # default of six hours. The step below has its own five-minute guard for
-    # the hang that prompted this; this is the general form of it, because the
-    # next hang will be somewhere else. Six hours of a cancelled-by-hand job
-    # tells nobody anything and holds a runner the whole time — PR #358 sat
-    # like that for over half an hour before anyone noticed.
-    timeout-minutes: 45
-    needs: changes
-    # Nothing in the suite reads docs/ or .claude/ — checked, not assumed: the
-    # only repo files any test opens are .github/workflows/build.yml and
-    # Lightbox.App.csproj, both read by CiRuntimeTests, and both count as *code*
-    # under the filter below. So a workflow edit still runs the tests written to
-    # guard workflow edits, while a BUGS.md edit does not run 2451 tests that
-    # cannot see it.
+    # A ceiling well above the real cost and far below GitHub's default of six
+    # hours. The step below has its own five-minute guard for the hang that
+    # prompted this; this is the general form of it, because the next hang will
+    # be somewhere else. Six hours of a cancelled-by-hand job tells nobody
+    # anything and holds a runner the whole time — PR #358 sat like that for
+    # over half an hour before anyone noticed.
     #
-    # The job is skipped rather than removed, so it still reports a conclusion
-    # and a required-check rule has something to read.
-    # Draft PRs build nothing (see the `on:` block); beyond that, a
-    # documentation-only change skips the suite it cannot affect.
+    # Lower than it was: a leg is a slice, and the whole suite no longer runs in
+    # one job. The slowest leg is ~140 s.
+    timeout-minutes: 20
+    needs: changes
+    # Draft PRs build nothing (see the `on:` block); beyond that, this runs only
+    # what the change can reach, which for a documentation-only change is
+    # nothing at all. The job is skipped rather than removed, so it still
+    # reports a conclusion and a required-check rule has something to read —
+    # though `suite` below is the check worth requiring now that this one fans
+    # out.
     if: >
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-      && (needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch')
+      && needs.changes.outputs.any == 'true'
+    strategy:
+      # One leg failing must not cancel the others. A red shard is a fact about
+      # that shard; cancelling its siblings turns one failure into seven
+      # unknowns and costs a whole round trip to learn the rest.
+      fail-fast: false
+      matrix:
+        leg: ${{ fromJSON(needs.changes.outputs.plan) }}
+    name: test ${{ matrix.leg.name }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
@@ -153,9 +191,25 @@ jobs:
             -o Acquire::http::Timeout=15 \
             -o Acquire::https::Timeout=15 || echo "apt-get update did not complete; installing from the indexes we have"
           sudo apt-get install -y --no-install-recommends libfontconfig1
-      # `--logger trx` writes each assembly's per-test record into its own
-      # TestResults directory — the input the count guard below reads. Console
+
+      # The leg works out its own filter rather than being handed one. The
+      # complement shard's expression is 25 KB on its own, and carrying six of
+      # those through a matrix would put a quarter of a megabyte into a workflow
+      # expression context for nothing — the checkout is the same tree the plan
+      # was made from, so recomputing gives the same answer by construction.
+      #
+      # Written to a file, not an output: it contains `|` and `&` and is far too
+      # long to want anywhere near a shell interpolation.
+      - name: Work out this leg's slice
+        id: slice
+        run: |
+          python3 scripts/testplan.py filter \
+            "${{ matrix.leg.project }}" "${{ matrix.leg.shard }}" > /tmp/leg.filter
+          echo "$(wc -c < /tmp/leg.filter) bytes of filter for ${{ matrix.leg.name }}"
+
+      # `--logger trx` writes the per-test record the guard below reads. Console
       # output is unchanged; the trx rides alongside it.
+      #
       # B281: the App suite once grew a 14.4 GB heap of leaked per-test object
       # graphs and OOM-killed 16 GB runners from below — the "canceled with no
       # output" wedge. The leaks are fixed and guarded (ViewModelRetentionTests),
@@ -163,39 +217,110 @@ jobs:
       # under 4 GB, so 6 GB is pure headroom — and a future regression then dies
       # in-process as a named OutOfMemoryException the count guard reds, instead
       # of taking the runner down with nothing in the log.
-      - run: dotnet test Lightbox.sln -c Release --logger trx
+      #
+      # The filter comes in through the environment rather than the command
+      # line so that nothing in it is ever seen by a shell as syntax.
+      - name: Run this leg
         env:
           DOTNET_GCHeapHardLimit: "0x180000000"
-      # B269/B281: a full-solution run has been seen executing hundreds fewer
-      # App tests than exist and still printing `Passed!` with exit 0 — and a
-      # killed host prints `Passed!` too, one line after `Catastrophic
-      # failure`. So the summary line is not evidence that the suite ran. This
-      # compares the NAMES each assembly reported against what discovery finds
-      # on the same binaries, and reds the job on any test that went missing.
-      - name: Every discovered test ran
-        run: python3 scripts/testcount.py verify -c Release
-      # The branch-name rules in branchstate.py have no C# suite to live in, and
-      # a heuristic with no test is how the first version came to fire on
-      # `chore/ledger-by-domain`. Costs a second.
-      - name: Branch-name rules
-        run: python3 scripts/branchstate.py selftest
-      # B264. The ledger repair builds two clashing branches in a throwaway
-      # repository and proves it stands down mid-merge. Here rather than in a C#
-      # suite for branchstate's reason — the rules have none to live in — and it
-      # costs about a second.
-      - name: Ledger id repair
-        run: python3 scripts/bugs.py selftest
-      # The count guard's own shortfall detection, fed synthetic drops — kept
-      # honest the same way branchstate and bugs are.
-      - name: Count-guard rules
-        run: python3 scripts/testcount.py selftest
+        run: |
+          # A `build` leg is a project nothing tests. `dotnet test Lightbox.sln`
+          # compiled the whole solution as a side effect and these per-project
+          # legs do not, so a project outside every test's closure would stop
+          # being built at all and a compile error in it would reach main with
+          # every check green. `tools/Lightbox.Bench` is that project today;
+          # testplan.py derives the list rather than naming it.
+          if [ "${{ matrix.leg.kind }}" = "build" ]; then
+            dotnet build "${{ matrix.leg.csproj }}" -c Release
+            exit 0
+          fi
 
-  # The derived documentation checks.
+          LEG_FILTER=$(cat /tmp/leg.filter)
+          if [ -n "$LEG_FILTER" ]; then
+            dotnet test "${{ matrix.leg.csproj }}" -c Release --logger trx --filter "$LEG_FILTER"
+          else
+            dotnet test "${{ matrix.leg.csproj }}" -c Release --logger trx
+          fi
+
+      # B269/B281: a run has been seen executing hundreds fewer App tests than
+      # exist and still printing `Passed!` with exit 0 — and a killed host prints
+      # `Passed!` too, one line after `Catastrophic failure`. So the summary line
+      # is not evidence that the suite ran. This compares the NAMES this leg
+      # reported against the names discovery finds on the same binaries, narrowed
+      # to the slice this leg was asked for, and reds the job on any test that
+      # went missing — or on any that ran which the filter excludes, which would
+      # mean VSTest and the planner disagree and the shards are not a partition.
+      - name: Every test in this leg ran
+        if: matrix.leg.kind == 'test'
+        run: |
+          python3 scripts/testcount.py verify -c Release \
+            --project "${{ matrix.leg.project }}" \
+            --filter "$(cat /tmp/leg.filter)"
+
+  # ---------------------------------------------------------------------------
+  # One conclusion for a fan of legs.
+  #
+  # A matrix reports one check per leg — `test (Lightbox.App.Tests 3/6)` and so
+  # on — and those names move whenever the shard counts do, which makes them
+  # hopeless as required checks. **This is the check to require**: it is one
+  # name, it never moves, and it is red unless every planned leg was green.
+  #
+  # `always()` is the whole point: without it a failed or skipped `test` would
+  # skip this too, and a skipped required check is a green tick nobody earned.
+  # ---------------------------------------------------------------------------
+  suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [changes, test]
+    if: >
+      always()
+      && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    steps:
+      - name: Every leg the plan asked for came back green
+        run: |
+          PLANNED='${{ needs.changes.outputs.any }}'
+          RESULT='${{ needs.test.result }}'
+          PLANNER='${{ needs.changes.result }}'
+          echo "planner result:     $PLANNER"
+          echo "plan wanted tests:  $PLANNED"
+          echo "test matrix result: $RESULT"
+
+          # The planner failing is the subtlest way this job could lie. A failed
+          # `changes` leaves its outputs empty, which reads identically to "this
+          # change reaches no tests" — so without this the one check a branch
+          # rule requires would go green precisely when nothing was planned at
+          # all. Checked first, before the empty output is interpreted.
+          if [ "$PLANNER" != "success" ]; then
+            echo "::error::the planner reported '$PLANNER', so nothing decided what to run"
+            exit 1
+          fi
+
+          if [ "$PLANNED" != "true" ]; then
+            # Nothing in this change can reach a test. The `docs` job still ran,
+            # which is the point of it being separate.
+            echo "nothing to test — no leg was planned"
+            exit 0
+          fi
+
+          # `success` is the only acceptable answer. `skipped` is NOT: it means
+          # the legs never ran despite a plan that wanted them, which is the
+          # failure this job exists to make visible rather than silent.
+          if [ "$RESULT" != "success" ]; then
+            echo "::error::the test matrix reported '$RESULT' — the suite did not pass"
+            exit 1
+          fi
+          echo "every planned leg passed"
+
+  # The derived documentation checks, and the script gates that need no .NET.
   #
   # A SEPARATE job rather than a step in `test`, and the reason is the `if:`
   # above it: `test` is skipped when a push touches only docs/ and .claude/ —
   # which is precisely when the manual's contents list drifts. A check that
   # cannot run on a documentation-only change is not a check on documentation.
+  #
+  # It is also where the Python selftests live, which is new: they used to sit
+  # in `test`, and `test` is now a matrix, so leaving them there would have run
+  # each of them eight times to learn the same thing.
   #
   # No .NET and no checkout depth needed, so it costs a few seconds and runs on
   # everything a draft PR does not.
@@ -267,65 +392,85 @@ jobs:
       - name: The index builds from this tree
         run: python3 scripts/codemap.py build
 
-  # Is there anything in this push that could need testing? A Release build and
-  # 2451 tests for a Markdown edit is four minutes spent on a file no test can
-  # read. The docs job still runs on everything, which is the point of it being
-  # separate — a documentation change is exactly when the derived contents list
-  # and the ledger ids need checking.
+      # ---- the script gates, none of which need a compiler -------------------
+      #
+      # The branch-name rules in branchstate.py have no C# suite to live in, and
+      # a heuristic with no test is how the first version came to fire on
+      # `chore/ledger-by-domain`. Costs a second.
+      - name: Branch-name rules
+        run: python3 scripts/branchstate.py selftest
+      # B264. The ledger repair builds two clashing branches in a throwaway
+      # repository and proves it stands down mid-merge. Here rather than in a C#
+      # suite for branchstate's reason — the rules have none to live in — and it
+      # costs about a second.
+      - name: Ledger id repair
+        run: python3 scripts/bugs.py selftest
+      # The count guard's own shortfall detection, fed synthetic drops — kept
+      # honest the same way branchstate and bugs are.
+      - name: Count-guard rules
+        run: python3 scripts/testcount.py selftest
+      # The selection and shard rules, which decide what CI runs at all. A
+      # planner with no test is the one component here that can fail by being
+      # too quiet, so this is the least optional of the four.
+      - name: Test-plan rules
+        run: python3 scripts/testplan.py selftest
+      # And the half a selftest cannot cover: that the rules still describe the
+      # tests as they are now. This resolves the repo paths the suite actually
+      # opens and fails if one of them is classified as something CI would skip
+      # — PR #95's failure, where a README-only change skipped the only test
+      # reading the README, generalised so the next one fails a build instead of
+      # needing to be noticed.
+      - name: The plan covers what the tests read
+        run: python3 scripts/testplan.py audit
+
+  # What can this change reach, and how should it be split?
+  #
+  # A Release build and 4 400 App tests for a Markdown edit is time spent on a
+  # file no test can read, and running Raster's 125 s for an App-only change is
+  # the same mistake one size down. This job answers both questions at once and
+  # emits the matrix `test` fans out over.
+  #
+  # It is a `git diff` and a script, and costs about five seconds, so the
+  # serialisation in front of `test` is cheaper than what it saves.
+  #
+  # **The rules are in `scripts/testplan.py`, not here.** The old version of
+  # this job carried a `grep -qvE` of path patterns, and that is exactly the
+  # shape that rots: no selftest, no way to ask it a question, and a second
+  # opinion about what counts as documentation living in YAML where nobody
+  # looks. `PlanGateTests` asserts this stays true.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # A draft builds nothing, and this is where that has to be said as well as on
-    # the jobs that need it: `test` and `publish-win-x64` read
-    # `needs.changes.outputs.code`, so a skipped `changes` would leave them
-    # reading an empty string. They carry the condition too rather than relying on
-    # that, because "it happens to evaluate false" is not the same as "it is
-    # switched off".
+    # the jobs that need it: `test` and `suite` read `needs.changes.outputs`, so
+    # a skipped `changes` would leave them reading an empty string. They carry
+    # the condition too rather than relying on that, because "it happens to
+    # evaluate false" is not the same as "it is switched off".
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     outputs:
-      code: ${{ steps.filter.outputs.code }}
+      plan: ${{ steps.plan.outputs.plan }}
+      any: ${{ steps.plan.outputs.any }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - id: filter
+      - id: plan
         shell: bash
         run: |
           BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
-          # A new branch, a force push or a first run has no usable base.
-          # Test in that case: skipping a suite somebody needed is a worse
-          # failure than running one they did not.
+          # A new branch, a force push, a first run or a manual dispatch has no
+          # usable base. Test everything in that case: skipping a suite somebody
+          # needed is a worse failure than running one they did not, and that
+          # judgement is older than this job.
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
-             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
-            echo "no usable base ref — building"
-            echo "code=true" >> "$GITHUB_OUTPUT"
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null \
+             || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "no usable base ref — planning the whole suite"
+            python3 scripts/testplan.py plan --github
             exit 0
           fi
-          CHANGED=$(git diff --name-only "$BASE" "$GITHUB_SHA")
-          printf '%s\n' "$CHANGED"
 
-          # Some documents are test inputs, and those are code however they are
-          # spelled. `PublishLayoutTests` reads README.md and MANUAL_TESTING.md
-          # to check they still name the folder the MCP server ships in — a
-          # string whose being wrong produces silence rather than an error, which
-          # is precisely why it is asserted rather than trusted.
-          #
-          # Without this line the rule below classified them as documentation and
-          # skipped the only test guarding them, so the one change most likely to
-          # break that assertion was the one change that never ran it. Caught on
-          # PR #95, a README-only change, where `test` reported `skipped`.
-          #
-          # If a test starts reading another document, it belongs here — and
-          # `PublishLayoutTests` asserts this list covers the ones it reads, so
-          # the omission fails a build rather than quietly widening the hole.
-          if printf '%s\n' "$CHANGED" | grep -qE '^(README\.md|MANUAL_TESTING\.md)$'; then
-            echo "a document the suite reads changed — building"
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          # Anything else that is not documentation counts as code.
-          elif printf '%s\n' "$CHANGED" | grep -qvE '^(docs/|\.claude/)|^[^/]*\.md$'; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "documentation only — skipping the test suite"
-            echo "code=false" >> "$GITHUB_OUTPUT"
-          fi
-
+          git diff --name-only "$BASE" "$GITHUB_SHA" | tee /tmp/changed.txt
+          # `--github` writes the matrix to GITHUB_OUTPUT and prints the
+          # reasoning to the log, so one call does both.
+          python3 scripts/testplan.py plan --changed-files /tmp/changed.txt --github
