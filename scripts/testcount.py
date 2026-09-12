@@ -20,8 +20,32 @@ Usage:
         After `dotnet test ... --logger trx`. Reads the newest .trx per test
         project, runs `--list-tests` discovery against the same build, and
         exits 1 if any discovered test was never reported.
+    python3 scripts/testcount.py verify --project <name> [--filter <expr>]
+        The same check for ONE assembly, and for one shard of it. Used by CI,
+        where each leg of the matrix runs a slice of a suite and must prove it
+        ran all of that slice.
     python3 scripts/testcount.py selftest
         Feeds the comparison synthetic shortfalls and asserts they are caught.
+
+SHARDING AND WHY IT DOES NOT WEAKEN THIS
+
+`build.yml` now runs the expensive suites in slices, one leg per slice, so no
+single run reports every test any more and a bare "did everything discovered
+report?" would fail on every leg. The check is therefore made against the leg's
+own filter: discovery finds the whole assembly, the filter says which of those
+names this leg was supposed to run, and a name in that set with no result is
+the same failure it always was.
+
+Two properties keep that from being weaker than the whole-assembly check it
+replaces. The filters partition the assembly — `testplan.py` builds the last
+shard as the *complement* of the others, so their union is everything whatever
+the planner failed to enumerate — and the filter is evaluated HERE, by
+`testplan.matches_filter`, rather than trusted to mean the same thing to
+VSTest. A leg that ran a different set from the one it was asked for fails,
+which is a check the single-assembly version never had.
+
+`matches_filter` is imported rather than reimplemented. Two readings of a
+filter expression would drift, and a drift here is a guard that blesses a gap.
 
 What `verify` cannot see, said plainly: a wedged host that produced no TRX at
 all fails loudly here (no results file is a failure, not a pass) — but the run
@@ -38,22 +62,40 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from testplan import matches_filter  # noqa: E402  (one reading of a filter, not two)
+
 ROOT = Path(__file__).resolve().parent.parent
 TRX_NS = "{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}"
 
 
-def test_projects() -> list[Path]:
+def test_projects(only: str | None = None) -> list[Path]:
     """Every test csproj, tests/<name>/<name>.csproj by convention."""
     found = sorted(ROOT.glob("tests/*/*.csproj"))
     if not found:
         sys.exit("no test projects under tests/ — is this the repository root?")
+    if only:
+        found = [p for p in found if p.stem == only]
+        if not found:
+            sys.exit(f"no test project named {only!r} under tests/")
     return found
 
 
-def newest_trx(project_dir: Path) -> Path | None:
-    results = sorted(
-        project_dir.glob("TestResults/*.trx"), key=lambda p: p.stat().st_mtime
-    )
+def newest_trx(project_dir: Path, results_dir: Path | None = None) -> Path | None:
+    """The newest TRX for a run, in `results_dir` when one is named.
+
+    **Naming it matters the moment legs share a machine.** Six shards of one
+    assembly all write into `tests/<project>/TestResults/`, so "newest" is
+    whichever leg finished last rather than the leg being checked — and the
+    guard then compares one leg's slice against another leg's results and
+    reports a shortfall that is not there. Found exactly that way, by this
+    guard, on the first local run that got far enough to reach it.
+
+    CI never hits it — one runner per leg, one TRX — which is precisely why it
+    had to be found locally rather than trusted.
+    """
+    directory = results_dir if results_dir is not None else project_dir / "TestResults"
+    results = sorted(directory.glob("*.trx"), key=lambda p: p.stat().st_mtime)
     return results[-1] if results else None
 
 
@@ -125,33 +167,72 @@ def missing_tests(discovered: set[str], reported: set[str]) -> set[str]:
     return discovered - covered
 
 
-def cmd_verify(configuration: str) -> int:
+def expected_names(discovered: set[str], test_filter: str) -> set[str]:
+    """Of everything discovery found, the names this leg was asked to run.
+
+    An empty filter means the whole assembly, which is what a single-leg run
+    and every local run pass. `matches_filter` raises on an expression it
+    cannot read rather than returning a smaller set — a filter nobody can
+    evaluate is a coverage claim nobody can check.
+    """
+    if not test_filter:
+        return discovered
+    return {name for name in discovered if matches_filter(test_filter, name)}
+
+
+def cmd_verify(configuration: str, only: str | None = None, test_filter: str = "",
+               results: str | None = None) -> int:
     failures: list[str] = []
-    for csproj in test_projects():
+    if test_filter and not only:
+        sys.exit("--filter needs --project: a filter belongs to one assembly's leg")
+    if results and not only:
+        sys.exit("--results needs --project: a results directory belongs to one leg")
+
+    results_dir = Path(results).resolve() if results else None
+    for csproj in test_projects(only):
         project = csproj.parent
-        trx = newest_trx(project)
+        trx = newest_trx(project, results_dir)
         if trx is None:
             # No results file is how a host that died before the logger
             # flushed looks — the exact run this guard must not bless.
-            failures.append(f"{project.name}: no .trx under {project.name}/TestResults — the run left no record")
+            where = results_dir if results_dir is not None else project / "TestResults"
+            failures.append(f"{project.name}: no .trx under {where} — the run left no record")
             continue
 
         reported, rows, total = reported_names(trx)
         discovered = discovered_names(csproj, configuration)
-        missing = missing_tests(discovered, reported)
+        expected = expected_names(discovered, test_filter)
+        missing = missing_tests(expected, reported)
+
+        # The other direction, and it only exists once there are shards: a leg
+        # that ran tests OUTSIDE its filter means VSTest read the expression
+        # differently from `testplan.py`, and then the shards are not a
+        # partition and some other leg's slice may be going unrun. Reported as
+        # loudly as a shortfall, because it is the same hazard one step back.
+        stray: set[str] = set()
+        if test_filter:
+            stray = {name for name in reported
+                     if name in discovered and name not in expected}
 
         verdict = "ok"
         if total >= 0 and total != rows:
             verdict = f"TRX inconsistent: Counters says {total}, file holds {rows} results"
             failures.append(f"{project.name}: {verdict}")
         if missing:
-            verdict = f"{len(missing)} discovered test(s) never ran"
+            verdict = f"{len(missing)} expected test(s) never ran"
             shown = "\n    ".join(sorted(missing)[:40])
             more = f"\n    … and {len(missing) - 40} more" if len(missing) > 40 else ""
             failures.append(f"{project.name}: {verdict}:\n    {shown}{more}")
+        if stray:
+            verdict = f"{len(stray)} test(s) ran that this leg's filter excludes"
+            shown = "\n    ".join(sorted(stray)[:20])
+            failures.append(
+                f"{project.name}: {verdict} — VSTest and testplan.py disagree about "
+                f"the filter, so the shards are not a partition:\n    {shown}")
 
+        scope = f", {len(expected)} in this leg" if test_filter else ""
         print(
-            f"{project.name}: discovered {len(discovered)}, reported {rows} "
+            f"{project.name}: discovered {len(discovered)}{scope}, reported {rows} "
             f"({trx.name}) — {verdict}"
         )
 
@@ -161,7 +242,7 @@ def cmd_verify(configuration: str) -> int:
             "failed run (B269/B281):\n" + "\n".join(failures)
         )
         return 1
-    print("\nevery discovered test ran")
+    print("\nevery expected test ran")
     return 0
 
 
@@ -208,6 +289,41 @@ def cmd_selftest() -> int:
         checks.append(("a skipped test still counts as reported", "A.T2" in names))
         checks.append(("the TRX counters are read", (rows, total) == (2, 2)))
 
+    # -- the shard slice ----------------------------------------------------
+    #
+    # Everything below is new with the matrix, and the first two are the ones
+    # that would otherwise let a shard prove nothing: an empty filter must
+    # still mean "all of it", and a leg's slice must be exactly its filter's.
+    everything = {"NS.A.T1", "NS.A.T2", "NS.B.T1", "NS.C.T1"}
+    checks.append((
+        "no filter still expects the whole assembly",
+        expected_names(everything, "") == everything,
+    ))
+    checks.append((
+        "an include filter expects only its own classes",
+        expected_names(everything, "FullyQualifiedName~NS.A.|FullyQualifiedName~NS.B.")
+        == {"NS.A.T1", "NS.A.T2", "NS.B.T1"},
+    ))
+    checks.append((
+        "a complement filter expects everything the others did not",
+        expected_names(everything, "FullyQualifiedName!~NS.A.&FullyQualifiedName!~NS.B.")
+        == {"NS.C.T1"},
+    ))
+    # The property the whole scheme rests on, asserted here as well as in
+    # testplan: two shards' expectations must cover the assembly exactly once.
+    left = expected_names(everything, "FullyQualifiedName~NS.A.|FullyQualifiedName~NS.B.")
+    right = expected_names(everything, "FullyQualifiedName!~NS.A.&FullyQualifiedName!~NS.B.")
+    checks.append(("two shards partition the assembly",
+                   left | right == everything and not (left & right)))
+    checks.append((
+        "a shard that drops one of its own tests is caught",
+        missing_tests(left, {"NS.A.T1", "NS.B.T1"}) == {"NS.A.T2"},
+    ))
+    checks.append((
+        "a shard that skips every test it was given is caught",
+        missing_tests(left, set()) == left,
+    ))
+
     # Discovery output parsing, from a captured shape of the real thing.
     listing = (
         "Determining projects to restore...\n"
@@ -235,10 +351,16 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     verify = sub.add_parser("verify", help="compare reported names against discovery")
     verify.add_argument("-c", "--configuration", default="Release")
+    verify.add_argument("--project", help="check one test project rather than all of them")
+    verify.add_argument("--filter", default="", dest="test_filter",
+                        help="the VSTest filter this leg ran with, so its slice is what is expected")
+    verify.add_argument("--results",
+                        help="the directory this leg's TRX was written to, when legs share a "
+                             "machine and the project's TestResults holds more than one")
     sub.add_parser("selftest", help="feed the comparison synthetic shortfalls")
     args = parser.parse_args()
     if args.command == "verify":
-        return cmd_verify(args.configuration)
+        return cmd_verify(args.configuration, args.project, args.test_filter, args.results)
     return cmd_selftest()
 
 

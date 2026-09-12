@@ -1,6 +1,6 @@
 # CLAUDE.md — the per-session prelude
 
-budget: 22450
+budget: 22621
 
 ## What this budgets, and why it is characters rather than lines
 
@@ -84,3 +84,24 @@ other's reason and leaves a number nobody can account for.
   needed by any session that adds to `CLAUDE.md`, and a rule nobody can find is
   the one that gets broken. Recorded rather than absorbed, so the next raise has
   to argue for itself too.
+
+- **22,450 → 22,621** (2026-09-12, Q189): +171 to name
+  `scripts/testplan.py run` beside `dotnet test` in *Working here*. Measured
+  that day: the serial suite is **742 s**, of which `Lightbox.App.Tests` is 557.
+  The plan runs only the suites a change can reach, as parallel legs — about
+  190 s of wall clock on CI, where every leg has a runner to itself.
+
+  This is the resident half of a split, not an exception to it. The reasoning —
+  why selection is the weakest of the three levers, why the expensive assembly
+  had to be sharded rather than parallelised in process, what the shard
+  partition rests on — is in Q189 and in the script's own docstring, and costs
+  nothing until somebody asks. What has to be resident is the one line that
+  changes behaviour, because **a session that does not know the fast command
+  runs the slow one**, every time. A rule nobody can find is the one that gets
+  broken, and this one gets broken by default.
+
+  Trimmed before raising, in the order the rule asks for. The first draft named
+  the shard counts and the wall-clock arithmetic and ran to 260 characters; the
+  counts live in `SHARDS` where they are actually read, and a session does not
+  need them to type the command.
+

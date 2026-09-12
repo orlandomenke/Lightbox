@@ -19,6 +19,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: "Skip the test suite (manual builds only — a tag always runs it)"
+        type: boolean
+        default: false
 
 # Only the release job writes, and only when it is making a Release.
 permissions:
@@ -101,8 +106,47 @@ jobs:
       # A tag can point at any commit, including one that never went through a
       # pull request — so a Release must prove for itself that what it ships
       # passes, rather than trusting that something once did.
+      #
+      # **A MANUAL BUILD MAY SKIP IT. A TAG MAY NOT.** Q187, answered against
+      # the recommendation, and the reasoning is worth having here rather than
+      # only in the question: this path exists for "build me a bundle off this
+      # branch so I can try it", its audience is the owner minutes after a push
+      # whose pull request already ran the suite, and a gate that is almost
+      # always re-proving something proved ten minutes ago is a gate people
+      # route around by hand.
+      #
+      # The condition is written so that **only** an explicit `true` on a
+      # `workflow_dispatch` can skip. `github.ref_type == 'tag'` is not tested
+      # here at all, and that is deliberate rather than an omission: `inputs` is
+      # empty on a tag push, so `inputs.skip_tests` is the empty string and the
+      # comparison is false. Naming the event as well means the guarantee does
+      # not rest on that being true — a release cannot be talked out of its
+      # tests by anything.
       - name: Test before shipping
+        if: >
+          github.event_name != 'workflow_dispatch'
+          || inputs.skip_tests != true
         run: dotnet test Lightbox.sln -c Release
+
+      # An untested bundle has to say so on its own, because a zip is not
+      # self-describing: handed to somebody a week later it is indistinguishable
+      # from one that passed, and the first thing a crash from it costs is an
+      # hour spent looking for the bug in the code rather than in the
+      # provenance. Three places say it — this summary, the label below, and
+      # therefore the downloaded filename.
+      - name: Say so, loudly, if the suite was skipped
+        if: >
+          github.event_name == 'workflow_dispatch'
+          && inputs.skip_tests == true
+        run: |
+          echo "::warning::This bundle was built with skip_tests — nothing in it has been tested."
+          {
+            echo "## ⚠ Untested build"
+            echo
+            echo "The suite was skipped at the request of whoever started this run."
+            echo "The bundle is labelled \`-untested\` so it cannot be mistaken later"
+            echo "for one that passed. A \`v*\` tag cannot skip its tests."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # DebugType=embedded, not none: `none` ships no debug information at all,
       # so a crash report names methods and no line numbers, which is half of
@@ -150,6 +194,11 @@ jobs:
             # indistinguishable in a downloads folder.
             SAFE=$(printf '%s' "${GITHUB_REF_NAME}" | tr '/ _' '---' | tr -cd 'A-Za-z0-9.-')
             LABEL="${VERSION}-${SAFE}-${GITHUB_SHA::7}"
+            # Q187. The one thing that survives the run page being forgotten:
+            # the name of the file in somebody's downloads folder.
+            if [ "${{ inputs.skip_tests }}" = "true" ]; then
+              LABEL="${LABEL}-untested"
+            fi
           fi
           echo "label=$LABEL" >> "$GITHUB_OUTPUT"
           echo "zip=Lightbox-win-x64-${LABEL}.zip" >> "$GITHUB_OUTPUT"

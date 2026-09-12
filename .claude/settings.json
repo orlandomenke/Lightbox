@@ -51,6 +51,8 @@
       "Bash(python3 scripts/bugs.py:*)",
       "Bash(python3 scripts/branchstate.py:*)",
       "Bash(python3 scripts/manual.py:*)",
+      "Bash(python3 scripts/testplan.py:*)",
+      "Bash(python3 scripts/testcount.py:*)",
       "Bash(dotnet build:*)",
       "Bash(dotnet test:*)",
       "Bash(git status:*)",
