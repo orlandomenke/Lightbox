@@ -3475,6 +3475,15 @@ test reopens the bug.
 
 ### ui
 
+- [x] **B374** `P1` `ui` Dragging a symbol tile onto the canvas does nothing: the press never reaches the handler that starts the drag `evidence: tests/Lightbox.App.Tests/SymbolTileDragTests.cs, PressingASymbolTileArmsTheDragGesture, TheCanvasTakesADroppedSymbolAndPlacesIt`
+  - **Where the handler was registered, not what it did.** `OnSymbolTilePressed` was `PointerPressed="OnSymbolTilePressed"` in XAML on the `SymbolTiles` ListBox — a plain bubbling handler, on the ListBox itself. A ListBox's item container marks the press handled on the way back up, so by the time it bubbled that far it was handled and the handler was skipped. It never ran once.
+  - **Measured, 2026-09-12**, on the real control with real input: the press arrived at the ListBox with `Handled == true`, both of the handler's own guards would have passed (`left button = True`, `e.Source` DataContext `SymbolRow`), and `_tilePress` stayed `null`. Walking the route: unhandled at the template root, **handled at the item container**, handled at the ListBox — and it arrives handled whether or not the selection actually changes.
+  - **The symptom is nothing at all**, not a drag that fails to drop: no drag cursor, no ghost. A click still selected the tile normally, which is what made it look like the drop was at fault.
+  - **Only the press.** Moves and releases reach the ListBox unhandled, so the rest of the gesture was always fine, and the canvas receiver was fine too — it accepts the in-process format, sets `Copy`, and places.
+  - **The three drags that work each register where the press has not been handled yet**: a plain `Border` for a colour swatch, a row inside an `ItemsControl` for a layer, a `DataTemplate` root for a project row. This one was the odd one out. It tunnels now, which is what the timeline's cel drag and the tool buttons' hold-to-open flyouts already do in the same window for the same reason.
+  - **The manual has promised this since the feature landed** (`docs/manual/09-symbols.md`, "Placing, moving, and letting go"), which is the part that stings: a documented gesture that never worked once.
+  - Headless Avalonia registers no `IPlatformDragSource`, so no test can assert a drag *carries* — `DoDragDropAsync` never completes there. The guards cover the press arming the gesture and the canvas accepting a drop; the end-to-end gesture needs the real app.
+
 - [x] **B352** `P1` `ui` The drag payload is read after the fetch is awaited, by which time the platform has released it `evidence: DropReadsBeforeAwaitingTests, NoDragReadSitsAfterAnAwait, TheBoardTakesThePayloadUpFrontAndUsesWhatItTook`
   - **Reported 2026-09-02 as *“it works for the first image; browse to a new item and it refuses”*, and found in the log rather than by reasoning.** Three `reference-board-drop` notes, 22:30:52, 22:31:01 and 22:31:12, each identical:
     `carried DragContext (unreadable), DragImageBits (unreadable), chromium/x-renderer-taint (unreadable), Chromium Web Custom MIME Data Format (unreadable)`

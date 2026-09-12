@@ -241,6 +241,44 @@ public partial class MainWindow
 
     private string? _tileSymbolId;
 
+    /// <summary>
+    /// Wire the tile grid's press up so it is actually seen.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B374, and it is about where a handler is registered rather than what
+    /// it does.</b> This was <c>PointerPressed="OnSymbolTilePressed"</c> on the
+    /// <c>SymbolTiles</c> ListBox in XAML — a plain bubbling handler, on the
+    /// ListBox itself. A ListBox's item container marks the press handled on the
+    /// way back up, so by the time it bubbled this far it was handled and the
+    /// handler was skipped. Never once ran; no drag could ever start.
+    /// </para>
+    /// <para>
+    /// Measured on the real control with real input: the press arrived at the
+    /// ListBox with <c>Handled == true</c>, both of the handler's own guards
+    /// would have passed, and <c>_tilePress</c> stayed null. The route is
+    /// unhandled at the template root and handled at the container, so it is the
+    /// container that swallows it — and it does so whether or not the selection
+    /// actually changes.
+    /// </para>
+    /// <para>
+    /// <b>Tunnelling is the fix the rest of this window already uses</b> for the
+    /// same problem: the timeline's cel drag (MainWindow.axaml.cs) and the tool
+    /// buttons' hold-to-open flyouts both tunnel so they are seen before
+    /// anything marks the event handled. The three drags that work today each
+    /// register somewhere the press has not been handled yet — a plain Border
+    /// for a colour swatch, a row inside an ItemsControl for a layer, a
+    /// DataTemplate root for a project row. This one was the odd one out.
+    /// </para>
+    /// <para>
+    /// Only the press needs it. Moves and releases reach the ListBox unhandled,
+    /// which is why the gesture's other half was never the problem.
+    /// </para>
+    /// </remarks>
+    private void InitialiseSymbolTiles() =>
+        SymbolTiles.AddHandler(
+            InputElement.PointerPressedEvent, OnSymbolTilePressed, RoutingStrategies.Tunnel);
+
     private void OnSymbolTilePressed(object? sender, PointerPressedEventArgs e)
     {
         if (!e.GetCurrentPoint(SymbolTiles).Properties.IsLeftButtonPressed) return;
