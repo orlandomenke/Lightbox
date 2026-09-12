@@ -322,7 +322,9 @@ public partial class MainWindow
     private async Task<(bool Go, FrameImportChoice? Choice)> AskHowToPlace(string symbolId)
     {
         if (!_vm.PlacementNeedsAChoice(symbolId)) return (true, null);
-        if (SymbolRegistry.Resolve(symbolId) is not { } symbol) return (true, null);
+        // Through the view model, so a symbol still only in the artist's library
+        // resolves — the registry does not hold one until placing it adopts it.
+        if (_vm.SymbolToPlace(symbolId) is not { } symbol) return (true, null);
         if (await ShowPlacementChoiceDialogAsync(symbol) is not { } answer) return (false, null);
         // Only now can this fire at all: it used to be assigned inside the
         // branch the deadlock made unreachable, so it never once took.

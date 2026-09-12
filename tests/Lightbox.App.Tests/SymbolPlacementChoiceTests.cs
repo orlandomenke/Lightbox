@@ -31,6 +31,13 @@ public sealed class SymbolPlacementChoiceTests : BrushStateIsolated
     private readonly string _root = Path.Combine(
         Path.GetTempPath(), $"lightbox-placechoice-{Guid.NewGuid():N}.lbproj");
 
+    /// <summary>The artist's own library, redirected so this does not write theirs.</summary>
+    private readonly string _store = Path.Combine(
+        Path.GetTempPath(), $"lightbox-placechoice-lib-{Guid.NewGuid():N}.json");
+
+    public SymbolPlacementChoiceTests() =>
+        Lightbox.App.Services.SymbolLibrary.PathOverride = _store;
+
     /// <remarks>
     /// <see cref="BrushStateIsolated"/> because the preference is persisted and
     /// process-wide: without it, a test that stores "always import" hands that
@@ -39,6 +46,8 @@ public sealed class SymbolPlacementChoiceTests : BrushStateIsolated
     /// </remarks>
     public override void Dispose()
     {
+        Lightbox.App.Services.SymbolLibrary.PathOverride = null;
+        if (File.Exists(_store)) File.Delete(_store);
         SymbolRegistry.Clear();
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
         base.Dispose();
@@ -238,5 +247,39 @@ public sealed class SymbolPlacementChoiceTests : BrushStateIsolated
             "the dialog was closed and the task it was driving did not complete — the old path "
             + "abandoned this task and left the window open (B373)");
         Assert.Empty(window.OwnedWindows);
+    }
+
+    /// <summary>
+    /// A multi-frame symbol still only in the artist's library is a question
+    /// too.
+    /// </summary>
+    /// <remarks>
+    /// It is not in the <see cref="SymbolRegistry"/> until placing it adopts it,
+    /// and the adoption happens <em>inside</em> <c>PlaceSymbol</c> — so asking
+    /// the registry alone answers "no question" and the symbol goes in as a
+    /// silent Reference with the artist never asked. The drag route carries only
+    /// an id, which is what makes this indistinguishable from the project case
+    /// at the panel.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ASymbolStillOnlyInTheLibraryIsAskedAboutToo()
+    {
+        var vm = Loaded(out _);
+        var global = Prop("library walk", frames: 6);
+        Lightbox.App.Services.SymbolLibrary.Save(
+            new Dictionary<string, Symbol> { [global.Id] = global });
+        vm.ReloadSymbolLibraryForTests();
+
+        Assert.Null(SymbolRegistry.Resolve(global.Id));
+        // Equal rather than same: the library round-trips through JSON, so this
+        // is the artist's symbol rebuilt, not the object handed to Save.
+        var resolved = vm.SymbolToPlace(global.Id);
+        Assert.NotNull(resolved);
+        Assert.Equal(global.Id, resolved!.Id);
+        Assert.Equal(6, resolved.FrameCount);
+        Assert.True(
+            vm.PlacementNeedsAChoice(global.Id),
+            "a six-frame symbol from the library was placed without the artist being asked, "
+            + "because it is not in the registry until placing it adopts it");
     }
 }

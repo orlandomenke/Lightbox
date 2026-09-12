@@ -977,8 +977,25 @@ public sealed partial class MainViewModel
     /// </para>
     /// </remarks>
     public bool PlacementNeedsAChoice(string symbolId) =>
-        PlacementPreference is null
-        && SymbolRegistry.Resolve(symbolId) is { FrameCount: > 1 };
+        PlacementPreference is null && SymbolToPlace(symbolId) is { FrameCount: > 1 };
+
+    /// <summary>
+    /// The symbol a placement would land: the project's, or the artist's own
+    /// library copy that placing it would adopt.
+    /// </summary>
+    /// <remarks>
+    /// <b>The library half is load-bearing.</b> A global symbol is not in the
+    /// registry until <see cref="AdoptFromLibrary"/> runs, and that runs
+    /// <em>inside</em> <see cref="PlaceSymbol"/> — so asking the registry alone
+    /// answers "not found", and therefore "no question", for every multi-frame
+    /// symbol placed straight out of the library. It would have gone in as a
+    /// silent Reference with the artist never asked. Same trap
+    /// <see cref="AdoptFromLibrary"/>'s own note describes: the routes look
+    /// interchangeable from the panel and are not.
+    /// </remarks>
+    public Symbol? SymbolToPlace(string symbolId) =>
+        SymbolRegistry.Resolve(symbolId)
+        ?? (Library.TryGetValue(symbolId, out var global) ? global : null);
 
     /// <summary>
     /// Place a symbol as a single animated reference (old behaviour).
