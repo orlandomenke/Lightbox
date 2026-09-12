@@ -267,6 +267,50 @@ public sealed class NestedFolderTests(ITestOutputHelper output) : BrushStateIsol
         Assert.False(vm.Doc.Scene.IsLayerVisible(deep));
     }
 
+    /// <summary>
+    /// Collapsing a folder hides everything under it, however deep — including
+    /// the headers of the folders inside it. A folder that still showed the
+    /// folders within it would be collapsed in name only.
+    /// </summary>
+    [AvaloniaFact]
+    public void CollapsingAFolderHidesTheFoldersInsideItToo()
+    {
+        var vm = Stacked();
+        vm.ActiveLayerIndex = vm.Doc.Scene.Layers.FindIndex(l => l.Name == "over");
+        vm.CreateLayerFolderCommand.Execute(null);
+        vm.DropGroupIntoGroup(
+            vm.Doc.Scene.LayerGroups.Single(g => g.Name == "Folder 2"),
+            vm.Doc.Scene.LayerGroups.Single(g => g.Name == "Folder 1"));
+
+        var expanded = Panel(vm);
+        output.WriteLine("expanded : " + expanded);
+        Header(vm, "Folder 1").Collapsed = true;
+        output.WriteLine("collapsed: " + Panel(vm));
+
+        // The outer header and what is outside it, and nothing else.
+        Assert.Equal("<Folder 1> | under | Background", Panel(vm));
+
+        Header(vm, "Folder 1").Collapsed = false;
+        Assert.Equal(expanded, Panel(vm));
+    }
+
+    /// <summary>
+    /// A collapsed folder still swallows what is dropped on it — the rows being
+    /// hidden says nothing about where a layer would go.
+    /// </summary>
+    [AvaloniaFact]
+    public void ACollapsedFolderStillTakesADroppedLayer()
+    {
+        var vm = Stacked();
+        var header = Header(vm, "Folder 1");
+        header.Collapsed = true;
+        vm.MoveLayerIntoGroup(vm.Doc.Scene.Layers.Single(l => l.Name == "over"), header.Group);
+        Assert.Equal(
+            vm.Doc.Scene.LayerGroups[0].Id,
+            vm.Doc.Scene.Layers.Single(l => l.Name == "over").GroupId);
+        EveryFolderIsOneRun(vm);
+    }
+
     // ---- the docker's own rows ----------------------------------------------------
 
     /// <summary>
