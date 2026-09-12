@@ -634,6 +634,19 @@
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.6"
                      Text="The same list the library window edits — a setting of the machine, kept across sessions and shared by every project." />
         </StackPanel>
+
+        <!--
+          B373. The dialog carries a "don't ask again", and a preference an
+          artist can store but not find again is a trap — so the stored answer
+          is shown here, and "Ask every time" is how it is taken back.
+        -->
+        <StackPanel Spacing="6">
+          <TextBlock Text="Placing a symbol that has more than one drawing" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="An animated symbol can land two ways: every drawing imported into the timeline, which makes the scene at least as long as the symbol, or one placement that cycles through them on its own. Lightbox asks each time unless you tell it not to." />
+          <ComboBox x:Name="SymbolPlacementBox" Width="240" HorizontalAlignment="Left"
+                    SelectionChanged="OnSymbolPlacementChoiceChanged" />
+        </StackPanel>
       </StackPanel>
     </ScrollViewer>
   </Grid>
