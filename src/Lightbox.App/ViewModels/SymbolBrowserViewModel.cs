@@ -197,6 +197,15 @@ public sealed partial class SymbolBrowserViewModel : ObservableObject
     /// </remarks>
     public void Refresh()
     {
+        // B375. The rows carry the rendered thumbnails, and the version check in
+        // RefreshThumbs is against the row — so throwing them all away and
+        // rebuilding meant a 0% cache hit rate by construction, every refresh,
+        // including once per keystroke in the search box. Keep the row for a
+        // symbol that is still the same symbol at the same scope.
+        var kept = new Dictionary<string, SymbolRow>(Rows.Count);
+        foreach (var row in Rows) kept[row.Model.Id] = row;
+        var wasSelected = Selected?.Model.Id;
+
         Rows.Clear();
         var project = _project();
         var mine = project?.Symbols;
@@ -233,7 +242,23 @@ public sealed partial class SymbolBrowserViewModel : ObservableObject
             if (ScopeFilter is { } want && scope != want) continue;
             if (KindFilter is { } kind && symbol.Kind != kind) continue;
             if (!Matches(symbol, Search)) continue;
-            Rows.Add(new SymbolRow(symbol, scope));
+            // Reused only when it is the same object at the same scope: a symbol
+            // replaced wholesale (Update from library) is a different drawing
+            // under the same id, and its row's thumbnail is of the old one.
+            Rows.Add(
+                kept.TryGetValue(symbol.Id, out var had)
+                && ReferenceEquals(had.Model, symbol)
+                && had.Scope == scope
+                    ? had
+                    : new SymbolRow(symbol, scope));
+        }
+
+        // Clearing the collection drops the selection, so a refresh used to
+        // deselect whatever was chosen — on every keystroke while searching for
+        // it. It survives now when it is still on show.
+        if (wasSelected is not null)
+        {
+            Selected = Rows.FirstOrDefault(r => r.Model.Id == wasSelected);
         }
 
         RefreshThumbs();
@@ -271,6 +296,21 @@ public sealed partial class SymbolBrowserViewModel : ObservableObject
         }
     }
 
+    /// <summary>How big a tile is on screen.</summary>
+    private const int TileWidth = 64;
+
+    private const int TileHeight = 48;
+
+    /// <summary>
+    /// Render at twice the tile and let the downsample do the rest.
+    /// </summary>
+    /// <remarks>
+    /// Enough to keep a thin line from dropping below a pixel and disappearing,
+    /// cheap enough that the canvas size stops mattering. Rendering at exactly
+    /// tile size looked thin; rendering at canvas size was B375.
+    /// </remarks>
+    private const int Supersample = 2;
+
     private static Bitmap? RenderThumb(Symbol symbol, SKImageInfo info)
     {
         if (symbol.Layers.Count == 0) return null;
@@ -280,7 +320,25 @@ public sealed partial class SymbolBrowserViewModel : ObservableObject
         // The tile shows frame one. L3 makes this the composite of the stack;
         // until then a symbol has one layer and this is its first drawing.
         if (symbol.FramesAt(0).FirstOrDefault() is not { } first) return null;
-        using var bitmap = FrameRasterizer.Materialize(first, info.Width, info.Height);
-        return bitmap is null ? null : ThumbnailRenderer.RenderChecker(bitmap, 64, 48);
+
+        // B375. This used to materialize the symbol at the *document's* canvas
+        // size and then throw all but a 64x48 corner of that work away — so a
+        // tile that is the same size on every document cost 25 ms each at 4K and
+        // 3.7 ms at 640x360. The tile is what is wanted, so the tile is what is
+        // rendered.
+        //
+        // **Scaled by the surface, never by the geometry** (invariant 7):
+        // Hash01 seeds every dab dynamic off the IEEE-754 bits of a position, so
+        // multiplying stroke coordinates would re-roll scatter, jitter and size
+        // and make this a different mark rather than a smaller one.
+        // FrameRasterizer's own outputScale is that surface transform.
+        var scale = Math.Min(
+            1.0,
+            Math.Min(
+                (double)(TileWidth * Supersample) / Math.Max(1, info.Width),
+                (double)(TileHeight * Supersample) / Math.Max(1, info.Height)));
+
+        using var bitmap = FrameRasterizer.Materialize(first, info.Width, info.Height, scale);
+        return bitmap is null ? null : ThumbnailRenderer.RenderChecker(bitmap, TileWidth, TileHeight);
     }
 }
