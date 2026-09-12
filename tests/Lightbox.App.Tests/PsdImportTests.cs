@@ -270,11 +270,20 @@ public class PsdImportTests(ITestOutputHelper output)
         Assert.False(Assert.Single(scene.LayerGroups).Visible);
     }
 
+    /// <summary>
+    /// A PSD's folder tree arrives as a tree.
+    /// </summary>
+    /// <remarks>
+    /// It used to arrive flattened, with the path written into the name
+    /// ("Character / Head") and each enclosing folder's visibility folded into
+    /// the leaf, because a Lightbox folder was one level deep. Folders nest, so
+    /// none of that is needed: the name is the folder's own name, the parent is
+    /// really there, and a hidden outer folder hides the inner one because it
+    /// encloses it rather than because the import said so.
+    /// </remarks>
     [Fact]
-    public void NestedFoldersFlattenAndKeepTheirPathInTheName()
+    public void NestedFoldersArriveNested()
     {
-        // Lightbox folders are one level deep. Nesting is organisation rather
-        // than image, so it flattens and the path survives in the name.
         var bytes = new PsdFixture
         {
             Layers =
@@ -289,10 +298,40 @@ public class PsdImportTests(ITestOutputHelper output)
 
         var scene = PsdDocumentImport.Open(bytes).Document.Scene;
 
-        output.WriteLine(string.Join(", ", scene.LayerGroups.ConvertAll(g => g.Name)));
-        Assert.Contains(scene.LayerGroups, g => g.Name.Contains("Head"));
+        output.WriteLine(string.Join(", ", scene.LayerGroups.ConvertAll(g => $"{g.Name}<-{g.ParentId}")));
+        var character = scene.LayerGroups.Single(g => g.Name == "Character");
+        var head = scene.LayerGroups.Single(g => g.Name == "Head");
+        Assert.Null(character.ParentId);
+        Assert.Equal(character.Id, head.ParentId);
+
         var eye = Assert.Single(scene.Layers);
-        Assert.NotNull(eye.GroupId);
+        Assert.Equal(head.Id, eye.GroupId);
+    }
+
+    /// <summary>
+    /// And hiding the outer folder hides what is in the inner one — through the
+    /// tree, not through a value copied down at import time.
+    /// </summary>
+    [Fact]
+    public void AHiddenOuterFolderHidesWhatIsNestedInsideIt()
+    {
+        var bytes = new PsdFixture
+        {
+            Layers =
+            {
+                PsdLayerFixture.Group("</outer>", 3),
+                PsdLayerFixture.Group("</inner>", 3),
+                PsdLayerFixture.Solid("Eye", 1, 1, 1, a: 255),
+                PsdLayerFixture.Group("Head", 1),
+                new PsdLayerFixture { Name = "Character", SectionType = 1, Visible = false },
+            },
+        }.Build();
+
+        var scene = PsdDocumentImport.Open(bytes).Document.Scene;
+
+        Assert.True(scene.LayerGroups.Single(g => g.Name == "Head").Visible);
+        Assert.False(scene.LayerGroups.Single(g => g.Name == "Character").Visible);
+        Assert.False(scene.IsLayerVisible(scene.Layers[0]));
     }
 
     [Fact]

@@ -40,10 +40,50 @@ remembered layer is never the reason a stroke goes nowhere.
 
 **Ctrl+click** a layer thumbnail to select its opaque pixels.
 
+### Folders
+
+A folder is where layers **sit** — not what they are to each other, which is
+what [linking](#linking-layers--one-drawing-across-several) is for. Its eye
+hides everything inside it and its lock refuses edits to everything inside it,
+at any depth.
+
+**Folders go inside folders.** The rows step right as they nest, so you can read
+the depth off the panel.
+
+There are two ways to make one, and they answer different questions:
+
+- **New folder with this layer** (the folder button, `Ctrl+G`, or the Layer
+  menu) wraps the layer you are on — or the whole selection. If those layers are
+  already in a folder, the new one is made *inside* that folder rather than
+  pulling them out of it.
+- **New empty folder** (the folder-with-a-plus button, or the Layer menu) makes
+  one with nothing in it, ready to drag layers into. This is how you set up a
+  structure before filling it.
+
+**Click a folder header to aim at it.** The header marks itself, and the next
+layer or folder you make goes inside it. This is a smaller question than which
+layer is selected, and it is kept separate on purpose: pointing at a folder
+never moves where your brush paints. Clicking any layer lets go of the folder
+again, as does clicking the same header a second time.
+
+**With no folder aimed at, a new layer lands directly above the layer you are
+on, in whatever folder that layer is in.** So working inside a folder keeps you
+inside it, and you never have to file a layer you just made.
+
+**An empty folder stays.** Drag the last layer out of one and the header is
+still there — still nameable, still a drop target, still deletable. A folder
+that disappeared the moment it emptied could not be set up in advance, and could
+never be got rid of once it had been.
+
+**Remove from folder** (a layer's right-click menu) takes it out one level, to
+just above the folder it was in — not all the way to the top. **Dissolve folder**
+(the ✕ on the header) removes the folder and leaves its contents one level
+further out, including any folders that were inside it.
+
 **The everyday layer verbs are on the Layer menu too**, addressed to the layer
-you are on: new layer, new folder, move up and down, merge down, the three
-checkboxes (visible, locked, lock transparency), select contents, blank
-content and delete. The docker keeps the things a menu is wrong for — the
+you are on: new layer, new folder, new empty folder, move up and down, merge
+down, the three checkboxes (visible, locked, lock transparency), select
+contents, blank content and delete. The docker keeps the things a menu is wrong for — the
 blend mode and opacity controls, drag-reordering, and the right-click menu's
 row-targeted extras (linking, exports, the rig).
 
@@ -82,23 +122,34 @@ members joins the folder, dropping beside a loose row leaves it — and the whol
 drop is one undo step. A drag moves the one row you picked up; the ▲/▼ buttons
 remain the way to move a multi-selection as a block.
 
-**A folder header drags too, and takes the whole folder with it.** The block
-keeps its own order and lands above or below wherever you drop it. Folders do
-not go inside other folders, so a folder in your hand always lands *beside* what
-is under the pointer, never in it.
+**A folder header drags too, and takes everything inside it.** The block keeps
+its own order, and it can land beside what is under the pointer or *inside* it —
+folders go inside folders.
 
-**A folder header is three targets, not two.** Its middle files a layer into the
-folder — the common case, so it is the part you get by aiming at the row. The
-top and bottom quarters put the layer above or below the whole folder instead,
-which is how you get a layer to sit just outside a folder without hunting for
-whatever row happens to be next to it.
+**A folder header is three targets, not two.** Its middle files what you are
+carrying into the folder — the common case, so it is the part you get by aiming
+at the row. The top and bottom quarters put it above or below the whole folder
+instead, which is how you get a layer to sit just outside a folder without
+hunting for whatever row happens to be next to it. That is the same three
+targets whether you are carrying a layer or a folder.
+
+**A folder cannot go inside itself**, or inside a folder that is already inside
+it — there would be nothing left holding either of them. Those headers split in
+half like an ordinary row, so you can still drop the folder *beside* the one you
+are pointing at. Folders also stop nesting at eight deep.
 
 **While you drag, two things tell you what will happen**: a small label under
 the pointer naming what you picked up, and a line on the row you are over
 showing which side it will land on. A folder about to swallow what you are
 carrying lights up instead of drawing a line, because "inside" is not an edge.
-If neither appears, the drop will not do anything — dragging a folder onto one
-of its own rows, for instance.
+If neither appears, the drop will not do anything.
+
+**The ▲/▼ buttons move one row of the panel, not one place in the stack.** A
+layer stepping up into a folder header goes *inside* the folder, at its floor;
+one stepping off the top of a folder comes out of it. That is what the row
+visibly does, so it is what the stack does — and it is why a folder always stays
+in one piece. A folder's own header moves as a block, past its neighbours, from
+its right-click menu.
 
 **The onion-skin toggle (◉) is the exception: it is always one layer**, even
 with several selected. The eye and the locks describe the drawing, and picking

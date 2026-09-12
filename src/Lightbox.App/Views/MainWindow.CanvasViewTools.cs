@@ -583,6 +583,15 @@ public partial class MainWindow
                 _vm.CancelPolygon();
                 _vm.CancelGradient();
                 return; // leave Escape unhandled so open flyouts still close
+            case "docker.newLayer":
+                _vm.AddPaintedLayerCommand.Execute(null);
+                break;
+            case "docker.newFolder":
+                _vm.CreateLayerFolderCommand.Execute(null);
+                break;
+            case "docker.newEmptyFolder":
+                _vm.CreateEmptyLayerFolderCommand.Execute(null);
+                break;
             case "docker.deleteLayer":
                 _vm.DeleteActiveLayerCommand.Execute(null);
                 break;

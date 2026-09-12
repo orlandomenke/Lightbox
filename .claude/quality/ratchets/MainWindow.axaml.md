@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4907
+budget: 4924
 
 ## Why it is here despite being XAML
 
@@ -309,3 +309,23 @@ leaves a number nobody can account for. So every reason above stays, and
   share menu shipped with nothing that could feed them, and the whole chain was
   reachable only from tests until somebody noticed. Sixteen lines is what it
   costs not to repeat that.
+
+- **4,907 → 4,924** (2026-09-11): **layer folders, once they nest** (Q186,
+  B366–B371). Seventeen lines, and all of them are the standing exception —
+  controls and menu items for capability that otherwise has no address.
+  Six of them are *New empty folder*, on the docker bar and on the Layer menu:
+  without it `CreateLayerFolder` always swallows the active layer, so "make a
+  folder, then drag things into it" — the flow the whole change exists to
+  serve — could not be started. Seven are **Move folder up / down** on the
+  header's menu, which is the only reach `MoveGroup` has. The remaining four
+  are row attributes: the depth-driven `Margin` on both templates, and the
+  focused and empty classes on the header.
+  **Two lines were given back rather than spent.** The composed folder-plus
+  glyph is one `IconFolderNew` in `Icons.axaml` — where an icon belongs, and a
+  file with no ratchet — instead of a `Panel` holding two `Path`s here; and the
+  layer row's `Classes.grouped` went away entirely, because indentation is now
+  bound per row from the tree rather than switched by a class that could only
+  ever say "inside a folder" and never how deep.
+  Everything that could live elsewhere does: the rules are in
+  `LayerTree` (Core), the row styles in `Styles/LayerRows.axaml`, and the
+  reasoning in Q186 and the six ledger entries.

@@ -26,7 +26,60 @@ public sealed partial class GroupRow : ObservableObject
         _syncing = false;
     }
 
-    public LayerGroup Group { get; }
+    /// <summary>
+    /// The folder this row mirrors. Re-pointed rather than replaced when the
+    /// document is swapped under it.
+    /// </summary>
+    /// <remarks>
+    /// Undo restores a <em>clone</em> of the document, so every folder comes
+    /// back as a new object with the same id. Rebuilding the header rows to
+    /// match would reset the whole panel on every Ctrl+Z — which is exactly the
+    /// churn the rebuild was rewritten to avoid — so the row keeps its identity
+    /// and follows the id instead.
+    /// </remarks>
+    public LayerGroup Group { get; private set; }
+
+    /// <summary>How many folders enclose this one — 0 at the top level.</summary>
+    /// <remarks>
+    /// Drives the row's left inset, which is the only thing in the docker that
+    /// says a folder is inside another one.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Indent))]
+    private int _depth;
+
+    /// <summary>The row's left inset in pixels.</summary>
+    /// <remarks>
+    /// Clamped, because the model allows nesting deeper than a docker column is
+    /// wide: past the clamp the rows stop stepping right rather than marching
+    /// off the edge, and the header still reads.
+    /// </remarks>
+    public Avalonia.Thickness Indent => new(Math.Min(Depth, 6) * IndentStepPx, 0, 0, 0);
+
+    /// <summary>Pixels of inset per level of nesting.</summary>
+    internal const double IndentStepPx = 10;
+
+    /// <summary>Nothing is inside this folder, at any depth — the header alone.</summary>
+    /// <remarks>
+    /// Shown rather than hidden. A folder emptied by dragging its last layer out
+    /// used to stay in the document and disappear from the docker, which left a
+    /// folder nobody could reach or delete; and a folder made before it is
+    /// filled is the ordinary way to start organising.
+    /// </remarks>
+    [ObservableProperty]
+    private bool _isEmpty;
+
+    /// <summary>
+    /// The folder new layers and new folders land in — set by clicking the
+    /// header.
+    /// </summary>
+    /// <remarks>
+    /// Not the same thing as the active layer, and deliberately: exactly one
+    /// layer is where the next stroke goes, and pointing at a folder must not
+    /// move it. This is only where the next <em>thing you make</em> goes.
+    /// </remarks>
+    [ObservableProperty]
+    private bool _isFocused;
 
     [ObservableProperty]
     private string _name = "";
@@ -73,6 +126,27 @@ public sealed partial class GroupRow : ObservableObject
     public bool DropBelow => DropHint == LayerDropHint.Below;
 
     public bool DropInto => DropHint == LayerDropHint.Into;
+
+    /// <summary>
+    /// Re-read the folder after an edit — the header now outlives the rebuild
+    /// that used to replace it, so it has to pick model changes up itself.
+    /// </summary>
+    /// <remarks>
+    /// A rename in progress is left alone. The row surviving a rebuild is the
+    /// whole point of keeping it, and pushing the model's name back into a box
+    /// the artist is typing in would undo their keystrokes.
+    /// </remarks>
+    internal void SyncFromModel(LayerGroup group)
+    {
+        Group = group;
+        _syncing = true;
+        if (!IsRenaming) Name = group.Name;
+        Visible = group.Visible;
+        Locked = group.Locked;
+        Collapsed = group.Collapsed;
+        Color = group.Color;
+        _syncing = false;
+    }
 
     partial void OnNameChanged(string value)
     {
@@ -123,6 +197,16 @@ public sealed partial class LayerRow : ObservableObject
 
     /// <summary>Index into Scene.Layers (0 = bottom).</summary>
     public int SceneIndex { get; private set; }
+
+    /// <summary>How many folders enclose this layer — 0 when it is loose.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Indent))]
+    private int _depth;
+
+    /// <summary>The row's left inset in pixels.</summary>
+    /// <inheritdoc cref="GroupRow.Indent" path="/remarks"/>
+    public Avalonia.Thickness Indent =>
+        new(Math.Min(Depth, 6) * GroupRow.IndentStepPx, 0, 0, 0);
 
     public ObservableCollection<FrameCell> Cells { get; } = [];
 

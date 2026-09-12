@@ -425,6 +425,20 @@ public sealed class ShortcutMap
             new("reference.board", "Open the reference board", "Reference",
                 G(Key.B, KeyModifiers.Control | KeyModifiers.Shift)),
 
+            // Making a layer and making a folder were reachable from the menu
+            // and from the docker's buttons and from nowhere else, so an artist
+            // who wanted them on a key could not see them here to bind one.
+            // Photoshop's gestures for both, and global rather than docker-
+            // scoped for the merge's reason: a new layer is asked for from the
+            // canvas far more often than from the panel.
+            new("docker.newLayer", "New layer", "Dockers",
+                G(Key.N, KeyModifiers.Control | KeyModifiers.Shift)),
+            new("docker.newFolder", "New folder with this layer", "Dockers",
+                G(Key.G, KeyModifiers.Control)),
+            // No default gesture, the docker.editMask reason: there is no
+            // convention to borrow for an empty folder, and guessing one costs
+            // somebody their key. Bindable is the requirement.
+            new("docker.newEmptyFolder", "New empty folder", "Dockers", null),
             new("docker.deleteLayer", "Delete layer", "Dockers", G(Key.Delete), ShortcutContext.Panel, DockPanelId.Layers),
             new("docker.clearLayer", "Blank layer content", "Dockers", G(Key.Back), ShortcutContext.Panel, DockPanelId.Layers),
             // Photoshop's and Krita's key, and global like theirs: merging is

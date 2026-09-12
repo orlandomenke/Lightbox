@@ -411,6 +411,8 @@
                   ToolTip.Tip="A fresh drawing layer above the active one" />
         <MenuItem Header="New _folder with this layer" Command="{Binding CreateLayerFolderCommand}"
                   ToolTip.Tip="Wrap the active layer in a folder, ready for company" />
+        <MenuItem Header="New _empty folder" Command="{Binding CreateEmptyLayerFolderCommand}"
+                  ToolTip.Tip="A folder with nothing in it, ready to drag layers into" />
         <Separator />
         <MenuItem Header="Move _up" Command="{Binding MoveActiveLayerUpCommand}"
                   ToolTip.Tip="Toward the viewer — or the whole selection, when this layer is in it" />
@@ -3330,12 +3332,18 @@
                          "this layer cannot hold imported pixels or a symbol". Q52. -->
                     <StackPanel Orientation="Horizontal" Spacing="4">
                       <Button Classes="icon" Command="{Binding AddPaintedLayerCommand}"
-                              ToolTip.Tip="Add a new layer">
+                              ToolTip.Tip="{Binding NewLayerTargetName}">
                         <Path Classes="icon" Data="{StaticResource IconPlus}" />
                       </Button>
                       <Button Classes="icon" Command="{Binding CreateLayerFolderCommand}"
                               ToolTip.Tip="New folder containing the active layer">
                         <Path Classes="icon" Data="{StaticResource IconFolder}" />
+                      </Button>
+                      <!-- B367: the button above always swallows the active
+                           layer, so an empty folder had no gesture at all. -->
+                      <Button Classes="icon" Command="{Binding CreateEmptyLayerFolderCommand}"
+                              ToolTip.Tip="New empty folder, ready to drag layers into">
+                        <Path Classes="icon" Data="{StaticResource IconFolderNew}" />
                       </Button>
                       <Button Classes="icon" Command="{Binding DeleteActiveLayerCommand}"
                               ToolTip.Tip="Delete the active layer (Delete inside this docker; Backspace blanks its content)">
@@ -3365,8 +3373,10 @@
                            whole row lit for "into". -->
                       <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}"
                               Classes.lockedLayer="{Binding Locked}"
+                              Classes.focused="{Binding IsFocused}" Classes.emptyFolder="{Binding IsEmpty}"
                               Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
                               Classes.dropInto="{Binding DropInto}"
+                              Margin="{Binding Indent}"
                               PointerPressed="OnGroupRowPressed"
                               PointerMoved="OnGroupRowMoved" PointerReleased="OnGroupRowReleased"
                               BorderBrush="{Binding ColorBrush}" BorderThickness="4,0,0,0" CornerRadius="3">
@@ -3394,6 +3404,13 @@
                               </MenuItem>
                             </MenuItem>
                             <MenuItem Header="Collapse / expand" Click="OnGroupMenuCollapse" />
+                            <Separator />
+                            <MenuItem Header="Move folder up"
+                                      Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveGroupUpCommand}"
+                                      CommandParameter="{Binding}" />
+                            <MenuItem Header="Move folder down"
+                                      Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).MoveGroupDownCommand}"
+                                      CommandParameter="{Binding}" />
                             <Separator />
                             <MenuItem Header="Add active layer to folder" Click="OnGroupMenuAddActive" />
                             <MenuItem Header="Dissolve folder (keep layers)" Click="OnGroupMenuDissolve" />
@@ -3436,9 +3453,10 @@
                       </Border>
                     </DataTemplate>
                     <DataTemplate x:DataType="vm:LayerRow">
-                      <Border Classes="layerRow" Classes.active="{Binding IsActive}" Classes.grouped="{Binding IsGrouped}"
+                      <Border Classes="layerRow" Classes.active="{Binding IsActive}"
                               Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}" Classes.selected="{Binding IsSelected}"
                               Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
+                              Margin="{Binding Indent}"
                               Focusable="True"
                               PointerPressed="OnLayerRowPressed"
                               PointerMoved="OnLayerRowMoved" PointerReleased="OnLayerRowReleased">

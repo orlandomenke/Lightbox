@@ -190,6 +190,29 @@ public sealed class DocumentEditor
     }
 
     /// <summary>
+    /// Throw away the step <see cref="Perform"/> just pushed, for a mutation
+    /// that looked at the document and decided to do nothing.
+    /// </summary>
+    /// <remarks>
+    /// <b>The snapshot is pushed before the mutation runs</b>, because the
+    /// snapshot <em>is</em> the pre-state — so a mutation that declines leaves
+    /// a step in the history that undoes to exactly what is already there. One
+    /// Ctrl+Z that visibly does nothing is worse than it sounds: the artist
+    /// presses it again and loses the edit they actually meant to take back.
+    /// <para>
+    /// Only safe immediately after a <see cref="Perform"/> whose mutation is
+    /// known not to have changed anything, which is why it is named for that
+    /// and not for "undo the last step".
+    /// </para>
+    /// </remarks>
+    public void DropLastStepIfUnchanged()
+    {
+        if (_undo.Count == 0) return;
+        _undo.Pop();
+        Changed?.Invoke();
+    }
+
+    /// <summary>
     /// Run a mutation as one undoable step WITHOUT snapshotting the document —
     /// the hot path for stroke commits, where serializing the whole document
     /// per pen lift caused a visible pause. <paramref name="apply"/> must be

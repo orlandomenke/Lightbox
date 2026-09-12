@@ -153,7 +153,8 @@ public class MainMenuShapeTests(ITestOutputHelper output) : BrushStateIsolated
         var layer = TopLevel(window, "La_yer").Items.OfType<MenuItem>().ToList();
         output.WriteLine(string.Join(" | ", layer.Select(i => i.Header)));
         Assert.Equal(
-            ["_New layer", "New _folder with this layer", "Move _up", "Move _down", "Merge do_wn",
+            ["_New layer", "New _folder with this layer", "New _empty folder",
+             "Move _up", "Move _down", "Merge do_wn",
              "_Visible", "_Locked", "Lock _transparency",
              "_Select layer contents", "_Blank layer content", "Delete la_yer"],
             layer.Select(i => i.Header as string).ToList());

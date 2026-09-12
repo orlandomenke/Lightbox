@@ -1163,8 +1163,26 @@ public partial class MainWindow
 
     private void OnGroupRowMoved(object? sender, PointerEventArgs e) => OnLayerRowMoved(sender, e);
 
-    private void OnGroupRowReleased(object? sender, PointerReleasedEventArgs e) =>
+    /// <summary>
+    /// A press that never became a drag is a click, and a click on a folder
+    /// header aims the New commands at that folder.
+    /// </summary>
+    /// <remarks>
+    /// Decided on release rather than on press, because the same press is also
+    /// the start of a drag — focusing on the way down would make every folder
+    /// you dragged also become the one new layers land in. The drag path clears
+    /// the candidate, so a candidate still standing here means no drag happened.
+    /// </remarks>
+    private void OnGroupRowReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        var clicked = _layerDragCandidate is GroupRow header
+            && (sender as Control)?.DataContext is GroupRow under
+            && ReferenceEquals(header, under)
+                ? header
+                : null;
         OnLayerRowReleased(sender, e);
+        if (clicked is not null) _vm.FocusLayerGroupCommand.Execute(clicked);
+    }
 
     private async void OnLayerRowMoved(object? sender, PointerEventArgs e)
     {
@@ -1262,21 +1280,23 @@ public partial class MainWindow
     /// <summary>
     /// What this drop would do, given what is in hand and what is under it.
     /// </summary>
-    private static LayerDropHint HintFor(DragEventArgs e, object? item, Control? container)
+    private LayerDropHint HintFor(DragEventArgs e, object? item, Control? container)
     {
         if (item is null || container is null) return LayerDropHint.None;
-        var draggingFolder = DraggedGroupOf(e) is not null;
-        // Dropping a folder on one of its own rows, or on its own header, is
-        // the gesture that means nothing — say so rather than drawing a line
-        // the drop will decline to honour.
+
+        // Dropping a folder into itself, or anywhere inside itself, is the
+        // gesture that means nothing — say so rather than drawing a line the
+        // drop will decline to honour. The view model owns the tree, so it is
+        // the one that can answer.
         if (DraggedGroupOf(e) is { } carried)
         {
-            var ownId = carried.Group.Id;
-            if (item is GroupRow header && header.Group.Id == ownId) return LayerDropHint.None;
-            if (item is LayerRow member && member.Layer.GroupId == ownId) return LayerDropHint.None;
+            if (!_vm.CanDropGroupOn(carried.Group, item)) return LayerDropHint.None;
+            var canNest = item is GroupRow header && _vm.CanNestGroupIn(carried.Group, header.Group);
+            return LayerDropPlan.Resolve(FractionDown(e, container), item is GroupRow, canNest);
         }
+
         if (DraggedLayerOf(e) is { } layer && ReferenceEquals(layer, item)) return LayerDropHint.None;
-        return LayerDropPlan.Resolve(FractionDown(e, container), item is GroupRow, draggingFolder);
+        return LayerDropPlan.Resolve(FractionDown(e, container), item is GroupRow, canGoInside: true);
     }
 
     private void OnLayerDragOver(object? sender, DragEventArgs e)
@@ -1313,7 +1333,10 @@ public partial class MainWindow
         // was shown — the pick ring's principle, applied to a drop.
         if (DraggedGroupOf(e) is { } group && item is not null)
         {
-            _vm.DropGroupBeside(group.Group, item, hint == LayerDropHint.Above);
+            if (hint == LayerDropHint.Into && item is GroupRow parent)
+                _vm.DropGroupIntoGroup(group.Group, parent.Group);
+            else
+                _vm.DropGroupBeside(group.Group, item, hint == LayerDropHint.Above);
             return;
         }
         if (DraggedLayerOf(e) is not { } dragged) return;

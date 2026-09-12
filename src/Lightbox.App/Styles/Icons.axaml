@@ -136,6 +136,8 @@
   <StreamGeometry x:Key="IconPlus">M0,0 M24,24 M12,5 V19 M5,12 H19</StreamGeometry>
   <StreamGeometry x:Key="IconTrash">M0,0 M24,24 M4.5,7 H19.5 M9.5,7 V4.8 H14.5 V7 M6.8,7 L7.8,20 H16.2 L17.2,7 M10.3,10.5 V16.5 M13.7,10.5 V16.5</StreamGeometry>
   <StreamGeometry x:Key="IconFolder">M0,0 M24,24 M3.8,7 A1.6,1.6 0 0 1 5.4,5.4 H9.2 L11.6,7.9 H18.6 A1.6,1.6 0 0 1 20.2,9.5 V16.9 A1.6,1.6 0 0 1 18.6,18.5 H5.4 A1.6,1.6 0 0 1 3.8,16.9 Z</StreamGeometry>
+  <!-- IconFolder with a plus inside it: a folder with nothing in it yet. -->
+  <StreamGeometry x:Key="IconFolderNew">M0,0 M24,24 M3.8,7 A1.6,1.6 0 0 1 5.4,5.4 H9.2 L11.6,7.9 H18.6 A1.6,1.6 0 0 1 20.2,9.5 V16.9 A1.6,1.6 0 0 1 18.6,18.5 H5.4 A1.6,1.6 0 0 1 3.8,16.9 Z M12,10.9 V15.5 M9.7,13.2 H14.3</StreamGeometry>
   <StreamGeometry x:Key="IconEject">M0,0 M24,24 M4.5,20 H19.5 M12,5.5 L18.3,14 H5.7 Z</StreamGeometry>
   <StreamGeometry x:Key="IconChevronDown">M0,0 M24,24 M6,9.5 L12,15.5 L18,9.5</StreamGeometry>
   <StreamGeometry x:Key="IconChevronUp">M0,0 M24,24 M6,14.5 L12,8.5 L18,14.5</StreamGeometry>

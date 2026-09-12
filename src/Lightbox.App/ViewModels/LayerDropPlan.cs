@@ -47,10 +47,15 @@ public enum LayerDropHint
 /// artist who means beside rather than in.
 /// </para>
 /// <para>
-/// <b>A folder being dragged has no <c>Into</c> anywhere</b>, and that is not a
-/// styling choice: <c>Layer.GroupId</c> is a single id, so folders do not nest
-/// and there is nothing for a folder to be filed into. The header then splits
-/// in half like any other row.
+/// <b>A folder in hand gets the same three zones</b>, because folders nest: a
+/// header's middle files the folder inside, and the outer quarters put it
+/// beside. This used to be the one asymmetry — a dragged folder had no
+/// <c>Into</c> anywhere, because <c>Layer.GroupId</c> was a single id and there
+/// was nothing for a folder to be filed into. What is left of that rule is the
+/// refusals, and they are not about what is in hand but about <em>which</em>
+/// folder is under it: a folder cannot go inside itself or inside one of its
+/// own, and the view model's <c>HintFor</c> answers <see cref="LayerDropHint.None"/>
+/// there rather than drawing a line the drop will decline to honour.
 /// </para>
 /// </remarks>
 public static class LayerDropPlan
@@ -73,11 +78,17 @@ public static class LayerDropPlan
     /// pixel past the edge of the row it is closest to is still pointing at it.
     /// </param>
     /// <param name="targetIsFolder">The row under the pointer is a folder header.</param>
-    /// <param name="draggingFolder">What is being carried is a folder, not a layer.</param>
-    public static LayerDropHint Resolve(double fraction, bool targetIsFolder, bool draggingFolder)
+    /// <param name="canGoInside">
+    /// Whether filing into this target is a thing that could happen at all —
+    /// false for a folder dropped on itself or on one of its own descendants,
+    /// and for a nest that would go past <c>LayerTree.MaxDepth</c>. The header
+    /// then splits in half like any other row, so the artist can still put the
+    /// folder beside the one they are pointing at.
+    /// </param>
+    public static LayerDropHint Resolve(double fraction, bool targetIsFolder, bool canGoInside)
     {
         var y = Math.Clamp(fraction, 0, 1);
-        if (targetIsFolder && !draggingFolder)
+        if (targetIsFolder && canGoInside)
         {
             if (y < HeaderEdgeShare) return LayerDropHint.Above;
             if (y > 1 - HeaderEdgeShare) return LayerDropHint.Below;

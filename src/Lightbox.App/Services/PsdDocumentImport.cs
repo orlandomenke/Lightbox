@@ -97,6 +97,11 @@ public static class PsdDocumentImport
         if (scopes.Count > 0)
             notes.Add($"{scopes.Count} unterminated layer folder(s) were flattened.");
 
+        // The reader appends layers as it meets them, which is stack order
+        // within a folder but says nothing about where a folder's block sits
+        // once the tree is known. One pass puts both lists in agreement.
+        LayerTree.Normalise(scene.Layers, scene.LayerGroups);
+
         if (scene.Layers.Count == 0)
         {
             var flattened = FlattenedLayer(psd);
@@ -117,37 +122,39 @@ public static class PsdDocumentImport
     /// Turn the innermost open scope into a folder named by its header.
     /// </summary>
     /// <remarks>
-    /// Photoshop nests folders and a Lightbox <see cref="LayerGroup"/> is one
-    /// level deep, so nesting is flattened and the path is kept in the name
-    /// ("Characters / Head"). That loses no pixels: nesting is organisation, and
-    /// the only part of it that reaches the image — whether an enclosing folder is
-    /// hidden or locked — is folded into the flattened folder instead.
+    /// <para>
+    /// <b>Nesting is kept now, and used to be flattened.</b> A Lightbox folder
+    /// was one level deep, so a PSD's tree came in as a flat list of folders
+    /// with the path written into the name ("Characters / Head") and each
+    /// enclosing folder's visibility folded into the leaf. Folders nest, so the
+    /// tree arrives as a tree: the name is the header's own name and the
+    /// visibility is the header's own visibility, because the enclosing folder
+    /// is really there to gate it.
+    /// </para>
+    /// <para>
+    /// Only the layers this scope holds <em>directly</em> are given its id. What
+    /// is inside a nested folder belongs to that folder, and reaches this one
+    /// through the parent chain — which is the whole difference between a tree
+    /// and a list of paths.
+    /// </para>
     /// </remarks>
     private static void CloseGroup(Scene scene, Stack<GroupScope> scopes, PsdLayer header)
     {
         if (scopes.Count == 0) return;
         var scope = scopes.Pop();
 
-        var name = header.Name;
-        foreach (var outer in scopes) name = $"{outer.Name ?? "Folder"} / {name}";
-
         var group = new LayerGroup
         {
-            Name = name,
-            Visible = header.Visible && scopes.All(s => s.Visible),
+            Name = header.Name,
+            Visible = header.Visible,
         };
         scene.LayerGroups.Add(group);
         foreach (var member in scope.Members) member.GroupId = group.Id;
+        foreach (var child in scope.Folders) child.ParentId = group.Id;
 
-        // The enclosing folder still owns everything this one held, so its own
-        // header sees them when it closes.
-        if (scopes.Count > 0)
-        {
-            var parent = scopes.Peek();
-            parent.Name ??= header.Name;
-            parent.Members.AddRange(scope.Members);
-            if (!header.Visible) parent.Visible = false;
-        }
+        // The folder this one closes inside owns it — not its contents, which
+        // now have a folder of their own to belong to.
+        if (scopes.Count > 0) scopes.Peek().Folders.Add(group);
     }
 
     private static Layer? BuildLayer(PsdLayer entry, int canvasWidth, int canvasHeight)
@@ -257,10 +264,13 @@ public static class PsdDocumentImport
         };
     }
 
+    /// <summary>A PSD folder being read: the layers and folders directly inside it.</summary>
     private sealed class GroupScope
     {
-        public string? Name;
-        public bool Visible = true;
+        /// <summary>Layers belonging to this folder itself, not to one inside it.</summary>
         public List<Layer> Members { get; } = [];
+
+        /// <summary>Folders that closed inside this one, waiting to be given a parent.</summary>
+        public List<LayerGroup> Folders { get; } = [];
     }
 }

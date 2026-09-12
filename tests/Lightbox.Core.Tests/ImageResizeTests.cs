@@ -258,7 +258,12 @@ public class ImageResizeTests
             nameof(Scene.Id), nameof(Scene.Name), nameof(Scene.Fps),
             nameof(Scene.FrameCount), nameof(Scene.BackgroundColor),
             nameof(Scene.TransparentBackground), nameof(Scene.Markers),
-            nameof(Scene.LayerGroups), nameof(Scene.FrameGroups),
+            // A folder is a name, a colour and a place in a tree. Its shadow —
+            // the property that actually carries the folders to and from JSON,
+            // so that a document with none writes no key — is the same list seen
+            // from the serializer's side and holds no coordinate either.
+            nameof(Scene.LayerGroups), nameof(Scene.LayerGroupsForJson),
+            nameof(Scene.FrameGroups),
             // A link is a relationship between layers, not a place on the
             // paper — nothing in it moves when the image is rescaled.
             nameof(Scene.LayerLinks),

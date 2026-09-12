@@ -521,7 +521,25 @@ the test needs relaxing.
     an optional `Colors` map on the use — absent until authored, not
     keyable until colour curves are worth keying.
 - [x] Blend modes `evidence: LayerBlendMode, BlendComposeTests`
-- [x] Layer folders `evidence: LayerGroup, LayerFolderTests`
+- [x] Layer folders, nested `evidence: LayerGroup, LayerTree, LayerFolderTests, LayerTreeTests, NestedFolderTests, ANestedFolderIsDrawnInsideItsParent, AFolderCannotBeDroppedIntoItsOwnDescendant, HidingAnOuterFolderHidesADeeplyNestedLayer, AFolderDroppedOnAnotherFolderGoesInsideIt, AnUnnestedDocumentWritesNeitherKey`
+  - **Folders go inside folders (Q186), and the layer list stayed flat.** A
+    folder names its parent and a layer names its folder; neither holds a list
+    of children, because `Scene.Layers` already is one and a second container
+    that goes unwired is what B114 was. What nesting cost is an *invariant* —
+    every folder's subtree is one contiguous run of `Scene.Layers`, restored by
+    `LayerTree.Normalise` after any change of parentage — rather than a
+    structure. Compositing order is still the list order; invariant 1 is
+    untouched.
+  - Visibility and locking resolve up the whole chain, so hiding an outer
+    folder hides what is in the folders inside it. `parentId` is absent until a
+    folder is actually nested, and a document that never made a folder now
+    writes no `layerGroups` key at all (B371) — so files from before this
+    serialize to the bytes they always did.
+  - **PSD import keeps the tree** instead of flattening it into
+    `"Character / Head"` names with the enclosing visibility folded in.
+  - The four things that were wrong around folders rather than in them —
+    where a new layer lands, pointing at a folder, an emptied folder becoming
+    unreachable, and the cost of filing a layer — are B366–B370.
 - [x] Layer and alpha locking `evidence: LayerLockTests, AlphaLockTests`
 - [x] Non-destructive filters `evidence: EffectUse, EffectStack, EffectRegistry, EffectPasses, EffectRecordTests, EffectRegistryTests, EffectPassTests, EffectComposeCostTests, ASelfEffectFiltersOnlyItsOwnPass, AnUnknownKindIsPreservedNotDropped, AKeyedRadiusEvaluatesPerFrame, AFilteredLayerRefusesToFoldAndStillRenders, TheSceneStackDescribesALastPass`
   - **Built to `docs/DESIGN-effects.md`, steps 1–3 of its own build order**:

@@ -71,8 +71,8 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
     [InlineData(1.0, LayerDropHint.Below)]
     public void ALayerRowSplitsInHalf(double fraction, LayerDropHint expected)
     {
-        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, targetIsFolder: false, draggingFolder: false));
-        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, targetIsFolder: false, draggingFolder: true));
+        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, targetIsFolder: false, canGoInside: false));
+        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, targetIsFolder: false, canGoInside: true));
     }
 
     /// <summary>
@@ -92,24 +92,33 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
     [InlineData(0.76, LayerDropHint.Below)]
     [InlineData(0.95, LayerDropHint.Below)]
     public void AFolderHeaderOffersInsideAndBeside(double fraction, LayerDropHint expected) =>
-        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, targetIsFolder: true, draggingFolder: false));
+        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, targetIsFolder: true, canGoInside: true));
 
     /// <summary>
-    /// A folder in hand never sees an <c>Into</c>, because folders do not nest.
+    /// A header that cannot be gone inside splits in half like any other row.
     /// </summary>
     /// <remarks>
-    /// <c>Layer.GroupId</c> is a single id with no parent of its own, so there
-    /// is nothing for a folder to be filed into. Offering the zone would be a
-    /// gesture the drop has to refuse — feedback that promises something the
-    /// record cannot hold is worse than none.
+    /// <para>
+    /// Folders nest now, so a folder in hand normally <em>does</em> get an
+    /// <c>Into</c> zone over another header. What is refused is not "a folder is
+    /// being carried" but "this particular folder cannot go in this particular
+    /// one" — into itself, into one of its own, or past the depth limit — and
+    /// the caller answers that from the tree.
+    /// </para>
+    /// <para>
+    /// It splits in half rather than refusing outright, so the artist can still
+    /// put the folder <em>beside</em> the one they are pointing at. Offering an
+    /// <c>Into</c> the drop would decline is the thing to avoid: feedback that
+    /// promises something the record cannot hold is worse than none.
+    /// </para>
     /// </remarks>
     [Theory]
     [InlineData(0.1)]
     [InlineData(0.5)]
     [InlineData(0.9)]
-    public void AFolderInHandIsNeverOfferedAFolderToGoInside(double fraction)
+    public void AHeaderThatCannotBeEnteredIsTwoHalvesLikeAnyOtherRow(double fraction)
     {
-        var hint = LayerDropPlan.Resolve(fraction, targetIsFolder: true, draggingFolder: true);
+        var hint = LayerDropPlan.Resolve(fraction, targetIsFolder: true, canGoInside: false);
         Assert.NotEqual(LayerDropHint.Into, hint);
     }
 

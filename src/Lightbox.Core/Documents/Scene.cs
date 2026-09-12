@@ -233,7 +233,33 @@ public sealed class Scene
     public List<FrameMarker> Markers { get; set; } = [];
 
     /// <summary>Layer folders (see <see cref="LayerGroup"/>).</summary>
+    /// <remarks>
+    /// The list is also the sibling order for folders with nothing in them: a
+    /// folder's place among its siblings is normally the place of the lowest
+    /// layer inside it, and an empty one has no such layer to be placed by.
+    /// See <see cref="LayerTree.Walk"/>.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
     public List<LayerGroup> LayerGroups { get; set; } = [];
+
+    /// <summary>
+    /// What the serializer writes for <see cref="LayerGroups"/> — null, and so
+    /// absent, until a folder exists.
+    /// </summary>
+    /// <remarks>
+    /// A shadow property rather than making the list itself nullable, because
+    /// thirty-odd readers want a list they can index and none of them wants to
+    /// answer "or null". The rule it is serving is the one every optional block
+    /// here follows: absent unless used, not merely empty at its default — a
+    /// document that never made a folder wrote <c>"layerGroups": []</c> into
+    /// every save, and <c>layerLinks</c> beside it got this right.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonPropertyName("layerGroups")]
+    public List<LayerGroup>? LayerGroupsForJson
+    {
+        get => LayerGroups.Count == 0 ? null : LayerGroups;
+        set => LayerGroups = value ?? [];
+    }
 
     /// <summary>
     /// Layer links (see <see cref="LayerLink"/>), or null — and null is the
@@ -396,7 +422,75 @@ public sealed class Scene
 
     /// <summary>A layer's folder, or null.</summary>
     public LayerGroup? GroupOf(Layer layer) =>
-        layer.GroupId is null ? null : LayerGroups.FirstOrDefault(g => g.Id == layer.GroupId);
+        layer.GroupId is null ? null : GroupById(layer.GroupId);
+
+    /// <summary>A folder by id, or null.</summary>
+    /// <remarks>
+    /// Through the cached map rather than a scan. This is asked once per layer
+    /// per composite by <see cref="IsLayerVisible"/>, and with folders nesting
+    /// it is asked once per <em>ancestor</em> per layer — a linear scan there
+    /// turns a question about a short chain into a pass over every folder in
+    /// the document.
+    /// </remarks>
+    public LayerGroup? GroupById(string id) => GroupMap.GetValueOrDefault(id);
+
+    /// <summary>
+    /// Id → folder, rebuilt when the folder list is not the one it was built
+    /// from.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Keyed on the list instance, its count and its two ends.</b> That is
+    /// enough to catch everything that happens to this list: <c>LayerTree</c>
+    /// rewrites it in place (the ends move), folders are added and removed (the
+    /// count moves), and undo swaps a whole cloned list in (the instance moves).
+    /// A rename or a colour change needs no invalidation at all, because the map
+    /// holds the folders themselves rather than copies of them.
+    /// </para>
+    /// <para>
+    /// The ends are checked rather than trusted-by-count because a stale entry
+    /// here would be a folder that no longer exists deciding whether a layer
+    /// composites — wrong quietly, which is the expensive kind. Rebuilding is a
+    /// dictionary over a list that is nearly always under twenty, so the
+    /// pessimistic answer costs nothing worth measuring.
+    /// </para>
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Dictionary<string, LayerGroup> GroupMap
+    {
+        get
+        {
+            var groups = LayerGroups;
+            if (_groupMap is not null
+                && ReferenceEquals(_groupMapFrom, groups)
+                && _groupMapCount == groups.Count
+                && (groups.Count == 0
+                    || (ReferenceEquals(_groupMapFirst, groups[0])
+                        && ReferenceEquals(_groupMapLast, groups[^1]))))
+            {
+                return _groupMap;
+            }
+            _groupMapFrom = groups;
+            _groupMapCount = groups.Count;
+            _groupMapFirst = groups.Count > 0 ? groups[0] : null;
+            _groupMapLast = groups.Count > 0 ? groups[^1] : null;
+            return _groupMap = LayerTree.ById(groups);
+        }
+    }
+
+    private Dictionary<string, LayerGroup>? _groupMap;
+    private List<LayerGroup>? _groupMapFrom;
+    private LayerGroup? _groupMapFirst;
+    private LayerGroup? _groupMapLast;
+    private int _groupMapCount;
+
+    /// <summary>The folders enclosing a layer, innermost first.</summary>
+    public IEnumerable<LayerGroup> FoldersOver(Layer layer)
+    {
+        if (GroupOf(layer) is not { } own) yield break;
+        yield return own;
+        foreach (var ancestor in LayerTree.AncestorsOf(own, GroupMap)) yield return ancestor;
+    }
 
     /// <summary>A layer's link, or null.</summary>
     public LayerLink? LinkOf(Layer layer) =>
@@ -449,9 +543,54 @@ public sealed class Scene
     /// </remarks>
     public bool IsLayerVisible(Layer layer)
     {
-        if (!layer.Visible || GroupOf(layer) is { Visible: false }) return false;
+        if (!layer.Visible || !FoldersVisible(layer)) return false;
         if (LinkOf(layer) is not { CarriesVisibility: true }) return true;
-        return LinkedWith(layer).All(l => l.Visible && GroupOf(l) is not { Visible: false });
+        return LinkedWith(layer).All(l => l.Visible && FoldersVisible(l));
+    }
+
+    /// <summary>
+    /// Whether every folder enclosing a layer is visible — its own and, with
+    /// folders nesting, each one over that.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Hiding an outer folder has to hide what is in the folders inside it, or
+    /// the eye on a folder would mean something different depending on how
+    /// deeply the artist had organised — which is not a thing the artist would
+    /// call a rule.
+    /// </para>
+    /// <para>
+    /// Written as a loop rather than over <see cref="FoldersOver"/>, which is
+    /// the same walk and allocates an enumerator to do it. This one is asked
+    /// once per layer per composite — forty times a frame on an ordinary stack —
+    /// and the common answer is reached before the first lookup, because most
+    /// layers are in no folder at all.
+    /// </para>
+    /// </remarks>
+    private bool FoldersVisible(Layer layer) => LockedOrHiddenOver(layer, wantLocked: false) is null;
+
+    /// <summary>
+    /// The innermost enclosing folder that is locked (or hidden), or null.
+    /// </summary>
+    /// <remarks>
+    /// Both questions are the same walk up the same chain, so they are one
+    /// method — and it stops at <c>MaxDepth</c> links whatever the data says,
+    /// for the reason <see cref="LayerTree.AncestorsOf"/> does: a cycle cannot
+    /// be authored and a hand-edited file can carry one, and a composite that
+    /// loops forever is worse than a folder that reads as shallow.
+    /// </remarks>
+    private LayerGroup? LockedOrHiddenOver(Layer layer, bool wantLocked)
+    {
+        if (layer.GroupId is not { } id) return null;
+        var map = GroupMap;
+        for (var guard = 0; guard <= LayerTree.MaxDepth; guard++)
+        {
+            if (!map.TryGetValue(id, out var folder)) return null;
+            if (wantLocked ? folder.Locked : !folder.Visible) return folder;
+            if (folder.ParentId is not { } parent) return null;
+            id = parent;
+        }
+        return null;
     }
 
     /// <summary>
@@ -461,7 +600,13 @@ public sealed class Scene
     /// how transform, cel edits and the external writers went unguarded.
     /// </summary>
     public bool IsLayerEditable(Layer layer) =>
-        !layer.Locked && GroupOf(layer) is not { Locked: true };
+        !layer.Locked && LockingFolderOver(layer) is null;
+
+    /// <summary>
+    /// The innermost locked folder enclosing a layer, or null — what the status
+    /// line names when a stroke is refused.
+    /// </summary>
+    public LayerGroup? LockingFolderOver(Layer layer) => LockedOrHiddenOver(layer, wantLocked: true);
 
     /// <summary>A copy holding no reference in common with this one.</summary>
     /// <remarks>

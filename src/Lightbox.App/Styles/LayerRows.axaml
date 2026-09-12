@@ -56,8 +56,24 @@
   <Style Selector="Border.groupRow.hiddenLayer">
     <Setter Property="Opacity" Value="0.35" />
   </Style>
-  <Style Selector="Border.layerRow.grouped">
-    <Setter Property="Margin" Value="14,0,0,0" />
+  <!-- Indentation is bound per row rather than set by a class, because folders
+       nest: a class can say "inside a folder" and cannot say how deep. The row
+       view models carry an Indent thickness derived from their depth in the
+       tree, clamped so a deep nest stops stepping right instead of walking off
+       the edge of the docker. -->
+  <!-- A folder pointed at with a click is where the next new layer or folder
+       goes. Marked on the LEFT edge, and in the accent rather than the
+       selection brush, so it cannot be read as "this folder is selected like a
+       layer is selected" — it is a different question with a different answer. -->
+  <Style Selector="Border.groupRow.focused">
+    <Setter Property="BorderBrush" Value="{StaticResource AccentCoralBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,2,0" />
+  </Style>
+  <!-- A folder with nothing in it is shown, not hidden: it is how "make a
+       folder, then drag things into it" is possible at all, and a folder that
+       vanished when its last layer left could never be reached or deleted. -->
+  <Style Selector="Border.groupRow.emptyFolder">
+    <Setter Property="Opacity" Value="0.72" />
   </Style>
   <!-- Where a dragged row or folder would land. A LINE on the edge it would
        land against, because that is the one reading with no ambiguity: a

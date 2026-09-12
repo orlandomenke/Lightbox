@@ -65,6 +65,7 @@ public partial class MainViewModel
     {
         var rows = SelectableLayerRows();
         var target = row.Layer.Id;
+        ReleaseFolderFocus();
 
         if (range && _layerAnchorId is { } anchorId)
         {
@@ -135,6 +136,7 @@ public partial class MainViewModel
     /// </summary>
     internal void SyncLayerSelectionToActive(int sceneIndex)
     {
+        ReleaseFolderFocus();
         if (_selectingLayers)
         {
             RefreshLayerSelectionHighlights();
@@ -178,35 +180,4 @@ public partial class MainViewModel
             ? SelectedLayers
             : [layer];
 
-    /// <summary>
-    /// Reorder a set of layers by one step, blocking at the ends of the stack.
-    /// </summary>
-    /// <remarks>
-    /// Worked from the end the layers are moving towards, so a selection that
-    /// hits the ceiling compacts against it instead of scrambling: the topmost
-    /// selected layer is tried first, and each one that cannot move becomes the
-    /// barrier for the next. Without the barrier a blocked layer would be
-    /// jumped over by the one below it, which reorders a selection the artist
-    /// only asked to shift.
-    /// </remarks>
-    private static void ShiftLayers(List<Layer> list, HashSet<string> ids, int delta)
-    {
-        if (delta == 0) return;
-        var picked = Enumerable.Range(0, list.Count).Where(i => ids.Contains(list[i].Id));
-        var order = delta > 0 ? picked.OrderByDescending(i => i) : picked.OrderBy(i => i);
-        var barrier = delta > 0 ? list.Count : -1;
-        foreach (var from in order.ToList())
-        {
-            var to = from + delta;
-            if (delta > 0 ? to >= barrier : to <= barrier)
-            {
-                barrier = from; // blocked: everything behind it stacks up here
-                continue;
-            }
-            var layer = list[from];
-            list.RemoveAt(from);
-            list.Insert(to, layer);
-            barrier = to;
-        }
-    }
 }

@@ -53,9 +53,26 @@ public sealed class Cel
 /// <summary>
 /// A layer folder: layers referencing it render as a visual group in the
 /// docker, and its visibility gates every member. Members stay ordinary
-/// layers in Scene.Layers (contiguous, kept so by the group operations) —
+/// layers in Scene.Layers (contiguous, kept so by <see cref="LayerTree"/>) —
 /// compositing order is unchanged.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Folders nest, and the layer list stays flat.</b> A folder names its
+/// parent with <see cref="ParentId"/>; a layer names its folder with
+/// <c>Layer.GroupId</c>. Neither holds a list of children, because
+/// <c>Scene.Layers</c> already is one — and two containers where one would do
+/// is the failure B114 is about, where a second list went unwired and half the
+/// project became invisible to export.
+/// </para>
+/// <para>
+/// What nesting costs is an <em>invariant</em> rather than a structure: every
+/// folder's whole subtree must occupy one contiguous run of <c>Scene.Layers</c>,
+/// in the order the docker draws it. <see cref="LayerTree.Normalise"/> is the
+/// single place that restores it, and every operation that re-parents anything
+/// ends by calling it.
+/// </para>
+/// </remarks>
 public sealed class LayerGroup
 {
     public string Id { get; set; } = Ids.NewId("group");
@@ -66,6 +83,17 @@ public sealed class LayerGroup
 
     /// <summary>Locking a folder locks every layer inside it.</summary>
     public bool Locked { get; set; }
+
+    /// <summary>
+    /// The folder this one sits inside, or null for a top-level folder.
+    /// </summary>
+    /// <remarks>
+    /// Null — and absent from the file — on every folder that was never nested,
+    /// so a document with the flat folders Lightbox had before this writes
+    /// exactly the bytes it wrote then. It is also how a document from before
+    /// nesting loads: no key, no parent, top level.
+    /// </remarks>
+    public string? ParentId { get; set; }
 
     /// <summary>Header accent color in the docker (hex, e.g. "#4a6ea9").</summary>
     public string Color { get; set; } = "#4a6ea9";

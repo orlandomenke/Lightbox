@@ -78,6 +78,9 @@ public static class IconSet
     public const string Minus = "IconMinus";
     public const string Trash = "IconTrash";
     public const string Folder = "IconFolder";
+
+    /// <summary>A folder with a plus in it — the empty folder a layer is dragged into.</summary>
+    public const string FolderNew = "IconFolderNew";
     public const string Eject = "IconEject";
     public const string ChevronDown = "IconChevronDown";
     public const string ChevronUp = "IconChevronUp";
@@ -147,7 +150,7 @@ public static class IconSet
         Brush, Eraser, Fill, Picker, Gradient, Move, Crop, Bone, Pen, Width, Arrow, Points, Text,
         ShapeLine, ShapeRect, ShapeEllipse, ShapePolygon,
         SelectLasso, SelectBox, SelectEllipse, SelectPolygon, SelectWand,
-        Close, Plus, Minus, Trash, Folder, Eject, ChevronDown, ChevronUp, ChevronRight,
+        Close, Plus, Minus, Trash, Folder, FolderNew, Eject, ChevronDown, ChevronUp, ChevronRight,
         Gear, Kebab, Pencil, Duplicate, Undo, Redo,
         ArrowUp, ArrowDown, ArrowUpToBar, ArrowDownToBar,
         SwapHorizontal, SwapVertical, Refresh, Key, Grip,
