@@ -628,13 +628,20 @@ public sealed partial class MainViewModel
 
     /// <summary>Place the browser's selected symbol at the centre of the canvas.</summary>
     /// <remarks>
-    /// The keyboard and menu route. Dragging onto the canvas puts it under the
-    /// pointer instead; both end in <see cref="PlaceSymbol"/>.
+    /// <para>
+    /// Dragging onto the canvas puts it under the pointer instead; both end in
+    /// <see cref="PlaceSymbol"/>.
+    /// </para>
+    /// <para>
+    /// <b>No <c>[RelayCommand]</c> beside this, deliberately.</b> There was one,
+    /// and the Place button bound to it — but the question a multi-frame symbol
+    /// raises is asked by the <em>view</em>, so a command that bypasses the view
+    /// is a command that places without asking. Leaving it generated would have
+    /// left a ready-made way to reintroduce B373 the moment somebody bound it to
+    /// a key. The button calls <c>OnPlaceSymbol</c>, which asks first; a
+    /// shortcut should be added there rather than here.
+    /// </para>
     /// </remarks>
-    [RelayCommand]
-    private void PlaceSelected() => PlaceSelectedSymbol();
-
-    /// <inheritdoc cref="PlaceSelectedCommand" />
     public SymbolPlacement? PlaceSelectedSymbol(FrameImportChoice? choice = null)
     {
         if (SymbolBrowser.Selected is not { } row) return null;
