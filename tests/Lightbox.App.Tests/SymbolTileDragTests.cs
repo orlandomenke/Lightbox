@@ -155,31 +155,39 @@ public sealed class SymbolTileDragTests(ITestOutputHelper output) : BrushStateIs
 
         var host = new Window { Width = 600, Height = 600, Content = tiles };
         host.Show();
-        Pump();
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        Pump();
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        Pump();
 
-        Assert.NotEmpty(tiles.GetVisualDescendants().OfType<ListBoxItem>().ToList());
-
-        // A point that genuinely hits a tile, found by hit-testing rather than
-        // by translating a coordinate and hoping.
+        // **Laid out explicitly, and waited for.** Relying on the render timer
+        // alone made this pass alone and fail inside a full-suite run: under
+        // load the containers were not realized by the time the sweep ran, the
+        // sweep found nothing, and a press that lands nowhere is identical to
+        // one that was swallowed — the exact confusion this test exists to
+        // resolve. Measure/Arrange forces layout rather than awaiting it.
         Point? found = null;
         Control? hit = null;
-        for (var y = 0d; y < 600 && found is null; y += 2)
+        for (var attempt = 0; attempt < 20 && found is null; attempt++)
         {
-            for (var x = 0d; x < 600; x += 2)
+            host.Measure(new Size(600, 600));
+            host.Arrange(new Rect(0, 0, 600, 600));
+            Pump();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Pump();
+
+            for (var y = 0d; y < 600 && found is null; y += 2)
             {
-                if (host.InputHitTest(new Point(x, y)) is not Control c) continue;
-                if (c.DataContext is not SymbolRow) continue;
-                found = new Point(x, y);
-                hit = c;
-                break;
+                for (var x = 0d; x < 600; x += 2)
+                {
+                    if (host.InputHitTest(new Point(x, y)) is not Control c) continue;
+                    if (c.DataContext is not SymbolRow) continue;
+                    found = new Point(x, y);
+                    hit = c;
+                    break;
+                }
             }
         }
+
         output.WriteLine($"a point that hits a tile: {found?.ToString() ?? "NONE"} "
             + $"({hit?.GetType().Name} / {(hit?.DataContext as SymbolRow)?.Name})");
+        Assert.NotEmpty(tiles.GetVisualDescendants().OfType<ListBoxItem>().ToList());
         Assert.NotNull(found);
 
         var handledOnArrival = false;

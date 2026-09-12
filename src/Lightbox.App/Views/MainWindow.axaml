@@ -3733,9 +3733,7 @@
                            Opacity="0.6" TextWrapping="Wrap" VerticalAlignment="Top"
                            IsVisible="{Binding SymbolBrowser.EmptyMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                  <!-- The press is wired in InitialiseSymbolTiles, tunnelling: as a
-                       plain bubbling handler here it never ran at all, because
-                       the item container marks the press handled first (B374). -->
+                  <!-- The press is wired, tunnelling, in InitialiseSymbolTiles (B374). -->
                   <ListBox x:Name="SymbolTiles" DoubleTapped="OnSymbolTileOpened"
                            ItemsSource="{Binding SymbolBrowser.Rows}"
                            SelectedItem="{Binding SymbolBrowser.Selected}"
