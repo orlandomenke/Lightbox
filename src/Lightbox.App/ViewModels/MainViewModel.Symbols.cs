@@ -635,10 +635,10 @@ public sealed partial class MainViewModel
     private void PlaceSelected() => PlaceSelectedSymbol();
 
     /// <inheritdoc cref="PlaceSelectedCommand" />
-    public SymbolPlacement? PlaceSelectedSymbol()
+    public SymbolPlacement? PlaceSelectedSymbol(FrameImportChoice? choice = null)
     {
         if (SymbolBrowser.Selected is not { } row) return null;
-        return PlaceSymbol(row.Model.Id, Scene.Width / 2.0, Scene.Height / 2.0);
+        return PlaceSymbol(row.Model.Id, Scene.Width / 2.0, Scene.Height / 2.0, choice);
     }
 
     // ---- editing one --------------------------------------------------------------
@@ -885,14 +885,29 @@ public sealed partial class MainViewModel
     /// placement, or null when there is nowhere to put it.
     /// </summary>
     /// <remarks>
-    /// For multi-frame symbols, this detects animation and offers the user a choice:
-    /// import frames into the timeline or reference with animation cycling.
+    /// <para>
     /// Keys the cel if there is nothing there, exactly as painting does.
     /// Dropping a prop onto an empty frame is the ordinary way to start one,
     /// and refusing silently is the behaviour that made a cleared layer feel
     /// broken.
+    /// </para>
+    /// <para>
+    /// <b>A multi-frame symbol can land two ways</b> — every frame imported into
+    /// the timeline, or one placement that cycles — and <paramref name="choice"/>
+    /// is how the caller says which. The view asks
+    /// (<see cref="PlacementNeedsAChoice"/>); this never does, because a dialog
+    /// completes on the UI thread and a view model that waits for one deadlocks
+    /// against the thread that would answer it. That was B373.
+    /// </para>
+    /// <para>
+    /// <b>Unanswered falls back to <see cref="FrameImportChoice.Reference"/>,
+    /// not to importing.</b> A caller that never asked — the MCP surface, a
+    /// test, an agent — should not silently lengthen the scene. B373 defaulted
+    /// the other way and it was an accident of a timeout rather than a decision.
+    /// </para>
     /// </remarks>
-    public SymbolPlacement? PlaceSymbol(string symbolId, double x, double y)
+    public SymbolPlacement? PlaceSymbol(
+        string symbolId, double x, double y, FrameImportChoice? choice = null)
     {
         if (!CanEdit(ActiveLayer, "place a symbol")) return null;
         // A library symbol becomes a project symbol here, before anything tries
@@ -909,61 +924,61 @@ public sealed partial class MainViewModel
             return null;
         }
 
-        // For multi-frame symbols, ask the user whether to import frames or reference
-        if (symbol.FrameCount > 1)
+        // One frame is not a choice: there is no animation to import.
+        if (symbol.FrameCount > 1
+            && (choice ?? PlacementPreference ?? FrameImportChoice.Reference)
+                == FrameImportChoice.ImportFrames)
         {
-            var choice = DetectAnimationAndAsk(symbol);
-            if (choice == FrameImportChoice.ImportFrames)
-            {
-                return PlaceSymbolAcrossFrames(symbol, x, y, target);
-            }
-            // choice == Reference: fall through to single-placement logic
+            return PlaceSymbolAcrossFrames(symbol, x, y, target);
         }
 
-        // Single-frame placement or user chose to reference
         return PlaceSingleSymbol(symbolId, symbol, x, y, target);
     }
 
     /// <summary>
-    /// Ask the user how to place a multi-frame symbol: import all frames or reference with animation.
+    /// What to do with a multi-frame symbol when nobody has been asked, or null
+    /// to ask. Persisted, so "don't ask again" survives a restart.
     /// </summary>
     /// <remarks>
-    /// For single-frame symbols, always returns Reference (no dialog).
-    /// For multi-frame symbols, shows a dialog unless the user has saved a preference.
-    /// If the dialog cannot be shown, uses the stored preference or defaults to ImportFrames.
+    /// <b>Null means ask, and null is the default.</b> B373's predecessor kept
+    /// this in a plain field assigned only inside the branch its own deadlock
+    /// made unreachable, so the checkbox on the dialog could never fire once.
     /// </remarks>
-    private FrameImportChoice DetectAnimationAndAsk(Symbol symbol)
+    public FrameImportChoice? PlacementPreference
     {
-        // Single-frame symbols always place as reference (no animation, no dialog)
-        if (symbol.FrameCount <= 1)
-            return FrameImportChoice.Reference;
-
-        // Multi-frame symbols: try to show dialog if we can access it; otherwise use stored preference
-        if (Avalonia.Application.Current?.ApplicationLifetime
-            is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime app
-            && app.MainWindow is Views.MainWindow mainWindow)
+        get => Settings.SymbolPlacementChoice is { } stored
+            && Enum.TryParse<FrameImportChoice>(stored, out var parsed)
+                ? parsed
+                : null;
+        set
         {
-            var task = mainWindow.ShowPlacementChoiceDialogAsync(symbol);
-            if (task.Wait(5000)) // 5 second timeout
-            {
-                var result = task.Result;
-                if (result is { } choice)
-                {
-                    if (choice.DontAskAgain)
-                    {
-                        _placementPreference = choice.Choice;
-                    }
-                    return choice.Choice;
-                }
-            }
+            var text = value?.ToString();
+            if (Settings.SymbolPlacementChoice == text) return;
+            Settings.SymbolPlacementChoice = text;
+            Settings.Save();
+            OnPropertyChanged();
         }
-
-        // Use stored preference or default to ImportFrames
-        return _placementPreference ?? FrameImportChoice.ImportFrames;
     }
 
-    /// <summary>User's stored preference for symbol placement, if they selected "Don't ask again".</summary>
-    private FrameImportChoice? _placementPreference;
+    /// <summary>
+    /// Whether placing this symbol is a question the artist has to answer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The view asks; this only says whether there is anything to ask.</b>
+    /// That split is the whole of B373's fix and it is the arrangement
+    /// <c>OnMakeSymbolOfLayers</c> already used for the capture-depth question:
+    /// a dialog completes on the UI thread, so a view model that waits for one
+    /// is waiting on the thread that would answer it.
+    /// </para>
+    /// <para>
+    /// One frame is not a question — there is no animation to import — and
+    /// neither is a symbol whose answer is already stored.
+    /// </para>
+    /// </remarks>
+    public bool PlacementNeedsAChoice(string symbolId) =>
+        PlacementPreference is null
+        && SymbolRegistry.Resolve(symbolId) is { FrameCount: > 1 };
 
     /// <summary>
     /// Place a symbol as a single animated reference (old behaviour).

@@ -9,6 +9,7 @@ using Lightbox.App.Controls;
 using Lightbox.App.Docking;
 using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
+using Lightbox.Raster;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Projects;
 using Lightbox.Core.Serialization;
@@ -294,13 +295,46 @@ public partial class MainWindow
         e.Handled = true;
     }
 
-    private void OnCanvasSymbolDrop(object? sender, DragEventArgs e)
+    private async void OnCanvasSymbolDrop(object? sender, DragEventArgs e)
     {
         if (DraggedSymbolOf(e) is not { } id) return;
         var (x, y) = Canvas.ViewToDoc(e.GetPosition(Canvas));
-        // Where the pointer is, not the middle of the canvas: the whole point
-        // of dragging rather than pressing Place is choosing the spot.
-        _vm.PlaceSymbol(id, x, y);
         e.Handled = true;
+        // Where the pointer is, not the middle of the canvas: the whole point
+        // of dragging rather than pressing Place is choosing the spot. Read
+        // before the await, because the drag event is gone after it.
+        var (go, choice) = await AskHowToPlace(id);
+        if (go) _vm.PlaceSymbol(id, x, y, choice);
+    }
+
+    /// <summary>
+    /// Settle how a multi-frame symbol should land, asking the artist when it is
+    /// a real question. False means they backed out and nothing should be placed.
+    /// </summary>
+    /// <remarks>
+    /// <b>The ask lives here rather than in the view model, and B373 is why.</b>
+    /// The dialog completes on the UI thread, so the view model's
+    /// <c>task.Wait(5000)</c> was waiting on the very thread that would have
+    /// answered it: the app froze for the whole timeout, placed a default nobody
+    /// chose, and left the dialog open with its answer discarded. This is the
+    /// arrangement <see cref="OnMakeSymbolOfLayers"/> already used.
+    /// </remarks>
+    private async Task<(bool Go, FrameImportChoice? Choice)> AskHowToPlace(string symbolId)
+    {
+        if (!_vm.PlacementNeedsAChoice(symbolId)) return (true, null);
+        if (SymbolRegistry.Resolve(symbolId) is not { } symbol) return (true, null);
+        if (await ShowPlacementChoiceDialogAsync(symbol) is not { } answer) return (false, null);
+        // Only now can this fire at all: it used to be assigned inside the
+        // branch the deadlock made unreachable, so it never once took.
+        if (answer.DontAskAgain) _vm.PlacementPreference = answer.Choice;
+        return (true, answer.Choice);
+    }
+
+    /// <summary>The Place button: the centre of the drawing rather than a drop point.</summary>
+    private async void OnPlaceSymbol(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.SymbolBrowser.Selected is not { } row) return;
+        var (go, choice) = await AskHowToPlace(row.Model.Id);
+        if (go) _vm.PlaceSelectedSymbol(choice);
     }
 }
