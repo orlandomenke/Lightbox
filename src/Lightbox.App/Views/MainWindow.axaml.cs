@@ -337,6 +337,7 @@ public partial class MainWindow : Window
         _vm.LastDocumentClosed += OnLastDocumentClosed;
         InitialisePanels();
         InitialiseOverlays();
+        InitialiseSymbolTiles();
         ApplyDockLayout();
         // Both buttons show state the view model restored in its constructor,
         // before anything here was subscribed — so the first paint has to be
