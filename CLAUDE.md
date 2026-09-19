@@ -289,7 +289,9 @@ anchor is the one thing the file cannot represent.
 ## Working here
 
 - Build: `dotnet build Lightbox.sln`
-- Test: `dotnet test` (all four suites must stay green)
+- Test: `python3 scripts/testplan.py run --base main` — the suites your change
+  can reach, as parallel legs, rather than `dotnet test`'s measured 12 minutes
+  for all four. All four must still be green; CI runs the same plan.
 - **One .NET, and it is 10.** Every project targets `net10.0`, so the SDK that
   builds this carries the runtime that runs it. That was not always true — the
   solution targeted `net8.0` while needing the 10.0 SDK for Avalonia 12's
