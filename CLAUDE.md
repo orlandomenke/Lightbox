@@ -349,11 +349,12 @@ measured collisions that moved id allocation into a script.
 ### Every change starts at triage
 
 Before editing, run the triage command above (the `triage` agent adds judgement).
-**FAST** is inline with a regression test; **FULL** is the pipeline in `FLOW.md`.
-It is sensitivity-first, not size-first: AI, MCP, importers, the saved format and
-projects are FULL however small. A track is raised, never lowered except by the
-owner. Both run `sensitivity.py scan` (G13). `SENSITIVITY.md`, `FLOW.md`, the
-charter, this file and `guard.py` are **owner-only**; a hook asks first.
+It names a `FLOW.md` track: **MAINTENANCE**, **BUGHUNT** (regression test
+first) or **FEATURE** (the full pipeline). The router forces reviewers on any
+track: sensitive, AI, performance and owner-only paths. A track is raised, never
+lowered except by the owner. All run the scan (G13). `SENSITIVITY.md`,
+`FLOW.md`, the charter, this file and `guard.py` are **owner-only**; a hook
+asks first.
 
 ### Touching anything AI: two agents, on purpose
 

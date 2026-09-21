@@ -253,7 +253,7 @@ here.
 
 `scripts/sensitivity.py` reads this block. It is here, in the owner's file, so
 that a session cannot narrow what counts as sensitive in order to get a change
-through the fast track. Paths are prefixes or `fnmatch` globs from the repository
+through a lighter track. Paths are prefixes or `fnmatch` globs from the repository
 root.
 
 ```json
@@ -265,6 +265,7 @@ root.
     "S": ["src/Lightbox.Mcp/*", "src/Lightbox.Import/*", "src/Lightbox.App/Services/VideoExporter.cs", "src/Lightbox.App/Services/VideoReferenceImporter.cs", "src/Lightbox.App/Services/FileReveal.cs", ".github/*", ".githooks/*", ".claude/hooks/*", ".claude/settings.json"]
   },
   "ai_pair_paths": ["src/Lightbox.Ai/*", "src/Lightbox.Mcp/*", "src/Lightbox.App/ViewModels/ConfiguredArtist.cs", "src/Lightbox.App/ViewModels/MainViewModel.Ai.cs"],
+  "performance_critical_paths": ["src/Lightbox.Raster/*", "src/Lightbox.App/Rendering/*", "src/Lightbox.App/Services/RenderReport.cs", "src/Lightbox.App/ViewModels/MainViewModel.Painting.cs", "src/Lightbox.App/ViewModels/MainViewModel.Rendering.cs"],
   "owner_only": [
     ".claude/quality/SENSITIVITY.md",
     ".claude/quality/CHARTER.md",

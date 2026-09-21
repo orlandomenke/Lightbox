@@ -1,4 +1,4 @@
-# Sensitive topics, and the two-track flow
+# Sensitive topics, and the three-track flow
 
 Written 2026-09-21. Decisions: Q190 (what is guarded) and Q191 (how much of the
 factory). Rules: `.claude/quality/SENSITIVITY.md`. Routing: `.claude/quality/FLOW.md`.
@@ -14,8 +14,9 @@ went and trains the others. The request was to bring that to Lightbox — *trans
 carefully, not copied* — for an application positioned against Photoshop, Krita, GIMP,
 Moho and Toon Boom, and to make it take **sensitive topics** into account. The answers
 to two questions settled the rest: guard all four areas of sensitivity, and adopt the
-full pipeline **in two tracks**, so small things are still fixed inline, with a scout
-choosing the track.
+full pipeline **in tracks**, so small things are still fixed inline, with a scout
+choosing the track — refined the same day, by the owner, from two tracks to three
+(see *The tracks* below and Q191's addendum).
 
 ## What Lightbox already had
 
@@ -40,7 +41,7 @@ is a small change rather than a large one:
 | `security.md` — trust boundaries and numbered rules | **`SENSITIVITY.md`**, rules in four areas: A (artist data and AI consent), L (IP and licensing), W (work is never lost), S (security and untrusted input) | The sibling's rules are about a process that watches a desktop and acts on it. Lightbox's are about a drawing that is irreplaceable, an audience that distrusts AI, other tools' formats, and a public GPL repository |
 | `security-guardian` | **`sensitivity-guardian`**, on the strongest model | Reviews for loss, leak, lift and hostile input rather than for privilege and injection; reads the project's own known gaps |
 | `guard.py` hooks | **`.claude/hooks/guard.py`** and a `grep` Read hook: refuse a credential, ask before an owner-only file, refuse commands that read the artist's key store | The sibling guards against elevation and `iwr \| iex`. The live risk here is a **real key from the developer's own `%APPDATA%\Lightbox\ai.json` landing in an agent transcript**, which goes to a provider |
-| the strict 8-stage flow | **two tracks** behind a router, `FLOW.md` | One pipeline for every change would make fixing dearer and recreate the ledger's 79%-left-open measurement (`CLAUDE.md`: *Fixing is the default*) |
+| the strict 8-stage flow | **three tracks** (MAINTENANCE, BUGHUNT, FEATURE) over the same stage list, plus a router that forces reviewers on, `FLOW.md` | One pipeline for every change would make fixing dearer and recreate the ledger's 79%-left-open measurement (`CLAUDE.md`: *Fixing is the default*) |
 | return rules and limits | kept in shape; the numbers are starting values | Six returns / three of the same came from the sibling's own history and have none here yet |
 | `mission.md` — owned by the user | **owner-only files**: `SENSITIVITY.md`, `FLOW.md`, the charter, `CLAUDE.md`, `settings.json`, `guard.py` | Same idea; enforced by an *ask* hook, not a block, so the owner can still ask a session to edit them |
 | `architect`, `test-author`, `implementer` agents | **not new**: `story-analyst`, `test-smith`, and the main thread | The sibling's own rule is *extend before adding an agent*. `story-analyst` and `test-smith` already exist; the implementer is deliberately the main thread, which holds the context and is the one the owner is talking to |
@@ -57,39 +58,86 @@ responsibility needs *independent judgement*. `sensitivity-guardian` must not sh
 author's context — the person who wrote the change is the worst reviewer of whether it
 leaks — and `triage` must not be the implementer deciding its own work is small.
 
-## The router
+## The tracks
+
+The first cut was two tracks, fast and full, chosen by a router. **The owner's
+objection was that a small fix and a small tweak are not the same shape of small**, and
+that the pipeline should be *one* flow whose stages are skipped according to what kind
+of change it is, not two fixed shortcuts. That is a better model, and it is what
+`FLOW.md` now says: one master list of eight stages, and three named subsets of it —
+
+- **MAINTENANCE** (a tuning pass, a rename, a ratchet, a config default, a
+  no-behaviour-change refactor): implement, floor, adversary, land. No story, no
+  design, no dedicated test-first stage.
+- **BUGHUNT** (fixing a reported defect): test first — the regression test is what
+  `BUGS.md` already requires to close an entry — then implement, floor, review,
+  adversary, real app where it is about drawing or latency, land.
+- **FEATURE** (a capability that does not exist): everything, in order.
+
+The `triage` agent names the track from **why** the change is being made — a judgement
+no file path can supply — and the deterministic script computes a separate thing,
+whether anything is *forced on* (below). They are deliberately different questions
+answered by different things: the agent cannot argue with the router, and the router
+cannot tell a tweak from a feature.
+
+### The router forces stages on; it never takes one away
 
 **Sensitivity-first, not size-first.** The obvious router is a line count and its obvious
-failure is a one-line change to where an API key is read from. So the router sends a
-change to FULL if it touches a sensitive path, an owner-only file, a hotspot, a new source
-file, or exceeds a size — and size only chooses between tracks once nothing else has.
+failure is a one-line change to where an API key is read from. So the router forces on a
+guardian review for a sensitive path, the AI pair for an AI-dispatch path, and
+`leak-hunter` + `perf-warden` for a performance-critical path — whichever track was
+named — and escalates the whole change to FEATURE rigor for an owner-only file, a
+hotspot, a new source file, or a size over the limit.
+
+**The performance-critical trigger was added at the owner's request**, and the reasoning
+matters because the obvious inference is wrong. The owner's concern was recurring brush
+performance regressions, with the thought that a fuller pipeline, tests first and every
+suite run, would prevent them. `BUGS.md` says otherwise, in its own words, across a dozen
+entries — *"the per-piece budgets all pass on this machine... it is in the sum plus the
+waits between the pieces"*, *"what closes this is a capture, not a green test"*, and an
+instrument that was itself audited and found wrong three ways after passing 6,425 tests.
+Those regressions passed a green suite each time, so **more stages would not have caught
+them**; a capture did. What was genuinely missing is that `leak-hunter` and `perf-warden`
+— built for exactly the leak shapes a suite cannot see — ran only through `/improve` or
+when a session chose to, never automatically on a diff made directly. That is what the
+trigger closes. It escalates 9 of the last 40 merged PRs, mostly the brush engine, canvas
+rendering and the painting/rendering view-model partials. It cannot substitute for the
+capture, which is why Real app remains a stage and outranks the suite.
+
+**Ledger conflicts are a different, already-solved problem** and no amount of per-change
+process touches them: `bugs.py freeid`, the untracked derived indexes and one file per
+question came from the `branching` skill's own measured history. If anything, a heavier
+mandatory pipeline pushes toward *more* concurrent open branches, which is the wrong
+direction for merge conflicts.
 
 **The sensitive paths are data in the owner's file**, in a JSON block at the foot of
-`SENSITIVITY.md`, so a session that wants a change through the fast track cannot narrow the
-list. `sensitivity.py selftest` fails when a glob matches no file, because a stale trigger
-looks identical to a working one.
+`SENSITIVITY.md`, so a session that wants a change through a lighter track cannot narrow
+the list. `sensitivity.py selftest` fails when a glob matches no file, because a stale
+trigger looks identical to a working one.
 
-**The fast track is not a hole.** It skips ceremony and never a check: the hooks and
-`sensitivity.py scan` run on both tracks, and both cost no tokens.
+**No track is a hole.** The lighter ones skip ceremony and never a check: the hooks and
+`sensitivity.py scan` run on all three, and both cost no tokens.
 
 **A track is raised and never lowered**, except by the owner. `triage` can move a change up
-when it sees something the router cannot (two objectives, a decision hiding in a request).
+when it sees something the router cannot (two objectives, a decision hiding in a request),
+and three returns on a MAINTENANCE or BUGHUNT change raise it to FEATURE — a tweak that
+keeps bouncing was not a tweak.
 
-**Splitting a big change into small ones to stay fast** is the obvious way to game it.
+**Splitting a big change into small ones to stay light** is the obvious way to game it.
 Two things blunt it: mid-work `triage` reads the whole branch's diff against `main`, not
 the last commit, so splitting across commits changes nothing; and splitting across
 *branches* is what `CLAUDE.md` already asks for — one objective each — at which point each
-is triaged on its own, and a sensitive one is FULL however small. What remains open is a
+is triaged on its own, and a sensitive one is forced on however small. What remains open is a
 sequence of individually-small, individually-ordinary branches that add up to something
 large; that is a review problem, and the owner reviews every pull request.
 
 ### Calibration
 
 The first version counted every changed line, at 120. **Replayed over the last 40 merged
-pull requests it sent 31 to FULL**, because tests come with every change; the fast track
-would have been nearly empty, and an unused fast track teaches people to describe their
+pull requests it sent 31 to FULL**, because tests come with every change; the light tracks
+would have been nearly empty, and an unused light track teaches people to describe their
 change as smaller than it is. Tests, the ledgers and the manual are therefore not counted.
-With source only, at 150 lines and 5 files: **23 FAST, 17 FULL**; of the 29 that touched
+With source only, at 150 lines and 5 files: **23 with nothing forced on, 17 escalated**; of the 29 that touched
 `src/`, 11 (38%) hit a sensitive path, mostly the document model. The hotspot cut, 0.15, is
 chosen so the six riskiest files on `HOTSPOTS.md` that day are FULL.
 

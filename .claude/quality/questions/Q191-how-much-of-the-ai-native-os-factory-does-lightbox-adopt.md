@@ -57,3 +57,47 @@ and a ledger needs cycles to have run, so building them first would have produce
 an empty ledger reviewing nothing. The cost of deferring is that until they land,
 the pipeline's rules are only as good as the owner's eye on them; nothing yet
 notices that a stage keeps bouncing work back.
+
+## Addendum, 2026-09-21 — the same day, before merge: three tracks, and a performance gate
+
+Recorded here rather than as a new question because it amends this answer while the
+branch that implements it is still open (PR #549), and a second file would hide that
+it is the same decision moving.
+
+**What changed, and who asked.** The owner, having read the two-track result, gave two
+pieces of direction in their own words: that the pipeline should stay *one* flow with a
+scout deciding "which steps to skip" — *"if it's an adjustment skips the architect, skip
+the tests but continue on implementing; if new feature, do the full flow"* — and,
+separately, that they wanted the full factory because of *"the constant (brush)
+performance degradation and ledger conflicts"*, believing tests written first and every
+suite run would prevent them.
+
+**Answered, in two parts.**
+
+1. **Three named tracks over one stage list** — MAINTENANCE, BUGHUNT, FEATURE — instead of
+   fast/full. This is the owner's model taken almost literally; the one liberty is naming
+   three subsets rather than computing skips ad hoc for every change, because named
+   subsets can be documented, selftested and recalibrated by replay, and a per-change
+   computation cannot. "Skip the tests" for a tweak is read as *no dedicated test-first
+   stage*, not *no test*: the implementer still adds or updates the covering test where
+   behaviour changes, and a maintenance change to an untested path is a signal to raise
+   the track (charter O1).
+2. **A performance-critical trigger, at the recommendation, accepted.** Any diff to the
+   brush engine, the raster project, canvas rendering or the painting/rendering
+   view-model partials forces `leak-hunter` and `perf-warden` on, whichever track.
+
+**The part that went *against* the owner's premise, stated so it is not lost.** The owner
+expected a fuller pipeline to stop the brush regressions. `BUGS.md` says it would not: those
+regressions passed a green suite with budgets holding every time — *"the lag is not in any
+piece the suite measures. It is in the sum plus the waits between the pieces"*, *"what closes
+this is a capture, not a green test"* — and one measuring instrument was itself found wrong
+three ways after 6,425 passing tests. So the trigger is **not** described as preventing them;
+it closes a narrower gap that was real (the two reviewers built for these leak shapes ran only
+via `/improve` or a session's choice), and Real app stays a stage that the owner's capture
+outranks the suite in. Ledger conflicts were the other stated pain and are untouched by any
+of this: `bugs.py freeid`, the untracked derived indexes and one-file-per-question already
+address them, and a heavier per-change pipeline would push toward more open branches.
+
+**What this costs.** The performance trigger escalates 9 of the last 40 merged PRs. Two
+things stay unmeasured until the deferred ledger exists: whether MAINTENANCE and BUGHUNT
+are the right cut, and whether the escalated changes needed it.

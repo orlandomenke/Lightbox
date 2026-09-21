@@ -31,9 +31,10 @@ every session, and without quietly breaking what already works.
 | Answer a blocked decision | edit its file in `.claude/quality/questions/` |
 | Raise one | `python3 scripts/questions.py new "<title>"` — never by picking the next number by eye |
 
-**Two tracks.** A small change that touches nothing sensitive is done inline with a
-regression test; anything sensitive, large, hot or new takes the full pipeline in
-`quality/FLOW.md`. `triage` decides, and the fast track never skips the scan
+**Three tracks over one stage list.** `triage` names MAINTENANCE (a tweak, done
+inline), BUGHUNT (regression test first) or FEATURE (the full pipeline) from the
+nature of the change, and a router forces reviewers on regardless of which
+(`quality/FLOW.md`). No track skips the scan
 (`docs/DESIGN-sensitive-topics.md` is the argument, and lists what is not built yet).
 
 ## Why it is shaped this way

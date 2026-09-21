@@ -94,7 +94,7 @@ other's reason and leaves a number nobody can account for.
   `sensitivity` skill and `docs/DESIGN-sensitive-topics.md`, the reachable half.
 
   Trimmed before raising: the section started at 790 characters and went in at
-  513 by dropping its rationale and its pointer to the skill, which the table row
+  510 by dropping its rationale and its pointer to the skill, which the table row
   already carries. What is left is what a session needs *before* it opens
   `FLOW.md` or `SENSITIVITY.md`: that triage exists, what the two answers mean,
   that a track is not lowered by the session, and that some files are not its to

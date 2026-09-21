@@ -193,7 +193,7 @@ def reviewers(paths: list[str], areas: set[str], cfg: dict) -> list[str]:
         out += ["ai-engineer", "art-director"]          # charter G12
     if any(p.endswith((".axaml", ".axaml.cs")) or "/Views/" in p for p in paths):
         out.append("ui-critic")                          # charter G9
-    if any(x in p for p in paths for x in ("BrushEngine", "/Rendering/", "Compositor", "FrameRasterizer")):
+    if any(matches(p, pp) for p in paths for pp in cfg.get("performance_critical_paths", [])):
         out += ["leak-hunter", "perf-warden"]            # charter G7, G4
     return list(dict.fromkeys(out))
 
@@ -212,6 +212,16 @@ def classify(paths: list[str], stats: dict[str, int], cfg: dict, risk: dict[str,
     for p in paths:
         if any(matches(p, o) for o in cfg["owner_only"]):
             reasons.append(f"owner-only file: {p} — the owner decides, not the session")
+    # Forced FULL regardless of size, added 2026-09-21. The ledger's own recurring
+    # pattern is a brush-perf regression that a green suite and passing budgets did
+    # not catch — the cost lands in the sum of real-dispatcher latency a per-call
+    # budget cannot see, or in the measurement itself being wrong in a way no test
+    # checked. That is not fixed by more process; it is fixed by making sure the
+    # two reviewers built for exactly this (leak-hunter, perf-warden) are never
+    # optional on a diff that touches these paths, however small the diff looks.
+    for p in paths:
+        if any(matches(p, pp) for pp in cfg.get("performance_critical_paths", [])):
+            reasons.append(f"performance-critical: {p} — leak-hunter and perf-warden review is mandatory here")
     limits = cfg["fast_track"]
     # Tests, the ledgers and the manual come with every change and are what guards
     # it, not what makes it risky — so they are not what "large" is measured in.
@@ -243,19 +253,25 @@ def cmd_triage(args) -> int:
         stats, new = changed(args.base)
         paths, known = sorted(stats), True
     if not paths:
-        print("TRACK: FAST\n  nothing has changed against " + args.base)
+        print("FLOOR: FAST\n  nothing has changed against " + args.base)
         return 0
     verdict = classify(paths, stats, cfg, hotspot_risk(), new, known)
     if args.json:
         print(json.dumps(verdict, indent=2))
         return 0
-    print(f"TRACK: {verdict['track']}   ({verdict['files']} files"
+    # "FLOOR", not "TRACK": FAST/FULL only says whether anything here is non-negotiable.
+    # Which of MAINTENANCE / BUGHUNT / FEATURE this is depends on why the change is being
+    # made, which no file path can say — that is the triage agent's call (FLOW.md).
+    print(f"FLOOR: {verdict['track']}   ({verdict['files']} files"
           + (f", {verdict['changed_lines']} lines" if known else ", size unknown — planned paths only") + ")")
     for r in verdict["reasons"]:
         print(f"  - {r}")
     if verdict["track"] == "FAST":
-        print("  nothing sensitive, nothing large, no hotspot: implement with a regression test, run the scan, "
-              "commit.")
+        print("  nothing forced on: name the track (MAINTENANCE, BUGHUNT or FEATURE) from the nature of the "
+              "change and run its stages — the scan and the hooks run on all of them.")
+    else:
+        print("  the stages and reviewers named above are forced on, whichever track this is; "
+              "the track name is still chosen from the nature of the change.")
     if verdict["reviewers"]:
         print("REVIEWERS: " + ", ".join(verdict["reviewers"]) + "  (+ adversary on every claim)")
     if not verdict["hotspots_known"]:
@@ -349,35 +365,41 @@ def selftest() -> int:
         for pat in patterns:
             check(f"trigger `{pat}` ({area}) matches no tracked file — it guards nothing",
                   any(matches(t, pat) for t in tracked))
-    for key in ("owner_only", "egress_allowlist", "process_allowlist", "size_ignores", "ai_pair_paths"):
+    for key in ("owner_only", "egress_allowlist", "process_allowlist", "size_ignores", "ai_pair_paths",
+               "performance_critical_paths"):
         for pat in cfg[key]:
             check(f"{key} `{pat}` matches no tracked file", any(matches(t, pat) for t in tracked))
 
     def verdict(paths, lines=1, risk=None, new=None):
         return classify(paths, {p: lines for p in paths}, cfg, risk or {}, new)
 
-    check("a small, ordinary change is FAST", verdict(["src/Lightbox.Raster/Fill.cs"])["track"] == "FAST")
+    # A genuinely ordinary file: not in any sensitive/perf/ai-pair/owner-only glob.
+    # `src/Lightbox.Raster/*` stopped being a safe "ordinary" exemplar the moment it
+    # became performance-critical (below) — it was still FULL after that, just for a
+    # second, un-asserted reason, which is exactly the kind of test that keeps
+    # passing while checking less than it says it does.
+    ordinary = "src/Lightbox.Core/Audio/AudioPeaks.cs"
+    check("a small, ordinary change is FAST", verdict([ordinary])["track"] == "FAST")
     check("ONE line in the AI layer is FULL", verdict(["src/Lightbox.Ai/AiSettings.cs"])["track"] == "FULL")
     check("the MCP surface is FULL", verdict(["src/Lightbox.Mcp/LightboxTools.cs"])["track"] == "FULL")
     check("a parser is FULL", verdict(["src/Lightbox.Import/PsdReader.cs"])["track"] == "FULL")
     check("the saved format is FULL", verdict(["src/Lightbox.Core/Serialization/DocJson.cs"])["track"] == "FULL")
     check("an owner-only file is FULL", verdict([".claude/quality/SENSITIVITY.md"])["track"] == "FULL")
-    check("too many files is FULL", verdict([f"src/Lightbox.Raster/F{i}.cs" for i in range(9)])["track"] == "FULL")
-    check("too many lines is FULL", verdict(["src/Lightbox.Raster/Fill.cs"], lines=999)["track"] == "FULL")
+    check("too many files is FULL", verdict([f"src/Lightbox.Core/Audio/F{i}.cs" for i in range(9)])["track"] == "FULL")
+    check("too many lines is FULL", verdict([ordinary], lines=999)["track"] == "FULL")
     check("tests do not count toward size",
-          classify(["src/Lightbox.Raster/Fill.cs", "tests/Lightbox.Raster.Tests/FillTests.cs"],
-                   {"src/Lightbox.Raster/Fill.cs": 20, "tests/Lightbox.Raster.Tests/FillTests.cs": 900},
+          classify([ordinary, "tests/Lightbox.Core.Tests/AudioPeaksTests.cs"],
+                   {ordinary: 20, "tests/Lightbox.Core.Tests/AudioPeaksTests.cs": 900},
                    cfg, {})["track"] == "FAST")
-    check("a hotspot is FULL",
-          verdict(["src/Lightbox.Raster/Fill.cs"], risk={"src/Lightbox.Raster/Fill.cs": 0.9})["track"] == "FULL")
+    check("a hotspot is FULL", verdict([ordinary], risk={ordinary: 0.9})["track"] == "FULL")
     check("a new source file is FULL",
-          verdict(["src/Lightbox.Raster/Fill2.cs"], new=["src/Lightbox.Raster/Fill2.cs"])["track"] == "FULL")
+          verdict(["src/Lightbox.Core/Audio/New.cs"], new=["src/Lightbox.Core/Audio/New.cs"])["track"] == "FULL")
     check("a sensitive change names its guardian",
           "sensitivity-guardian" in verdict(["src/Lightbox.Ai/AiSettings.cs"])["reviewers"])
     check("an AI change names the pair (G12)",
           {"ai-engineer", "art-director"} <= set(verdict(["src/Lightbox.Ai/AiSettings.cs"])["reviewers"]))
     check("an ordinary change asks for no guardian",
-          "sensitivity-guardian" not in verdict(["src/Lightbox.Raster/Fill.cs"])["reviewers"])
+          "sensitivity-guardian" not in verdict([ordinary])["reviewers"])
     # Found by an adversarial review, 2026-09-21: the App-layer files that actually
     # assemble and dispatch an AI request were routed FAST and got no G12 pair.
     check("the App-layer AI dispatcher is FULL and gets the pair",
@@ -390,6 +412,21 @@ def selftest() -> int:
               <= set(verdict(["src/Lightbox.App/ViewModels/MainViewModel.Ai.cs"])["reviewers"]))
     check("the AI Configure page is FULL",
           verdict(["src/Lightbox.App/Views/ConfigureWindow.axaml.cs"])["track"] == "FULL")
+
+    # Added 2026-09-21 at the owner's request: the ledger's recurring brush-perf
+    # regressions passed a green suite every time (BUGS.md — "the per-piece budgets
+    # all pass... it is in the sum... between the pieces", "what closes this is a
+    # capture, not a green test"), so leak-hunter and perf-warden must be mandatory
+    # on these paths regardless of size, not merely available via /improve.
+    for path in ("src/Lightbox.Raster/BrushEngine.cs", "src/Lightbox.App/Rendering/CanvasControl.cs",
+                "src/Lightbox.App/ViewModels/MainViewModel.Painting.cs"):
+        v = verdict([path])
+        check(f"a ONE-LINE change to {path} is FULL",
+              v["track"] == "FULL")
+        check(f"{path} always gets leak-hunter and perf-warden",
+              {"leak-hunter", "perf-warden"} <= set(v["reviewers"]))
+    check("an unrelated file does not get the performance pair",
+          {"leak-hunter", "perf-warden"}.isdisjoint(verdict(["src/Lightbox.Core/Documents/Frame.cs"])["reviewers"]))
 
     key_line = 'var k = "sk-ant-api03-' + "a" * 30 + '";'
 

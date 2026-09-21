@@ -1,6 +1,6 @@
 ---
 name: sensitivity
-description: The reasons behind Lightbox's sensitivity baseline and two-track flow, with worked cases — a one-line change to where a key is read, code that looks lifted from another tool, a new importer, an MCP argument that names a path, a rule that seems to be in the way. Read when a change touches a trust boundary, when triage says FULL and it seems excessive, when the guardian and the author disagree, or before proposing a change to SENSITIVITY.md.
+description: The reasons behind Lightbox's sensitivity baseline and three-track flow, with worked cases — a one-line change to where a key is read, code that looks lifted from another tool, a new importer, an MCP argument that names a path, a rule that seems to be in the way. Read when a change touches a trust boundary, when the router forces a review on a change that seems too small for one, when the guardian and the author disagree, or before proposing a change to SENSITIVITY.md.
 ---
 
 # Sensitivity: the reasons
@@ -10,26 +10,45 @@ numbered rules. This holds what makes them arguable — the cases, and why each
 rule is shaped as it is. Read it when a rule looks arbitrary; do not read it to
 find a way round one.
 
-## Why there are two tracks and not one pipeline
+## Why three tracks over one stage list, and not one pipeline
 
 The rule *fixing is the default* has a measurement under it: of the last nineteen
 bugs recorded when it was written, 79% were still open, because filing was cheaper
 than fixing. A single heavy pipeline for every change would make fixing dearer and
 recreate that. A single light one would send a change to the AI layer through
-without the review it needs. Hence two, with a router — and the router is
-**sensitivity-first, not size-first**, because the failure it exists to prevent is
-a small change to a sensitive place.
+without the review it needs.
+
+The first cut of this was two tracks, fast and full. **The owner's objection to it
+was right, and it is worth keeping**: a small *fix* and a small *tweak* are not the
+same shape of small. A defect needs proof it is fixed, which only a regression test
+written first gives; a tuning pass has nothing to prove broken and only needs to
+not break anything. So there are three named tracks over the same eight stages —
+MAINTENANCE, BUGHUNT, FEATURE — each a different subset, run by the same agents and
+skills, chosen by the `triage` agent from **why** the change is being made, which no
+file path can say.
+
+Separately, and this is the part a script *can* decide, a router forces stages and
+reviewers on regardless of track. It is **sensitivity-first, not size-first**,
+because the failure it exists to prevent is a small change to a sensitive place —
+and it is now also **performance-first for the brush path**, which was added when
+the owner pointed at the ledger's recurring brush-latency regressions. The lesson
+there is worth stating precisely, because it is easy to get wrong: those
+regressions passed a green suite every time, so *more stages and more tests do not
+catch them* — a capture does, and that is why Real app is a stage for BUGHUNT and
+FEATURE and the owner's capture outranks the suite. What the router *can* fix is
+that the two reviewers built for the leak shapes a suite cannot see, `leak-hunter`
+and `perf-warden`, were optional; they are now forced on any diff to those paths.
 
 The first version of the router counted every changed line. Replayed over the last
-forty merged pull requests it sent 31 to the full pipeline, because tests come with
-every change and are its guard, not its risk. **A threshold set by reasoning is a
-guess; run it over history before shipping it.** That replay is why tests are not
-counted, and it is the method for recalibrating.
+forty merged pull requests it escalated 31, because tests come with every change and
+are its guard, not its risk. **A threshold set by reasoning is a guess; run it over
+history before shipping it.** That replay is why tests are not counted, and it is
+the method for recalibrating.
 
 ## Worked cases
 
 **A one-line change to where the key is read from.** Say `AiSettings` starts
-reading the key from a new place. It is one line and it is FULL, correctly:
+reading the key from a new place. It is one line and the router forces a guardian review on it, correctly:
 *where a secret comes from and where it is written* is the whole of rule A4, and a
 review that has the diff and the rule in front of it asks the questions the author
 did not — does it reach a log, an exception message, a diagnostics bundle? The
@@ -78,7 +97,7 @@ store and that needs a decision.
 
 ## What the scan is and is not
 
-`sensitivity.py scan` runs on both tracks because it costs nothing. It finds
+`sensitivity.py scan` runs on every track because it costs nothing. It finds
 credential shapes, network and process use outside the inventory, a new dependency,
 a new bundled asset, and an instruction aimed at an agent. **It finds none of the
 judgement problems** — whether a payload is minimal, whether a table was lifted,
