@@ -9,6 +9,8 @@ every session, and without quietly breaking what already works.
   quality/        the standards, the journal, the settled decisions and the
                   open questions
   agents/         specialists that read a lot and report a little
+  hooks/          guard.py refuses a credential in a write and asks before an
+                  owner-only file; session-start and after-build
   skills/improve/ the loop: audit → fix → verify → reflect
   workflows/      deterministic multi-agent orchestration
   settings.json   keeps the index fresh at session start
@@ -24,8 +26,15 @@ every session, and without quietly breaking what already works.
 | Run a deeper multi-round audit | invoke the `improve-loop` workflow |
 | See what the app promises today | `.claude/codemap/FEATURES.md` |
 | See where change is dangerous | `.claude/codemap/HOTSPOTS.md` |
+| Decide whether a change is small or sensitive | `python3 scripts/sensitivity.py triage --files <paths>` — the routing is `quality/FLOW.md`, the rules `quality/SENSITIVITY.md` |
+| Check a change for a credential, an undeclared network path or process | `python3 scripts/sensitivity.py scan` |
 | Answer a blocked decision | edit its file in `.claude/quality/questions/` |
 | Raise one | `python3 scripts/questions.py new "<title>"` — never by picking the next number by eye |
+
+**Two tracks.** A small change that touches nothing sensitive is done inline with a
+regression test; anything sensitive, large, hot or new takes the full pipeline in
+`quality/FLOW.md`. `triage` decides, and the fast track never skips the scan
+(`docs/DESIGN-sensitive-topics.md` is the argument, and lists what is not built yet).
 
 ## Why it is shaped this way
 

@@ -124,7 +124,8 @@ session start when it is stale.
 | Why is compositing on the CPU, and what would move it? | read `docs/DESIGN-gpu-compositing.md` — B125's design note, decisions included |
 | Why does a brush stamp twice? | read `docs/DESIGN-two-stage-brush.md` — do not re-derive it |
 | What should I pick up next? | `python3 scripts/roadmap.py next` |
-| Why is a rule below the way it is? | the skill that carries its reasons — `branching`, `scope-call`, `ai-work`, `brush-measurement`, `optional-settings` |
+| Is this change small, or sensitive? | `python3 scripts/sensitivity.py triage --files <paths>` |
+| Why is a rule below the way it is? | the skill that carries its reasons — `branching`, `scope-call`, `ai-work`, `brush-measurement`, `optional-settings`, `sensitivity` |
 
 Rebuild by hand with `python3 scripts/codemap.py build` after large changes.
 
@@ -344,6 +345,15 @@ Four mechanical rules, each of which has been broken expensively:
 id, or when one of these looks arbitrary — it carries the incidents that produced
 them, including the two retired generations of merge machinery and the six days of
 measured collisions that moved id allocation into a script.
+
+### Every change starts at triage
+
+Before editing, run the triage command above (the `triage` agent adds judgement).
+**FAST** is inline with a regression test; **FULL** is the pipeline in `FLOW.md`.
+It is sensitivity-first, not size-first: AI, MCP, importers, the saved format and
+projects are FULL however small. A track is raised, never lowered except by the
+owner. Both run `sensitivity.py scan` (G13). `SENSITIVITY.md`, `FLOW.md`, the
+charter, this file and `guard.py` are **owner-only**; a hook asks first.
 
 ### Touching anything AI: two agents, on purpose
 
