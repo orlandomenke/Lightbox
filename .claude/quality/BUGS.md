@@ -123,6 +123,7 @@ which is a weak test and still far better than none.
 
 ### ai
 
+- [ ] **B377** `P2` `ai` MCP draw_strokes accepts NaN coordinates and unbounded point counts `evidence: StrokePayloadRejectsNonFiniteCoordinates, StrokePayloadCapsInboundPointCount`
 - [ ] **B359** `P2` `ai` An agent cannot inbetween a dense drawing over MCP, because the answer does not fit in one response `evidence: StrokeDelta, ATranslatedStrokeCostsItsTransformNotItsPoints, ARedrawnStrokeStillCarriesItsGeometry`
   - Repro, measured through the real path by `McpReadBudgetTests` on a 120-stroke, 90-point frame: `insert_inbetweens` and `draw_strokes` take full geometry, so the agent must **emit** every point of every stroke. One frame written back is **147.4 KB (~37,700 output tokens)**; three inbetweens are **442.2 KB (~113,200)**. That does not fit in one response at any provider here.
   - **This is a ceiling, not a bill, which is why it is P2 rather than a cost note.** Everything else on this surface is something the artist pays for; this is something they cannot do at all, however patient they are. The failure is also silent in the worst way — the agent gets a truncated answer, and a half-written frame is indistinguishable from a model that drew badly.

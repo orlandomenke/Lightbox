@@ -42,6 +42,38 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PY=python3; case \"$(command -v python3)\" in *WindowsApps*) PY=python;; esac; \"$PY\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\" pre-write",
+            "timeout": 20
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "grep -qiE 'Lightbox[\\\\/]+(ai|settings)[.]json' && { echo \"guard: that is the artist's own key store. Reading it would put a live API key in this transcript (SENSITIVITY.md A4/S5). Ask the owner what you need to know instead.\" >&2; exit 2; }; exit 0",
+            "timeout": 20
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PY=python3; case \"$(command -v python3)\" in *WindowsApps*) PY=python;; esac; \"$PY\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\" pre-shell",
+            "timeout": 20
+          }
+        ]
+      }
     ]
   },
   "permissions": {
@@ -56,7 +88,8 @@
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(python3 scripts/sensitivity.py:*)"
     ]
   }
 }

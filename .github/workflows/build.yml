@@ -255,6 +255,20 @@ jobs:
       - name: The per-session prelude is within its budget
         run: python3 scripts/prelude.py check
 
+      # Gate G13. The router and the hooks have no C# suite to live in, and a
+      # trigger glob that matches nothing looks exactly like one that works — so
+      # the selftest fails on a stale pattern, which is what keeps a renamed
+      # directory from quietly un-protecting itself. The whole-tree scan is
+      # deliberately not a diff: it needs no history, runs in seconds, and a
+      # credential or an undeclared network path fails here whichever branch
+      # introduced it. It is a floor — judgement is the sensitivity-guardian's.
+      - name: The sensitivity rules pass their own tests
+        run: |
+          python3 scripts/sensitivity.py selftest
+          python3 .claude/hooks/guard.py selftest
+      - name: Nothing in the tree breaks a sensitivity rule
+        run: python3 scripts/sensitivity.py scan --all
+
       # The generated index is untracked (2026-08-08, Q55): committing it made
       # every pair of parallel branches conflict by construction, and GitHub
       # runs no merge driver, so every open PR went red the moment any other
