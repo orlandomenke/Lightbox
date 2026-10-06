@@ -98,6 +98,20 @@ public partial class MainViewModel
     /// share one bitmap, the cache owns it, and its eviction bounds how many can
     /// exist — which is what B202 established for the thumbnails beside it.
     /// </para>
+    /// <para>
+    /// <b>A frame's own id never changes as strokes are appended to or erased
+    /// from it</b> (edits mutate the same <see cref="Frame"/> in place), so the
+    /// id alone is not enough of the picture: a stroke drawn, or an eraser
+    /// dragged, over the frame the navigator is already showing left the same
+    /// key on the next call and handed back the bitmap composed before the
+    /// edit — erased ink stayed visible in the thumbnail with no way to ever
+    /// refresh it short of switching frames and back. Each exposed frame's own
+    /// stroke count rides along in the key for exactly the reason
+    /// <see cref="CarveStamp"/> already salts it with a mask's: a proxy, not a
+    /// hash, that misses an edit which leaves the count unchanged (a transform
+    /// that moves existing points rather than adding or removing a stroke) and
+    /// heals on the next one that does not.
+    /// </para>
     /// </remarks>
     private void RefreshNavigatorThumb()
     {
@@ -122,7 +136,7 @@ public partial class MainViewModel
 
         var key = string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"nav:{scene.Width}x{scene.Height}:{string.Join(',', exposed.Select(e => e.Frame.Id))}:{CarveStamp(scene, CurrentFrameIndex)}");
+            $"nav:{scene.Width}x{scene.Height}:{string.Join(',', exposed.Select(e => $"{e.Frame.Id}:{e.Frame.Strokes.Count}"))}:{CarveStamp(scene, CurrentFrameIndex)}");
         NavigatorThumb = _thumbs.Get(key, () => ComposeNavigatorThumb(scene, exposed));
     }
 
