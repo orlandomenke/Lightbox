@@ -299,6 +299,7 @@ public partial class MainWindow : Window
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, OnFileDragOver);
         AddHandler(DragDrop.DropEvent, OnFileDrop);
+        WireLayerListPointer();
 
         // Two things move a panel in or out of a strip without the layout
         // changing: a project appearing (the project panel is absent until

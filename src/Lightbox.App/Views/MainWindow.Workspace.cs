@@ -1083,7 +1083,8 @@ public partial class MainWindow
     /// <remarks>
     /// Ctrl+click on the row's <em>thumbnail</em> means something else entirely
     /// — select the layer's opaque pixels — and that handler marks the event
-    /// handled, so the two never both run.
+    /// handled, so the two never both run. Ctrl/Shift presses on the row's own
+    /// buttons are taken earlier, by <see cref="OnLayerListPressedTunnel"/>.
     /// </remarks>
     private void OnLayerRowPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -1109,226 +1110,250 @@ public partial class MainWindow
         // Pull keyboard focus off menus/sliders so the arrow-key layer walk
         // (and Delete/Backspace) reaches the window's shortcut handler.
         (sender as Control)?.Focus();
-
-        // A plain left press may become a drag; a modified press is a selection
-        // gesture and never one. The threshold decides which in OnLayerRowMoved.
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
-            && e.KeyModifiers is KeyModifiers.None)
-        {
-            _layerDragCandidate = row;
-            _layerDragFrom = e.GetCurrentPoint(this).Position;
-            _layerDragPress = e;
-        }
+        ArmLayerDrag(row, e);
     }
 
-    // ---- drag a layer row up or down the stack -------------------------------
-
-    private static readonly DataFormat<LayerRow> LayerRowDragFormat =
-        DataFormat.CreateInProcessFormat<LayerRow>("lightbox-layer-row");
-
     /// <summary>
-    /// A folder header being carried.
+    /// A press on a folder header picks the folder, and may become a drag of it.
     /// </summary>
-    /// <remarks>
-    /// Its own format rather than a common base, because the two are dropped
-    /// differently everywhere — a layer can be filed into a folder and a folder
-    /// cannot be filed into anything, so every handler has to tell them apart in
-    /// any case. Two formats make that a <c>TryGetValue</c> rather than a cast.
-    /// </remarks>
-    private static readonly DataFormat<GroupRow> GroupRowDragFormat =
-        DataFormat.CreateInProcessFormat<GroupRow>("lightbox-layer-group");
-
-    private object? _layerDragCandidate;
-    private Point _layerDragFrom;
-    private PointerPressedEventArgs? _layerDragPress;
-
-    /// <summary>
-    /// Arm a folder header the way a layer row is armed.
-    /// </summary>
-    /// <remarks>
-    /// <b>Folders could be dropped on and never picked up.</b> A header was a
-    /// drop target from the day folders landed, so the docker taught that
-    /// dragging works here and then refused the one row an artist most wants to
-    /// move — the whole block at once.
-    /// </remarks>
     private void OnGroupRowPressed(object? sender, PointerPressedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not GroupRow header) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
-        if (e.KeyModifiers is not KeyModifiers.None) return;
-        _layerDragCandidate = header;
-        _layerDragFrom = e.GetCurrentPoint(this).Position;
-        _layerDragPress = e;
+        _vm.SelectGroup(
+            header,
+            toggle: e.KeyModifiers.HasFlag(KeyModifiers.Control),
+            range: e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+        (sender as Control)?.Focus();
+        ArmLayerDrag(header, e);
     }
 
-    private void OnGroupRowMoved(object? sender, PointerEventArgs e) => OnLayerRowMoved(sender, e);
-
-    private void OnGroupRowReleased(object? sender, PointerReleasedEventArgs e) =>
-        OnLayerRowReleased(sender, e);
-
-    private async void OnLayerRowMoved(object? sender, PointerEventArgs e)
+    private void WireLayerListPointer()
     {
-        if (_layerDragPress is not { } press || _layerDragCandidate is not { } carried) return;
-        if ((sender as Control)?.DataContext is not { } over || !ReferenceEquals(over, carried)) return;
-        var point = e.GetCurrentPoint(this);
+        // The layer docker's own drag and its Ctrl/Shift selection clicks.
+        // Handled events too: the row's buttons mark their presses and releases
+        // handled, and neither the drag nor a modified click may be lost to that.
+        LayerList.AddHandler(PointerPressedEvent, OnLayerListPressedTunnel, RoutingStrategies.Tunnel);
+        LayerList.AddHandler(PointerMovedEvent, OnLayerListPointerMoved, handledEventsToo: true);
+        LayerList.AddHandler(PointerReleasedEvent, OnLayerListPointerReleased, handledEventsToo: true);
+        LayerList.AddHandler(PointerCaptureLostEvent, OnLayerListCaptureLost);
+    }
+
+    /// <summary>
+    /// Ctrl or Shift pressed anywhere on a row is a selection click, whatever
+    /// part of the row it landed on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why "Ctrl/Shift+click does not always work".</b> Most of a row is
+    /// not row: the eye, lock and alpha toggles, the thumbnail, the chips, the
+    /// reorder arrows and the eject button take up well over half of it, and
+    /// each one took the press for itself — a Ctrl+click on the eye flipped the
+    /// eye and left the selection alone. With a pen in a narrow docker, the
+    /// share of clicks that landed on one of those was the share that "did not
+    /// work".
+    /// </para>
+    /// <para>
+    /// Tunnelled, so it runs before any of them. The one exception is Ctrl on
+    /// the thumbnail, which is the documented "select this layer's pixels"
+    /// gesture and keeps its meaning.
+    /// </para>
+    /// </remarks>
+    private void OnLayerListPressedTunnel(object? sender, PointerPressedEventArgs e)
+    {
+        // Every press starts from nothing armed: a drag whose release was lost
+        // somewhere must not come back to life on the next press and move.
+        if (!_layerDragging)
+        {
+            _layerDragCandidate = null;
+            _layerDragPointer = null;
+        }
+        var mods = e.KeyModifiers;
+        if (!mods.HasFlag(KeyModifiers.Control) && !mods.HasFlag(KeyModifiers.Shift)) return;
+        if (mods.HasFlag(KeyModifiers.Alt) || mods.HasFlag(KeyModifiers.Meta)) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+
+        Control? row = null;
+        var onThumb = false;
+        for (var c = e.Source as Control; c is not null; c = c.Parent as Control)
+        {
+            // A rename in progress keeps its own clicks — Shift+click extends
+            // the text selection there. The press lands on the box's inner
+            // presenter, so the box is found by walking up, not by Source.
+            if (c is TextBox) return;
+            if (c.Classes.Contains("layerThumb")) onThumb = true;
+            if (c.Classes.Contains("layerRow") || c.Classes.Contains("groupRow"))
+            {
+                row = c;
+                break;
+            }
+        }
+        if (row is null) return;
+        if (onThumb && mods.HasFlag(KeyModifiers.Control)) return;
+
+        switch (row.DataContext)
+        {
+            case LayerRow layer:
+                _vm.SelectLayer(layer, toggle: mods.HasFlag(KeyModifiers.Control), range: mods.HasFlag(KeyModifiers.Shift));
+                break;
+            case GroupRow header:
+                _vm.SelectGroup(header, toggle: mods.HasFlag(KeyModifiers.Control), range: mods.HasFlag(KeyModifiers.Shift));
+                break;
+            default:
+                return;
+        }
+        row.Focus();
+        e.Handled = true;
+    }
+
+    // ---- drag a layer row or a folder up or down the stack -------------------
+
+    /// <summary>
+    /// How far a pen has to travel before a press is a drag. Wider than the
+    /// mouse's, because a pen tip wanders during an ordinary tap and every
+    /// wander past the mouse threshold started a drag the artist never meant.
+    /// </summary>
+    private const double PenDragThresholdPx = 10;
+
+    private object? _layerDragCandidate;
+    private Point _layerDragFrom;
+    private IPointer? _layerDragPointer;
+    private bool _layerDragging;
+
+    /// <summary>A plain left press may become a drag; a modified one never does.</summary>
+    private void ArmLayerDrag(object carried, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || e.KeyModifiers is not KeyModifiers.None)
+        {
+            return;
+        }
+        _layerDragCandidate = carried;
+        _layerDragFrom = e.GetPosition(LayerList);
+        _layerDragPointer = e.Pointer;
+    }
+
+    /// <summary>
+    /// The layer docker's drag, run inside the list on a captured pointer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>It used to be an operating-system drag-and-drop</b>
+    /// (<c>DoDragDropAsync</c>), which on Windows runs OLE's own modal loop:
+    /// every move is a round trip through the shell, the ghost and the line
+    /// trail the pointer, and the first moves after the threshold are lost
+    /// while the loop starts. A row never leaves this list, so none of that
+    /// buys anything. Capturing the pointer on the list keeps every move on
+    /// the UI thread's ordinary path, and lets the test suite drive the real
+    /// gesture with the headless mouse.
+    /// </para>
+    /// <para>
+    /// Capture goes to the list, not the pressed row, so the drag survives the
+    /// row's own control being re-pointed at another layer under it.
+    /// </para>
+    /// </remarks>
+    private void OnLayerListPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_layerDragCandidate is not { } carried || !ReferenceEquals(e.Pointer, _layerDragPointer)) return;
+        var point = e.GetCurrentPoint(LayerList);
         // A move with the button up means the release happened somewhere this
         // handler never saw; disarm rather than wait (the cel drag's lesson).
         if (!point.Properties.IsLeftButtonPressed)
         {
-            _layerDragCandidate = null;
-            _layerDragPress = null;
+            EndLayerDrag();
             return;
         }
-        var delta = point.Position - _layerDragFrom;
-        if (Math.Abs(delta.X) < Input.CelDragGesture.ThresholdPx
-            && Math.Abs(delta.Y) < Input.CelDragGesture.ThresholdPx) return;
 
-        try
+        if (!_layerDragging)
         {
-            var transfer = new DataTransfer();
-            switch (carried)
-            {
-                case LayerRow row:
-                    transfer.Add(DataTransferItem.Create(LayerRowDragFormat, row));
-                    break;
-                case GroupRow header:
-                    transfer.Add(DataTransferItem.Create(GroupRowDragFormat, header));
-                    break;
-                default:
-                    return;
-            }
-            await DragDrop.DoDragDropAsync(press, transfer, DragDropEffects.Move);
+            var delta = point.Position - _layerDragFrom;
+            var threshold = e.Pointer.Type == PointerType.Mouse
+                ? Input.CelDragGesture.ThresholdPx
+                : PenDragThresholdPx;
+            if (Math.Abs(delta.X) < threshold && Math.Abs(delta.Y) < threshold) return;
+            _layerDragging = true;
+            e.Pointer.Capture(LayerList);
         }
-        catch (Exception ex)
-        {
-            Rendering.CanvasControl.LogDiag("layer-row-drag", ex);
-        }
-        finally
-        {
-            // Every exit, including the throw: a ghost or an insertion line left
-            // behind reads as a rendering fault rather than as a stuck drag, and
-            // points nowhere near the handler that leaked it.
-            EndLayerDragFeedback();
-            _layerDragCandidate = null;
-            _layerDragPress = null;
-        }
+
+        AutoScrollLayerList(e);
+        var (item, hint) = LayerDropUnder(carried, e.GetPosition(LayerList).Y);
+        _vm.ShowLayerDropHint(hint == LayerDropHint.None ? null : item, hint);
+        var name = carried switch { LayerRow r => r.Name, GroupRow g => g.Name, _ => "" };
+        DragGhost.Show(name, e.GetPosition(this));
+        e.Handled = true;
     }
 
-    private void OnLayerRowReleased(object? sender, PointerReleasedEventArgs e)
+    private void OnLayerListPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (!ReferenceEquals(e.Pointer, _layerDragPointer)) return;
+        // A right-click mid-drag is not the end of it; only the left button
+        // that picked the row up can put it down.
+        if (e.InitialPressMouseButton != MouseButton.Left) return;
+        var carried = _layerDragCandidate;
+        var dragging = _layerDragging;
+        var position = e.GetPosition(LayerList);
+        EndLayerDrag();
+        if (!dragging || carried is null) return;
+        e.Handled = true;
+
+        // Released outside the list is a cancel, the way dropping a dragged
+        // file back where it came from is.
+        if (position.X < 0 || position.X > LayerList.Bounds.Width) return;
+        var (item, hint) = LayerDropUnder(carried, position.Y);
+        if (item is not null) _vm.DropOnLayerPanel(carried, item, hint);
+    }
+
+    private void OnLayerListCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (_layerDragging) EndLayerDrag();
+    }
+
+    /// <summary>Put down whatever the drag was showing, and disarm.</summary>
+    private void EndLayerDrag()
+    {
+        var pointer = _layerDragPointer;
+        var wasDragging = _layerDragging;
         _layerDragCandidate = null;
-        _layerDragPress = null;
-    }
-
-    private static LayerRow? DraggedLayerOf(DragEventArgs e) =>
-        e.DataTransfer is { } transfer ? transfer.TryGetValue(LayerRowDragFormat) : null;
-
-    private static GroupRow? DraggedGroupOf(DragEventArgs e) =>
-        e.DataTransfer is { } transfer ? transfer.TryGetValue(GroupRowDragFormat) : null;
-
-    /// <summary>The name to put on the ghost, or null when this is not our drag.</summary>
-    private static string? DraggedLayerName(DragEventArgs e) =>
-        DraggedLayerOf(e)?.Name ?? DraggedGroupOf(e)?.Name;
-
-    /// <summary>Put down whatever the drag was showing.</summary>
-    private void EndLayerDragFeedback()
-    {
+        _layerDragPointer = null;
+        _layerDragging = false;
         DragGhost.Hide();
         _vm.ClearLayerDropHints();
+        if (wasDragging && pointer?.Captured == LayerList) pointer.Capture(null);
     }
 
     /// <summary>
-    /// The row or folder header under the drop pointer, with its visual so the
-    /// drop can tell the upper half from the lower.
+    /// The row a drop at this height would land on, and what it would do there.
     /// </summary>
-    private static (object? Item, Control? Container) LayerDropTargetOf(DragEventArgs e)
+    /// <remarks>
+    /// Measured from the realized row containers rather than hit-tested, so the
+    /// spacing between rows and the indent in front of folder members belong to
+    /// a row instead of to nothing — see <see cref="LayerDropPlan.Locate"/>.
+    /// </remarks>
+    private (object? Item, LayerDropHint Hint) LayerDropUnder(object carried, double y)
     {
-        var control = e.Source as Control;
-        while (control is not null && control.DataContext is not (LayerRow or GroupRow))
+        var items = new List<object>();
+        var spans = new List<(double Top, double Bottom)>();
+        for (var i = 0; i < _vm.LayerPanelItems.Count; i++)
         {
-            control = control.Parent as Control;
+            if (LayerList.ContainerFromIndex(i) is not { IsVisible: true } container) continue;
+            if (container.TranslatePoint(default, LayerList) is not { } top) continue;
+            items.Add(_vm.LayerPanelItems[i]);
+            spans.Add((top.Y, top.Y + container.Bounds.Height));
         }
-        return (control?.DataContext, control);
+        var (index, fraction) = LayerDropPlan.Locate(spans, y);
+        if (index < 0) return (null, LayerDropHint.None);
+        var item = items[index];
+        return (item, _vm.LayerDropHintFor(carried, item, fraction));
     }
 
-    /// <summary>
-    /// Where down a row the pointer is, 0 at its top edge and 1 at its bottom.
-    /// </summary>
-    private static double FractionDown(DragEventArgs e, Control container) =>
-        container.Bounds.Height <= 0
-            ? 0.5
-            : e.GetPosition(container).Y / container.Bounds.Height;
-
-    /// <summary>
-    /// What this drop would do, given what is in hand and what is under it.
-    /// </summary>
-    private static LayerDropHint HintFor(DragEventArgs e, object? item, Control? container)
+    /// <summary>Scroll the docker while the pointer is held near its top or bottom edge.</summary>
+    private void AutoScrollLayerList(PointerEventArgs e)
     {
-        if (item is null || container is null) return LayerDropHint.None;
-        var draggingFolder = DraggedGroupOf(e) is not null;
-        // Dropping a folder on one of its own rows, or on its own header, is
-        // the gesture that means nothing — say so rather than drawing a line
-        // the drop will decline to honour.
-        if (DraggedGroupOf(e) is { } carried)
-        {
-            var ownId = carried.Group.Id;
-            if (item is GroupRow header && header.Group.Id == ownId) return LayerDropHint.None;
-            if (item is LayerRow member && member.Layer.GroupId == ownId) return LayerDropHint.None;
-        }
-        if (DraggedLayerOf(e) is { } layer && ReferenceEquals(layer, item)) return LayerDropHint.None;
-        return LayerDropPlan.Resolve(FractionDown(e, container), item is GroupRow, draggingFolder);
-    }
-
-    private void OnLayerDragOver(object? sender, DragEventArgs e)
-    {
-        var (item, container) = LayerDropTargetOf(e);
-        var ours = DraggedLayerName(e) is not null;
-        var hint = ours ? HintFor(e, item, container) : LayerDropHint.None;
-
-        e.DragEffects = hint == LayerDropHint.None ? DragDropEffects.None : DragDropEffects.Move;
-        e.Handled = true;
-        if (!ours) return;
-
-        // Both halves of the feedback, the same pair the panel docking shows:
-        // the ghost says what is moving, the hint says where it would land.
-        _vm.ShowLayerDropHint(hint == LayerDropHint.None ? null : item, hint);
-        if (DraggedLayerName(e) is { } name) DragGhost.Show(name, e.GetPosition(this));
-    }
-
-    /// <summary>
-    /// The pointer left the panel without dropping. Avalonia does not raise a
-    /// drop, so the feedback has to be taken down here as well.
-    /// </summary>
-    private void OnLayerDragLeave(object? sender, DragEventArgs e) => EndLayerDragFeedback();
-
-    private void OnLayerDrop(object? sender, DragEventArgs e)
-    {
-        e.Handled = true;
-        var (item, container) = LayerDropTargetOf(e);
-        var hint = HintFor(e, item, container);
-        EndLayerDragFeedback();
-        if (hint == LayerDropHint.None) return;
-
-        // Read off the same rule the line was drawn from, so what lands is what
-        // was shown — the pick ring's principle, applied to a drop.
-        if (DraggedGroupOf(e) is { } group && item is not null)
-        {
-            _vm.DropGroupBeside(group.Group, item, hint == LayerDropHint.Above);
-            return;
-        }
-        if (DraggedLayerOf(e) is not { } dragged) return;
-        switch (item)
-        {
-            case LayerRow target:
-                _vm.DropLayerOnRow(dragged, target, hint == LayerDropHint.Above);
-                break;
-            case GroupRow header when hint == LayerDropHint.Into:
-                _vm.MoveLayerIntoGroup(dragged.Layer, header.Group);
-                break;
-            case GroupRow header:
-                _vm.DropLayerBesideGroup(dragged, header, hint == LayerDropHint.Above);
-                break;
-        }
+        if (LayerList.Parent is not ScrollViewer scroller) return;
+        const double edge = 24, step = 12;
+        var y = e.GetPosition(scroller).Y;
+        var offset = scroller.Offset;
+        if (y < edge) scroller.Offset = offset.WithY(Math.Max(0, offset.Y - step));
+        else if (y > scroller.Bounds.Height - edge) scroller.Offset = offset.WithY(offset.Y + step);
     }
 
     /// <summary>

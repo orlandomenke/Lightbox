@@ -40,6 +40,11 @@ remembered layer is never the reason a stroke goes nowhere.
 
 **Ctrl+click** a layer thumbnail to select its opaque pixels.
 
+**A new layer goes where you are working**: directly above the active layer,
+and into the active layer's folder if it is in one. Click a folder's header
+first and the new layer goes on top of that folder instead. (It used to land on
+top of the whole stack whatever was picked, outside every folder.)
+
 **The everyday layer verbs are on the Layer menu too**, addressed to the layer
 you are on: new layer, new folder, move up and down, merge down, the three
 checkboxes (visible, locked, lock transparency), select contents, blank
@@ -54,6 +59,16 @@ the selection — or Ctrl+click a selected one to drop it. **Shift+click** takes
 every row between the last one you picked and this one; Shift+click again
 somewhere else re-ranges from the same starting row rather than adding a second
 run, so overshooting is corrected with one more click.
+
+**Ctrl and Shift work anywhere on the row** — on the eye, the locks, the arrows
+or the name alike. With either key held, a click on a row's button selects the
+row instead of pressing the button. The one exception is Ctrl on the thumbnail,
+which still selects the layer's pixels.
+
+**Clicking a folder's header picks the folder**: its header lights up, every
+layer in it is selected, and its top layer becomes the active one. Ctrl+click a
+header to add a folder's layers to what is already selected; Shift+click one to
+range up to it.
 
 The selected rows are tinted, and one of them — the last you clicked — is
 tinted more strongly. That one is the **active** layer, and it is where the next
@@ -82,16 +97,28 @@ members joins the folder, dropping beside a loose row leaves it — and the whol
 drop is one undo step. A drag moves the one row you picked up; the ▲/▼ buttons
 remain the way to move a multi-selection as a block.
 
+**Every part of the docker is a place to drop**, including the thin gaps between
+rows and the indent in front of a folder's layers: each belongs to the nearest
+row. Letting go outside the docker cancels the drag. A pen has to travel a
+little further than a mouse before a press becomes a drag, so a tap that wobbles
+stays a tap.
+
 **A folder header drags too, and takes the whole folder with it.** The block
 keeps its own order and lands above or below wherever you drop it. Folders do
-not go inside other folders, so a folder in your hand always lands *beside* what
-is under the pointer, never in it.
+not go inside other folders, so a folder in your hand always lands *beside*
+another folder, never in it — over the middle of another folder nothing is
+offered at all.
 
-**A folder header is three targets, not two.** Its middle files a layer into the
-folder — the common case, so it is the part you get by aiming at the row. The
-top and bottom quarters put the layer above or below the whole folder instead,
-which is how you get a layer to sit just outside a folder without hunting for
-whatever row happens to be next to it.
+**Dropping a layer on a folder header files it into the folder**, at the top.
+The top quarter of the header puts it just *above* the folder instead. On an
+open folder the rest of the header is "inside", because directly under the
+header is the top of the folder. On a collapsed folder, whose layers are hidden,
+the bottom quarter puts the layer just *below* the folder. And when a folder is
+the very last thing in the docker — a transparent document has no paper under
+it — the bottom quarter of its last layer takes a layer out below the folder.
+
+A drop that would leave everything where it is does nothing at all: it is not
+an undo step and does not mark the document changed.
 
 **While you drag, two things tell you what will happen**: a small label under
 the pointer naming what you picked up, and a line on the row you are over
