@@ -1185,7 +1185,7 @@ public partial class MainViewModel
         var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
         if (layer.Cels[here].Frame is not null) return null;                    // keyed since
         if (ExposureSheet.ExposedFrame(layer, here)?.Id != heldId) return null; // a different hold
-        return PaintTargetOrKey();
+        return PaintTargetOrKey(editsWhatTheHoldShows: true);
     }
 
     private void CommitTransformCore(TransformOps.PointMap map, double sizeScale, SKMatrix baselineMatrix)

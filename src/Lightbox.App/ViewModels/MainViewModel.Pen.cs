@@ -47,7 +47,12 @@ public partial class MainViewModel
     public bool PenPress(double x, double y, double tolerance, bool shift = false, bool alt = false)
     {
         if (ActiveTool != ToolId.Pen || IsPlaying) return false;
-        if (!CanEdit(ActiveLayer, "draw on it") || PaintTargetOrKey() is null) return false;
+        // No key at the press (Q197). The nodes are an overlay, not the record,
+        // so nothing needs a drawing until FinishPen writes the line — which
+        // keys then. Keying here left a blank drawing behind a path that was
+        // parked, abandoned, or never got its second node, and under the
+        // blank default that empties the frame on screen.
+        if (!CanEdit(ActiveLayer, "draw on it")) return false;
         CommitSwatchEdit();
 
         _pen ??= new PenSession();

@@ -72,7 +72,7 @@ public class MainViewModelTests
         }
         finally
         {
-            vm.DrawingOnAHold = HoldDrawing.StartANewDrawing;
+            vm.DrawingOnAHold = HoldDrawing.StartABlankDrawing;
         }
     }
 

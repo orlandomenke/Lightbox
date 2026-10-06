@@ -518,7 +518,7 @@
         <StackPanel Spacing="6">
           <TextBlock Text="Drawing on a held cel" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
-                     Text="A cel that holds an earlier drawing is not a drawing of its own, so a mark on one has two honest readings. Which you mean depends on how you work." />
+                     Text="A cel that holds an earlier drawing is not a drawing of its own, so a mark on one has three honest readings. Which you mean depends on how you work." />
           <ComboBox x:Name="HoldBox" Width="260" SelectionChanged="OnHoldDrawingChanged" />
           <TextBlock x:Name="HoldHint" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
         </StackPanel>

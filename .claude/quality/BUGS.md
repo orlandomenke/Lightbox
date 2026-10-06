@@ -3370,6 +3370,7 @@ test reopens the bug.
   - The copy is `KeyedCopyOf`, not `DocumentEditor.CloneFrame`: that helper leaves placements behind (a recorded decision about duplicating a frame in time), and a placement that vanished under the first mark would break exactly the promise the copy exists to keep. Fresh frame and stroke ids so two frames never share cached renders; placement ids survive (`SymbolPlacement.Clone` is memberwise), which B206's placement drag depends on.
   - A layer with no key at all still starts from nothing — that is the ordinary way to start a drawing, and the blank-layer half of `PaintTargetOrKey`'s job is unchanged. An artist who wanted a blank sheet on a hold erases the copy, or keys a blank cel from the timeline.
   - Cost: S
+  - **Reversed as the default by Q197 (2026-10-06), on the owner's later request** — "if drawn on it it removes the hold and draws a fresh frame". A mark on a hold now starts a blank drawing, with the onion skin as the light table; the copy this entry built is kept as the *Start from a copy* choice of the same setting, and every edit *of* the held drawing (move, transform, line edits, the bucket, smudge) still copies regardless. The evidence test now sets *Start from a copy* explicitly, so this fix stays guarded as an option.
 
 ### transform
 

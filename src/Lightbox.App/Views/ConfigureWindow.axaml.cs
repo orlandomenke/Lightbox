@@ -766,6 +766,8 @@ public partial class ConfigureWindow : Window
     {
         if (_vm is null) return;
         _loadingTimeline = true;
+        HoldBox.ItemTemplate ??= new Avalonia.Controls.Templates.FuncDataTemplate<ViewModels.HoldDrawing>(
+            (choice, _) => new TextBlock { Text = HoldDrawingLabel(choice) });
         HoldBox.ItemsSource = _vm.HoldDrawingChoices;
         HoldBox.SelectedItem = _vm.DrawingOnAHold;
         LoopBox.IsChecked = _vm.LoopPlayback;
@@ -884,11 +886,27 @@ public partial class ConfigureWindow : Window
             ViewModels.HoldDrawing.EditTheHeldDrawing =>
                 "The mark joins the drawing being held, so it appears on every frame holding it. "
                 + "Right for touching up a held pose without breaking the hold.",
+            ViewModels.HoldDrawing.StartFromACopy =>
+                "The cel becomes a drawing of its own, starting as a copy of the one it held, and "
+                + "the mark lands on it. Nothing on screen changes but the mark — right for "
+                + "working by altering the last drawing.",
             _ =>
-                "The cel becomes a drawing of its own and the mark lands on it. What every animation "
-                + "tool does, and what makes the timeline show a drawing where you made one.",
+                "The cel becomes a new, empty drawing and the mark lands on it — the next sheet "
+                + "of paper. The onion skin shows the drawing before; with it off, that drawing "
+                + "disappears from this frame under the first mark.",
         };
     }
+
+    /// <summary>
+    /// The words the hold choice shows in its list. The enum names are what the
+    /// settings file stores, which is no reason to make an artist read them.
+    /// </summary>
+    internal static string HoldDrawingLabel(ViewModels.HoldDrawing choice) => choice switch
+    {
+        ViewModels.HoldDrawing.StartFromACopy => "Start from a copy",
+        ViewModels.HoldDrawing.EditTheHeldDrawing => "Edit the held drawing",
+        _ => "Start a blank drawing",
+    };
 
     private void OnHoldDrawingChanged(object? sender, SelectionChangedEventArgs e)
     {

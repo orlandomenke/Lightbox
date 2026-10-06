@@ -306,7 +306,10 @@ public partial class MainViewModel
             _selectionManager.AddStrokeToSelection(strokes[position].Id);
         }
 
-        if (PaintTargetOrKey() is Frame { Placements: { Count: > 0 } placements })
+        // Read, not keyed: selecting authors nothing (B207's rule for picking).
+        // This keyed the cel, which under Q197's blank default would have
+        // emptied a held frame on Ctrl+A. The edit that follows keys a copy.
+        if (PaintTarget() is Frame { Placements: { Count: > 0 } placements })
         {
             foreach (var placement in placements)
             {

@@ -174,10 +174,17 @@ public partial class MainViewModel
         ToolKind tool, string color, string? swatchId, string label)
     {
         if (_selectionContours.Count == 0) return;
-        if (PaintTargetOrKey() is not { } target) return;
+        // Filling the selection is a mark, so the hold setting decides (Q197).
+        // Delete clearing the boxed region is an edit of what the hold shows —
+        // the same gesture as cutting it — so it keys a copy to clear from.
+        if (PaintTargetOrKey(editsWhatTheHoldShows: tool == ToolKind.ClearRegion) is not { } target) return;
         var scene = Scene;
 
-        if (StrokeShapedLikeTheSelection(tool, color, swatchId, label) is not { } stroke) return;
+        if (StrokeShapedLikeTheSelection(tool, color, swatchId, label) is not { } stroke)
+        {
+            TakeBackUnusedKey();
+            return;
+        }
 
         // B236, the area form: clearing a selection that held nothing is the
         // same act as rubbing out blank canvas, so it is recorded the same way
@@ -362,7 +369,13 @@ public partial class MainViewModel
     {
         if (IsPlaying) return;
         if (!CanEdit(ActiveLayer, "fill on it")) return;
-        if (PaintTargetOrKey() is not { } target) return;
+        // Q197: the bucket is a mark that takes its boundaries from the drawing
+        // it lands on. On a blank page there are no boundaries — a click inside
+        // a held character's shirt would flood the whole frame — and filling
+        // the held lines' shape onto a page without the lines leaves a
+        // silhouette. Colouring held line art means the lines and the colour on
+        // this frame, so the bucket starts from a copy whatever the setting.
+        if (PaintTargetOrKey(editsWhatTheHoldShows: true) is not { } target) return;
 
         // Held Shift flips it for this click only. A line-art layer over a
         // painted background wants smart fill nine times out of ten and
@@ -371,6 +384,7 @@ public partial class MainViewModel
         var result = FillRegion(x, y, invertSmart, target);
         if (result is null)
         {
+            TakeBackUnusedKey(); // a fill that filled nothing keeps no key
             AiStatus = "Nothing fillable at that spot.";
             return;
         }

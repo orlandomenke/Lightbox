@@ -73,11 +73,12 @@ public sealed class TimelineHoldTests : BrushStateIsolated
     [AvaloniaFact]
     public void TheKeyedCelCarriesTheHeldDrawing()
     {
-        // Keying must not change the picture: the new drawing starts as a copy
-        // of what the hold was showing, and the mark is the only difference.
-        // A cel that went blank under the first touch read as the app losing
-        // the drawing.
+        // The default until Q197, now a choice: keying does not change the
+        // picture, because the new drawing starts as a copy of what the hold
+        // was showing and the mark is the only difference. The blank default
+        // is pinned in BlankDrawingOnAHoldTests.
         var vm = Vm();
+        vm.DrawingOnAHold = HoldDrawing.StartFromACopy;
         Draw(vm);                       // the held drawing, on frame 0
         vm.AddFrameCommand.Execute(null);
         var layer = vm.PaintLayer();
@@ -191,7 +192,7 @@ public sealed class TimelineHoldTests : BrushStateIsolated
         }
         finally
         {
-            vm.DrawingOnAHold = HoldDrawing.StartANewDrawing;
+            vm.DrawingOnAHold = HoldDrawing.StartABlankDrawing;
         }
     }
 

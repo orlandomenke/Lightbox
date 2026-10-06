@@ -194,12 +194,15 @@ public class NoOpErasureTests(ITestOutputHelper output) : BrushStateIsolated
 
     /// <summary>
     /// And the same gesture over ink still keys, or the no-op rule would have
-    /// quietly broken erasing on a hold altogether.
+    /// quietly broken erasing on a hold altogether. Under "Start from a copy"
+    /// only: since Q197 the default keys a blank page, where an eraser has
+    /// nothing to rub out — <c>BlankDrawingOnAHoldTests</c> pins that side.
     /// </summary>
     [AvaloniaFact]
     public void ErasingSomethingOnAHoldStillKeysTheCel()
     {
         var vm = OnAHold(out var layer);
+        vm.DrawingOnAHold = HoldDrawing.StartFromACopy;
 
         vm.ActiveTool = ToolId.Eraser;
         vm.BrushSize = 60;

@@ -56,7 +56,7 @@ public partial class MainViewModel
     public void BeginGradient(double x, double y)
     {
         if (ActiveTool != ToolId.Gradient || IsPlaying) return;
-        if (!CanEdit(ActiveLayer, "fill on it") || PaintTargetOrKey() is null) return;
+        if (!CanEdit(ActiveLayer, "fill on it")) return;
         // A brand-new document has no gradients, and telling someone who just
         // picked the gradient tool to go and make one first is a dead end. A
         // fresh Gradient is already black to white, which is the ramp anyone
@@ -68,6 +68,9 @@ public partial class MainViewModel
             return;
         }
         CommitSwatchEdit();
+        // Last of the steps the press can push, so a click with no drag can
+        // hand the key back — DiscardStep only ever takes the newest step.
+        if (PaintTargetOrKey() is null) return;
 
         // B216. The shape tool beside this one has snapped its corners since it
         // shipped and this never snapped anything, for no reason either tool
@@ -151,7 +154,7 @@ public partial class MainViewModel
         if (_liveGradient is not { } stroke) return;
         if (!snapAngle) (x, y) = SnappedPoint(x, y);
         stroke.Points[1] = GradientEnd(stroke, x, y, snapAngle);
-        CancelGradient(); // clears the preview; the record gets the stroke below
+        ClearLiveGradient(); // clears the preview; the record gets the stroke below
 
         if (PaintTarget() is not { } target) return;
         var dx = stroke.Points[1].X - stroke.Points[0].X;
@@ -160,6 +163,7 @@ public partial class MainViewModel
         // degenerate shader over the whole layer, which is never the intent.
         if (dx * dx + dy * dy < 1.0)
         {
+            TakeBackUnusedKey(); // the press may have keyed a hold for nothing
             AiStatus = "Drag to set the gradient's direction and length.";
             return;
         }

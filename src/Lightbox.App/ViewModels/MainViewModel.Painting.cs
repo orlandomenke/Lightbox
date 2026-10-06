@@ -921,7 +921,16 @@ public partial class MainViewModel
     /// </remarks>
     private long? _lastAutoGrowRevision;
 
-    private Frame? PaintTargetOrKey()
+    /// <param name="editsWhatTheHoldShows">
+    /// True for a gesture that acts <em>on</em> the held drawing — moving or
+    /// deleting selected lines, a transform, a cut, dragging a placement, the
+    /// bucket, blur and smudge, an alpha-locked layer (see <c>HoldDrawing</c>). Such
+    /// a gesture keys a copy whatever <see cref="DrawingOnAHold"/> says,
+    /// because on a blank drawing it would have nothing to act on (B206,
+    /// B207). False, the default, for a mark: the setting decides whether the
+    /// new drawing starts blank (Q197) or from a copy.
+    /// </param>
+    private Frame? PaintTargetOrKey(bool editsWhatTheHoldShows = false)
     {
         // Both bookkeeping resets first, so an early return below cannot leave
         // either pointing at a step from a previous gesture.
@@ -950,13 +959,19 @@ public partial class MainViewModel
         }
         var index = here;
         var layerId = layer.Id;
-        // The key must not change the picture. The new drawing carries a copy
-        // of what the hold was showing, so the mark (or move, or erase) that
-        // prompted the key is the only visible change — a cel that went blank
-        // under the first touch read as the app losing the drawing. A layer
-        // with no key at all still starts from nothing, which is the ordinary
-        // way to start one.
-        var fresh = KeyedCopyOf(PaintTarget()); // one class, so the layer's kind decides nothing here
+        // Q197: a mark starts a blank drawing by default — the next sheet of
+        // paper, with the onion skin showing the one before. The copy is the
+        // other choice of the same setting, for an artist who works by
+        // modifying the last drawing, and it is also what every edit OF the
+        // held drawing gets regardless (see the parameter): moving lines on a
+        // blank page would have no lines to move. A layer with no key at all
+        // starts from nothing either way, which is the ordinary way to start
+        // one. One class, so the layer's kind decides nothing here.
+        //
+        // An eraser on a hold in blank mode erases nothing, and B236 below
+        // takes the key back with it, so the hold survives untouched.
+        var blank = !editsWhatTheHoldShows && DrawingOnAHold == HoldDrawing.StartABlankDrawing;
+        var fresh = blank ? new Frame() : KeyedCopyOf(PaintTarget());
         // B236: remembered so a gesture that turns out to have changed nothing
         // can take the key back with it. Sweeping an eraser across a hold and
         // hitting no ink would otherwise break the hold and add a drawing to
@@ -976,6 +991,49 @@ public partial class MainViewModel
         return PaintTarget();
     }
 
+    /// <summary>The keying and growth steps one <see cref="PaintTargetOrKey"/> pushed.</summary>
+    private readonly record struct AutoKey(long? Key, long? Grow);
+
+    /// <summary>
+    /// What the last <see cref="PaintTargetOrKey"/> pushed, for a gesture that
+    /// spans several calls (a pen path, a type session) and has to remember it
+    /// past the next one, which resets the fields.
+    /// </summary>
+    private AutoKey LastAutoKey => new(_lastAutoKeyRevision, _lastAutoGrowRevision);
+
+    /// <summary>
+    /// Take back the key, and the scene growth, that a gesture pushed and then
+    /// recorded nothing on — B236's rule, for every tool that keys at the press.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Q197 is what made this more than the eraser's problem.</b> When a
+    /// keyed hold started from a copy, a shape-tool click with no drag left a
+    /// stray drawing on the timeline that looked like the one before. With the
+    /// blank default the same click empties the frame on screen, which reads as
+    /// the app losing the drawing — so every gesture that can key and then
+    /// decline (a shape or gradient click with no drag, a cancelled gradient,
+    /// a fill with nothing to fill, type with no letters, a stroke cut off by
+    /// playback) hands its key back. The pen does not key until its line is
+    /// written, so it has nothing to hand back.
+    /// </para>
+    /// <para>
+    /// Newest first: the growth was pushed before the keying, and a step is
+    /// discarded by revision, so unwinding in the order they landed would
+    /// leave the later one sitting on a document the earlier one has already
+    /// taken back. <see cref="DocumentEditor.DiscardStep"/> only ever pops the
+    /// newest step, so a key that something has since built on stays.
+    /// </para>
+    /// </remarks>
+    private void TakeBackUnusedKey(AutoKey? keyed = null)
+    {
+        var (key, grow) = keyed ?? LastAutoKey;
+        if (key is { } k) _editor.DiscardStep(k);
+        if (grow is { } g) _editor.DiscardStep(g);
+        _lastAutoKeyRevision = null;
+        _lastAutoGrowRevision = null;
+    }
+
     private static Cel? CelIn(Doc doc, string layerId, int index)
     {
         var layer = doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId);
@@ -988,8 +1046,10 @@ public partial class MainViewModel
     /// </summary>
     /// <remarks>
     /// Not <c>DocumentEditor.CloneFrame</c>, which leaves placements behind (a
-    /// recorded decision about duplicating a frame in time). Keying a hold is
-    /// a promise that the picture does not change, and a placement that
+    /// recorded decision about duplicating a frame in time). Keying a hold
+    /// <em>from a copy</em> is a promise that the picture does not change — an
+    /// edit of the held drawing always makes that promise, and a mark makes it
+    /// when the artist chose "Start from a copy" (Q197) — and a placement that
     /// vanished from the cel under the first mark would break it. Fresh ids
     /// on the frame and its strokes, because two frames sharing them would
     /// cross their cached renders; placement ids survive the copy
@@ -1060,7 +1120,7 @@ public partial class MainViewModel
         {
             indices[i] = held.Strokes.FindIndex(s => s.Id == ids[i]);
         }
-        if (PaintTargetOrKey() is not { } target) return null;
+        if (PaintTargetOrKey(editsWhatTheHoldShows: true) is not { } target) return null;
         if (ReferenceEquals(target, held)) return target; // not a hold: nothing to translate
         for (var i = 0; i < ids.Count; i++)
         {
@@ -1071,9 +1131,18 @@ public partial class MainViewModel
     }
 
     /// <summary>Get placements from the current frame for selection feedback.</summary>
+    /// <remarks>
+    /// A read, so it must never author a cel — the canvas calls it while
+    /// drawing the selection chrome and while hit-testing a press. It used to
+    /// go through <c>PaintTargetOrKey</c>, which meant drawing a frame with a
+    /// selection on a hold keyed the cel; under Q197's blank default that
+    /// would have emptied the cel on screen. On a hold this returns the held
+    /// drawing's placements, and a drag that actually moves one keys a copy
+    /// then (placement ids survive the copy).
+    /// </remarks>
     public IReadOnlyList<SymbolPlacement>? GetCurrentFramePlacements()
     {
-        if (PaintTargetOrKey() is Frame frame && frame.Placements is not null)
+        if (PaintTarget() is Frame frame && frame.Placements is not null)
             return frame.Placements.AsReadOnly();
         return null;
     }
@@ -1676,10 +1745,18 @@ public partial class MainViewModel
             AiStatus = "Blur and smudge don't work on a layer mask — paint or erase its coverage instead.";
             return;
         }
-        if (PaintTargetOrKey() is not { } target) return;
         // Drawing ends any run of palette edits, so the recolour lands on the
-        // undo stack before the stroke does rather than after it.
+        // undo stack before the stroke does rather than after it — and before
+        // the key, so a gesture that records nothing can still hand the key
+        // back (DiscardStep only takes the newest step).
         CommitSwatchEdit();
+        // Q197: a blur or smudge reworks the pixels already there, and an
+        // alpha-locked layer paints only where there is paint — on a blank
+        // page each would do nothing and leave the frame empty. Both act on
+        // what the hold shows, so both start from a copy.
+        var reworksWhatIsThere = CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge
+            || ActiveLayer is { AlphaLocked: true };
+        if (PaintTargetOrKey(editsWhatTheHoldShows: reworksWhatIsThere) is not { } target) return;
         // A stroke's guide is chosen once, from a direction it has committed
         // to. The anchor is where that direction is measured from, so it is
         // the unsnapped start — snapping the anchor first would measure the
@@ -1848,8 +1925,9 @@ public partial class MainViewModel
     public void BeginShape(double x, double y)
     {
         if (ActiveTool != ToolId.Shape || IsPlaying) return;
-        if (!CanEdit(ActiveLayer, "draw on it") || PaintTargetOrKey() is null) return;
-        CommitSwatchEdit();
+        if (!CanEdit(ActiveLayer, "draw on it")) return;
+        CommitSwatchEdit(); // below the key, so a click with no drag can hand it back
+        if (PaintTargetOrKey() is null) return;
 
         (x, y) = SnappedPoint(x, y);
         _shapeStart = (x, y);
@@ -1898,6 +1976,7 @@ public partial class MainViewModel
         var dy = y - _shapeStart.Y;
         if (dx * dx + dy * dy < 1.0)
         {
+            TakeBackUnusedKey(); // the press may have keyed a hold for nothing
             AiStatus = "Drag to size the shape.";
             return;
         }
@@ -1972,7 +2051,15 @@ public partial class MainViewModel
         _publish.InvalidateWholeCanvas();
     }
 
+    /// <summary>Abandon the gradient being dragged, recording nothing.</summary>
     public void CancelGradient()
+    {
+        if (_liveGradient is null) return;
+        ClearLiveGradient();
+        TakeBackUnusedKey(); // the press may have keyed a hold for nothing
+    }
+
+    private void ClearLiveGradient()
     {
         if (_liveGradient is null) return;
         _liveGradient = null;
@@ -3842,15 +3929,8 @@ public partial class MainViewModel
         // The cel goes back to being a hold. No refresh call here on purpose:
         // DiscardStep raises the editor's Changed event, which is the same
         // signal the keying itself fired, so everything that reacted to the
-        // cel appearing reacts to it going away.
-        // Newest first: the growth was pushed before the keying, and a step is
-        // discarded by revision, so unwinding in the order they landed would
-        // leave the later one sitting on a document the earlier one has already
-        // taken back.
-        if (_lastAutoKeyRevision is { } keyed) _editor.DiscardStep(keyed);
-        if (_lastAutoGrowRevision is { } grown) _editor.DiscardStep(grown);
-        _lastAutoKeyRevision = null;
-        _lastAutoGrowRevision = null;
+        // cel appearing reacts to it going away. Growth too, newest first.
+        TakeBackUnusedKey();
 
         var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) _publish.MarkDirty(touched);
