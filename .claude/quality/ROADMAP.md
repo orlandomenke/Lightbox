@@ -1896,6 +1896,9 @@ not re-derive it.
 ### Project plumbing
 
 - [x] Autosave `evidence: AutosaveService`
+- [ ] A version field on the document format, and a warning before an older build saves over a newer file `evidence: DocFormatVersion, FormatVersionTests, AFileFromANewerBuildWarnsBeforeItIsSavedOver, AnUnknownKeySurvivesARoundTripThroughAnOlderReader`
+  - **Q193, 2026-10-06.** `DocJson` writes only the keys this build knows and `System.Text.Json` drops unknown members on read, so a file saved by a newer build and re-saved by an older one silently loses every key the older build has never heard of. For `symmetry` on a stroke that is a pixel change — the reflected half of every mirrored mark disappears — and nothing says so, because to the older build the file never had it. Found by the sensitivity-guardian reviewing `Scene.Symmetry`.
+  - Two halves, the first non-negotiable: a `version` integer written once per document, and a reader that sees a higher one **warns before saving over it**; then unknown keys kept through the round trip so the warning is survivable. Not a migration system — a lower version reads as today, because every key so far has been nullable and absent. Cost: S for the field and the guard; the keep-unknown-keys bag touches every record and wants an absence test each.
 - [x] Custom shortcuts `evidence: ShortcutMap, ShortcutMapTests, ConfigureWindow`
 - [x] Context-aware shortcuts `evidence: ShortcutContext, ContextShortcutTests`
 - [x] Undo history browser — the History docker: every step named, current state marked, double-click to jump `evidence: UndoHistoryViewModel, UndoHistoryRow, UndoHistoryTests, UndoHistoryPanelTests, NavigatingTheHistoryRestoresTheState, UndoneStepsStayInTheHistoryMarkedAsAhead, ATrimmedHistorySaysSoAndJumpStopsAtTheOldestStep, JumpReportsOneFrameWhenEveryStepAgreed`
