@@ -89,7 +89,8 @@ public static class GuidePainter
         IReadOnlyList<Line>? guides,
         Line? draft,
         SKRectI? docViewport = null,
-        SKColorFilter? artworkFilter = null)
+        SKColorFilter? artworkFilter = null,
+        bool tiled = false)
     {
         checkerboard?.Invoke(canvas);
         if (artwork is not null)
@@ -100,20 +101,32 @@ public static class GuidePainter
 
             // When compositing is viewport-culled, the image is smaller than the document.
             // Draw it at the viewport position with its actual size.
-            if (docViewport is { } vp && (vp.Width > 0 && vp.Height > 0))
+            var dest = docViewport is { } vp && vp.Width > 0 && vp.Height > 0
+                ? new SKRect(vp.Left, vp.Top, vp.Left + vp.Width, vp.Top + vp.Height)
+                : new SKRect(0, 0, docW, docH);
+            var sampling = new SKSamplingOptions(SKFilterMode.Linear);
+
+            // Seamless tiles (Q192): the page's eight neighbours, the same
+            // image moved by a page width or height, so the seam is judged
+            // where it will be seen. Dimmed so the page still reads as the
+            // page, and drawn first so the page sits on top. View-only — it
+            // never reaches a pixel of the document.
+            if (tiled)
             {
-                canvas.DrawImage(
-                    artwork,
-                    new SKRect(vp.Left, vp.Top, vp.Left + vp.Width, vp.Top + vp.Height),
-                    new SKSamplingOptions(SKFilterMode.Linear),
-                    paint);
+                using var dim = new SKPaint { IsAntialias = true, ColorFilter = artworkFilter, Color = SKColors.White.WithAlpha(170) };
+                for (var dy = -1; dy <= 1; dy++)
+                {
+                    for (var dx = -1; dx <= 1; dx++)
+                    {
+                        if (dx == 0 && dy == 0) continue;
+                        var at = dest;
+                        at.Offset(dx * docW, dy * docH);
+                        canvas.DrawImage(artwork, at, sampling, dim);
+                    }
+                }
             }
-            else
-            {
-                // Normal case: draw full-document image at (0,0) to (docW, docH)
-                canvas.DrawImage(
-                    artwork, new SKRect(0, 0, docW, docH), new SKSamplingOptions(SKFilterMode.Linear), paint);
-            }
+
+            canvas.DrawImage(artwork, dest, sampling, paint);
         }
         Paint(canvas, guides, draft, docW, docH, scale);
     }

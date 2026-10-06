@@ -77,7 +77,7 @@ public static class QuickBarCatalog
     [
         new(BrushOptions, "Brush options", "Hardness, flow and smoothing while the brush is in hand"),
         new(EraserOptions, "Eraser options", "Hardness and smoothing while the eraser is in hand"),
-        new(BrushSymmetry, "Symmetry", "Mirror and radial symmetry for the brush and eraser — the toggle, how many copies, and whether they reflect"),
+        new(BrushSymmetry, "Symmetry and tiles", "Mirror and radial symmetry for the brush and eraser — the toggle, how many copies, whether they reflect — and the seamless-tile toggle"),
         new(ShapeOptions, "Shape options", "Which shape, and its settings, while the shape tool is in hand"),
         new(FillOptions, "Fill options", "Tolerance and reach while the fill is in hand"),
         new(SelectOptions, "Selection options", "Marquee shape, feather and the selection actions while selecting"),

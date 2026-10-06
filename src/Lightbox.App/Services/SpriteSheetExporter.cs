@@ -73,7 +73,8 @@ public sealed record SpriteSheetResult(
     long UsedArea = 0,
     IReadOnlyList<OmittedLayer>? Omitted = null,
     IReadOnlyList<SuspectedBackground>? Suspected = null,
-    IReadOnlyList<FrameOwner>? FrameOwners = null)
+    IReadOnlyList<FrameOwner>? FrameOwners = null,
+    bool Wrapped = false)
 {
     /// <summary>How much of the sheet is sprite, 0 to 1.</summary>
     public double Occupancy =>
@@ -295,11 +296,20 @@ public static class SpriteSheetExporter
             var allOmitted = new List<OmittedLayer>();
             var allSuspected = new List<SuspectedBackground>();
 
+            // Seamless tiles (Q192): a trimmed tile is no longer a tile, so a
+            // document whose strokes wrap exports every cell as the whole
+            // canvas whatever the preset said, and its gutter is extruded
+            // from the wrapped neighbour rather than left transparent. Per
+            // document: a character sharing a sheet with a tile keeps its trim.
+            var wrapsByDoc = docs.Select(doc => AnyStrokeWraps(doc.Scene)).ToArray();
+            var wraps = wrapsByDoc.Any(w => w);
+
             for (var d = 0; d < docs.Count; d++)
             {
                 var scene = docs[d].Scene;
                 var count = Math.Max(1, scene.FrameCount);
                 starts.Add(frames.Count);
+                var trim = wrapsByDoc[d] ? SpriteTrim.None : opts.Trim;
 
                 // The cache is shared across documents (frame ids are unique),
                 // but each document poses against its own rig — so the
@@ -326,9 +336,9 @@ public static class SpriteSheetExporter
                 // Trim unions within the document, so its character holds
                 // still; None takes the composite canvas, so a small document
                 // is not the crop of a large one.
-                cells.AddRange(opts.Trim == SpriteTrim.None
+                cells.AddRange(trim == SpriteTrim.None
                     ? ink.Select(_ => new SKRectI(0, 0, wholeW, wholeH))
-                    : CellsFor(opts.Trim, ink, scene));
+                    : CellsFor(trim, ink, scene));
             }
 
             var total = frames.Count;
@@ -387,6 +397,10 @@ public static class SpriteSheetExporter
                 surface.Canvas.ClipRect(SKRect.Create(x, y, w, h));
                 surface.Canvas.DrawImage(frames[i], x - cell.Left, y - cell.Top);
                 surface.Canvas.Restore();
+                if (wrapsByDoc[owners[i].Document])
+                {
+                    ExtrudeGutter(surface.Canvas, frames[i], x - cell.Left, y - cell.Top, x, y, w, h, stride);
+                }
 
                 var pivot = scene.Pivot;
                 entries.Add(new SheetFrame
@@ -394,7 +408,7 @@ public static class SpriteSheetExporter
                     Filename = $"{Path.GetFileNameWithoutExtension(sheetPath)} {i}.png",
                     Frame = new Box(x, y, w, h),
                     Rotated = false,
-                    Trimmed = opts.Trim != SpriteTrim.None,
+                    Trimmed = (wrapsByDoc[owners[i].Document] ? SpriteTrim.None : opts.Trim) != SpriteTrim.None,
                     SpriteSourceSize = new Box(cell.Left, cell.Top, w, h),
                     // The composite extent, not the frame's own canvas — the
                     // same one the untrimmed cell was measured against, so an
@@ -477,7 +491,7 @@ public static class SpriteSheetExporter
             return new SpriteSheetResult(
                 sheetPath, metaPath, cellW, cellH, columns, rows, total,
                 opts.Pack, sheetW, sheetH, entries.Sum(e => (long)e.Frame.W * e.Frame.H),
-                allOmitted, allSuspected, owners);
+                allOmitted, allSuspected, owners, wraps);
         }
         finally
         {
@@ -524,7 +538,10 @@ public static class SpriteSheetExporter
                 inkBounds.Add(InkBoundsOf(image));
             }
 
-            var cells = CellsFor(opts.Trim, inkBounds, scene);
+            // Seamless tiles (Q192): see the multi-document path above.
+            var wraps = AnyStrokeWraps(scene);
+            var trim = wraps ? SpriteTrim.None : opts.Trim;
+            var cells = CellsFor(trim, inkBounds, scene);
             var cellW = Math.Max(1, cells.Max(c => c.Width));
             var cellH = Math.Max(1, cells.Max(c => c.Height));
 
@@ -590,6 +607,7 @@ public static class SpriteSheetExporter
                 surface.Canvas.ClipRect(SKRect.Create(x, y, w, h));
                 surface.Canvas.DrawImage(frames[i], x - cell.Left, y - cell.Top);
                 surface.Canvas.Restore();
+                if (wraps) ExtrudeGutter(surface.Canvas, frames[i], x - cell.Left, y - cell.Top, x, y, w, h, stride);
 
                 entries.Add(new SheetFrame
                 {
@@ -598,7 +616,7 @@ public static class SpriteSheetExporter
                     // to find it — there is no grid to divide.
                     Frame = new Box(x, y, w, h),
                     Rotated = false,
-                    Trimmed = opts.Trim != SpriteTrim.None,
+                    Trimmed = trim != SpriteTrim.None,
                     // Aseprite's spriteSourceSize is where the trimmed cell sat
                     // in the untrimmed canvas, which is exactly the offset an
                     // importer needs to put the drawing back.
@@ -661,7 +679,7 @@ public static class SpriteSheetExporter
             return new SpriteSheetResult(
                 sheetPath, metaPath, cellW, cellH, columns, rows, count,
                 opts.Pack, sheetW, sheetH, entries.Sum(e => (long)e.Frame.W * e.Frame.H),
-                omitted, suspected);
+                omitted, suspected, Wrapped: wraps);
         }
         finally
         {
@@ -704,6 +722,55 @@ public static class SpriteSheetExporter
     private static SKRectI Union(SKRectI a, SKRectI b) => new(
         Math.Min(a.Left, b.Left), Math.Min(a.Top, b.Top),
         Math.Max(a.Right, b.Right), Math.Max(a.Bottom, b.Bottom));
+
+    /// <summary>Whether any stroke in the scene was painted as a seamless tile.</summary>
+    private static bool AnyStrokeWraps(Scene scene) =>
+        scene.Layers.Any(l => l.Cels.Any(c => c.Frame?.Strokes.Any(s => s.Wrap is { IsIdentity: false }) == true));
+
+    /// <summary>
+    /// Fill the gutter around a wrapped cell with the tile's own far edges.
+    /// </summary>
+    /// <remarks>
+    /// A transparent gutter is what stops an engine's bilinear filter pulling
+    /// one sprite into the next; for a tile that WRAPS it is the wrong answer,
+    /// because the pixel beyond the right edge is the left edge, and a
+    /// transparent one makes a dark seam at every tile boundary in the engine.
+    /// So the eight neighbours are drawn around the cell — the same image moved
+    /// by the cell's width or height, exactly as the canvas shows them — and
+    /// clipped to the gutter ring: a wrap-extruded gutter, the opposite edge
+    /// rather than the sprite's own border repeated, which is what a tile that
+    /// repeats actually has beyond its edge. With no padding there is no ring
+    /// and nothing is drawn.
+    /// </remarks>
+    /// <param name="frameX">Where the frame's own origin was drawn on the sheet.</param>
+    /// <param name="frameY">Where the frame's own origin was drawn on the sheet.</param>
+    /// <param name="x">The cell the ring surrounds.</param>
+    /// <param name="y">The cell the ring surrounds.</param>
+    /// <param name="w">The cell the ring surrounds.</param>
+    /// <param name="h">The cell the ring surrounds.</param>
+    /// <param name="stride">The gutter's width; nothing is drawn for zero.</param>
+    private static void ExtrudeGutter(
+        SKCanvas canvas, SKImage frame, int frameX, int frameY, int x, int y, int w, int h, int stride)
+    {
+        if (stride <= 0) return;
+        canvas.Save();
+        using var ring = new SKPath { FillType = SKPathFillType.EvenOdd };
+        ring.AddRect(SKRect.Create(x - stride, y - stride, w + 2 * stride, h + 2 * stride));
+        ring.AddRect(SKRect.Create(x, y, w, h));
+        canvas.ClipPath(ring);
+        // The neighbours sit a FRAME's width and height away from where the
+        // frame was drawn — the tile is the document, and on a sheet shared
+        // with a larger document the cell is bigger than the frame.
+        for (var dy = -1; dy <= 1; dy++)
+        {
+            for (var dx = -1; dx <= 1; dx++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                canvas.DrawImage(frame, frameX + dx * frame.Width, frameY + dy * frame.Height);
+            }
+        }
+        canvas.Restore();
+    }
 
     /// <summary>
     /// Composite one frame onto transparency, skipping the Background layer.

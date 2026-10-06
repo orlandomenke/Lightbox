@@ -338,6 +338,11 @@ public sealed class ShortcutMap
             // rather than starting to reflect their drawing. In Tools rather
             // than Canvas because it changes what the brush does.
             new("brush.symmetry", "Toggle symmetry painting", "Tools", G(Key.M, KeyModifiers.Shift)),
+            // Shift+T for tile, beside Shift+M for mirror: the two "the next
+            // mark lands more than once" toggles share a modifier. Plain T is
+            // transform, so the modifier is what keeps a slip from starting a
+            // transform instead of tiling the drawing.
+            new("brush.tileWrap", "Toggle seamless tile painting", "Tools", G(Key.T, KeyModifiers.Shift)),
             // Photoshop's three, on Photoshop's keys. Rulers are where a guide
             // is made, so the one that makes them reachable comes first.
             new("canvas.rulers", "Show rulers", "Canvas", G(Key.R, KeyModifiers.Control)),
@@ -441,9 +446,9 @@ public sealed class ShortcutMap
             // for from the canvas while colouring, not only from the docker.
             new("docker.clipToBelow", "Clip layer to the one below", "Dockers",
                 G(Key.G, KeyModifiers.Control | KeyModifiers.Alt)),
-            // No default gesture, the timeline.deleteColumn reason: there is
-            // no convention to borrow, and guessing one costs somebody their
-            // key. Bindable is the requirement.
+            // No default gesture: there is no convention to borrow, and
+            // guessing one costs somebody their key. Bindable is the
+            // requirement.
             new("docker.editMask", "Paint the active layer's mask", "Dockers", null),
             new("docker.effects", "Show or hide the Effects panel", "Dockers", null),
 
@@ -460,18 +465,38 @@ public sealed class ShortcutMap
             new("canvas.pickColor", "Color picker tool", "Tools", G(Key.I),
                 momentaryTool: ViewModels.ToolId.Picker),
             new("timeline.insertKey", "Insert keyframe at playhead (timeline)", "Timeline", G(Key.I), ShortcutContext.Panel, DockPanelId.Timeline),
-            // Q108. The operation is as old as DocumentEditor.DeleteFrame and was
-            // reachable only from one 🗑 button, so it could not be bound,
-            // searched or found — which is why it read as missing. No default
-            // gesture: Delete already means four context-dependent things (the
-            // twins above), and taking a fifth reading of it inside the timeline
-            // would be guessing at what an artist wants there. Bindable is what
-            // was actually missing.
-            new("timeline.deleteColumn", "Delete column (this frame, every layer)", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
+            // Q196: the X-sheet's two deletes, as context twins of the Delete keys
+            // above. Scoped to the X-sheet docker, because that is where the cel
+            // grid and its selection live — the Timeline docker beside it is a
+            // different panel (DockPanelId.Xsheet, not .Timeline), and a binding
+            // scoped there would never answer over the cels. So over the canvas
+            // Delete still clears the marquee, over the Layers docker it still
+            // deletes a layer, and on the board it still takes a picture off —
+            // each answers in its own place.
+            // The owner chose the keys: Delete keeps the slots (the drawings
+            // become holds), Shift+Delete removes them and pulls what follows
+            // back — the bigger edit on the shifted key. Both act on the cel
+            // selection, or the playhead's cel when nothing is selected.
+            new("xsheet.delete", "Delete (selected cels become holds)", "Timeline",
+                G(Key.Delete), ShortcutContext.Panel, DockPanelId.Xsheet),
+            new("xsheet.deleteAndPull", "Delete and pull (remove cels, pull the rest back)", "Timeline",
+                G(Key.Delete, KeyModifiers.Shift), ShortcutContext.Panel, DockPanelId.Xsheet),
+            // No default gesture: the owner asked for it registered rather than
+            // bound, and Insert is missing from many laptop keyboards. Being here
+            // is what lets an artist give it one.
+            new("xsheet.insertBlankFrame", "Insert blank frame (a hold at the cel)", "Timeline",
+                null, ShortcutContext.Panel, DockPanelId.Xsheet),
+            // `timeline.deleteColumn` (Q108) is retired rather than re-pointed.
+            // shortcuts.json is keyed by id, so this drops anyone's rebind of it —
+            // and that is the honest outcome: it removed the playhead's frame
+            // from every layer, and the command nearest in name, Delete and pull,
+            // does that only when the selection is a whole column. Keeping the id
+            // on it would put an artist's key on a different edit without telling
+            // them. It shipped with no default, so a rebind is the only thing lost.
             // The key clipboard crosses kinds — camera keys, pose keys, cels —
-            // where Ctrl+C is the cel clipboard's. No default gesture for the
-            // deleteColumn reason: taking a second reading of copy inside the
-            // timeline would be guessing; bindable is the requirement.
+            // where Ctrl+C is the cel clipboard's. No default gesture: taking a
+            // second reading of copy inside the timeline would be guessing;
+            // bindable is the requirement.
             new("timeline.copyKeys", "Copy selected keys (camera, pose, cels)", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
             new("timeline.pasteKeys", "Paste keys at playhead", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
             new("canvas.nudgeLeft", "Nudge selection left", "Canvas", G(Key.Left), ShortcutContext.Canvas),

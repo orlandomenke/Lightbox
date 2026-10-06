@@ -56,6 +56,25 @@ public partial class CanvasControl
     private Point _symmetryLast;
 
     /// <summary>
+    /// Whether the page's eight neighbours are drawn around it — on while the
+    /// artist paints seamless tiles (Q192). View-only, like the axis above;
+    /// painting into a neighbour is the view model's arithmetic, not the
+    /// canvas's.
+    /// </summary>
+    public bool TiledPreview
+    {
+        get => _tiledPreview;
+        set
+        {
+            if (_tiledPreview == value) return;
+            _tiledPreview = value;
+            InvalidateVisual();
+        }
+    }
+
+    private bool _tiledPreview;
+
+    /// <summary>
     /// A press on one of the gizmo's two handles, tested after the camera's
     /// for the same reason: small targets, and a press on one is a decision.
     /// Anywhere else on the canvas still paints — under the axis, if it is on.

@@ -264,6 +264,11 @@ public static class ExportRunner
         var layout = result.Pack == SpritePack.Skyline
             ? $"packed, {result.Occupancy:P0} used"
             : $"{result.Columns}x{result.Rows} grid";
-        return $"{result.FrameCount} frame(s), {result.SheetWidth}x{result.SheetHeight} px, {layout}";
+        var summary = $"{result.FrameCount} frame(s), {result.SheetWidth}x{result.SheetHeight} px, {layout}";
+        // The preset's trim was overridden and the gutter is not what the
+        // preset said; the artist hears it here rather than finding out in
+        // the engine (Q192).
+        if (result.Wrapped) summary += ", seamless tile: untrimmed, gutter wrapped";
+        return summary;
     }
 }

@@ -199,9 +199,9 @@ public partial class MainWindow
         if (CellOf(sender) is { } cell) _vm.DeleteCelAt(cell);
     }
 
-    private void OnDeleteColumn(object? sender, RoutedEventArgs e)
+    private void OnInsertBlankFrame(object? sender, RoutedEventArgs e)
     {
-        if (CellOf(sender) is { } cell) _vm.DeleteColumnAt(cell.Index);
+        if (CellOf(sender) is { } cell) _vm.InsertBlankFrameAt(cell);
     }
 
     private void OnCopyCel(object? sender, RoutedEventArgs e)
@@ -247,8 +247,7 @@ public partial class MainWindow
 
     private void OnMenuDeleteCel(object? sender, RoutedEventArgs e) => _vm.DeleteCelAtPlayhead();
 
-    private void OnMenuDeleteColumn(object? sender, RoutedEventArgs e) =>
-        _vm.DeleteColumnAt(_vm.CurrentFrameIndex);
+    private void OnMenuInsertBlankFrame(object? sender, RoutedEventArgs e) => _vm.InsertBlankFrameAtPlayhead();
 
     private void OnMenuSetStartFrame(object? sender, RoutedEventArgs e) => _vm.SetPlaybackStartAtPlayhead();
 

@@ -20,5 +20,10 @@ public partial class MainWindow
         Canvas.SymmetryCentreDragged += (dx, dy) => _vm.DragSymmetryCentreBy(dx, dy);
         Canvas.SymmetryAngleDragged += (x, y, snap) => _vm.DragSymmetryAngleTowards(x, y, snap);
         Canvas.SymmetryDragEnded += () => _vm.EndSymmetryDrag();
+
+        // Seamless tiles: the neighbours around the page are chrome, so the
+        // flag crosses the same way the axis does.
+        _vm.TileWrapChanged += () => Canvas.TiledPreview = _vm.TileWrapEnabled;
+        Canvas.TiledPreview = _vm.TileWrapEnabled;
     }
 }
