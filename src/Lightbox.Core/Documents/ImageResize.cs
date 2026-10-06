@@ -238,6 +238,16 @@ public static class ImageResize
                 symmetry.CenterX *= sx;
                 symmetry.CenterY *= sy;
             }
+            // The tile is a rectangle on the paper, so all four of its numbers
+            // follow the paper — a mark that wrapped at the old right edge
+            // wraps at the new one.
+            if (stroke.Wrap is { } wrap)
+            {
+                wrap.Left *= sx;
+                wrap.Top *= sy;
+                wrap.Width *= sx;
+                wrap.Height *= sy;
+            }
 
             // Size and TextureScale are the only two brush settings in
             // document pixels. Spacing, smudge length and radius, minimum

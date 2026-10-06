@@ -529,6 +529,7 @@
                   ToolTip.Tip="Mark the frame at the playhead as a key drawing" />
         <MenuItem Header="Insert _breakdown" Click="OnMenuInsertBreakdown" />
         <MenuItem Header="Insert _inbetween frame" Click="OnMenuInsertInbetween" />
+        <MenuItem Header="Insert blank _frame" Click="OnMenuInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n — the playhead's cel, or the selection" />
         <Separator />
         <MenuItem Header="_Extend exposure (+1 hold)" Click="OnMenuExtendExposure"
                   ToolTip.Tip="Hold the drawing under the playhead one frame longer" />
@@ -537,10 +538,10 @@
         <MenuItem Header="_Copy cel" Click="OnMenuCopyCel" InputGesture="Ctrl+C" />
         <MenuItem Header="Cu_t cel" Click="OnMenuCutCel" InputGesture="Ctrl+X" />
         <MenuItem Header="Pa_ste cel" Click="OnMenuPasteCel" InputGesture="Ctrl+V" />
-        <MenuItem Header="C_lear cel" Click="OnMenuClearCel"
-                  ToolTip.Tip="The drawing under the playhead loses its content; the timing stays" />
-        <MenuItem Header="Delete cel" Click="OnMenuDeleteCel" />
-        <MenuItem Header="Delete column (this frame, every layer)" Click="OnMenuDeleteColumn" />
+        <MenuItem Header="De_lete" Click="OnMenuClearCel"
+                  ToolTip.Tip="The drawings go and the cels become holds; nothing after them moves (Delete over the X-sheet)" />
+        <MenuItem Header="Delete and p_ull" Click="OnMenuDeleteCel"
+                  ToolTip.Tip="Remove the cels and pull the rest of the row back; selected across every layer, the frames leave the scene (Shift+Delete over the X-sheet)" />
         <Separator />
         <MenuItem Header="_Onion skin" ToggleType="CheckBox"
                   IsChecked="{Binding OnionSkin, Mode=TwoWay}"
@@ -4627,7 +4628,7 @@
               <Button Classes="icon" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame">
                 <Path Classes="icon" Data="{StaticResource IconDuplicate}" />
               </Button>
-              <Button Classes="icon" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame">
+              <Button Classes="icon" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete the current frame from every layer — the scene gets one frame shorter">
                 <Path Classes="icon" Data="{StaticResource IconTrash}" />
               </Button>
               <Button Classes="icon" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)">
@@ -4793,6 +4794,7 @@
                                     <MenuItem Header="Insert breakdown frame" Click="OnInsertBreakdown" />
                                     <MenuItem Header="Insert inbetween frame" Click="OnInsertInbetweenFrame" />
                                   </MenuItem>
+                                  <MenuItem Header="Insert blank frame" Click="OnInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n" />
                                   <!-- Absent rather than disabled when there is no rig, the
                                        camera's rule: a document that never made an armature
                                        is not offered a bone command it cannot use. -->
@@ -4812,12 +4814,10 @@
                                             ToolTip.Tip="Re-space this cel's range to the pattern chosen on the timeline bar" />
                                   <MenuItem Header="Timing chart…" Click="OnEditTimingChart"
                                             ToolTip.Tip="The ladder on this extreme: where its inbetweens sit on the way to the next key" />
-                                  <MenuItem Header="Clear cel" Click="OnClearCel"
-                                            ToolTip.Tip="Blank the drawing, keep its slot on the timeline" />
-                                  <MenuItem Header="Delete cel" Click="OnDeleteCel"
-                                            ToolTip.Tip="Remove the cel and pull the rest of this layer's row back" />
-                                  <MenuItem Header="Delete column (this frame, every layer)" Click="OnDeleteColumn"
-                                            ToolTip.Tip="Remove this frame from the scene — every layer's cel at it — and pull the rest of the sheet back" />
+                                  <MenuItem Header="Delete" Click="OnClearCel" InputGesture="Delete"
+                                            ToolTip.Tip="The drawings go and the cels become holds; nothing after them moves" />
+                                  <MenuItem Header="Delete and pull" Click="OnDeleteCel" InputGesture="Shift+Delete"
+                                            ToolTip.Tip="Remove the cels and pull the rest of the row back; selected across every layer, the frames leave the scene" />
                                   <Separator />
                                   <MenuItem Header="Copy cel" Click="OnCopyCel" />
                                   <MenuItem Header="Cut cel" Click="OnCutCel" />
