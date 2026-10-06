@@ -54,6 +54,19 @@ public class XsheetSelectionEditTests
         Assert.Null(DocumentEditor.ColumnsOf(e.Doc.Scene, Pick((A(e), 9), (B(e), 9))));
     }
 
+    [Fact]
+    public void DeleteCelsAcross_WithNothingReachable_RecordsNoUndoStep()
+    {
+        // An edit that removed nothing must not cost a Ctrl+Z that undoes nothing.
+        var e = Sheet(3);
+        var before = e.NextRevision;
+
+        Assert.Equal(0, e.DeleteCelsAcross([("no-such-layer", 1), (A(e).Id, 99)]));
+
+        Assert.Equal(before, e.NextRevision);
+        Assert.Equal(3, A(e).Cels.Count);
+    }
+
     // ---- DeleteColumns ------------------------------------------------------------
 
     [Fact]

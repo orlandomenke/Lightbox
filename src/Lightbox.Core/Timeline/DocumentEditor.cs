@@ -1117,7 +1117,11 @@ public sealed class DocumentEditor
     public int DeleteCelsAcross(IEnumerable<(string LayerId, int Index)> cels)
     {
         var byLayer = GroupByLayer(cels);
-        if (byLayer.Count == 0) return 0;
+        // ClearCelsAcross's rule: nothing to remove records nothing, so an
+        // unknown layer or a pick past the end costs no empty undo step.
+        var reachable = byLayer.Any(kv => FindLayer(kv.Key) is { } layer
+            && kv.Value.Any(i => i >= 0 && i < Math.Max(layer.Cels.Count, Doc.Scene.FrameCount)));
+        if (!reachable) return 0;
         var removed = 0;
         Perform(doc =>
         {
