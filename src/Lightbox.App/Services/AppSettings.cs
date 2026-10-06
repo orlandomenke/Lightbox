@@ -253,6 +253,26 @@ public sealed class AppSettings
     public string? PlaybackQuality { get; set; }
 
     /// <summary>
+    /// What to do with a multi-frame symbol, once the artist has said "don't
+    /// ask again". Absent until they do.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Absent is the default and it is the interesting value</b> — it means
+    /// "ask me", which is what an artist who has never met the question wants.
+    /// Writing a default here would answer a question nobody was asked, which is
+    /// exactly what B373 did by timing out into <c>ImportFrames</c>.
+    /// </para>
+    /// <para>
+    /// A string for <see cref="BrushMemory"/>'s reason: an unrecognised value
+    /// falls back to asking rather than refusing to load the settings file.
+    /// </para>
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? SymbolPlacementChoice { get; set; }
+
+    /// <summary>
     /// Whether a human picked the canvas quality.
     /// </summary>
     /// <remarks>
