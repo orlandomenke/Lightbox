@@ -1137,7 +1137,33 @@ public partial class MainWindow
         LayerList.AddHandler(PointerMovedEvent, OnLayerListPointerMoved, handledEventsToo: true);
         LayerList.AddHandler(PointerReleasedEvent, OnLayerListPointerReleased, handledEventsToo: true);
         LayerList.AddHandler(PointerCaptureLostEvent, OnLayerListCaptureLost);
+        XsheetLayerList.AddHandler(PointerPressedEvent, OnXsheetLayerPressedTunnel, RoutingStrategies.Tunnel);
     }
+    /// <summary>
+    /// Ctrl or Shift pressed on an X-sheet layer name is a selection click on the
+    /// same selection the layer docker keeps, so the two always agree.
+    /// </summary>
+    /// <remarks>
+    /// Tunnelled and handled: the name is a button whose own click would
+    /// activate the layer alone and throw the rest of the selection away. A
+    /// plain click is left to that button, as before.
+    /// </remarks>
+    private void OnXsheetLayerPressedTunnel(object? sender, PointerPressedEventArgs e)
+    {
+        var mods = e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift);
+        if (mods == KeyModifiers.None) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if ((e.Source as Visual)?.FindAncestorOfType<Button>(includeSelf: true) is not { } button
+            || !button.Classes.Contains("layerName")
+            || button.DataContext is not LayerRow row)
+        {
+            return;
+        }
+
+        _vm.SelectLayer(row, toggle: mods.HasFlag(KeyModifiers.Control), range: mods.HasFlag(KeyModifiers.Shift));
+        e.Handled = true;
+    }
+
 
     /// <summary>
     /// Ctrl or Shift pressed anywhere on a row is a selection click, whatever
