@@ -186,6 +186,37 @@ dotnet test                            # all four suites, fully headless
 dotnet run --project src/Lightbox.App  # launch
 ```
 
+**While you are working, run the plan instead.**
+
+```sh
+python3 scripts/testplan.py run --base main   # only what your change reaches
+python3 scripts/testplan.py explain <path>    # why that path selects what it does
+python3 scripts/testplan.py plan              # the legs a full run would use
+```
+
+`testplan.py run` works out which suites your change can reach, splits the slow
+ones into balanced pieces, and runs them in parallel — about three minutes
+against `dotnet test`'s measured twelve. It is the same plan CI runs, from the
+same script, so a green local run and a green CI run mean the same thing.
+
+Two things it is careful about, because a skipped test looks exactly like a
+passing one:
+
+- **Reachability comes from the project references**, not from a guess. A change
+  under `src/Lightbox.Core` runs all four suites, because everything references
+  Core. A path with no rule at all runs everything. The saving is real but it is
+  smaller than it sounds — see *What a clean run looks like* below for why.
+- **The pieces are a partition.** The last piece of a split suite is the
+  *complement* of the others rather than a list of its own, so a test class the
+  planner never enumerated still runs. `python3 scripts/testplan.py selftest`
+  proves that over the real class list, and CI runs it.
+- **The timed tests are kept off a loaded machine.** Everything tagged
+  `[Trait("Category", "Performance")]` is gathered into one leg per suite,
+  marked `[timed]`, and run on its own after the others. A budget measuring
+  wall clock lies when five other legs are running beside it — that is point 4
+  below, and without this the tool would have become the heavy thing it warns
+  about. CI needs none of this, because there every leg has a runner to itself.
+
 **`dotnet test` needs no display at all.** `Lightbox.App.Tests` drives Avalonia
 through `Avalonia.Headless.XUnit`, so there is no Xvfb, no X server and no
 `DISPLAY` in the picture.
@@ -197,11 +228,21 @@ absolute numbers:
 
 | Suite | Tests | Duration |
 | --- | --- | --- |
-| `Lightbox.Core.Tests` | 1,334 | 3 s |
-| `Lightbox.Raster.Tests` | 795 | 1 m 46 s |
-| `Lightbox.Ai.Tests` | 129 | < 1 s |
-| `Lightbox.App.Tests` | 3,883 | 9 m 28 s |
-| **all four** | **6,141** | **~11 min** |
+| `Lightbox.Core.Tests` | 1,494 | 6 s |
+| `Lightbox.Raster.Tests` | 885 | 2 m 5 s |
+| `Lightbox.Ai.Tests` | 136 | 4 s |
+| `Lightbox.App.Tests` | 4,404 | 9 m 17 s |
+| **all four, serially** | **6,919** | **~11.5 min** |
+| the same run as a plan, on CI | 6,919 | **~3.5 min** |
+
+**`Lightbox.App.Tests` is 75% of that, and it is one process.** That is the
+whole reason the plan shards rather than merely selects: App references Core,
+Raster, Ai, Import and Mcp, so there is no honest rule that skips it for most
+changes — and no in-process setting speeds it up either, because
+`HeadlessSessionSerialisation.cs` turns collection parallelism off assembly-wide
+(B93) and most of its classes serialise on the headless dispatcher regardless.
+Splitting it across *processes* is the only split that sidesteps both. Q189
+records the measurement and the argument.
 
 The Ai suite passes with **no API key set**. Nothing in `dotnet test` reaches a
 network or a model — see *Working on the AI features* below for what a key is
@@ -336,12 +377,23 @@ that should be there. A run that comes up short is not evidence of anything bein
 fixed or broken — it is this bug, and the entry in
 [`BUGS.md`](../.claude/quality/BUGS.md) says what the next investigation step is.
 
+CI no longer takes the word for it: every leg runs `python3
+scripts/testcount.py verify --project … --filter …`, which compares the names
+that leg reported against the names discovery finds, narrowed to the slice it
+was asked for. A short run is a red build rather than a green one. Locally,
+`testplan.py run` writes the same TRX logs, so the same command works by hand.
+
 Related but distinct: **B93**, the headless harness intermittently failing a test
 at **1 ms** with a native exception from Avalonia's session setup. A one
 millisecond failure is a body that never ran, so before theorising about the test
 that failed, check its duration.
 
 ### 4. Do not run the suite alongside anything heavy
+
+`python3 scripts/testplan.py run` already handles its own legs — the timed ones
+are gathered into a single `[timed]` leg per suite and run alone, so the tool
+does not become the heavy thing. What it cannot do anything about is what
+*else* is on the box.
 
 Independent of B281, the App suite under concurrent memory pressure can be killed
 outright — observed here as `Test process crashed with exit code 137` (SIGKILL)

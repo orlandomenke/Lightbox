@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Xunit;
 using Xunit.Abstractions;
@@ -195,17 +196,92 @@ public class PublishLayoutTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A manual bundle may skip the suite. A tagged Release may not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Q187, answered against the recommendation: <c>workflow_dispatch</c> gained
+    /// a <c>skip_tests</c> input so that "build me a bundle off this branch so I
+    /// can try it" does not cost the 742 s suite. The cost of that answer is
+    /// that a bundle can now exist having proven nothing, and the mitigation is
+    /// that it must always be identifiable as one.
+    /// </para>
+    /// <para>
+    /// <b>This is the line that must not move.</b> The condition on the test
+    /// step is written to skip only on an explicit <c>true</c> from a manual
+    /// run; a tag push carries no <c>inputs</c> at all, so the comparison is
+    /// already false there — but relying on that would make the guarantee an
+    /// accident of expression evaluation. The event name is named as well, and
+    /// this asserts both halves are still present, because either one alone
+    /// would still pass a casual reading.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AReleaseCannotBeTalkedOutOfItsTests()
+    {
+        var directives = WorkflowDirectives();
+
+        Assert.Contains("dotnet test Lightbox.sln", directives);
+
+        // The skip exists at all.
+        Assert.Contains("skip_tests", directives);
+
+        // And it is fenced to manual runs. Both halves: the event check stops a
+        // tag reaching it whatever `inputs` evaluates to, and the `!= true`
+        // means the default and any unset value run the suite.
+        Assert.True(
+            directives.Contains("github.event_name != 'workflow_dispatch'", StringComparison.Ordinal),
+            "release.yml can skip its tests without first establishing that this is a manual run — "
+            + "a v* tag must never be able to publish something untested (Q187)");
+        Assert.True(
+            directives.Contains("inputs.skip_tests != true", StringComparison.Ordinal),
+            "the skip is not gated on an explicit true, so an unset or malformed input could "
+            + "skip the suite by accident (Q187)");
+
+        // Nothing may gate the TEST STEP on being a tag: that would invert the
+        // rule and let every manual build through untested by default. Scoped
+        // to that step's own block, because `github.ref_type != 'tag'` is a
+        // perfectly good condition elsewhere in this file — it is how the
+        // manual path uploads an artifact instead of creating a Release.
+        var step = directives[directives.IndexOf("- name: Test before shipping", StringComparison.Ordinal)..];
+        step = step[..step.IndexOf("- name:", "- name: Test before shipping".Length, StringComparison.Ordinal)];
+        output.WriteLine(step);
+        Assert.DoesNotContain("github.ref_type", step);
+        output.WriteLine("only an explicit skip_tests on a manual run skips the suite");
+    }
+
+    /// <summary>
+    /// An untested bundle is identifiable as one after the fact.
+    /// </summary>
+    /// <remarks>
+    /// The run page is forgotten; the filename in a downloads folder is not.
+    /// Q187 accepts the loss of the "nothing ships untested" guarantee on the
+    /// manual path, and this is the whole of what was bought instead — so it is
+    /// asserted rather than trusted to a comment.
+    /// </remarks>
+    [Fact]
+    public void AnUntestedBundleSaysSoInItsName()
+    {
+        var directives = WorkflowDirectives();
+        Assert.True(
+            directives.Contains("-untested", StringComparison.Ordinal),
+            "a bundle built with skip_tests is named exactly like one that passed, so a week "
+            + "later nothing distinguishes them (Q187)");
+        output.WriteLine("the bundle label carries -untested when the suite was skipped");
+    }
+
+    /// <summary>
     /// CI must run this class when the documents it reads change.
     /// </summary>
     /// <remarks>
     /// <para>
     /// The two assertions above read <c>README.md</c> and
     /// <c>MANUAL_TESTING.md</c>, which makes those files <b>test inputs</b>
-    /// however they are spelled. <c>build.yml</c>'s <c>changes</c> filter skips
-    /// the suite for a documentation-only change, and it classified any
-    /// root-level <c>.md</c> as documentation — so a README-only change skipped
-    /// the one test guarding the README, and the change most likely to break
-    /// that assertion was the change that never ran it.
+    /// however they are spelled. CI skips the suite for a documentation-only
+    /// change, and it classified any root-level <c>.md</c> as documentation —
+    /// so a README-only change skipped the one test guarding the README, and
+    /// the change most likely to break that assertion was the change that
+    /// never ran it.
     /// </para>
     /// <para>
     /// Found on PR #95, a README rewrite, where <c>test</c> reported
@@ -214,29 +290,51 @@ public class PublishLayoutTests(ITestOutputHelper output)
     /// repository treats as worse than a break.
     /// </para>
     /// <para>
-    /// Asserted <em>here</em>, next to the reads it protects, rather than in
-    /// <c>CiRuntimeTests</c> with the workflow's other checks. A list of test
-    /// inputs kept somewhere else is a list somebody forgets to extend; kept
-    /// beside the reads, adding a third one and forgetting the filter fails on
-    /// the line directly below the read that caused it.
+    /// <b>The rule moved and the assertion followed it.</b> The classification
+    /// used to be a <c>grep</c> in <c>build.yml</c> and this asserted on that
+    /// expression's text; it now lives in <c>scripts/testplan.py</c>, which
+    /// selects a set of test projects rather than a yes-or-no. So this asks the
+    /// planner what it would do instead of reading a pattern out of a file —
+    /// a stronger check than the one it replaces, because a rule that is
+    /// present but wrong now fails it too.
+    /// </para>
+    /// <para>
+    /// Asserted <em>here</em>, next to the reads it protects, rather than with
+    /// the workflow's other checks. A list of test inputs kept somewhere else
+    /// is a list somebody forgets to extend; kept beside the reads, adding a
+    /// third one and forgetting the rule fails on the line directly below the
+    /// read that caused it.
     /// </para>
     /// </remarks>
     [Fact]
     public void TheDocumentsThisClassReadsAreNotTreatedAsDocumentationByCi()
     {
-        var filter = Read(".github", "workflows", "build.yml");
-
         foreach (var document in new[] { "README.md", "MANUAL_TESTING.md" })
         {
-            // Escaped as the workflow's own grep pattern writes it, so this
-            // matches the live expression rather than a paraphrase of it.
-            var pattern = document.Replace(".", @"\.");
+            var selected = PlanFor(document);
+            output.WriteLine($"{document} -> {selected}");
             Assert.True(
-                filter.Contains(pattern, StringComparison.Ordinal),
-                $"{document} is read by this class but build.yml's changes filter does not name it, "
-                + "so a change to it would skip the suite that checks it");
+                selected.Contains(nameof(Lightbox) + ".Core.Tests", StringComparison.Ordinal),
+                $"{document} is read by this class, but scripts/testplan.py does not select "
+                + $"Lightbox.Core.Tests for a change to it — so a change to it would skip the "
+                + $"suite that checks it. Add a rule to REPO_RULES (PR #95).");
         }
+    }
 
-        output.WriteLine("build.yml treats README.md and MANUAL_TESTING.md as code");
+    /// <summary>What the planner says a change to one path should run.</summary>
+    private static string PlanFor(string path)
+    {
+        var info = new ProcessStartInfo("python3", $"scripts/testplan.py explain {path}")
+        {
+            WorkingDirectory = RepoRoot(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        using var process = Process.Start(info);
+        Assert.NotNull(process);
+        var said = process!.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+        process.WaitForExit(60_000);
+        Assert.True(process.ExitCode == 0, $"testplan.py explain {path} failed:\n{said}");
+        return said;
     }
 }

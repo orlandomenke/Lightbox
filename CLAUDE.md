@@ -124,7 +124,8 @@ session start when it is stale.
 | Why is compositing on the CPU, and what would move it? | read `docs/DESIGN-gpu-compositing.md` — B125's design note, decisions included |
 | Why does a brush stamp twice? | read `docs/DESIGN-two-stage-brush.md` — do not re-derive it |
 | What should I pick up next? | `python3 scripts/roadmap.py next` |
-| Why is a rule below the way it is? | the skill that carries its reasons — `branching`, `scope-call`, `ai-work`, `brush-measurement`, `optional-settings` |
+| Is this change small, or sensitive? | `python3 scripts/sensitivity.py triage --files <paths>` |
+| Why is a rule below the way it is? | the skill that carries its reasons — `branching`, `scope-call`, `ai-work`, `brush-measurement`, `optional-settings`, `sensitivity` |
 
 Rebuild by hand with `python3 scripts/codemap.py build` after large changes.
 
@@ -289,7 +290,9 @@ anchor is the one thing the file cannot represent.
 ## Working here
 
 - Build: `dotnet build Lightbox.sln`
-- Test: `dotnet test` (all four suites must stay green)
+- Test: `python3 scripts/testplan.py run --base main` — the suites your change
+  can reach, as parallel legs, rather than `dotnet test`'s measured 12 minutes
+  for all four. All four must still be green; CI runs the same plan.
 - **One .NET, and it is 10.** Every project targets `net10.0`, so the SDK that
   builds this carries the runtime that runs it. That was not always true — the
   solution targeted `net8.0` while needing the 10.0 SDK for Avalonia 12's
@@ -344,6 +347,16 @@ Four mechanical rules, each of which has been broken expensively:
 id, or when one of these looks arbitrary — it carries the incidents that produced
 them, including the two retired generations of merge machinery and the six days of
 measured collisions that moved id allocation into a script.
+
+### Every change starts at triage
+
+Before editing, run the triage command above (the `triage` agent adds judgement).
+It names a `FLOW.md` track: **MAINTENANCE**, **BUGHUNT** (regression test
+first) or **FEATURE** (the full pipeline). The router forces reviewers on any
+track: sensitive, AI, performance and owner-only paths. A track is raised, never
+lowered except by the owner. All run the scan (G13). `SENSITIVITY.md`,
+`FLOW.md`, the charter, this file and `guard.py` are **owner-only**; a hook
+asks first.
 
 ### Touching anything AI: two agents, on purpose
 

@@ -20,6 +20,15 @@ reviewer can disagree with it. The `/improve` loop treats section 1 as gates
 | G10 | The loop learned | if the round fixed something the gates should have caught, the gate is sharpened in the same commit and named on the round's `Sharpened:` line |
 | G11 | The bug ledger is honest | `python3 scripts/bugs.py check` passes. A bug fixed this round is closed in `BUGS.md` in the same commit, with its regression test as the evidence — a bug is never closed by claim |
 | G12 | AI changes were reviewed by both halves | a diff touching `src/Lightbox.Ai`, the MCP surface, a prompt or an AI path in the view model is reviewed by **ai-engineer** *and* **art-director**. ai-engineer's BLOCKING verdict — an invariant broken — always fails the gate; art-director's REJECTED does not fail it but must be answered, either by a change or by a question in `QUESTIONS.md` with what would settle it |
+| G13 | Sensitivity holds | `python3 scripts/sensitivity.py scan` reports no BLOCKING finding, and a diff that touches a sensitive path (`sensitivity.py triage` prints when) was reviewed by **sensitivity-guardian** against `SENSITIVITY.md`. A BLOCKING verdict always fails the gate; a NOTE passes it but must be answered by a change or a question. **This gate applies to both tracks** — the fast track skips ceremony, never the scan |
+
+**Why G13 is a gate of its own and not a line under G12.** G12 asks whether AI
+work is *good* and whether it keeps the determinism invariants. G13 asks whether
+a change can lose an artist's work, send it somewhere, take someone else's, or
+be steered by a hostile file — questions that arise just as often in an importer,
+the saved format or a process launcher as in `src/Lightbox.Ai`, none of which G12
+looks at. `FLOW.md` says how a change is routed to it; `SENSITIVITY.md` is what it
+checks against, and is owner-only.
 
 **Why G7 exists as a separate gate from G4.** Budgets only cover paths that
 have a budget test. Every serious stall found in this project so far was in a

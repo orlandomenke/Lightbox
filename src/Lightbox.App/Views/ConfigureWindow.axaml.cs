@@ -326,6 +326,45 @@ public partial class ConfigureWindow : Window
     {
         if (_vm is null) return;
         LibraryRootsList.ItemsSource = _vm.Characters.Roots;
+        LoadSymbolPlacementChoice();
+    }
+
+    /// <summary>
+    /// The three answers to "this symbol has more than one drawing", in the
+    /// order an artist meets them: ask, and then the two things they might have
+    /// said instead.
+    /// </summary>
+    private static readonly (string Label, ViewModels.FrameImportChoice? Choice)[] SymbolPlacementChoices =
+    [
+        ("Ask every time", null),
+        ("Import every drawing into the timeline", ViewModels.FrameImportChoice.ImportFrames),
+        ("Place one that cycles on its own", ViewModels.FrameImportChoice.Reference),
+    ];
+
+    private bool _loadingSymbolPlacement;
+
+    /// <remarks>
+    /// B373: the dialog can store this and had no way to give it back. Showing
+    /// the stored answer here is what makes "don't ask again" a preference
+    /// rather than a one-way door.
+    /// </remarks>
+    private void LoadSymbolPlacementChoice()
+    {
+        if (_vm is null) return;
+        _loadingSymbolPlacement = true;
+        SymbolPlacementBox.ItemsSource = SymbolPlacementChoices.Select(c => c.Label).ToList();
+        var stored = _vm.PlacementPreference;
+        SymbolPlacementBox.SelectedIndex =
+            Array.FindIndex(SymbolPlacementChoices, c => c.Choice == stored) is var i and >= 0 ? i : 0;
+        _loadingSymbolPlacement = false;
+    }
+
+    private void OnSymbolPlacementChoiceChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_vm is null || _loadingSymbolPlacement) return;
+        var index = SymbolPlacementBox.SelectedIndex;
+        if (index < 0 || index >= SymbolPlacementChoices.Length) return;
+        _vm.PlacementPreference = SymbolPlacementChoices[index].Choice;
     }
 
     private async void OnLibraryAddRoot(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

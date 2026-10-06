@@ -364,6 +364,7 @@ is for working offline and for testing the pipeline.
 ```sh
 dotnet build                             # everything
 dotnet test                              # all suites, fully headless
+python3 scripts/testplan.py run --base main   # just what your change reaches
 dotnet run --project src/Lightbox.App    # launch
 ```
 
