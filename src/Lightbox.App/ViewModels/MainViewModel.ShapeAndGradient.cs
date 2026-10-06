@@ -169,6 +169,10 @@ public partial class MainViewModel
 
         FreezeSampledBackdrop(stroke);
         RememberDocumentBrush();
+        // B382: a rigged layer poses the ramp's axis too, so an axis dragged
+        // on the posed picture is carried back to rest like a drawn stroke —
+        // after the freeze, which reads where the mark is on screen.
+        Skinning.UnposeDrawnStroke(stroke, Doc, target, CurrentFrameIndex, _cache.Rig);
         AppendToFrameRender(target, stroke);
 
         var frameId = target.Id;

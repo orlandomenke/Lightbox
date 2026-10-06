@@ -102,15 +102,40 @@ public static class TransformOps
     /// <c>MapClip</c>); every other transform did not, and the Move tool
     /// commits through the same path.
     /// </remarks>
+    /// <summary>
+    /// How one stroke's geometry travels under a transform, when the plain
+    /// map is not the right answer for it.
+    /// </summary>
+    /// <remarks>
+    /// <b>B381.</b> The record keeps a rigged drawing at rest and the canvas
+    /// shows it posed, so mapping the rest points by the gizmo's matrix moves
+    /// a different picture from the one the artist dragged — each point's bone
+    /// delta is applied <em>after</em> the move, and a straight line weighted
+    /// across two bones comes out kinked. A mover answers that per stroke:
+    /// <c>Skinning.PoseSpaceMover</c> applies the map to the posed image and
+    /// writes the result back to rest. Points, holes and the authored path are
+    /// the mover's; the clip and the brush size stay with the caller, because
+    /// they do not depend on which space the geometry moved in.
+    /// </remarks>
+    public delegate void StrokeMover(Stroke stroke);
+
     public static void TransformStroke(
-        Stroke stroke, PointMap map, double sizeScale = 1, Func<string, string>? mapClip = null)
+        Stroke stroke, PointMap map, double sizeScale = 1, Func<string, string>? mapClip = null,
+        StrokeMover? mover = null)
     {
-        MapPoints(stroke.Points, map);
-        if (stroke.Holes is not null)
+        if (mover is not null)
         {
-            foreach (var hole in stroke.Holes) MapPoints(hole, map);
+            mover(stroke);
         }
-        MapPath(stroke, map);
+        else
+        {
+            MapPoints(stroke.Points, map);
+            if (stroke.Holes is not null)
+            {
+                foreach (var hole in stroke.Holes) MapPoints(hole, map);
+            }
+            MapPath(stroke, map);
+        }
         if (mapClip is not null && stroke.ClipId is { } clip) stroke.ClipId = mapClip(clip);
         if (Math.Abs(sizeScale - 1) > 1e-9)
         {
@@ -186,14 +211,14 @@ public static class TransformOps
     /// <inheritdoc cref="TransformStroke" path="/param[@name='mapClip']"/>
     public static int TransformFrame(
         Frame frame, PointMap map, double sizeScale = 1, Func<Stroke, bool>? filter = null,
-        Func<string, string>? mapClip = null)
+        Func<string, string>? mapClip = null, StrokeMover? mover = null)
     {
         var strokes = StrokesOf(frame);
         var count = 0;
         foreach (var stroke in strokes)
         {
             if (filter is not null && !filter(stroke)) continue;
-            TransformStroke(stroke, map, sizeScale, mapClip);
+            TransformStroke(stroke, map, sizeScale, mapClip, mover);
             count++;
         }
         return count;
