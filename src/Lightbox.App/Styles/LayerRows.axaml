@@ -53,6 +53,12 @@
     <Setter Property="CornerRadius" Value="3" />
     <Setter Property="Padding" Value="2,0" />
   </Style>
+  <!-- A folder picked on its header: a new layer goes inside it. The same
+       brush as the active layer row, because it is the same statement —
+       "this is where you are working". -->
+  <Style Selector="Border.groupRow.selected">
+    <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
+  </Style>
   <Style Selector="Border.groupRow.hiddenLayer">
     <Setter Property="Opacity" Value="0.35" />
   </Style>
