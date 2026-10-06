@@ -887,9 +887,17 @@ LITERALS = re.compile(r'"([^"\\\n]{2,120})"')
 def reads_of(source: Path) -> set[str]:
     """Repo-relative paths a test source names, resolved against the tree.
 
-    Existence-checked rather than pattern-matched: a literal only counts as a
-    read if it actually resolves to something in the repository, which is what
+    Checked against the tracked tree rather than pattern-matched: a literal only
+    counts as a read if it names something `git ls-files` knows, which is what
     keeps arbitrary strings out without needing to understand the C#.
+
+    The index, not the filesystem, and exactly, because the filesystem lies in
+    three ways that were each found by running this on Windows inside a
+    worktree: `"license"` resolved to `LICENSE` (case-insensitive names),
+    `"docs/DESIGN-net10-upgrade.md."` resolved to the file without the trailing
+    dot (NTFS strips it), and `".git"` was a file rather than a directory. CI
+    is a tracked-tree question anyway — a change is a diff of tracked paths —
+    so the index is the oracle that gives the same answer on every machine.
 
     The one ambiguity worth handling is a bare filename. `"README.md"` is a
     read of the repository's README in PublishLayoutTests and is the name of a
@@ -910,11 +918,10 @@ def reads_of(source: Path) -> set[str]:
         if len(segments) < 2:
             continue
         candidate = "/".join(s for s in segments if s)
-        target = ROOT / candidate
-        if not target.exists():
+        if candidate not in tracked_files() and candidate not in tracked_dirs():
             continue
         found.add(candidate)
-        if target.is_dir():
+        if candidate in tracked_dirs():
             directories.append(candidate)
 
     # A plain literal that happens to name a file in the tree.
@@ -922,11 +929,40 @@ def reads_of(source: Path) -> set[str]:
         candidate = literal.replace("\\", "/").strip("/")
         if not candidate or candidate.startswith(("http", " ")):
             continue
-        if "/" not in candidate and any((ROOT / d / candidate).exists() for d in directories):
+        if "/" not in candidate and any(
+                f"{d}/{candidate}" in tracked_files() or f"{d}/{candidate}" in tracked_dirs()
+                for d in directories):
             continue  # it names a file in a directory this file already walks
-        if (ROOT / candidate).is_file():
+        if candidate in tracked_files():
             found.add(candidate)
     return found
+
+
+_TRACKED: set[str] | None = None
+_TRACKED_DIRS: set[str] | None = None
+
+
+def tracked_files() -> set[str]:
+    """Every path in the index, repo-relative with forward slashes."""
+    global _TRACKED
+    if _TRACKED is None:
+        done = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True,
+                              text=True, encoding="utf-8", errors="replace", check=True)
+        _TRACKED = {line for line in done.stdout.splitlines() if line}
+    return _TRACKED
+
+
+def tracked_dirs() -> set[str]:
+    """Every directory that holds at least one tracked file."""
+    global _TRACKED_DIRS
+    if _TRACKED_DIRS is None:
+        dirs: set[str] = set()
+        for path in tracked_files():
+            parts = path.split("/")
+            for i in range(1, len(parts)):
+                dirs.add("/".join(parts[:i]))
+        _TRACKED_DIRS = dirs
+    return _TRACKED_DIRS
 
 
 def cmd_audit(args) -> int:
@@ -950,7 +986,7 @@ def cmd_audit(args) -> int:
                 # of everything under it. It counts as covered when some rule
                 # inside it selects this project — the files themselves are
                 # checked on their own account.
-                if (ROOT / path).is_dir() and any(
+                if path in tracked_dirs() and any(
                         pattern.startswith(path) and verdict not in (ALL, NONE) and name in verdict
                         for pattern, verdict, _ in REPO_RULES):
                     covered += 1
