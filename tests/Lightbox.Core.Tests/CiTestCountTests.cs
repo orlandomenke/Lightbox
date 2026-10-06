@@ -46,20 +46,42 @@ public class CiTestCountTests
                 Path.Combine(RepoRoot(), ".github", "workflows", "build.yml"))
             .ReplaceLineEndings("\n");
 
-        // The run has to leave the per-test record the guard reads. Asserted as
-        // "the dotnet test line carries a trx logger" rather than an exact
-        // command, so flags can move around it.
-        Assert.True(
-            Regex.IsMatch(yaml, @"dotnet test Lightbox\.sln.*--logger\s+""?trx"),
-            "build.yml's test run writes no trx logs, so the executed-count guard "
-            + "has nothing to read — a run that dies mid-suite would go back to "
-            + "printing Passed! unchallenged (B269)");
+        // The run has to leave the per-test record the guard reads. Asserted over
+        // EVERY `dotnet test` in the file rather than over one known command
+        // line: the suite is a matrix of legs now, so "the test command carries
+        // a trx logger" has to hold for each of them, and a leg added later
+        // without one would be a leg nothing checks.
+        var runs = Regex.Matches(yaml, @"^\s*(?:dotnet test|.*\bdotnet test\b).*$", RegexOptions.Multiline)
+            .Select(m => m.Value.Trim())
+            .Where(line => !line.TrimStart().StartsWith("#", StringComparison.Ordinal))
+            .ToList();
+        Assert.True(runs.Count > 0, "build.yml no longer runs dotnet test at all");
+        foreach (var run in runs)
+        {
+            Assert.True(
+                run.Contains("--logger trx", StringComparison.Ordinal),
+                $"this test run writes no trx log, so the executed-count guard has "
+                + $"nothing to read — a run that dies mid-suite would go back to "
+                + $"printing Passed! unchallenged (B269):\n    {run}");
+        }
 
         // And the guard has to actually run against them.
         Assert.True(
             yaml.Contains("testcount.py verify", StringComparison.Ordinal),
             "build.yml never runs scripts/testcount.py verify, so nothing compares "
             + "what the suite reported against what discovery finds (B269)");
+
+        // Sharded, the guard needs to know WHICH slice a leg was asked for.
+        // Without the filter it would compare one shard's results against the
+        // whole assembly's discovery — which fails loudly, so the risk is not
+        // that it goes quiet here but that somebody "fixes" the noise by
+        // dropping the guard. Naming both arguments pins the wiring that makes
+        // the check meaningful per leg.
+        Assert.True(
+            yaml.Contains("--project", StringComparison.Ordinal)
+            && yaml.Contains("--filter", StringComparison.Ordinal),
+            "build.yml runs testcount.py verify without naming the leg's project and "
+            + "filter, so it cannot know which slice that leg was supposed to run");
 
         // The comparison's own selftest, so a broken guard cannot guard.
         Assert.True(

@@ -1,6 +1,6 @@
 # CLAUDE.md — the per-session prelude
 
-budget: 23076
+budget: 23244
 
 ## What this budgets, and why it is characters rather than lines
 
@@ -85,6 +85,26 @@ other's reason and leaves a number nobody can account for.
   the one that gets broken. Recorded rather than absorbed, so the next raise has
   to argue for itself too.
 
+- **22,450 → 22,621** (2026-09-12, Q189): +171 to name
+  `scripts/testplan.py run` beside `dotnet test` in *Working here*. Measured
+  that day: the serial suite is **742 s**, of which `Lightbox.App.Tests` is 557.
+  The plan runs only the suites a change can reach, as parallel legs — about
+  190 s of wall clock on CI, where every leg has a runner to itself.
+
+  This is the resident half of a split, not an exception to it. The reasoning —
+  why selection is the weakest of the three levers, why the expensive assembly
+  had to be sharded rather than parallelised in process, what the shard
+  partition rests on — is in Q189 and in the script's own docstring, and costs
+  nothing until somebody asks. What has to be resident is the one line that
+  changes behaviour, because **a session that does not know the fast command
+  runs the slow one**, every time. A rule nobody can find is the one that gets
+  broken, and this one gets broken by default.
+
+  Trimmed before raising, in the order the rule asks for. The first draft named
+  the shard counts and the wall-clock arithmetic and ran to 260 characters; the
+  counts live in `SHARDS` where they are actually read, and a session does not
+  need them to type the command.
+
 - **22,450 → 23,076** (2026-09-21, Q190/Q191): +626 for the *Every change starts
   at triage* section, one row in *Start here*, and `sensitivity` in the skills row.
   This is a rule, and it has to be resident to work: the whole point of the router
@@ -100,3 +120,9 @@ other's reason and leaves a number nobody can account for.
   that a track is not lowered by the session, and that some files are not its to
   edit. The full cost of this feature to every session is larger than this
   number — two agent definitions and a skill are on-demand and are not counted here.
+
+- **23,076 → 23,244** (2026-10-06, merging Q189 after Q190/Q191): the two
+  raises above each started from 22,450 on their own branch, so neither side's
+  number is the merged file's. Measured on the merged tree with
+  `prelude.py measure`, as the branching skill asks, rather than summed; the sum
+  would have said 23,247.
