@@ -141,6 +141,17 @@ without a word, because both answers would give the same symbol.
 - **Place** puts the selected symbol in the middle of the current drawing.
 - **Dragging a tile onto the canvas** puts it where you drop it, which is the
   point of dragging rather than pressing Place.
+- **A symbol with more than one drawing is asked about**, because it can land
+  two ways and both are things people mean:
+  - **Import every drawing into the timeline** — the drawings become frames of
+    this scene, and the scene grows to at least the length of the symbol.
+  - **Place one that cycles on its own** — a single placement that runs through
+    its own drawings without changing how long the scene is.
+
+  Tick **Don't ask again** and the answer is kept. Change it back, or pick the
+  other one, under **Configure ▸ Library ▸ Placing a symbol that has more than
+  one drawing**. A symbol holding a single drawing is never asked about, because
+  both answers would do the same thing.
 - The **Move tool** drags a placement the way it drags anything else. A placed
   symbol under the cursor is picked up before the drawing underneath it is; the
   symbol itself is not touched, so the other placements of it stay where they

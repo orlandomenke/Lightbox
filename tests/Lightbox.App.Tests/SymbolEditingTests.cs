@@ -226,13 +226,19 @@ public class SymbolEditingTests : IDisposable
     /// (<c>AppendFrame</c>), which is a different axis from the one the guard
     /// protects. When Q171's layer stack lands this is the path that grows to
     /// carry it, so it is worth a test that says it still works today.
+    /// <para>
+    /// <b>The choice is passed now rather than assumed</b> (B373). This used to
+    /// rely on the default, and the default was <c>ImportFrames</c> only because
+    /// a five-second dialog timeout fell through to it. Importing is what this
+    /// test is about, so importing is what it asks for.
+    /// </para>
     /// </remarks>
     [AvaloniaFact]
     public void ImportingACycleStillLandsItAcrossTheTimeline()
     {
         var vm = WithSymbol(out var walk, frames: 4);
 
-        vm.PlaceSymbol(walk.Id, 40, 40);
+        vm.PlaceSymbol(walk.Id, 40, 40, FrameImportChoice.ImportFrames);
 
         Assert.True(vm.Doc.Scene.FrameCount >= 4);
     }
