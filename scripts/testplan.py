@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Work out which tests a change can reach, and split the slow ones up.
+r"""Work out which tests a change can reach, and split the slow ones up.
 
 `dotnet test Lightbox.sln` is one serial run of four assemblies, and measured on
 2026-09-12 (Release, 4 cores) it costs 742 s — of which **Lightbox.App.Tests is
