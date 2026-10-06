@@ -166,6 +166,18 @@ public static class ImageResize
             pivot.Y *= sy;
         }
 
+        if (scene.Symmetry is { } symmetry)
+        {
+            // The axis centre is a place on the paper, so it follows the
+            // paper. The angle, the order and the mirror flag are not lengths
+            // and do not scale — a non-uniform rescale shears an angled axis
+            // off its old line, the same accepted limit an angled guide has.
+            // Strokes already painted carry their own copy of the axis, and
+            // ScaleFrame moves those with the marks they belong to.
+            symmetry.CenterX *= sx;
+            symmetry.CenterY *= sy;
+        }
+
         if (doc.Armature is { } armature)
             foreach (var bone in armature.Bones)
             {

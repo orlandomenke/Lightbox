@@ -66,6 +66,7 @@ warns about.
 | ← / → | Previous, next frame |
 | X / D | Swap foreground and background / reset to black over white |
 | M | Mirror the view |
+| Shift+M | Symmetry painting on or off — the other mirror: M flips what you see, Shift+M makes the next mark land twice |
 | 0 | Reset zoom, rotation, mirror and pan |
 | Shift + drag | Resize the brush |
 | Wheel / Shift+wheel | Zoom / rotate the view |
@@ -752,7 +753,6 @@ Not built. Listed so the gap is visible rather than implied.
 
 **Drawing**
 - Pixel-perfect mode
-- Brush symmetry
 - Reshaping a line after you have drawn it — dragging its individual points, and
   a pen tool. Picking a whole line and moving, deleting or recolouring it is
   built; see [the Arrow](03-tools-and-strokes.md#what-you-can-do-with-what-you-picked)

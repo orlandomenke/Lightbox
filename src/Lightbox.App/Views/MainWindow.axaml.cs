@@ -155,6 +155,7 @@ public partial class MainWindow : Window
         Canvas.CameraPanned += (dx, dy) => _vm.NudgeCamera(dx, dy);
         Canvas.CameraZoomedBy += factor => _vm.ZoomCameraBy(factor);
         Canvas.CameraRotatedBy += deg => _vm.RotateCameraBy(deg);
+        WireSymmetry(); // the same shape as the camera's; window side lives in MainWindow.Symmetry.cs
 
         // One handler on the window instead of a pair per docker. Tunnelling, so
         // it sees the move even when a child marks it handled — a docker whose

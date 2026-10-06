@@ -151,6 +151,10 @@ which is a weak test and still far better than none.
 
 ### brush
 
+- [ ] **B379** `P2` `brush` An image resize leaves each stroke's own symmetry axis at the old centre `evidence: AResizedDocumentMovesEachStrokesOwnAxisWithIt`
+  - `ImageResize.ScaleFrame` scales a stroke's points, holes, rest points, brush size and baked pixels, and does not touch `Stroke.Symmetry` — so after a resize a mirrored stroke's points sit at the new scale while the centre it reflects about is still at the old one, and the copy lands in the wrong place when the frame re-renders. Nothing goes red: `EveryCoordinateOnTheSceneIsAccountedFor` guards the scene's properties, and no equivalent guards the stroke's. Found 2026-10-06 while moving the authoring axis onto `Scene.Symmetry`, which the same test did catch.
+  - **Filed rather than fixed here because the branch in hand is the symmetry UI** (`feat/ui/symmetry-controls`) and this is a second objective; it is the next branch, not a later one. The fix is two lines beside `RestPoints` in `ScaleFrame` plus the named test, and the test should render rather than read numbers — scale a document with a mirrored stroke by 2x and assert the reflected copy's pixels land at twice the old position.
+
 - [ ] **B331** `P2` `brush` The live pass band grows to the whole mark when the pass is starved, and each feeds the other `evidence: ABandStaysLocalWhileThePassIsBehind, TheBandIsCappedRatherThanGrowingToTheMark`
   - **Three captures on the owner's machine, one hour apart, same build lineage — the pass degrades and takes the preview down with it.**
 

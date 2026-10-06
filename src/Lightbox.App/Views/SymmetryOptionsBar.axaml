@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.SymmetryOptionsBar"
+             x:DataType="vm:MainViewModel">
+  <!--
+    Gated on the control, not only on the panel inside it — see TextOptionsBar
+    for why: a bare StackPanel collapses to nothing, a UserControl without this
+    would leave a gap in the row where the options are not.
+  -->
+  <UserControl.IsVisible>
+    <MultiBinding Converter="{x:Static BoolConverters.And}">
+      <Binding Path="IsPaintingTool" />
+      <Binding Path="Workspace.QuickBrushSymmetry" />
+    </MultiBinding>
+  </UserControl.IsVisible>
+  <!--
+    Symmetry, for the brush and the eraser: the toggle, then the order and
+    mirror fields once it is on. The axis itself is placed and turned on the
+    canvas — the gizmo appears with the toggle — so the bar holds only the
+    numbers a gizmo cannot express. The copy count beside the fields says what
+    the next stroke costs without opening anything.
+
+    A collaborator rather than more of MainWindow.axaml, which is on the
+    monolith ratchet — the trade FillOptionsBar and the others made. Markup
+    only; every decision it shows belongs to MainViewModel.Symmetry.
+  -->
+  <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+    <ToggleButton x:Name="SymmetryToggle" Content="Symmetry" VerticalAlignment="Center"
+                  MinHeight="0" Height="22"
+                  IsChecked="{Binding SymmetryEnabled, Mode=TwoWay}"
+                  ToolTip.Tip="Paint under a symmetry axis: every mark lands once per copy. Drag the square on the canvas to move the axis, the circle to turn it (Shift snaps to 15°). Shift+M." />
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                IsVisible="{Binding SymmetryEnabled}">
+      <TextBlock Text="Copies" VerticalAlignment="Center" />
+      <NumericUpDown Value="{Binding SymmetryOrder}" Minimum="1" Maximum="12" Increment="1"
+                     FormatString="0" Classes="value" VerticalAlignment="Center"
+                     ToolTip.Tip="How many turned copies around the centre, the drawn mark included. 1 is a plain mirror; 6 with Mirror on is a kaleidoscope." />
+      <CheckBox Content="Mirror" VerticalAlignment="Center" FontSize="11"
+                MinHeight="0" Height="22" Padding="4,0,0,0"
+                IsChecked="{Binding SymmetryMirror}"
+                ToolTip.Tip="Reflect each copy across the axis as well as turning it. Off with one copy, the axis does nothing." />
+      <TextBlock VerticalAlignment="Center" Opacity="0.7"
+                 Text="{Binding SymmetryCopyCount, StringFormat='×{0}'}"
+                 ToolTip.Tip="How many marks the next stroke makes" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

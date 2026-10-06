@@ -563,7 +563,6 @@ public sealed partial class CanvasControl : Control
         return CameraDrag.None;
     }
 
-
     // The GuideLine snapshot, the Guides, DraftGuide, BalanceDots and
     // GuideDragEnabled properties and the rest of the guide chrome live in
     // CanvasControl.Guides.cs.
@@ -1918,7 +1917,7 @@ public sealed partial class CanvasControl : Control
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
             BoneChromes, BonesArePosed, HeatPoints, _hoveredLines,
             FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints, MotionArc,
-            CropSurfaceRect()));
+            CropSurfaceRect(), Symmetry));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -2398,6 +2397,7 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
+            if (TrySymmetryPress(x, y, e)) return; // the gizmo's handles, after the camera's; CanvasControl.Symmetry.cs
             if (ReferenceBoxes is not null)
             {
                 BeginGridGesture(x, y);
@@ -2989,6 +2989,7 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
+            if (TrySymmetryMove(e)) return;
             if (_movingRefBoxes)
             {
                 var (mx, my) = DragPoint(e, ViewToDoc(e.GetPosition(this)));
@@ -3362,6 +3363,7 @@ public sealed partial class CanvasControl : Control
             e.Handled = true;
             return;
         }
+        if (TrySymmetryRelease(e)) return;
         if (_movingAnchors)
         {
             _movingAnchors = false;
@@ -3646,6 +3648,7 @@ public sealed partial class CanvasControl : Control
     public void CancelPointerGestures()
     {
         _panning = false;
+        if (EndSymmetryDragIfAny()) return; // END rather than abandon — CanvasControl.Symmetry.cs says why
         if (_movingGuides)
         {
             _movingGuides = false;
@@ -3924,7 +3927,7 @@ public sealed partial class CanvasControl : Control
         bool fillPreviewWand = false,
         SKColor fillPreviewColor = default,
         TrailOverlay? trail = null, Core.Timeline.MotionArcOverlay? motionArc = null,
-        SKRect? cropFrame = null) : ICustomDrawOperation
+        SKRect? cropFrame = null, Core.Documents.SymmetryAxis? symmetry = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4054,6 +4057,7 @@ public sealed partial class CanvasControl : Control
                 snapshot.DocViewport,
                 ChannelSoloFilters.For(solo));
             DrawCameraFrame(canvas);
+            DrawSymmetryAxis(canvas);
             DrawGradientAxis(canvas);
             // B58. Over the artwork and over the guides, under the selection ants:
             // a rig is furniture you aim with, and the reason guides sit over the

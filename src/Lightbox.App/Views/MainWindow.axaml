@@ -1245,6 +1245,7 @@
           </StackPanel>
         </StackPanel>
 
+        <views:SymmetryOptionsBar />
         <!--
           Effect brushes get their own row.
 

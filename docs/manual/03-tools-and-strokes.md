@@ -366,6 +366,57 @@ A pen line has no pressure variation, because nothing was pressing. That is what
 it is for — a clean, even line. If you want weight in it, reshape it afterwards
 or draw it by hand.
 
+## Symmetry
+
+With the brush or the eraser in hand, the options bar has a **Symmetry**
+toggle (**Shift+M**). Turn it on and a cyan axis appears down the middle of the
+page: every mark you make now lands once on each side of it, reflected. Turn it
+off and the axis goes away; the marks you made stay exactly as they were.
+
+The axis is placed and turned on the canvas rather than in a dialog. Drag the
+**square** at its centre to move it, and drag the **circle** a little way along
+it to turn it — hold **Shift** while turning to land on 15° steps, so 45 and 90
+are exact. A drag is one undo step, however long you fiddle. Everywhere else on
+the canvas still paints, so an axis in the way of a stroke is not in the way.
+
+Two fields appear beside the toggle once it is on:
+
+- **Copies** — how many turned copies around the centre, the mark you draw
+  included. 1 is the plain mirror. 6 turns a mark into six, spaced evenly round
+  the centre, and the dashed spokes on the canvas show where each one goes.
+- **Mirror** — whether each copy is also reflected. With one copy this is the
+  left/right mirror; with six it is a kaleidoscope, and the solid lines on the
+  canvas are the ones each mark is reflected across. Off with one copy, the
+  axis does nothing and is drawn dashed to say so.
+
+The **×N** beside the fields is how many marks the next stroke will make, which
+is also how much more it costs to draw: six copies is six times the stamping.
+One copy with a mirror is unnoticeable; twelve with a mirror is twenty-four
+marks per stroke and you will feel it on a large brush.
+
+A few things worth knowing about how it behaves:
+
+- **A reflected mark is a true mirror.** The copy has the same grain, the same
+  scatter and the same jitter as the one you drew, landed the other way round —
+  not a second, slightly different mark in a mirrored place. Paper texture is
+  the one thing that is *not* mirrored, because the paper is under the whole
+  drawing and real paper does not flip when you do.
+- **The copies trail the pen by a touch while you draw**, and catch up exactly
+  when you lift it. That is deliberate: it keeps drawing itself as fast as it
+  is without symmetry.
+- **Each stroke keeps the axis it was drawn under.** Moving or turning the axis
+  afterwards changes the next stroke and never the ones already down, so you
+  can draw a face mirrored, drop the axis somewhere else for a hand, and nothing
+  on the face moves. Turning Symmetry off does the same: it stops reflecting,
+  it does not un-reflect.
+- **The axis is saved with the document**, where you left it, and comes back
+  switched off. Opening a drawing does not start reflecting marks you have not
+  asked it to.
+- **Brush and eraser only, for now.** Fill, smudge and blur ignore the axis
+  rather than half-honouring it — a reflected fill has to reflect its outline,
+  and smudge and blur read the pixels under them, both of which need their own
+  work. Resizing the image moves the axis with the paper.
+
 ## What a stroke is
 
 **A frame is a list of strokes; the pixels are derived.** Nothing paints except
