@@ -606,6 +606,50 @@ public static class Skinning
     }
 
     /// <summary>
+    /// How far apart the control points of a bound stroke may stand for the
+    /// write-back to be exact enough between them.
+    /// </summary>
+    /// <remarks>
+    /// The inverse is exact <em>at</em> each control point; between two of
+    /// them the render blends weights by arc fraction, and after the points
+    /// have moved so have the fractions. A two-point line across a bent joint
+    /// can land fifteen pixels off at its middle (the adversary's case). Pen
+    /// strokes are sampled every pixel or two and never notice; a shape's
+    /// corners and a hand-placed line do. Six pixels keeps the departure
+    /// under a pixel at a right-angle fold without the record growing the way
+    /// the render's two-pixel walk would make it.
+    /// </remarks>
+    private const double WriteBackChord = 6.0;
+
+    /// <summary>
+    /// Densify a sparse stroke whose weights vary along it, carrying the
+    /// weights onto the inserted points, so the per-point write-back holds
+    /// between the points and not only at them. Returns the bindings to use
+    /// — the caller's own when nothing was inserted or the map is rigid.
+    /// </summary>
+    private static IReadOnlyList<BoneBinding> DensifyForWriteBack(
+        Stroke stroke, IReadOnlyList<BoneBinding> bindings)
+    {
+        // One bone at full weight is one rigid map, exact everywhere already.
+        var varies = bindings.Count > 1;
+        foreach (var b in bindings) varies |= b.PointWeights is not null;
+        if (!varies) return bindings;
+
+        var (dense, weights) = DensifyWithWeights(stroke.Points, bindings, WriteBackChord);
+        if (dense.Count == stroke.Points.Count) return bindings;
+
+        stroke.Points = [.. dense];
+        var carried = new List<BoneBinding>(bindings.Count);
+        for (var b = 0; b < bindings.Count; b++)
+        {
+            var w = new List<double>(dense.Count);
+            for (var i = 0; i < dense.Count; i++) w.Add(weights[i][b]);
+            carried.Add(new BoneBinding { BoneId = bindings[b].BoneId, PointWeights = w });
+        }
+        return carried;
+    }
+
+    /// <summary>
     /// The bindings that move a stroke on a frame: its own weights, the
     /// layer's named bone, or an auto-bind against the whole skeleton — the
     /// one rule <see cref="PoseFrameForRender"/> and <see cref="BakeFrame"/>
@@ -671,6 +715,20 @@ public static class Skinning
         var corrected = correction is { Count: > 0 } && correction.Count == stroke.Points.Count
             ? correction
             : null;
+        // Not under a corrective: its offsets are one per control point, and
+        // inserting points would orphan them (Corrected drops a mismatched
+        // set outright, which is the artist's fix silently gone).
+        if (corrected is null)
+        {
+            var dense = DensifyForWriteBack(stroke, bindings);
+            if (!ReferenceEquals(dense, bindings))
+            {
+                bindings = dense;
+                // Inserted points need their weights in the record, whether
+                // the stroke carried its own or was auto-bound by the layer.
+                stroke.Weights = [.. dense];
+            }
+        }
         var weights = new double[bindings.Count];
         for (var i = 0; i < stroke.Points.Count; i++)
         {
@@ -799,6 +857,10 @@ public static class Skinning
         IReadOnlyList<BoneBinding>? bindings = NamedBinding(layerBone);
         if (bindings is null)
         {
+            // Dense before the auto-bind, so the weights vary smoothly along
+            // the line and the inverse holds between the pen's samples — a
+            // shape's five corners across a bent joint would otherwise bow.
+            stroke.Points = [.. GeometryOps.Densify(stroke.Points, WriteBackChord)];
             AutoBind(stroke, armature, pose);
             bindings = stroke.Weights;
             if (bindings is not { Count: > 0 }) return null;
@@ -830,7 +892,7 @@ public static class Skinning
     /// arc fraction between the control points either side.
     /// </summary>
     private static (IReadOnlyList<StrokePoint> Points, double[][] Weights) DensifyWithWeights(
-        List<StrokePoint> points, IReadOnlyList<BoneBinding> bindings)
+        List<StrokePoint> points, IReadOnlyList<BoneBinding> bindings, double maxChord = 2.0)
     {
         double[] WeightsOf(int index)
         {
@@ -841,7 +903,7 @@ public static class Skinning
 
         // Same short-circuit as GeometryOps.Densify: nothing to add means the
         // caller's own points, weights straight off the record.
-        var dense = GeometryOps.Densify(points);
+        var dense = GeometryOps.Densify(points, maxChord);
         if (ReferenceEquals(dense, points))
         {
             var direct = new double[points.Count][];
@@ -856,7 +918,7 @@ public static class Skinning
         for (var i = 0; i < points.Count - 1; i++)
         {
             var spanStart = output.Count - 1;
-            GeometryOps.AppendSpan(output, points, i, maxChord: 2.0);
+            GeometryOps.AppendSpan(output, points, i, maxChord);
 
             var from = WeightsOf(i);
             var to = WeightsOf(i + 1);

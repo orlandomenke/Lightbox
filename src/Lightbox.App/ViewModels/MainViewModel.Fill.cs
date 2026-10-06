@@ -343,7 +343,10 @@ public partial class MainViewModel
             }
             else if (sampleTarget is { } target)
             {
-                sample = _cache.Get(target, scene.Width, scene.Height);
+                // At the playhead's cel (B382): a posed drawing is a different
+                // picture at every position, and the one the artist clicked
+                // on is the one under the playhead, not cel 0's.
+                sample = _cache.Get(target, scene.Width, scene.Height, celIndex: CurrentFrameIndex);
             }
             else
             {

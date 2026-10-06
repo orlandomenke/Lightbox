@@ -50,3 +50,10 @@ artist put it.
 - **Authored paths are dropped** on every bound stroke a transform moves and on
   every drawn stroke carried back to rest — the pen tool's handles included.
   The points are exact; a later fit brings handles back.
+- **Sparse strokes gain points.** The inverse is exact at a control point and
+  only approximate on the curve between two of them when the weights differ
+  at each end, so a stroke like that is densified to a six-pixel chord before
+  the write-back, and a stroke drawn on a whole-skeleton layer before its
+  weights are measured. Pen strokes are denser than that already; a shape's
+  corners and a hand-placed three-point line are what grow, and the growth is
+  what keeps a straight line straight across a joint.

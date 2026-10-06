@@ -41,6 +41,29 @@ public class PoseSpaceTransformTests(ITestOutputHelper output)
         Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose> pose) =>
         Skinning.PoseControlPoints(stroke, armature, pose);
 
+    /// <summary>
+    /// How far any point of <paramref name="curve"/> sits from the translated
+    /// reference curve — measured to the reference's segments, not its
+    /// vertices, so two samplings of the same curve read as zero.
+    /// </summary>
+    private static double Departure(
+        IReadOnlyList<StrokePoint> curve, IReadOnlyList<StrokePoint> reference, double dx, double dy)
+    {
+        var shifted = reference.Select(q => q with { X = q.X + dx, Y = q.Y + dy }).ToList();
+        var worst = 0.0;
+        foreach (var p in curve)
+        {
+            var nearest = double.MaxValue;
+            for (var i = 0; i + 1 < shifted.Count; i++)
+            {
+                var d = GeometryOps.DistToSegment(p, shifted[i], shifted[i + 1]);
+                if (d < nearest) nearest = d;
+            }
+            worst = Math.Max(worst, nearest);
+        }
+        return worst;
+    }
+
     [Fact]
     public void TranslatingInPoseSpaceTranslatesThePosedImage()
     {
@@ -87,26 +110,84 @@ public class PoseSpaceTransformTests(ITestOutputHelper output)
             new BoneBinding { BoneId = "a", PointWeights = ramp.Select(w => 1 - w).ToList() },
             new BoneBinding { BoneId = "b", PointWeights = ramp },
         ];
-        var before = Posed(stroke, arm, pose);
+        // The rendered curves — densified, as the canvas draws them — rather
+        // than the control points: the write-back inserts points on a sparse
+        // stroke, so indices no longer correspond, and the curve between the
+        // points is what the artist sees anyway.
+        var before = Skinning.PoseStroke(stroke, arm, pose).Points;
 
         // The old way, on a copy: the rest points through the map, then posed.
         var naive = stroke.Clone(newId: false);
         TransformOps.TransformStroke(naive, (x, y) => Shift(20, 0, x, y));
-        var naivePosed = Posed(naive, arm, pose);
+        var naivePosed = Skinning.PoseStroke(naive, arm, pose).Points;
 
         Skinning.TransformInPose(stroke, arm, pose, null, null, (x, y) => Shift(20, 0, x, y));
-        var after = Posed(stroke, arm, pose);
+        var after = Skinning.PoseStroke(stroke, arm, pose).Points;
 
-        double worstNaive = 0, worstWritten = 0;
-        for (var i = 0; i < before.Count; i++)
-        {
-            worstNaive = Math.Max(worstNaive, Math.Abs(naivePosed[i].X - (before[i].X + 20)) + Math.Abs(naivePosed[i].Y - before[i].Y));
-            worstWritten = Math.Max(worstWritten, Math.Abs(after[i].X - (before[i].X + 20)) + Math.Abs(after[i].Y - before[i].Y));
-        }
+        var worstNaive = Departure(naivePosed, before, 20, 0);
+        var worstWritten = Departure(after, before, 20, 0);
         output.WriteLine($"worst departure from a true translation: naive {worstNaive:F3} px, pose-space {worstWritten:E2} px");
         // The naive route visibly bends the line — several pixels at a 45° joint.
         Assert.True(worstNaive > 2, $"the control did not reproduce the kink ({worstNaive:F3} px)");
-        Assert.True(worstWritten < 1e-9, $"the pose-space write-back drifted by {worstWritten:E2} px");
+        // Exact at every control point the write-back inserted, and within a
+        // fraction of a pixel on the curve between them.
+        Assert.True(worstWritten < 1.0, $"the pose-space write-back drifted by {worstWritten:F3} px");
+    }
+
+    /// <summary>
+    /// The adversary's case: the inverse is exact at the control points, and
+    /// a sparse line across a bent joint used to land well off at its middle,
+    /// because the render blends weights by arc fraction between the points
+    /// and the fractions moved with them. The write-back now densifies such
+    /// a stroke first, so the rendered curve follows the translation all the
+    /// way along. (Three points, not two: a two-point line is rendered as one
+    /// straight segment between its posed ends and was exact already.)
+    /// </summary>
+    [Fact]
+    public void ASparseLineAcrossABentJointFollowsTheTranslationBetweenItsPointsToo()
+    {
+        var arm = TwoBones();
+        var pose = Rotate("b", 90);
+        var stroke = Line((0, 0), (100, 0), (200, 0));
+        stroke.Weights =
+        [
+            new BoneBinding { BoneId = "a", PointWeights = [1.0, 0.5, 0.0] },
+            new BoneBinding { BoneId = "b", PointWeights = [0.0, 0.5, 1.0] },
+        ];
+        var before = Skinning.PoseStroke(stroke, arm, pose).Points;   // the rendered curve, dense
+
+        // The control: the same write-back without the densification is what
+        // the node-only inverse gives, and it bows between the nodes.
+        var sparse = stroke.Clone(newId: false);
+        var sparseCurveAfter = SparseWriteBack(sparse, arm, pose, 0, 30);
+
+        Assert.True(Skinning.TransformInPose(stroke, arm, pose, null, null, (x, y) => Shift(0, 30, x, y)));
+        var after = Skinning.PoseStroke(stroke, arm, pose).Points;
+
+        var worstSparse = Departure(sparseCurveAfter, before, 0, 30);
+        var worst = Departure(after, before, 0, 30);
+        output.WriteLine($"record grew from 3 to {stroke.Points.Count} points; departure at the nodes only {worstSparse:F2} px, densified {worst:F3} px");
+        Assert.True(stroke.Points.Count > 3, "the sparse stroke was not densified");
+        Assert.True(worstSparse > 1.0, $"the control did not reproduce the bow ({worstSparse:F2} px)");
+        Assert.True(worst < 1.0, $"the rendered curve departs from the translation by {worst:F2} px");
+    }
+
+    /// <summary>The node-only inverse, by hand: each control point posed, shifted, and inverted through its own weights.</summary>
+    private static IReadOnlyList<StrokePoint> SparseWriteBack(
+        Stroke stroke, Armature arm, IReadOnlyDictionary<string, BonePose> pose, double dx, double dy)
+    {
+        var posed = Skinning.PoseControlPoints(stroke, arm, pose);
+        var target = posed.Select(p => p with { X = p.X + dx, Y = p.Y + dy }).ToList();
+        var offsets = Skinning.RestOffsetsFor(stroke, arm, pose, target);
+        for (var i = 0; i < stroke.Points.Count; i++)
+        {
+            stroke.Points[i] = stroke.Points[i] with
+            {
+                X = stroke.Points[i].X + offsets[i].X,
+                Y = stroke.Points[i].Y + offsets[i].Y,
+            };
+        }
+        return Skinning.PoseStroke(stroke, arm, pose).Points;
     }
 
     [Fact]

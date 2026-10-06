@@ -125,13 +125,22 @@ public class PosedTransformTests : BrushStateIsolated
         Assert.Equal(200, last.Y, 6);
     }
 
-    /// <summary>B381, the preview: what slides under the gizmo is the posed drawing, not the rest one.</summary>
+    /// <summary>
+    /// B381, the preview: what slides under the gizmo is the posed drawing,
+    /// not the rest one. Through a marquee on purpose — the preview then
+    /// rasterizes the session's own split rather than borrowing the cel
+    /// bitmap, which at cel 0 with one static pose is the same picture either
+    /// way and would not tell the old code from the new.
+    /// </summary>
     [AvaloniaFact]
     public void TheLivePreviewDragsThePosedDrawing()
     {
         var vm = Posed(out _, out _);
         RenderSnapshot? latest = null;
         vm.SnapshotChanged += s => latest = s;
+        vm.ApplySelectionShape(
+            [new(85, 156, 1), new(115, 156, 1), new(115, 206, 1), new(85, 206, 1)],
+            add: false, subtract: false);
 
         Assert.True(vm.BeginTransform(), vm.AiStatus);
         vm.PreviewTransform(SKMatrix.CreateTranslation(60, 0));
@@ -146,6 +155,43 @@ public class PosedTransformTests : BrushStateIsolated
         Assert.True(bmp.GetPixel(190, 150).Red > 200,
             $"the preview dragged the rest pose instead (red {bmp.GetPixel(190, 150).Red})");
         vm.CancelTransform();
+    }
+
+    /// <summary>
+    /// Drawing on a HELD cel of a posed layer keys a fresh drawing (new frame,
+    /// new stroke ids) in the same gesture; the carry-back has to see that
+    /// fresh frame as posed, which it only can if the rig index was rebuilt
+    /// synchronously by the keying.
+    /// </summary>
+    [AvaloniaFact]
+    public void AStrokeDrawnOnAHeldPosedCelStaysWhereThePenWas()
+    {
+        var vm = Posed(out _, out var original);
+        var layer = vm.Doc.Scene.Layers.First(l => !l.IsBackground);
+        // A second frame, held: the exposure sheet shows cel 0's drawing there.
+        vm.Doc.Scene.FrameCount = 2;
+        foreach (var l in vm.Doc.Scene.Layers) l.Cels.Add(new Cel());
+        vm.MarkDocumentEditedForTests();
+        vm.CurrentFrameIndex = 1;
+        Assert.Null(layer.Cels[1].Frame);                       // a hold of cel 0's drawing
+        Assert.Same(ExposureSheet.ExposedFrame(layer, 0), ExposureSheet.ExposedFrame(layer, 1));
+
+        vm.BeginStroke(200, 100, 1);
+        vm.MoveStroke(260, 100, 1);
+        vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var keyed = layer.Cels[1].Frame;
+        Assert.NotNull(keyed);                                  // the gesture keyed the hold
+        // The keyed copy holds the original (rest x=110) and the new line,
+        // whose rest geometry on this bone starts at (50,50).
+        var drawn = keyed!.Strokes.Single(s => s.Points[0].X < 100);
+        var posed = Skinning.PoseFrameForRender(vm.Doc, keyed, 1, RigIndex.For(vm.Doc));
+        var shown = posed.Strokes.Single(s => s.Id == drawn.Id);
+        Assert.Equal(200, shown.Points[0].X, 6);
+        Assert.Equal(100, shown.Points[0].Y, 6);
+        Assert.Equal(260, shown.Points[^1].X, 6);
+        Assert.Equal(100, shown.Points[^1].Y, 6);
     }
 
     /// <summary>

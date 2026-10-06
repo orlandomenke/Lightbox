@@ -476,7 +476,9 @@ any curve handles it had (the points are still exact, and a later fit brings
 the handles back); the band scale adds no extra points on its dividers to a
 posed drawing; and a point sitting exactly in a joint folded almost flat stays
 where it is, because there is no rest position that would put it where you
-dragged it without throwing it off in every other pose.
+dragged it without throwing it off in every other pose. A line made of only a
+few points that spans a joint gains points when it is transformed, so that it
+keeps its shape between them; drawn strokes already have plenty.
 
 ### Copying lines out, and pasting them back
 
