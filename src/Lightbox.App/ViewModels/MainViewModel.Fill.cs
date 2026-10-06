@@ -179,10 +179,16 @@ public partial class MainViewModel
 
         if (StrokeShapedLikeTheSelection(tool, color, swatchId, label) is not { } stroke) return;
 
+        // B382: on a posed layer the selection was drawn over the posed
+        // picture; the record keeps rest geometry.
+        Skinning.UnposeDrawnStroke(stroke, Doc, target, CurrentFrameIndex, _cache.Rig);
         // B236, the area form: clearing a selection that held nothing is the
         // same act as rubbing out blank canvas, so it is recorded the same way
         // — which is to say not at all. A fill always adds paint and never asks.
-        var erasure = IsErasure(stroke)
+        // Not on a posed drawing (B382): AppendToFrameRender rebuilds its
+        // render instead of appending, which disposes the bitmap a probe
+        // would hold; a clear there is recorded like any other mark.
+        var erasure = IsErasure(stroke) && !_cache.Rig.IsPosed(target)
             ? StrokeChangeProbe.Open(stroke, _cache.Get(target, scene.Width, scene.Height))
             : null;
 
@@ -337,7 +343,10 @@ public partial class MainViewModel
             }
             else if (sampleTarget is { } target)
             {
-                sample = _cache.Get(target, scene.Width, scene.Height);
+                // At the playhead's cel (B382): a posed drawing is a different
+                // picture at every position, and the one the artist clicked
+                // on is the one under the playhead, not cel 0's.
+                sample = _cache.Get(target, scene.Width, scene.Height, celIndex: CurrentFrameIndex);
             }
             else
             {
@@ -390,6 +399,9 @@ public partial class MainViewModel
         };
         var clip = PrepareClipForSelection();
         if (clip is not null) stroke.ClipId = clip.Value.Id;
+        // B382: the region was traced on the posed picture; the record keeps
+        // rest geometry, and the render re-poses it back onto the same pixels.
+        Skinning.UnposeDrawnStroke(stroke, Doc, target, CurrentFrameIndex, _cache.Rig);
         var below = FillBelowLines;
 
         // Fill-above stamps incrementally onto the cached frame. Fill-below

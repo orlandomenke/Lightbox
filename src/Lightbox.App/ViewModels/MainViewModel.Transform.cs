@@ -666,6 +666,50 @@ public partial class MainViewModel
             ? "Scope is this drawing while lines are picked — a line lives on one drawing."
             : "";
 
+    /// <summary>
+    /// The drawings the session judges and previews by — a posed frame as
+    /// the canvas shows it at the playhead, every other frame as it is.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B381.</b> The record holds a rigged drawing at rest; what the artist
+    /// boxes, drags and reads the gizmo against is the posed picture. So the
+    /// marquee's classification, the box round the drawing, the moving/static
+    /// preview split and the crossing test all read this view, and the commit
+    /// writes back through <c>Skinning.PoseSpaceMover</c>. A frame that
+    /// renders at rest at this playhead — unrigged, or exposed somewhere the
+    /// pose does not reach — is handed back as itself, and that branch is the
+    /// one every ordinary document takes.
+    /// </para>
+    /// <para>
+    /// Built once per session and per frame: posing densifies the record, and
+    /// the drag asks for this on every pointer event. The view keeps the
+    /// record's stroke ids, which is what lets a filter built from it answer
+    /// for the record's own strokes.
+    /// </para>
+    /// </remarks>
+    private Frame PosedForTransform(Frame frame)
+    {
+        if (!_cache.Rig.IsPosed(frame)) return frame;
+        // The playhead can move while a gizmo session is open; a view posed
+        // for the old position would then disagree with the commit, which
+        // reads the pose at the position the artist is standing on.
+        if (_posedViewsAt != CurrentFrameIndex)
+        {
+            _posedViews.Clear();
+            _posedViewsAt = CurrentFrameIndex;
+        }
+        if (_posedViews.TryGetValue(frame.Id, out var view)) return view;
+        view = Skinning.PoseFrameForRender(Doc, frame, CurrentFrameIndex, _cache.Rig);
+        _posedViews[frame.Id] = view;
+        return view;
+    }
+
+    private List<Frame> PosedViews(List<Frame> frames) => frames.ConvertAll(PosedForTransform);
+
+    private readonly Dictionary<string, Frame> _posedViews = [];
+    private int _posedViewsAt = -1;
+
     /// <summary>Distinct drawings in scope (holds share Frame instances — dedupe by id).</summary>
     private List<Frame> CollectTransformFrames()
     {
@@ -749,6 +793,7 @@ public partial class MainViewModel
     {
         TransformActive = false;
         _previewSplit = null;
+        _posedViews.Clear();
         _transform.End();
         // Commit and cancel both land here, so the chrome's preview matrix
         // cannot outlive the session however it ends. On a commit the raise
@@ -925,13 +970,18 @@ public partial class MainViewModel
             // than remembered: the cache owns and disposes these, and a
             // remembered one becomes a dangling pointer the moment anything
             // invalidates the frame.
-            return new TransformSession.Parts(_cache.Get(frame, Scene.Width, Scene.Height), null, Owned: false);
+            // At the playhead's cel, because a rigged drawing is a different
+            // picture at every position and the one under the gizmo is the
+            // posed one — B381's first symptom was the rest pose sliding
+            // around under a drag of the posed drawing.
+            return new TransformSession.Parts(
+                _cache.Get(frame, Scene.Width, Scene.Height, celIndex: CurrentFrameIndex), null, Owned: false);
         }
 
         if (_transform.Cached(frame.Id) is { } cached) return cached;
 
         TransformSession.Parts? parts;
-        if (frame is Frame painted && _transform.Filter is { } filter)
+        if (PosedForTransform(frame) is var painted && _transform.Filter is { } filter)
         {
             // B319. The preview is built from the same split the commit will
             // write, on clones, rather than from a rule of its own. Before
@@ -1126,6 +1176,12 @@ public partial class MainViewModel
         foreach (var frame in _transform.Frames)
         {
             if (frame is Frame { PngBase64.Length: > 0 }) baselines++;
+            // A posed drawing gets no divider vertices (B381): the dividers
+            // stand in pose space while the record's points are at rest, and
+            // a point inserted into a weighted stroke would have no weight —
+            // the inserted vertex would stay behind when the rig moved. The
+            // band map still applies to every point it has, pointwise.
+            if (!ReferenceEquals(PosedForTransform(frame), frame)) continue;
             foreach (var stroke in TransformOps.StrokesOf(frame))
             {
                 if (filter is not null && !filter(stroke)) continue;
@@ -1191,6 +1247,11 @@ public partial class MainViewModel
     private void CommitTransformCore(TransformOps.PointMap map, double sizeScale, SKMatrix baselineMatrix)
     {
         var frames = _transform.Frames.ToList();
+        // B381: how each drawing's strokes travel — through the pose for a
+        // frame the canvas shows posed, plainly for every other. Resolved from
+        // the frames as collected, before a held cel is keyed below: the keyed
+        // copy is not in the rig index yet, and it is the same drawing.
+        var movers = frames.ConvertAll(f => Skinning.PoseSpaceMover(Doc, f, CurrentFrameIndex, _cache.Rig, map));
         // The one point where a held cel becomes a drawing of its own. Before
         // this line the gesture has changed nothing — which is what lets Ctrl+T
         // followed by Escape leave the timeline as it was.
@@ -1221,15 +1282,17 @@ public partial class MainViewModel
         var split = RegionSplit(filter, travel);
         _editor.Perform(doc =>
         {
-            foreach (var frame in frames)
+            for (var i = 0; i < frames.Count; i++)
             {
+                var frame = frames[i];
+                var mover = movers[i];
                 // A region-limited commit goes through the erasure-aware path:
                 // a moved erasure leaves a stay copy where it was still holding
                 // rubbed-out ink down, so erased strokes outside the selection
                 // do not come back (the ghost the preview split also guards).
-                if (filter is null) TransformOps.TransformFrame(frame, map, sizeScale, null, travel.Carry);
+                if (filter is null) TransformOps.TransformFrame(frame, map, sizeScale, null, travel.Carry, mover);
                 else TransformErasures.TransformFrame(
-                    frame, map, sizeScale, filter, split?.For(frame), travel.Carry);
+                    frame, map, sizeScale, filter, split?.For(frame), travel.Carry, mover);
                 // Raster baselines resample once per commit; a region-limited
                 // transform moves strokes only (baseline pixels stay put).
                 // Identity means "there is no matrix for this transform" — a
@@ -1307,10 +1370,25 @@ public partial class MainViewModel
         /// </remarks>
         public Func<Stroke, TransformErasures.RegionClips?> For(Frame frame)
         {
-            var reading = new TransformErasures.RegionReading(frame.Strokes, mask, width, height);
+            // Asked of the drawing as the artist sees it (B381): the mask was
+            // drawn over the posed picture, so a stroke is judged by where its
+            // posed ink is. The commit hands this the record's own strokes,
+            // which the view shares ids with — hence the lookup.
+            var view = vm.PosedForTransform(frame);
+            var reading = new TransformErasures.RegionReading(view.Strokes, mask, width, height);
+            Dictionary<string, Stroke>? seen = null;
+            if (!ReferenceEquals(view, frame))
+            {
+                // First wins on a duplicated id rather than throwing: this runs
+                // inside the editor's Perform, and a hand-edited file with two
+                // strokes sharing an id must not take the session down with it.
+                seen = new Dictionary<string, Stroke>(view.Strokes.Count);
+                foreach (var s in view.Strokes) seen.TryAdd(s.Id, s);
+            }
             return stroke =>
             {
-                if (!reading.Crosses(stroke)) return null;
+                var judged = seen is not null && seen.TryGetValue(stroke.Id, out var posed) ? posed : stroke;
+                if (!reading.Crosses(judged)) return null;
 
                 // An erasure is not divided — it is duplicated, and the
                 // original is left exactly as it was.

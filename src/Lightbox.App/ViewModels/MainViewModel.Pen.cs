@@ -232,6 +232,11 @@ public partial class MainViewModel
         if (clip is not null) stroke.ClipId = clip.Value.Id;
         FreezeSampledBackdrop(stroke);
         RememberDocumentBrush();
+        // B382: a pen path committed on a posed layer is carried back to rest
+        // like any other mark. Its authored path goes with the carry — the
+        // nodes would otherwise stand in pen space over rest-space points,
+        // which is the disagreement Stroke.Path forbids. The points are exact.
+        Skinning.UnposeDrawnStroke(stroke, Doc, target, CurrentFrameIndex, _cache.Rig);
         AppendToFrameRender(target, stroke);
 
         var frameId = target.Id;
