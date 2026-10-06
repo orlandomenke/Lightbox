@@ -517,12 +517,21 @@ public partial class MainViewModel
         CurrentFrameIndex++;
     }
 
+    /// <summary>
+    /// The timeline bar's 🗑: take the playhead's frame out of the scene.
+    /// </summary>
+    /// <remarks>
+    /// A column verb, like the ➕ and ⧉ beside it — those two add a frame to
+    /// every layer, so this one removes it from every layer. It goes through
+    /// the same path as an X-sheet <em>Delete and pull</em> on a column
+    /// selection, so it refuses on a locked layer and keeps the paper, rather
+    /// than being the one route that did neither.
+    /// </remarks>
     [RelayCommand]
     private void DeleteFrame()
     {
         if (Scene.FrameCount <= 1) return;
-        _editor.DeleteFrame(CurrentFrameIndex);
-        CurrentFrameIndex = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
+        DeleteColumns([CurrentFrameIndex]);
     }
 
     /// <summary>Whether there is a step to take back — the Edit menu greys out on it.</summary>

@@ -479,10 +479,19 @@ public partial class MainWindow
             case "timeline.insertKey":
                 _vm.InsertKeyframeAtPlayhead();
                 break;
-            case "timeline.deleteColumn":
-                // The playhead, because a shortcut has no cel under a pointer —
-                // the menu route passes the cel that was clicked.
-                _vm.DeleteColumnAt(_vm.CurrentFrameIndex);
+            // The selection, or the playhead's cel when nothing is selected,
+            // because a shortcut has no cel under a pointer — the menu route
+            // passes the cel that was clicked.
+            case "xsheet.delete":
+                _vm.ClearCelAtPlayhead();
+                e.Handled = true;
+                break;
+            case "xsheet.deleteAndPull":
+                _vm.DeleteCelAtPlayhead();
+                e.Handled = true;
+                break;
+            case "xsheet.insertBlankFrame":
+                _vm.InsertBlankFrameAtPlayhead();
                 e.Handled = true;
                 break;
             case "timeline.copyKeys":

@@ -5,9 +5,11 @@
 
 **The everyday frame verbs are also on the Animation menu**, each aimed at the
 drawing under the playhead on the layer you are on: play/pause and flipping to
-the neighbouring keys, inserting a keyframe, breakdown or inbetween, extending
-and reducing an exposure, the cel clipboard, clear and delete, onion skin and
-motion trail, and the playback range. The cel's right-click menu stays the way
+the neighbouring keys, inserting a keyframe, breakdown, inbetween or blank
+frame, extending and reducing an exposure, the cel clipboard, Delete and Delete
+and pull, onion skin and motion trail, and the playback range. Delete, Delete
+and pull and Insert blank frame take the **selection** when there is one,
+wherever the playhead is. The cel's right-click menu stays the way
 to aim any of them at a *particular* cel — and keeps the dialogs (re-time,
 timing chart, markers), which need one to aim at.
 
@@ -122,7 +124,7 @@ beside them alone.
   editor's easing menu, where the key actually is) and **Remove camera key**;
   a pose key offers **Delete this pose key** or **Unkey this bone here**; a
   drawing offers **Clear drawing**, which keeps the timing the way the
-  X-sheet's clear does.
+  X-sheet's **Delete** does.
 - **Go to frame** — jump the playhead to the key.
 
 **Right-click an empty stretch of a track** for the verbs that need a frame
@@ -258,20 +260,42 @@ an end — "walk", "run", "idle". That is what an engine calls an animation clip
 it is what lets one sprite sheet hold several animations. A tag can carry a note
 too, for when the remark is about the whole cycle rather than one drawing.
 
-Right-click a cel for: insert frame, extend or reduce exposure, clear, delete
-(which pulls the rest of the row back), copy, cut, paste, markers, and the
-playback range.
+Right-click a cel for: insert frame, insert blank frame, extend or reduce
+exposure, Delete, Delete and pull, copy, cut, paste, markers, and the playback
+range.
 
-**Delete cel and Delete column are different edits, and the menu now says so.**
-*Delete cel* takes the drawing out of **that layer's row** and pulls the rest
-of that row back, leaving every other layer where it was. *Delete column*
-takes the frame out of the **scene** — every layer's cel at it — and pulls the
-whole sheet back, which is what you want when a beat is one frame too long. A
-column delete is refused while any layer is locked, because removing the frame
-from the others would slide them out of step with it. It is in **Edit →
-Configure → Shortcuts** under Timeline if you want a key for it; it has no
-default one, since Delete already means several things depending on where the
-pointer is.
+**Two deletes, named for what they leave behind.**
+
+| | Key (over the X-sheet) | What happens |
+| --- | --- | --- |
+| **Delete** | Delete | The drawings in the selected cels go and the cels become **holds**. Every slot stays, so nothing after them moves. |
+| **Delete and pull** | Shift+Delete | The selected cels are **removed** and the rest of each row is pulled back, padded with holds at the end, so the scene keeps its length and the other layers do not move. |
+
+**Select the same frames on every layer and Delete and pull takes them out of
+the scene.** Every layer loses its cel at those frames, the whole sheet is
+pulled back, and the scene gets that many frames shorter — what you want when
+a beat is a frame too long. The paper does not need selecting (it is not
+animated, and it keeps showing on every frame that is left), and a document
+with one drawing layer makes every selection a column, so there Delete and
+pull always shortens the scene. A column is refused while any drawing layer is
+locked, because removing the frame from the others would slide them out of
+step with it; and a scene is never shorter than one frame. The 🗑 on the
+timeline bar does the same for the frame under the playhead.
+
+**Insert blank frame** puts a hold *at* the cel: the new cel shows the drawing
+before it, and the cel you clicked and the rest of its row move one frame
+later — how you make a drawing arrive a frame late without touching anything
+else. Select a run of three cels and three holds go in at the start of the run.
+If the row runs past the end, the scene grows to fit, as extending an exposure
+does. Select the same frames on every layer and it is a column insert: every
+layer moves along, the paper stays put, and reference strips move with the
+frames. It has no default key; give it one in **Edit → Configure →
+Shortcuts**, where all three are listed under the X-sheet.
+
+Each of the three is one undo step, however many cels and layers it reached.
+The keys answer only with the pointer over the X-sheet: over the canvas Delete
+still clears the selection, and over the Layers docker it still deletes a
+layer.
 
 Drag a cel along its row to move it. Shift-click for a range, then apply
 exposure changes to all of it at once.
@@ -283,12 +307,13 @@ still ranges from the last cel you clicked, and re-ranges rather than adding a
 second run, so it is the way to correct an overshoot.
 
 **Everything on the cel's right-click menu covers the selection** — insert a
-key, breakdown or inbetween, extend and reduce exposure, clear, delete, and the
-three re-timing commands. The cels you left out are left alone, and an action
+key, breakdown, inbetween or blank frame, extend and reduce exposure, Delete,
+Delete and pull, and the three re-timing commands. The cels you left out are left alone, and an action
 aimed at a cel that is *not* in the selection takes that cel alone, so
 right-clicking somewhere else is never a trap.
 
-The ones that change the length of a row — extend, reduce, delete — work from
+The ones that change the length of a row — extend, reduce, Delete and pull,
+insert blank frame — work from
 the **end of the row backwards**, so the frames they add or remove never shift
 the cels you picked further along. The re-timing commands treat a picked-out
 selection as **runs** rather than as one span: select cels 1, 2 and 5 and you
