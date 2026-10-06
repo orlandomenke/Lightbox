@@ -1128,6 +1128,17 @@ public partial class MainWindow
         ArmLayerDrag(header, e);
     }
 
+    private void WireLayerListPointer()
+    {
+        // The layer docker's own drag and its Ctrl/Shift selection clicks.
+        // Handled events too: the row's buttons mark their presses and releases
+        // handled, and neither the drag nor a modified click may be lost to that.
+        LayerList.AddHandler(PointerPressedEvent, OnLayerListPressedTunnel, RoutingStrategies.Tunnel);
+        LayerList.AddHandler(PointerMovedEvent, OnLayerListPointerMoved, handledEventsToo: true);
+        LayerList.AddHandler(PointerReleasedEvent, OnLayerListPointerReleased, handledEventsToo: true);
+        LayerList.AddHandler(PointerCaptureLostEvent, OnLayerListCaptureLost);
+    }
+
     /// <summary>
     /// Ctrl or Shift pressed anywhere on a row is a selection click, whatever
     /// part of the row it landed on.

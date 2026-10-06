@@ -299,13 +299,7 @@ public partial class MainWindow : Window
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, OnFileDragOver);
         AddHandler(DragDrop.DropEvent, OnFileDrop);
-        // The layer docker's own drag and its Ctrl/Shift selection clicks.
-        // Handled events too: the row's buttons mark their presses and releases
-        // handled, and neither the drag nor a modified click may be lost to that.
-        LayerList.AddHandler(PointerPressedEvent, OnLayerListPressedTunnel, RoutingStrategies.Tunnel);
-        LayerList.AddHandler(PointerMovedEvent, OnLayerListPointerMoved, handledEventsToo: true);
-        LayerList.AddHandler(PointerReleasedEvent, OnLayerListPointerReleased, handledEventsToo: true);
-        LayerList.AddHandler(PointerCaptureLostEvent, OnLayerListCaptureLost);
+        WireLayerListPointer();
 
         // Two things move a panel in or out of a strip without the layout
         // changing: a project appearing (the project panel is absent until
