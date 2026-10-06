@@ -284,6 +284,12 @@ public sealed class Stroke
         copy.Path = Path?.Clone();
         copy.Weights = Weights?.Select(w => w.Clone()).ToList();
         copy.RestPoints = RestPoints is null ? null : [.. RestPoints];
+        // Deep, for the path's reason and one more (B379): an undo snapshot is
+        // a Doc.Clone, so a shared axis let an image resize scale the
+        // snapshot's centre along with the live one, and undoing the resize
+        // put the points back about an axis that stayed scaled. A duplicated
+        // cel shared it too, and was scaled once per sharer.
+        copy.Symmetry = Symmetry?.Clone();
         return copy;
     }
 }

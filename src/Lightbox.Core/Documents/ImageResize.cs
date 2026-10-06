@@ -228,6 +228,16 @@ public static class ImageResize
             // Weights are ratios and stay; an authored rescale re-rolls the
             // grain anyway (Q26), so the seeds moving with the art is right.
             if (stroke.RestPoints is { } rest) ScalePoints(rest, sx, sy);
+            // The axis a stroke was painted under is a place on the paper too
+            // (B379): left behind, the mark's points sat at the new scale while
+            // the centre it reflects about stayed at the old one, and the copy
+            // re-rendered in the wrong place. Angle, order and mirror are not
+            // lengths — the same accepted shear as an angled guide.
+            if (stroke.Symmetry is { } symmetry)
+            {
+                symmetry.CenterX *= sx;
+                symmetry.CenterY *= sy;
+            }
 
             // Size and TextureScale are the only two brush settings in
             // document pixels. Spacing, smudge length and radius, minimum
