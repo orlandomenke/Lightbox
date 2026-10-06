@@ -1,5 +1,6 @@
 using System.Reflection;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Timeline;
 
 namespace Lightbox.Core.Tests;
 
@@ -235,6 +236,31 @@ public class ImageResizeTests
         Assert.Equal(2, frame.Placements[0].ScaleX);
         Assert.Equal(120, frame.Anchors!["hand"].X);
         Assert.Equal(new ShapeBox(2, 4, 6, 8), frame.Shapes!["body"]);
+    }
+
+    /// <summary>
+    /// B379, the half that bit through undo: a resize is one snapshot step,
+    /// the snapshot is a <c>Doc.Clone</c>, and a stroke's axis used to be
+    /// shared between the two — so the resize scaled the snapshot's axis as
+    /// well and undo put the points back about a centre that stayed scaled.
+    /// </summary>
+    [Fact]
+    public void UndoingAResizePutsEachStrokesAxisBackWhereItWas()
+    {
+        var doc = DocWithAStroke(out var stroke);
+        stroke.Symmetry = new SymmetryAxis { CenterX = 480, CenterY = 270, AngleDeg = 90, Order = 1, Mirror = true };
+        var editor = new DocumentEditor(doc);
+
+        editor.Perform(d => ImageResize.Apply(d, 1920, 1080, new FakeResampler()), "Resize image");
+        var scaled = editor.Doc.Scene.Layers[0].Cels[0].Frame!.Strokes[0];
+        Assert.Equal(960, scaled.Symmetry!.CenterX);
+        Assert.Equal(400, scaled.Points[1].X);
+
+        editor.Undo();
+        var restored = editor.Doc.Scene.Layers[0].Cels[0].Frame!.Strokes[0];
+        Assert.Equal(200, restored.Points[1].X);
+        Assert.Equal(480, restored.Symmetry!.CenterX);
+        Assert.Equal(270, restored.Symmetry.CenterY);
     }
 
     [Fact]

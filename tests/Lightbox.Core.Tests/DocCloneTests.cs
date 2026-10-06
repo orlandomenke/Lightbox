@@ -98,6 +98,10 @@ public class DocCloneTests(ITestOutputHelper output)
                 Stabilisation = new BrushStabilisation(),
             },
             Baked = new BakedSample { PngBase64 = "AAAA", X = 1, Y = 2 },
+            // Set so the graph walk sees it: a null field is never shared, and
+            // the axis WAS shared until B379 (an undo snapshot's stroke and
+            // the live one held the same object, and a resize scaled both).
+            Symmetry = new SymmetryAxis { CenterX = 7, CenterY = 8, AngleDeg = 30, Order = 2, Mirror = true },
         });
 
         frame.Checkpoint = new StrokeCheckpoint
