@@ -171,6 +171,11 @@ background — and searches names *and* tags. Tags are a plain comma-separated
 line rather than folders, because a sword is a prop, and it is also "knight",
 and also "act two"; filing it once makes the other two searches fail.
 
+Narrowing the list does not lose what you had selected, as long as it still
+matches — so you can pick a symbol, type to bring it closer, and still press
+**Place**. A filter that hides it does clear the selection, because there is
+nothing left on show to act on.
+
 ## Cycles
 
 A symbol can hold several frames — a walk, a flicker, a blink. A placement of
