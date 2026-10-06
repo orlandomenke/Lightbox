@@ -1,6 +1,6 @@
 # CLAUDE.md — the per-session prelude
 
-budget: 22450
+budget: 23076
 
 ## What this budgets, and why it is characters rather than lines
 
@@ -84,3 +84,19 @@ other's reason and leaves a number nobody can account for.
   needed by any session that adds to `CLAUDE.md`, and a rule nobody can find is
   the one that gets broken. Recorded rather than absorbed, so the next raise has
   to argue for itself too.
+
+- **22,450 → 23,076** (2026-09-21, Q190/Q191): +626 for the *Every change starts
+  at triage* section, one row in *Start here*, and `sensitivity` in the skills row.
+  This is a rule, and it has to be resident to work: the whole point of the router
+  is that a session runs it **before** it has decided its change is small, so a
+  session that has not read the rule will not run it — and the only sessions that
+  would not are the ones that were about to skip it. The reasons live in the
+  `sensitivity` skill and `docs/DESIGN-sensitive-topics.md`, the reachable half.
+
+  Trimmed before raising: the section started at 790 characters and went in at
+  510 by dropping its rationale and its pointer to the skill, which the table row
+  already carries. What is left is what a session needs *before* it opens
+  `FLOW.md` or `SENSITIVITY.md`: that triage exists, what the two answers mean,
+  that a track is not lowered by the session, and that some files are not its to
+  edit. The full cost of this feature to every session is larger than this
+  number — two agent definitions and a skill are on-demand and are not counted here.
