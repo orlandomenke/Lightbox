@@ -99,6 +99,11 @@ public partial class MainViewModel
         // that fast path and is exactly the edit the Edit menu must not miss.
         RefreshUndoRedo();
         RefreshCropAvailability();
+        // An undo can take the symmetry axis away, move it, or swap the scene
+        // for a clone of itself; a tab switch or ReplaceDocument brings another
+        // scene entirely (AttachEditor ends by calling this). The axis in use
+        // follows the scene here, where every one of those lands.
+        ResyncSymmetry();
         // The Layer menu's checkboxes read the active layer live, so the value
         // is always right — but a binding only re-reads on a notification, and
         // an undo restores visibility/locks without one. Here rather than in

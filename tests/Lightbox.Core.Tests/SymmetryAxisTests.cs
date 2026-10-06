@@ -234,4 +234,45 @@ public class SymmetryAxisTests
         Assert.Equal(100, original.CenterX);
         Assert.Equal(9, copy.Order);
     }
+
+    // ---- the scene carries the authoring axis ----------------------------
+
+    /// <summary>
+    /// A cloned scene carries a copy of its axis, not the same object — the
+    /// same rule every other optional block on the scene follows, so a
+    /// snapshot taken for undo cannot be edited through the live scene.
+    /// </summary>
+    [Fact]
+    public void ASceneCloneCarriesItsAxisAsACopy()
+    {
+        var scene = new Scene { Symmetry = Vertical(order: 3) };
+
+        var copy = scene.Clone();
+
+        Assert.NotNull(copy.Symmetry);
+        Assert.NotSame(scene.Symmetry, copy.Symmetry);
+        Assert.Equal(3, copy.Symmetry!.Order);
+        Assert.Null(new Scene().Clone().Symmetry);
+    }
+
+    /// <summary>
+    /// A file is hostile input: an order of two billion is clamped where it is
+    /// used, so the placements never allocate for it, and the stored number
+    /// is left alone so the document round-trips as written.
+    /// </summary>
+    [Fact]
+    public void AnOrderPastTheCeilingIsClampedWhereItIsUsedAndKeptWhereItIsStored()
+    {
+        var axis = Vertical(order: int.MaxValue);
+
+        Assert.Equal(SymmetryAxis.MaxOrder, axis.EffectiveOrder);
+        Assert.Equal(2 * SymmetryAxis.MaxOrder, axis.CopyCount);
+        Assert.Equal(2 * SymmetryAxis.MaxOrder, axis.Placements().Length);
+        Assert.Equal(int.MaxValue, axis.Order);
+        var doc = new Doc();
+        doc.Scene.Symmetry = axis;
+        var json = DocJson.Serialize(doc);
+        Assert.Contains("2147483647", json);
+        Assert.DoesNotContain("effectiveOrder", json);
+    }
 }

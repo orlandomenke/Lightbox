@@ -436,6 +436,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     public bool QuickEraserOptions => QuickHas(QuickBarCatalog.EraserOptions);
 
+    public bool QuickBrushSymmetry => QuickHas(QuickBarCatalog.BrushSymmetry);
+
     public bool QuickShapeOptions => QuickHas(QuickBarCatalog.ShapeOptions);
 
     public bool QuickFillOptions => QuickHas(QuickBarCatalog.FillOptions);
@@ -467,6 +469,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject
         {
             [QuickBarCatalog.BrushOptions] = nameof(QuickBrushOptions),
             [QuickBarCatalog.EraserOptions] = nameof(QuickEraserOptions),
+            [QuickBarCatalog.BrushSymmetry] = nameof(QuickBrushSymmetry),
             [QuickBarCatalog.ShapeOptions] = nameof(QuickShapeOptions),
             [QuickBarCatalog.FillOptions] = nameof(QuickFillOptions),
             [QuickBarCatalog.SelectOptions] = nameof(QuickSelectOptions),

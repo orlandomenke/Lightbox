@@ -70,6 +70,16 @@ public readonly record struct SymmetryPlacement(double RotationDeg, bool Mirrore
 /// </remarks>
 public sealed class SymmetryAxis
 {
+    /// <summary>
+    /// The most rotational copies an axis is ever given, whatever the record
+    /// says. Twelve is a kaleidoscope; past it the copies overlap at any brush
+    /// size — and a file is hostile input, so <see cref="Order"/> read from
+    /// one is bounded here rather than trusted. An order of two billion would
+    /// otherwise allocate its placements per stroke render and its gizmo
+    /// lines per repaint until the process fell over.
+    /// </summary>
+    public const int MaxOrder = 12;
+
     /// <summary>Axis centre in document coordinates.</summary>
     public double CenterX { get; set; }
 
@@ -103,7 +113,16 @@ public sealed class SymmetryAxis
     /// making its neighbour nullable had removed.
     /// </remarks>
     [JsonIgnore]
-    public int CopyCount => Math.Max(1, Order) * (Mirror ? 2 : 1);
+    public int CopyCount => EffectiveOrder * (Mirror ? 2 : 1);
+
+    /// <summary>
+    /// <see cref="Order"/> as the engine and the gizmo actually use it:
+    /// clamped to <c>[1, MaxOrder]</c>. The stored value is left alone so a
+    /// document round-trips byte for byte; only what is <em>done</em> with it
+    /// is bounded.
+    /// </summary>
+    [JsonIgnore]
+    public int EffectiveOrder => Math.Clamp(Order, 1, MaxOrder);
 
     /// <summary>
     /// True when this axis would change nothing, so a caller can skip it
@@ -115,7 +134,7 @@ public sealed class SymmetryAxis
     /// with no axis at all — see <c>DrawingCostBaselineTests</c>.
     /// </remarks>
     [JsonIgnore]
-    public bool IsIdentity => Math.Max(1, Order) == 1 && !Mirror;
+    public bool IsIdentity => EffectiveOrder == 1 && !Mirror;
 
     /// <summary>
     /// Every placement this axis asks for, the identity first.
@@ -141,7 +160,7 @@ public sealed class SymmetryAxis
     /// </remarks>
     public SymmetryPlacement[] Placements()
     {
-        var n = Math.Max(1, Order);
+        var n = EffectiveOrder;
         if (IsIdentity) return [SymmetryPlacement.Identity];
 
         var step = 360.0 / n;

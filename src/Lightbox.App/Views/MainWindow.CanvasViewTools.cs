@@ -630,6 +630,9 @@ public partial class MainWindow
             case "canvas.mirror":
                 Canvas.ToggleMirror();
                 break;
+            case "brush.symmetry":
+                _vm.SymmetryEnabled = !_vm.SymmetryEnabled;
+                break;
             case "canvas.resetView":
                 Canvas.ResetView();
                 break;

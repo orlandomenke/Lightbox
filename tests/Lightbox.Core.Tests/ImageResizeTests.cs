@@ -252,7 +252,7 @@ public class ImageResizeTests
             nameof(Scene.OriginX), nameof(Scene.OriginY),
             nameof(Scene.Layers), nameof(Scene.Guides), nameof(Scene.Camera),
             nameof(Scene.Pivot), nameof(Scene.References), nameof(Scene.Ppi),
-            nameof(Scene.PoseTrack),
+            nameof(Scene.PoseTrack), nameof(Scene.Symmetry),
 
             // Carry no document coordinate, on purpose.
             nameof(Scene.Id), nameof(Scene.Name), nameof(Scene.Fps),

@@ -321,6 +321,31 @@ public sealed class Scene
     public Camera? Camera { get; set; }
 
     /// <summary>
+    /// The symmetry axis the artist has placed on this scene, or null — and
+    /// null is the default and the common case.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The <b>authoring</b> axis, the guide an artist drags and turns and
+    /// paints under. What a finished mark was painted under lives on the
+    /// <see cref="Stroke"/> itself (<see cref="Stroke.Symmetry"/>), cloned
+    /// when the stroke begins, so turning this axis afterwards never reaches
+    /// art already made — Q15's split, and invariant 4 wanting it
+    /// independently. Like a <see cref="Guide"/> it never reaches a pixel on
+    /// its own.
+    /// </para>
+    /// <para>
+    /// Null until placed, the camera's rule: a document that never painted
+    /// with symmetry writes no <c>symmetry</c> key on its scene. Whether the
+    /// axis is <em>in use</em> is session state on the view model, the way
+    /// snapping is for guides — the axis is kept here so a reopened scene
+    /// finds it where it was left, and reopening does not start reflecting
+    /// marks the artist has not asked to reflect.
+    /// </para>
+    /// </remarks>
+    public SymmetryAxis? Symmetry { get; set; }
+
+    /// <summary>
     /// Effects over the whole composite, before the camera — grade, grain,
     /// vignette — or null, exactly like <see cref="Camera"/>. A document that
     /// never grades writes no key and pays for nothing
@@ -494,6 +519,7 @@ public sealed class Scene
         copy.References = References?.Select(r => r.Clone()).ToList();
         copy.Guides = Guides?.Select(g => g.Clone()).ToList();
         copy.Camera = Camera?.Clone();
+        copy.Symmetry = Symmetry?.Clone();
         copy.Effects = Effects?.Clone();
         copy.Audio = Audio?.Clone();
         copy.Pivot = Pivot?.Clone();

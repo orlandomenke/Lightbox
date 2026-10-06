@@ -40,6 +40,14 @@ public static class QuickBarCatalog
 
     public const string BrushOptions = "brush-options";
     public const string EraserOptions = "eraser-options";
+
+    /// <summary>
+    /// The symmetry toggle and its order and mirror fields, while the brush or
+    /// the eraser is in hand. Its own section rather than a corner of
+    /// <see cref="BrushOptions"/> so an artist who never uses it can take it
+    /// off the bar — and so it is one section for both tools, not two copies.
+    /// </summary>
+    public const string BrushSymmetry = "brush-symmetry";
     public const string ShapeOptions = "shape-options";
     public const string FillOptions = "fill-options";
     public const string SelectOptions = "select-options";
@@ -69,6 +77,7 @@ public static class QuickBarCatalog
     [
         new(BrushOptions, "Brush options", "Hardness, flow and smoothing while the brush is in hand"),
         new(EraserOptions, "Eraser options", "Hardness and smoothing while the eraser is in hand"),
+        new(BrushSymmetry, "Symmetry", "Mirror and radial symmetry for the brush and eraser — the toggle, how many copies, and whether they reflect"),
         new(ShapeOptions, "Shape options", "Which shape, and its settings, while the shape tool is in hand"),
         new(FillOptions, "Fill options", "Tolerance and reach while the fill is in hand"),
         new(SelectOptions, "Selection options", "Marquee shape, feather and the selection actions while selecting"),
@@ -88,7 +97,7 @@ public static class QuickBarCatalog
     /// </summary>
     public static readonly IReadOnlyList<string> ToolDefaults =
     [
-        BrushOptions, EraserOptions, ShapeOptions,
+        BrushOptions, EraserOptions, BrushSymmetry, ShapeOptions,
         FillOptions, SelectOptions, GradientOptions, ArrowOptions, GuideOptions,
         LineOptions, TextOptions,
     ];

@@ -331,6 +331,13 @@ public sealed class ShortcutMap
             new("canvas.transformBands", "Transform: band mode (divide and redistribute)", "Tools",
                 G(Key.T, KeyModifiers.Control | KeyModifiers.Shift)),
             new("canvas.mirror", "Mirror view", "Canvas", G(Key.M)),
+            // Shift+M: the other mirror. M flips what you SEE and leaves the
+            // document alone; Shift+M makes the next mark land twice. Beside
+            // each other on the key so an artist who knows one finds the
+            // other, and on a modifier so a slip of the finger flips the view
+            // rather than starting to reflect their drawing. In Tools rather
+            // than Canvas because it changes what the brush does.
+            new("brush.symmetry", "Toggle symmetry painting", "Tools", G(Key.M, KeyModifiers.Shift)),
             // Photoshop's three, on Photoshop's keys. Rulers are where a guide
             // is made, so the one that makes them reachable comes first.
             new("canvas.rulers", "Show rulers", "Canvas", G(Key.R, KeyModifiers.Control)),

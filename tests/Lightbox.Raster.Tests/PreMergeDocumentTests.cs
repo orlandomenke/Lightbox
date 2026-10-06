@@ -86,6 +86,9 @@ public class PreMergeDocumentTests(ITestOutputHelper output)
     {
         var doc = Load();
         Assert.Equal(2, doc.Scene.Layers.Count);
+        // Keys added since this fixture was written load as absent, not as a
+        // default that then writes itself back: the symmetry axis is one.
+        Assert.Null(doc.Scene.Symmetry);
 
         var painted = doc.Scene.Layers[0].Cels[0].Frame!;
         Assert.Equal("f_painted", painted.Id);

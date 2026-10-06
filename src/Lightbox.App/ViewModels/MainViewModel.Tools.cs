@@ -35,6 +35,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(ActiveToolIcon))]
     [NotifyPropertyChangedFor(nameof(IsBrushTool))]
     [NotifyPropertyChangedFor(nameof(IsEraserTool))]
+    [NotifyPropertyChangedFor(nameof(IsPaintingTool))]
     [NotifyPropertyChangedFor(nameof(IsFillTool))]
     [NotifyPropertyChangedFor(nameof(IsSelectTool))]
     [NotifyPropertyChangedFor(nameof(IsPickerTool))]
@@ -501,6 +502,14 @@ public partial class MainViewModel
     public bool IsWidthTool => ActiveTool == ToolId.Width;
 
     public bool IsEraserTool => ActiveTool == ToolId.Eraser;
+
+    /// <summary>
+    /// Brush or eraser — the two tools whose marks go through
+    /// <c>BrushEngine.StampStroke</c> and so the two that paint under symmetry.
+    /// The symmetry section of the quick bar is gated on this rather than on
+    /// each tool, so it is one section and not two copies.
+    /// </summary>
+    public bool IsPaintingTool => ActiveTool is ToolId.Brush or ToolId.Eraser;
 
     public bool IsFillTool => ActiveTool == ToolId.Fill;
 
