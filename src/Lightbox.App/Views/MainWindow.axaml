@@ -3445,6 +3445,8 @@
                         <Border.ContextMenu>
                           <ContextMenu>
                             <MenuItem Header="Rename" Click="OnLayerMenuRename" />
+                            <MenuItem Header="Copy layer" InputGesture="Ctrl+C" Click="OnLayerMenuCopy" />
+                            <MenuItem Header="Paste layer" InputGesture="Ctrl+V" Click="OnLayerMenuPaste" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasLayerClipboard}" />
                             <Separator />
                             <MenuItem Header="Move up" Click="OnLayerMenuMoveUp" />
                             <MenuItem Header="Move down" Click="OnLayerMenuMoveDown" />
@@ -4756,7 +4758,12 @@
                                 Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateLayerCommand}"
                                 CommandParameter="{Binding}"
                                 DoubleTapped="OnLayerNameDoubleTapped"
-                                ToolTip.Tip="Click to select, double-click to rename. Ctrl+click adds a layer, Shift+click takes the range." />
+                                ToolTip.Tip="Click to select, double-click to rename. Ctrl+click adds a layer, Shift+click takes the range.">
+                          <Button.ContextMenu><ContextMenu>
+                            <MenuItem Header="Copy layer" InputGesture="Ctrl+C" Click="OnLayerMenuCopy" />
+                            <MenuItem Header="Paste layer" InputGesture="Ctrl+V" Click="OnLayerMenuPaste" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasLayerClipboard}" />
+                          </ContextMenu></Button.ContextMenu>
+                        </Button>
                         <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                  IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
                                  LostFocus="OnLayerNameLostFocus" KeyDown="OnLayerNameKeyDown" />

@@ -108,6 +108,20 @@ public partial class MainWindow
         if (LayerRowOf(sender) is { } row) row.IsRenaming = true;
     }
 
+    private void OnLayerMenuCopy(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.CopyLayers(row.Layer);
+    }
+
+    private void OnLayerMenuPaste(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is not { } row) return;
+        // Above the row the menu was opened on, and the selection it was asked
+        // from kept: activating inside the selection leaves the rest picked.
+        if (!_vm.SelectedLayerIds.Contains(row.Layer.Id)) _vm.ActivateLayerCommand.Execute(row);
+        _vm.PasteLayers();
+    }
+
     private void OnLayerMenuMoveUp(object? sender, RoutedEventArgs e)
     {
         if (LayerRowOf(sender) is { } row) _vm.MoveLayerUpCommand.Execute(row);
