@@ -86,5 +86,31 @@ declined — flat-colour tiles lean on it, and it would have doubled the branch.
 - **Temporal looping** (§1).
 - **Fill, smudge and blur under wrap** (§5).
 
-**Blocks:** nothing. The symmetry UI can be built now; wrap follows on its own
-branch.
+## What happened when it was built, 2026-10-06
+
+Both landed the same day — the symmetry surface in PR #551, wrap on
+`feat/brush/seamless-tile-wrap` — and three things came out worth writing down.
+
+**"Invisible by construction" is true to within the page's own edge.** Against
+the same stroke simply continuing on a page twice as wide, the wrapped-in strip
+differs in 9 of 300 inked pixels, all in columns 0–2 and the visible ones by at
+most 10/255. That is the clip at the page edge antialiasing a dab's rim against
+the clip instead of against more dab — an ordinary mark that starts at a page
+edge gets the same against itself on a larger page — not a re-rolled copy, which
+would differ right across the strip by hundreds. `TheSeamIsInvisibleByConstruction`
+pins the measured numbers rather than claiming byte equality.
+
+**Culling was not written, on purpose.** All eight neighbours are always offered
+and the existing per-copy `SegmentBounds` clipping decides which land, so a mark
+in the middle of the page renders byte-identical to one with no wrap
+(`AMarkNowhereNearAnEdgeRendersByteForByteAsWithNoWrap`). A second answer to
+"does this copy land" would have had to agree with the clipping to the pixel.
+
+**A press in a neighbour is shifted once, not per point.** The tiled preview
+invites painting in the neighbours, and the obvious modulo-per-point breaks every
+edge-crossing stroke in two. The shift is decided from the first point and held
+for the stroke, so a stroke that then leaves the page stays one mark and the
+copies draw the part that left.
+
+**Blocks:** nothing. Fill, smudge and blur under wrap, brick stagger and the
+3/6-fold hexagonal lattice remain unasked.

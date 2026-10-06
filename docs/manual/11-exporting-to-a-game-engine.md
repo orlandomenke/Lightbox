@@ -11,7 +11,7 @@ format is how you end up with a `.png` holding a folder name.
 | **Format** | PNG sequence, sprite sheet, or sprite sheet + Unity. |
 | **Trim** | None, union (the default — one box for the whole sequence, so the character cannot jitter), or per frame. |
 | **Layout** | Grid, or packed. Packed is tighter on ragged frames and only readable through the sidecar. |
-| **Padding** | Transparent gutter around each cell, against an engine's filtering bleeding one sprite into the next. |
+| **Padding** | Transparent gutter around each cell, against an engine's filtering bleeding one sprite into the next. For a [seamless tile](03-tools-and-strokes.md#seamless-tiles) the gutter is filled from the tile's own far edges instead, because the pixel beyond a tile's right edge *is* its left edge, and a transparent one draws a dark seam in the engine. |
 | **Background** | See below. |
 
 Controls that do not apply are **not shown** — a PNG sequence has no cells and no
@@ -92,6 +92,10 @@ light is Planned.*
 - **Character sprites** — union trim, grid, background detection on.
 - **Packed atlas** — per-frame trim, packed, one pixel of padding.
 - **Backdrop** — no trim, keep everything including the paper.
+
+A document painted as a **seamless tile** is never trimmed, whichever preset you
+pick — a trimmed tile is no longer a tile — and its padding is extruded as the
+table above describes. The status line says so when it happens.
 
 Type a name and press **Save** to keep your own; they are marked **◈** and only
 yours can be deleted. The preset you exported with last is selected next time.

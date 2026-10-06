@@ -1917,7 +1917,7 @@ public sealed partial class CanvasControl : Control
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
             BoneChromes, BonesArePosed, HeatPoints, _hoveredLines,
             FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints, MotionArc,
-            CropSurfaceRect(), Symmetry));
+            CropSurfaceRect(), Symmetry, TiledPreview));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -3927,7 +3927,7 @@ public sealed partial class CanvasControl : Control
         bool fillPreviewWand = false,
         SKColor fillPreviewColor = default,
         TrailOverlay? trail = null, Core.Timeline.MotionArcOverlay? motionArc = null,
-        SKRect? cropFrame = null, Core.Documents.SymmetryAxis? symmetry = null) : ICustomDrawOperation
+        SKRect? cropFrame = null, Core.Documents.SymmetryAxis? symmetry = null, bool tiled = false) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4055,7 +4055,7 @@ public sealed partial class CanvasControl : Control
                 ToPainterLines(guides),
                 draftGuide is { } d ? ToPainterLine(d) : null,
                 snapshot.DocViewport,
-                ChannelSoloFilters.For(solo));
+                ChannelSoloFilters.For(solo), tiled);
             DrawCameraFrame(canvas);
             DrawSymmetryAxis(canvas);
             DrawGradientAxis(canvas);
