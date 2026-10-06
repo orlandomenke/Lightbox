@@ -86,12 +86,66 @@ public class LargeCanvasPerformanceTests(ITestOutputHelper output)
         Assert.True(median < 20, $"4K pointer event took {median:0.00} ms (budget 20)");
     }
 
+    /// <summary>
+    /// Fastest of several runs, with the spread printed. Contention only ever
+    /// adds time, so the minimum is what the machine can do and the median is
+    /// what it happened to be doing — a budget on the median measures the
+    /// runner's neighbours.
+    /// </summary>
+    private double MinMs(int runs, Action action)
+    {
+        action();
+        var times = new List<double>(runs);
+        var sw = new Stopwatch();
+        for (var i = 0; i < runs; i++)
+        {
+            sw.Restart();
+            action();
+            sw.Stop();
+            times.Add(sw.Elapsed.TotalMilliseconds);
+        }
+        times.Sort();
+        output.WriteLine($"min {times[0]:0.00} ms over {runs} runs (median {times[times.Count / 2]:0.00}, max {times[^1]:0.00})");
+        return times[0];
+    }
+
+    /// <summary>
+    /// A whole stroke and its commit must not cost an order of magnitude more
+    /// than the marks it made — the shape of the regression this catches is a
+    /// whole-canvas composite per pointer event, or a layer copy per stroke.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This asserted the median of six runs against 400 ms, and the GitHub
+    /// runner does it in 420.</b> Three unrelated pull requests went red on it
+    /// on 2026-10-06 (PRs #544, #550, #555), each reading 417–430 ms with a
+    /// spread of under 5 ms across the six runs — not noise, a correct build
+    /// on a machine the budget was never set for. B349's lesson, again: a
+    /// ceiling needs the runner's number in its margin, not just a broken
+    /// version above it.
+    /// </para>
+    /// <para>
+    /// <b>Set by breaking it, Release, 2026-10-06.</b> Correct: min 285–351 ms
+    /// here, 417 on the runner. With the publish forced to the whole canvas
+    /// on every event (<c>InvalidateWholeCanvas</c> + <c>ComposeRing.InvalidateAll</c>
+    /// before each pump): min 1609–2008 ms. 800 ms on the <em>minimum</em> is
+    /// roughly twice the runner's correct figure and half the broken one. The
+    /// minimum rather than the median because a shared runner's contention
+    /// only ever adds time; the spread is printed so a run that merely got
+    /// unlucky can still be read.
+    /// </para>
+    /// <para>
+    /// The cold-commit stall this name suggests is not what this test can see
+    /// — the warm-up run hides it — and is guarded at 1080p by
+    /// <c>PenLiftStallTests</c>, where that is written up.
+    /// </para>
+    /// </remarks>
     [AvaloniaFact]
     public void FourK_WholeStrokeIncludingCommit_HasNoPenLiftStall()
     {
         var vm = Vm4K();
         var y = 300.0;
-        var median = MedianMs(6, () =>
+        var fastest = MinMs(6, () =>
         {
             y += 40;
             vm.BeginStroke(300, y, 1);
@@ -103,7 +157,7 @@ public class LargeCanvasPerformanceTests(ITestOutputHelper output)
             vm.EndStroke();
             Pump();
         });
-        Assert.True(median < 400, $"4K stroke + commit took {median:0.00} ms (budget 400)");
+        Assert.True(fastest < 800, $"4K stroke + commit took {fastest:0.00} ms at best (budget 800; whole-canvas-per-event measures ~1600+)");
     }
 
     [AvaloniaFact]
