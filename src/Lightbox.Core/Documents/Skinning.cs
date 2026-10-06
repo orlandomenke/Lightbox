@@ -289,22 +289,18 @@ public static class Skinning
         // hundred times for four hundred lines would be the cost that makes a
         // rigged layer feel slower than a rigged stroke.
         var layerBone = index.LayerOf(frame) is { } layer ? doc.Scene.RiggedBoneOf(layer) : null;
-        var named = layerBone is { Length: > 0 }
-            ? new List<BoneBinding> { new() { BoneId = layerBone } }
-            : null;
+        var named = NamedBinding(layerBone);
 
         var copy = frame.Clone();
         for (var i = 0; i < frame.Strokes.Count; i++)
         {
             var stroke = frame.Strokes[i];
-            var own = stroke.Weights is { Count: > 0 };
-            if (!own && (layerBone is null || !TakesLayerBinding(stroke))) continue;
             // "The whole skeleton" has no single answer to share, so it is
             // auto-bound per stroke — the same arithmetic the Auto-bind button
             // does, on a copy, so the record still carries no weights. It runs
             // on the cache's miss path beside a full rasterization of the same
             // frame, which is where its cost belongs.
-            var fallback = own ? null : named ?? AutoBoundFor(stroke, armature);
+            if (BindingsFor(stroke, armature, layerBone, named) is not { } fallback) continue;
             var posed = PoseStroke(
                 stroke, armature, pose, fallback, corrections.GetValueOrDefault(stroke.Id));
             if (ghostOverBudget && BrushCostOf.Settings(stroke.Brush) == BrushCost.Expressive)
@@ -507,11 +503,18 @@ public static class Skinning
     /// bones are considered in armature order.
     /// </para>
     /// </remarks>
-    public static void AutoBind(Stroke stroke, Armature armature)
+    /// <param name="pose">
+    /// Measure against the bones <em>posed</em> rather than at rest — for a
+    /// stroke the artist drew on the posed picture (B382), whose points are
+    /// where the pen was, not where the record will keep them. Null is the
+    /// bind pose, which is what every other caller means.
+    /// </param>
+    public static void AutoBind(
+        Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose = null)
     {
         if (armature.Bones.Count == 0 || stroke.Points.Count == 0) return;
 
-        var bind = ArmatureOps.Solve(armature);
+        var bind = ArmatureOps.Solve(armature, pose);
         var perBone = new List<(string Id, double[] W)>();
         var sums = new double[stroke.Points.Count];
 
@@ -549,6 +552,276 @@ public static class Skinning
             if (any) bindings.Add(new BoneBinding { BoneId = id, PointWeights = [.. w] });
         }
         stroke.Weights = bindings.Count > 0 ? bindings : null;
+    }
+
+    // ---- pose space → rest space (B381, B382) ------------------------------------
+
+    /// <summary>
+    /// The rest point whose posed image is <paramref name="target"/>, under one
+    /// point's weights — the exact inverse of <see cref="Blend"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Linear-blend skinning is affine in the rest point: posed = A·rest + b
+    /// with A = Σ wᵢRᵢ + (1 − Σwᵢ)·I and b = Σ wᵢtᵢ. Both are read off
+    /// <see cref="Blend"/> itself by probing it at the origin and at the two
+    /// unit offsets, so there is one blend in this file and the inverse cannot
+    /// drift from it — the same reason live and bake share one construction.
+    /// </para>
+    /// <para>
+    /// <b>Null when the inverse cannot be trusted</b>, and the caller leaves
+    /// the rest point as it was. A is singular where two bones stand 180°
+    /// apart at equal weight — no rest point lands on the target at all — and
+    /// it is nearly so just short of that: at 179° the inverse magnifies a
+    /// drag about a hundredfold, so the pose on screen would look right and
+    /// every other frame of the cycle would throw the point far off. The test
+    /// is on |det| itself, and that is meaningful because A is a convex blend
+    /// of rotations and the identity (weights are normalised), so its singular
+    /// values are at most 1 and det is the shrink the inverse would undo:
+    /// below 0.01 the inverse magnifies at least tenfold. Equal weights across
+    /// a joint folded past about 168° fall under it, which is a pinch the
+    /// picture already shows. Non-finite input gets the same answer rather
+    /// than a NaN in the record.
+    /// </para>
+    /// </remarks>
+    private static StrokePoint? InverseBlend(
+        StrokePoint target,
+        IReadOnlyList<BoneBinding> bindings,
+        IReadOnlyList<double> weights,
+        IReadOnlyDictionary<string, RigidDelta> deltas)
+    {
+        if (!double.IsFinite(target.X) || !double.IsFinite(target.Y)) return null;
+        var origin = Blend(new StrokePoint(0, 0, 1), bindings, weights, deltas);
+        var ex = Blend(new StrokePoint(1, 0, 1), bindings, weights, deltas);
+        var ey = Blend(new StrokePoint(0, 1, 1), bindings, weights, deltas);
+        var (a, c) = (ex.X - origin.X, ex.Y - origin.Y);
+        var (b, d) = (ey.X - origin.X, ey.Y - origin.Y);
+        var (dx, dy) = (target.X - origin.X, target.Y - origin.Y);
+        var det = a * d - b * c;
+        if (!double.IsFinite(det) || Math.Abs(det) < 0.01) return null;
+        var x = (d * dx - b * dy) / det;
+        var y = (a * dy - c * dx) / det;
+        if (!double.IsFinite(x) || !double.IsFinite(y)) return null;
+        return target with { X = x, Y = y };
+    }
+
+    /// <summary>
+    /// The bindings that move a stroke on a frame: its own weights, the
+    /// layer's named bone, or an auto-bind against the whole skeleton — the
+    /// one rule <see cref="PoseFrameForRender"/> and <see cref="BakeFrame"/>
+    /// both apply, so a transform asks the same question they do.
+    /// </summary>
+    /// <param name="layerBone">
+    /// The layer's binding: null for an unrigged layer, the empty string for
+    /// the whole skeleton, otherwise a bone id.
+    /// </param>
+    private static IReadOnlyList<BoneBinding>? BindingsFor(
+        Stroke stroke, Armature armature, string? layerBone, IReadOnlyList<BoneBinding>? named)
+    {
+        if (stroke.Weights is { Count: > 0 } own) return own;
+        if (layerBone is null || !TakesLayerBinding(stroke)) return null;
+        return named ?? AutoBoundFor(stroke, armature);
+    }
+
+    private static IReadOnlyList<BoneBinding>? NamedBinding(string? layerBone) =>
+        layerBone is { Length: > 0 } ? [new BoneBinding { BoneId = layerBone }] : null;
+
+    /// <summary>
+    /// Move a bound stroke so that its <em>posed</em> image goes where
+    /// <paramref name="map"/> sends it, writing the result into the rest
+    /// geometry the record keeps. False, and nothing touched, when the stroke
+    /// is unbound — the caller then applies the plain map.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B381.</b> The artist drags the picture on screen, and on a rigged
+    /// drawing that picture is posed. Mapping the rest points directly moves
+    /// something else: each point's bone delta is applied after the move, so a
+    /// translation pulls points on different bones in different directions and
+    /// a line weighted across a joint kinks. Here each control point is posed,
+    /// mapped, and inverted back through its own weights, so the posed image
+    /// after the commit is exactly the mapped posed image before it — for every
+    /// affine map, and pointwise for a perspective or band one.
+    /// </para>
+    /// <para>
+    /// <b>The authored path is dropped</b>, as <see cref="PoseStroke"/> drops it:
+    /// the points moved without it, and <see cref="Stroke.Path"/>'s invariant is
+    /// that the two never disagree. A later fit brings it back.
+    /// </para>
+    /// <para>
+    /// A corrective's offsets are part of where the point stands, so they are
+    /// added before posing and taken off after inverting; the offsets
+    /// themselves are left alone, and the fix keeps correcting the same joint.
+    /// </para>
+    /// </remarks>
+    /// <param name="deltas">
+    /// The per-bone deltas for this pose, when the caller has them already —
+    /// a frame's worth of strokes shares one set, and solving the armature
+    /// twice per stroke is the cost <see cref="PoseSpaceMover"/> hoists.
+    /// </param>
+    public static bool TransformInPose(
+        Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose,
+        IReadOnlyList<BoneBinding>? fallback, IReadOnlyList<PointOffset>? correction,
+        TransformOps.PointMap map, IReadOnlyDictionary<string, RigidDelta>? deltas = null)
+    {
+        var bindings = stroke.Weights is { Count: > 0 } own ? own : fallback;
+        if (bindings is not { Count: > 0 } || stroke.Points.Count == 0) return false;
+
+        deltas ??= Deltas(armature, pose);
+        var corrected = correction is { Count: > 0 } && correction.Count == stroke.Points.Count
+            ? correction
+            : null;
+        var weights = new double[bindings.Count];
+        for (var i = 0; i < stroke.Points.Count; i++)
+        {
+            for (var b = 0; b < bindings.Count; b++) weights[b] = bindings[b].WeightAt(i);
+            var rest = stroke.Points[i];
+            var standing = corrected is null
+                ? rest
+                : rest with { X = rest.X + corrected[i].X, Y = rest.Y + corrected[i].Y };
+            var posed = Blend(standing, bindings, weights, deltas);
+            var (tx, ty) = map(posed.X, posed.Y);
+            // A degenerate map (a perspective quad folded through itself) or a
+            // pinched joint leaves the point where it was rather than the
+            // record taking a NaN or a hundredfold throw — see InverseBlend.
+            if (InverseBlend(posed with { X = tx, Y = ty }, bindings, weights, deltas) is not { } landed) continue;
+            stroke.Points[i] = corrected is null
+                ? landed
+                : landed with { X = landed.X - corrected[i].X, Y = landed.Y - corrected[i].Y };
+        }
+
+        if (stroke.Holes is { } holes)
+        {
+            // The same stroke-wide mean a render gives a hole, so the hole
+            // lands where the render shows it.
+            var mean = new double[bindings.Count];
+            for (var b = 0; b < bindings.Count; b++) mean[b] = MeanWeight(bindings[b], stroke.Points.Count);
+            foreach (var hole in holes)
+            {
+                for (var i = 0; i < hole.Count; i++)
+                {
+                    var posed = Blend(hole[i], bindings, mean, deltas);
+                    var (tx, ty) = map(posed.X, posed.Y);
+                    if (InverseBlend(posed with { X = tx, Y = ty }, bindings, mean, deltas) is { } landed) hole[i] = landed;
+                }
+            }
+        }
+
+        stroke.Path = null;
+        return true;
+    }
+
+    /// <summary>
+    /// The mover a transform of <paramref name="frame"/> at <paramref name="frameIndex"/>
+    /// should hand <c>TransformOps</c>, or null when the frame renders at rest
+    /// there and the plain map is right for every stroke on it.
+    /// </summary>
+    /// <remarks>
+    /// Resolved once per frame — the pose, the correctives and the layer's
+    /// binding — and then per stroke the bound ones go through
+    /// <see cref="TransformInPose"/> while the rest take the ordinary map, so a
+    /// drawing that mixes rigged lines with loose ones moves as one picture.
+    /// </remarks>
+    public static TransformOps.StrokeMover? PoseSpaceMover(
+        Doc doc, Frame frame, int frameIndex, RigIndex? rig, TransformOps.PointMap map)
+    {
+        var index = rig ?? RigIndex.Empty;
+        if (doc.Armature is not { Bones.Count: > 0 } armature || !index.IsPosed(frame)) return null;
+
+        var pose = ArmatureOps.EffectivePoseAt(armature, doc.Scene.PoseTrack, frameIndex);
+        var corrections = CorrectiveOps.Resolve(frame.Correctives, pose);
+        var layerBone = index.LayerOf(frame) is { } layer ? doc.Scene.RiggedBoneOf(layer) : null;
+        var named = NamedBinding(layerBone);
+        var deltas = Deltas(armature, pose);
+        return stroke =>
+        {
+            var bindings = BindingsFor(stroke, armature, layerBone, named);
+            if (!TransformInPose(
+                    stroke, armature, pose, bindings, corrections.GetValueOrDefault(stroke.Id), map, deltas))
+            {
+                TransformOps.TransformStroke(stroke, map);
+                return;
+            }
+            // A whole-skeleton layer auto-binds a weightless stroke from its
+            // rest geometry, which this just moved: the next render would bind
+            // it again, differently, and the picture would land somewhere other
+            // than the preview put it. The weights the inverse was taken
+            // through are kept, for the same reason UnposeDrawnStroke keeps
+            // them — the one case a transform writes weights onto a stroke.
+            if (stroke.Weights is not { Count: > 0 } && named is null && bindings is List<BoneBinding> auto)
+            {
+                stroke.Weights = auto;
+            }
+        };
+    }
+
+    /// <summary>
+    /// Carry a stroke the artist just drew on the posed picture back to the
+    /// rest space the record keeps, so it renders where the pen was.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B382.</b> A rigged layer poses every stroke on it, drawn ones
+    /// included, and a new stroke carries no weights — so the next render took
+    /// the points where the pen was, treated them as rest geometry, and swung
+    /// them by the pose. The mark appeared under the pen while it was live and
+    /// jumped away the moment it was committed.
+    /// </para>
+    /// <para>
+    /// For a layer bound to one bone the inverse is exact and the record keeps
+    /// no weights, as before: the fallback is read, never written. For a layer
+    /// bound to the whole skeleton the weights are measured against where the
+    /// bones <em>stand</em> — the pen was aimed at the posed arm, not at the
+    /// rest one — and those weights are written to the stroke, because the
+    /// render's own auto-bind reads rest geometry and would choose differently.
+    /// That is the one case a drawn stroke leaves the record carrying weights.
+    /// </para>
+    /// <para>
+    /// Nothing here touches a stroke that is already in a document: the stroke
+    /// is the one about to be committed, mutated before it enters the record.
+    /// </para>
+    /// </remarks>
+    /// <returns>
+    /// The points as the pen drew them, when the stroke was carried back —
+    /// where its pixels are on screen, which is what the commit's repaint
+    /// region has to cover. Null when the stroke was left alone.
+    /// </returns>
+    public static List<StrokePoint>? UnposeDrawnStroke(
+        Stroke stroke, Doc doc, Frame frame, int frameIndex, RigIndex? rig)
+    {
+        var index = rig ?? RigIndex.Empty;
+        if (doc.Armature is not { Bones.Count: > 0 } armature || !index.IsPosed(frame)) return null;
+        if (stroke.Weights is { Count: > 0 } || stroke.Points.Count == 0) return null;
+        var layerBone = index.LayerOf(frame) is { } layer ? doc.Scene.RiggedBoneOf(layer) : null;
+        if (layerBone is null) return null;
+
+        var pose = ArmatureOps.EffectivePoseAt(armature, doc.Scene.PoseTrack, frameIndex);
+        IReadOnlyList<BoneBinding>? bindings = NamedBinding(layerBone);
+        if (bindings is null)
+        {
+            AutoBind(stroke, armature, pose);
+            bindings = stroke.Weights;
+            if (bindings is not { Count: > 0 }) return null;
+        }
+
+        var drawnAt = stroke.Points.ToList();
+        var deltas = Deltas(armature, pose);
+        var weights = new double[bindings.Count];
+        for (var i = 0; i < stroke.Points.Count; i++)
+        {
+            for (var b = 0; b < bindings.Count; b++) weights[b] = bindings[b].WeightAt(i);
+            if (InverseBlend(stroke.Points[i], bindings, weights, deltas) is { } rest) stroke.Points[i] = rest;
+        }
+        if (stroke.Holes is { } holes)
+        {
+            var mean = new double[bindings.Count];
+            for (var b = 0; b < bindings.Count; b++) mean[b] = MeanWeight(bindings[b], stroke.Points.Count);
+            foreach (var hole in holes)
+                for (var i = 0; i < hole.Count; i++)
+                    if (InverseBlend(hole[i], bindings, mean, deltas) is { } rest) hole[i] = rest;
+        }
+        stroke.Path = null;
+        return drawnAt;
     }
 
     /// <summary>

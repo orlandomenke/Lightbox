@@ -170,6 +170,19 @@ Your lines are never changed by this. A rigged layer decides where marks are
 returns it untouched. **Baking** a drawing freezes the pose into it and leaves
 the layer rigged, so the drawings you make afterwards still follow.
 
+**Drawing on a posed layer puts the mark where your pen was.** The layer may
+be standing in a pose when you draw on it; the new line lands under the pen and
+stays there, and it follows the rig from then on like everything else on the
+layer. Under the hood the line is stored in the rest pose so the rig can move
+it — you never see that. On a layer bound to *the whole skeleton*, a line you
+draw keeps the weights it was drawn with, measured against where the bones
+stood at the time, so it does not re-weight itself when the pose changes. One
+consequence worth knowing: if you later take that layer off the rig, lines
+carrying their own weights keep following it while the rest of the layer stops
+— unbind them too (or bake first) if you want the whole drawing to let go.
+Shapes, fills, gradients and pen paths land where you made them in the same
+way; a pen path keeps its points and loses its curve handles in the process.
+
 A layer's own choice beats its link's, so you can rig the effects layer to a
 different bone from the lines it is linked to.
 
@@ -451,6 +464,19 @@ nothing is how you select everything.
 **A selection belongs to its document.** Switch tabs and it stays behind;
 switch back and it is where you left it. A new document starts with nothing
 selected.
+
+**Transforming a rigged drawing moves what you see.** With the character
+standing in a pose, **Ctrl+T** shows the posed drawing under the handles, a box
+drawn over a posed line catches that line, and confirming moves the posed
+picture by exactly what you did to it — a straight line stays straight across a
+joint. The drawing stays rigged afterwards and keeps following the pose. The
+skeleton itself does not move with the transform; to move a whole character,
+grab a bone in pose mode instead. Three small limits: a transformed line loses
+any curve handles it had (the points are still exact, and a later fit brings
+the handles back); the band scale adds no extra points on its dividers to a
+posed drawing; and a point sitting exactly in a joint folded almost flat stays
+where it is, because there is no rest position that would put it where you
+dragged it without throwing it off in every other pose.
 
 ### Copying lines out, and pasting them back
 
