@@ -1680,6 +1680,14 @@ public partial class MainViewModel
         // Drawing ends any run of palette edits, so the recolour lands on the
         // undo stack before the stroke does rather than after it.
         CommitSwatchEdit();
+        // A press in a neighbour of the tiled preview is a press on the page,
+        // shifted by whole tiles — decided here, once, and applied to every
+        // point after (see _wrapShift). Before guides, which live on the page.
+        // A Shift+click joins from the last stroke's end, so the tile chosen
+        // is the one that keeps the click nearest that end: a click just
+        // across the seam is a short hop the copies draw, not a line back
+        // across the whole page (sensitivity-guardian, on landing).
+        (x, y) = EnterTile(x, y, joinFromLast ? _lastStrokeEnd : null);
         // A stroke's guide is chosen once, from a direction it has committed
         // to. The anchor is where that direction is measured from, so it is
         // the unsnapped start — snapping the anchor first would measure the
@@ -1724,6 +1732,9 @@ public partial class MainViewModel
         // A clone, so turning the axis afterwards never reaches this mark — and
         // only when it would do something, so an ordinary stroke grows no key.
         if (ActiveSymmetry is { IsIdentity: false } axis) _strokeBuilder.Current!.Symmetry = axis.Clone();
+        // The page as it is NOW, recorded on the stroke (Q192): a canvas
+        // resized later still renders this mark about the tile it wrapped.
+        if (WrapForNextStroke() is { } tile) _strokeBuilder.Current!.Wrap = tile;
         // Stamped onto the stroke, not read from the layer at render time, so
         // unlocking the layer later cannot repaint what is already down.
         // The layer's alpha lock guards its content, not its mask — coverage
@@ -2022,7 +2033,13 @@ public partial class MainViewModel
         NoteEventArrival();
         foreach (var s in samples)
         {
-            var (fx, fy) = _stabilizer.FilterLive(s.X, s.Y);
+            // Onto the page FIRST: the stabiliser was started on the shifted
+            // start point and the guides live on the page, so both must see
+            // the sample in the same frame — fed the raw pointer, an EMA
+            // filter would pull the mark a whole tile towards the hand
+            // (adversary, on landing).
+            var (sx, sy) = ShiftIntoTile(s.X, s.Y);
+            var (fx, fy) = _stabilizer.FilterLive(sx, sy);
             var (x, y) = Guided(fx, fy);
             _strokeBuilder.Add(x, y, s.Pressure, s.TiltX, s.TiltY, s.Speed);
         }
@@ -2074,6 +2091,7 @@ public partial class MainViewModel
             // reflections, and every copy but the drawn one would stay on
             // screen from the previous event.
             Symmetry = live.Symmetry,
+            Wrap = live.Wrap,
         };
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
 
@@ -2383,6 +2401,12 @@ public partial class MainViewModel
             // The drawn mark is copy 0 and is stamped by the caller, on the
             // path it took before symmetry existed.
             if (copy is not { } m) continue;
+            // A copy that misses the page costs a bounds pass and nothing
+            // else — the same test the commit path makes. Wrap offers eight
+            // neighbours for every stroke, and without this a mid-page stroke
+            // paid eight full dab walks per event for copies Skia then threw
+            // away (perf-warden, on landing).
+            if (BrushEngine.RangeBounds(dabs, from, to, live.Brush, info, m) is null) continue;
 
             _live.ScratchCanvas.Save();
             _live.ScratchCanvas.Concat(m);
@@ -2515,6 +2539,8 @@ public partial class MainViewModel
             foreach (var copy in BrushEngine.SymmetryCopies(live))
             {
                 if (copy is not { } m) continue;
+                // Off the page, nothing to accumulate — see StampSettledCopies.
+                if (BrushEngine.RangeBounds(dabs, coverageFrom, settledCut, live.Brush, info, m) is null) continue;
                 coverage.Save();
                 coverage.Concat(m);
                 BrushEngine.AccumulateCoverage(coverage, live.Brush, dabs, coverageFrom, settledCut);

@@ -417,6 +417,41 @@ A few things worth knowing about how it behaves:
   and smudge and blur read the pixels under them, both of which need their own
   work. Resizing the image moves the axis with the paper.
 
+## Seamless tiles
+
+For a tile that repeats — a floor, a wall, a pattern — turn on **Tile** beside
+the Symmetry toggle (**Shift+T**) with the brush or the eraser in hand. A mark
+that runs off the right edge of the page comes in on the left; one that runs off
+the bottom comes in at the top. Turn it off and the marks stay exactly as they
+are, the same way symmetry works: the tiling belongs to each stroke, not to the
+document.
+
+While it is on, the canvas shows the page's eight neighbours around it, dimmed,
+so you can see the seam where it will actually be seen. **You can paint in
+them**: a stroke begun in a neighbour is recorded on the page, and a stroke that
+crosses an edge stays one stroke — the copy on the far side is drawn for you.
+
+A few things worth knowing:
+
+- **The seam is invisible by construction.** The part of a mark that comes in on
+  the far side is the same mark, moved a whole page — same grain, same scatter,
+  same jitter — not a second mark blended in. There is nothing to clean up.
+- **A mark in the middle of the page costs nothing extra.** Only the copies that
+  actually reach the page are drawn.
+- **Tile and Symmetry work together.** A mirror with Tile on gives you a
+  repeating mirrored pattern; six copies with Tile on gives a kaleidoscope that
+  repeats. Keep the copies to 1, 2 or 4 for a pattern that lines up on a
+  rectangular page — three and six only repeat on a hexagonal grid, which the
+  page is not.
+- **Resizing the image moves the tile with the paper.** Resizing the *canvas*
+  does not: marks already made keep the tile they were drawn for, and new marks
+  take the new page.
+- **Exporting a tile:** the sprite sheet never trims a tiled document, whatever
+  the preset says, and its gutter is filled from the tile's own far edges rather
+  than left transparent — see [exporting](11-exporting-to-a-game-engine.md).
+- **Brush and eraser only, for now**, as with symmetry. A fill does not wrap
+  yet; paint the edge with a brush if the tile needs colour right up to it.
+
 ## What a stroke is
 
 **A frame is a list of strokes; the pixels are derived.** Nothing paints except

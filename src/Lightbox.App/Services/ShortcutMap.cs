@@ -338,6 +338,11 @@ public sealed class ShortcutMap
             // rather than starting to reflect their drawing. In Tools rather
             // than Canvas because it changes what the brush does.
             new("brush.symmetry", "Toggle symmetry painting", "Tools", G(Key.M, KeyModifiers.Shift)),
+            // Shift+T for tile, beside Shift+M for mirror: the two "the next
+            // mark lands more than once" toggles share a modifier. Plain T is
+            // transform, so the modifier is what keeps a slip from starting a
+            // transform instead of tiling the drawing.
+            new("brush.tileWrap", "Toggle seamless tile painting", "Tools", G(Key.T, KeyModifiers.Shift)),
             // Photoshop's three, on Photoshop's keys. Rulers are where a guide
             // is made, so the one that makes them reachable comes first.
             new("canvas.rulers", "Show rulers", "Canvas", G(Key.R, KeyModifiers.Control)),

@@ -633,6 +633,9 @@ public partial class MainWindow
             case "brush.symmetry":
                 _vm.SymmetryEnabled = !_vm.SymmetryEnabled;
                 break;
+            case "brush.tileWrap":
+                _vm.TileWrapEnabled = !_vm.TileWrapEnabled;
+                break;
             case "canvas.resetView":
                 Canvas.ResetView();
                 break;
