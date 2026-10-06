@@ -10,7 +10,7 @@ using Lightbox.Core.Timeline;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// The X-sheet's structural verbs (Q194): <b>Delete</b> (the drawings go, the
+/// The X-sheet's structural verbs (Q196): <b>Delete</b> (the drawings go, the
 /// slots stay), <b>Delete and pull</b> (the cels go and what follows moves
 /// back — and a column selection takes the frames out of the scene), and
 /// <b>Insert blank frame</b> (a hold goes in at the cel).
@@ -142,6 +142,52 @@ public class XsheetDeleteAndInsertTests : BrushStateIsolated
         Assert.Equal(3, vm.Doc.Scene.FrameCount);
         Assert.Equal(before, Ids(vm));
         Assert.Contains("locked", vm.AiStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [AvaloniaFact]
+    public void ALayerInALockedFolderRefusesTheWholeColumn()
+    {
+        // The layer's own flag is clear; its folder's is not. A row edit
+        // already refuses such a layer, so a column edit that pushed it along
+        // anyway would be the one path that ignored the folder.
+        var vm = TwoLayers(3);
+        var group = new LayerGroup { Name = "Backgrounds" };
+        vm.Doc.Scene.LayerGroups.Add(group);
+        vm.Doc.Scene.Layers[2].GroupId = group.Id;
+        group.Locked = true;
+        var before = Ids(vm);
+        SelectColumns(vm, 1);
+
+        vm.DeleteCelAt(Cell(vm, 1, 1));
+        Assert.Equal(3, vm.Doc.Scene.FrameCount);
+        Assert.Equal(before, Ids(vm));
+        Assert.Contains("Backgrounds", vm.AiStatus);
+
+        vm.InsertBlankFrameAt(Cell(vm, 1, 1));
+        Assert.Equal(3, vm.Doc.Scene.FrameCount);
+        Assert.Equal(before, Ids(vm));
+    }
+
+    [AvaloniaFact]
+    public void ASelectionOfOnlyCameraKeysDoesNotFallBackToThePlayheadsCel()
+    {
+        // The keys go through the selection when there is one; a selection
+        // with no cel in it names nothing to delete, and the playhead's
+        // drawing is not what the artist picked.
+        var vm = TwoLayers(3);
+        vm.AddCameraCommand.Execute(null);
+        vm.AddCameraKeyAt(1);
+        vm.CurrentFrameIndex = 1;
+        vm.SelectTrackKey(TimelineKey.Camera(1), toggle: false, range: false);
+        var before = Ids(vm);
+
+        vm.ClearCelAtPlayhead();
+        vm.DeleteCelAtPlayhead();
+        vm.InsertBlankFrameAtPlayhead();
+
+        Assert.Equal(3, vm.Doc.Scene.FrameCount);
+        Assert.Equal(before, Ids(vm));
+        Assert.Contains("no cels", vm.AiStatus);
     }
 
     [AvaloniaFact]

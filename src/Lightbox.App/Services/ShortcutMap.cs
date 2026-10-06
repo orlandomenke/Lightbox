@@ -460,7 +460,7 @@ public sealed class ShortcutMap
             new("canvas.pickColor", "Color picker tool", "Tools", G(Key.I),
                 momentaryTool: ViewModels.ToolId.Picker),
             new("timeline.insertKey", "Insert keyframe at playhead (timeline)", "Timeline", G(Key.I), ShortcutContext.Panel, DockPanelId.Timeline),
-            // Q194: the X-sheet's two deletes, as context twins of the Delete keys
+            // Q196: the X-sheet's two deletes, as context twins of the Delete keys
             // above. Scoped to the X-sheet docker, because that is where the cel
             // grid and its selection live — the Timeline docker beside it is a
             // different panel (DockPanelId.Xsheet, not .Timeline), and a binding

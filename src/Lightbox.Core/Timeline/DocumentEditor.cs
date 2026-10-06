@@ -1007,7 +1007,7 @@ public sealed class DocumentEditor
         });
     }
 
-    // ---- the X-sheet's selection verbs (Q194) ----------------------------------
+    // ---- the X-sheet's selection verbs (Q196) ----------------------------------
     //
     // Delete, Delete and pull, Insert blank frame. Each takes the whole cel
     // selection — any number of cels on any number of layers — and is ONE undo

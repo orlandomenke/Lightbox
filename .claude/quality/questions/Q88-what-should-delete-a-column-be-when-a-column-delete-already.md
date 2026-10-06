@@ -24,7 +24,7 @@ the fix for the first. They stay unbuilt until asked for.
 
 ---
 
-**Superseded 2026-10-06 by Q194:** *Delete column* is no longer a verb of its
+**Superseded 2026-10-06 by Q196:** *Delete column* is no longer a verb of its
 own. The owner folded it into *Delete and pull*, which removes the frames from
 the scene when the selection covers every drawing layer, and the
 `timeline.deleteColumn` shortcut id was retired with it.

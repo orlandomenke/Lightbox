@@ -1,4 +1,4 @@
-# Q194 · X-sheet delete verbs: delete, delete and pull, insert blank frame — **answered 2026-10-06**
+# Q196 · X-sheet delete verbs: delete, delete and pull, insert blank frame — **answered 2026-10-06**
 
 **Answered:** the X-sheet gets **two deletes over any selection** — *Delete*
 (the drawings become holds, the slots stay) and *Delete and pull* (the cels go

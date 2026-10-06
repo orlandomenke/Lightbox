@@ -4,7 +4,7 @@ using Lightbox.Core.Timeline;
 namespace Lightbox.Core.Tests.Timeline;
 
 /// <summary>
-/// The editor half of the X-sheet's selection verbs (Q194): which selections
+/// The editor half of the X-sheet's selection verbs (Q196): which selections
 /// are columns, the column delete and insert, the row pull and insert across
 /// several layers — each one undo step.
 /// </summary>

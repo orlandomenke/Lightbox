@@ -278,7 +278,7 @@ a beat is a frame too long. The paper does not need selecting (it is not
 animated, and it keeps showing on every frame that is left), and a document
 with one drawing layer makes every selection a column, so there Delete and
 pull always shortens the scene. A column is refused while any drawing layer is
-locked, because removing the frame from the others would slide them out of
+locked or sits in a locked folder, because removing the frame from the others would slide them out of
 step with it; and a scene is never shorter than one frame. The 🗑 on the
 timeline bar does the same for the frame under the playhead.
 
@@ -290,7 +290,7 @@ If the row runs past the end, the scene grows to fit, as extending an exposure
 does. Select the same frames on every layer and it is a column insert: every
 layer moves along, the paper stays put, and reference strips move with the
 frames. It has no default key; give it one in **Edit → Configure →
-Shortcuts**, where all three are listed under the X-sheet.
+Shortcuts**, where all three are listed under Timeline.
 
 Each of the three is one undo step, however many cels and layers it reached.
 The keys answer only with the pointer over the X-sheet: over the canvas Delete

@@ -529,8 +529,7 @@
                   ToolTip.Tip="Mark the frame at the playhead as a key drawing" />
         <MenuItem Header="Insert _breakdown" Click="OnMenuInsertBreakdown" />
         <MenuItem Header="Insert _inbetween frame" Click="OnMenuInsertInbetween" />
-        <MenuItem Header="Insert blank _frame" Click="OnMenuInsertBlankFrame"
-                  ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n — the playhead's cel, or the selection" />
+        <MenuItem Header="Insert blank _frame" Click="OnMenuInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n — the playhead's cel, or the selection" />
         <Separator />
         <MenuItem Header="_Extend exposure (+1 hold)" Click="OnMenuExtendExposure"
                   ToolTip.Tip="Hold the drawing under the playhead one frame longer" />
@@ -539,10 +538,6 @@
         <MenuItem Header="_Copy cel" Click="OnMenuCopyCel" InputGesture="Ctrl+C" />
         <MenuItem Header="Cu_t cel" Click="OnMenuCutCel" InputGesture="Ctrl+X" />
         <MenuItem Header="Pa_ste cel" Click="OnMenuPasteCel" InputGesture="Ctrl+V" />
-        <!-- Q194. The selection when there is one, else the playhead's cel. No
-             InputGesture: Delete and Shift+Delete are the X-sheet docker's keys
-             only, and printing them here would promise them over the canvas,
-             where Delete clears the marquee instead. -->
         <MenuItem Header="De_lete" Click="OnMenuClearCel"
                   ToolTip.Tip="The drawings go and the cels become holds; nothing after them moves (Delete over the X-sheet)" />
         <MenuItem Header="Delete and p_ull" Click="OnMenuDeleteCel"
@@ -4801,8 +4796,7 @@
                                     <MenuItem Header="Insert breakdown frame" Click="OnInsertBreakdown" />
                                     <MenuItem Header="Insert inbetween frame" Click="OnInsertInbetweenFrame" />
                                   </MenuItem>
-                                  <MenuItem Header="Insert blank frame" Click="OnInsertBlankFrame"
-                                            ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n" />
+                                  <MenuItem Header="Insert blank frame" Click="OnInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n" />
                                   <!-- Absent rather than disabled when there is no rig, the
                                        camera's rule: a document that never made an armature
                                        is not offered a bone command it cannot use. -->
@@ -4822,11 +4816,6 @@
                                             ToolTip.Tip="Re-space this cel's range to the pattern chosen on the timeline bar" />
                                   <MenuItem Header="Timing chart…" Click="OnEditTimingChart"
                                             ToolTip.Tip="The ladder on this extreme: where its inbetweens sit on the way to the next key" />
-                                  <!-- Q194: two deletes, named for what they leave behind.
-                                       Both cover the selection. A selection that is the same
-                                       frames on every layer makes Delete and pull a column
-                                       delete — the scene gets shorter — which is why there is
-                                       no separate column verb any more. -->
                                   <MenuItem Header="Delete" Click="OnClearCel" InputGesture="Delete"
                                             ToolTip.Tip="The drawings go and the cels become holds; nothing after them moves" />
                                   <MenuItem Header="Delete and pull" Click="OnDeleteCel" InputGesture="Shift+Delete"

@@ -675,7 +675,7 @@ public partial class MainViewModel
         if (CurrentCell() is { } cell) ReduceToStepAt(cell);
     }
 
-    // ---- Delete, Delete and pull, Insert blank frame (Q194) --------------------
+    // ---- Delete, Delete and pull, Insert blank frame (Q196) --------------------
     //
     // The X-sheet's three structural verbs. Each takes the whole cel selection —
     // or the clicked cel alone when it is outside the selection — and each is one
@@ -769,9 +769,9 @@ public partial class MainViewModel
             AiStatus = "A scene is never shorter than one frame — there is no frame to pull back.";
             return;
         }
-        if (Scene.Layers.FirstOrDefault(l => l.Locked && !l.IsBackground) is { } locked)
+        if (ColumnLockReason() is { } lockedName)
         {
-            AiStatus = $"“{locked.Name}” is locked — unlock it to remove frames from the scene.";
+            AiStatus = $"“{lockedName}” is locked — unlock it to remove frames from the scene.";
             return;
         }
         var removed = _editor.DeleteColumns(frames);
@@ -784,6 +784,28 @@ public partial class MainViewModel
         _allThumbsDirty = true;
         ClearCelRange(); // the indices it held have shifted out from under it
         RefreshThumbnails();
+    }
+
+    /// <summary>
+    /// The name to blame when a column edit must refuse — a drawing layer that
+    /// is locked, or the locked folder it sits in — or null when every drawing
+    /// layer takes the edit.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Scene.IsLayerEditable"/> rather than <c>Layer.Locked</c>: a
+    /// row edit already refuses a layer inside a locked folder (it goes through
+    /// <c>CanEdit</c>), and a column edit that only read the layer's own flag
+    /// would push that layer along with the rest. The folder is the reason, so
+    /// the folder is what the message names. The paper is exempt for the
+    /// reason <see cref="DeleteColumns"/> gives.
+    /// </remarks>
+    private string? ColumnLockReason()
+    {
+        if (Scene.Layers.FirstOrDefault(l => !l.IsBackground && !Scene.IsLayerEditable(l)) is not { } layer)
+        {
+            return null;
+        }
+        return layer.Locked ? layer.Name : Scene.GroupOf(layer)?.Name ?? layer.Name;
     }
 
     /// <summary>
@@ -828,9 +850,9 @@ public partial class MainViewModel
         int inserted;
         if (DocumentEditor.ColumnsOf(Scene, picks.Select(p => (p.Layer.Id, p.Index))) is { } columns)
         {
-            if (Scene.Layers.FirstOrDefault(l => l.Locked && !l.IsBackground) is { } locked)
+            if (ColumnLockReason() is { } lockedName)
             {
-                AiStatus = $"“{locked.Name}” is locked — unlock it to insert frames into the scene.";
+                AiStatus = $"“{lockedName}” is locked — unlock it to insert frames into the scene.";
                 return;
             }
             inserted = _editor.InsertHoldColumns(columns);
@@ -1021,6 +1043,15 @@ public partial class MainViewModel
     /// </summary>
     private FrameCell? SelectionOrCurrentCell()
     {
+        // Camera or pose keys picked on the Timeline, and no cel among them:
+        // the selection names no cel, so falling back to the playhead's would
+        // delete a drawing the artist did not pick — silently, since the keys
+        // they did pick stay where they are.
+        if (_keySelection.Count > 0 && !_keySelection.Any(k => k.IsCel))
+        {
+            AiStatus = "The selection has no cels in it — pick cels on the X-sheet, or clear the selection.";
+            return null;
+        }
         if (CurrentCell() is { } current
             && (_keySelection.Count == 0 || _keySelection.Contains(TimelineKey.Cel(current.LayerIndex, current.Index))))
         {
