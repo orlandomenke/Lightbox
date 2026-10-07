@@ -234,6 +234,12 @@ public partial class MainViewModel
     internal void RefreshLayerSelectionHighlights()
     {
         _selectedLayerIds.RemoveWhere(id => !Scene.Layers.Any(l => l.Id == id));
+        if (Services.LayerSelectionTrace.On)
+        {
+            var picked = Enumerable.Range(0, Scene.Layers.Count).Where(i => _selectedLayerIds.Contains(Scene.Layers[i].Id));
+            Services.LayerSelectionTrace.Note(
+                $"selection now [{string.Join(",", picked)}], active {ActiveLayerIndex}, via {Services.LayerSelectionTrace.Callers()}");
+        }
         // An empty folder picked on its own selects no layer, and that is the
         // selection — not a gap for the active layer to fill.
         if (_selectedLayerIds.Count == 0 && Scene.Layers.Count > 0 && SelectedGroup is null)
