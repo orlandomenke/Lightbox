@@ -410,7 +410,10 @@ kept inside too, with nothing to switch on.
   it trims the flat.
 - **Merging keeps the look.** Merging a kept-inside layer down into the shape
   layer bakes the trim into the merged drawing. Merging the shape layer down
-  moves the shape to the layer it merged into.
+  moves the shape to the layer it merged into, unless that layer is outside
+  the folder: then the folder keeps nothing inside any more (one undo brings
+  it back). Dragging the shape layer out of the folder, or deleting it,
+  releases the folder the same way.
 
 Clipping and this work together: a layer can be clipped to the one below
 *and* kept inside its folder's shape, and shows only where both allow.

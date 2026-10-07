@@ -306,6 +306,29 @@ public class LayerMergeTests
     }
 
     [Fact]
+    public void AClipTheCanvasDoesNotShowIsNotBakedByAMerge()
+    {
+        // Sensitivity on Q215: a clipped layer at the bottom of a folder shows
+        // unclipped (the clip stops at the folder), so merging it into the
+        // layer outside the folder must keep its bar off the lower bar too —
+        // baking the old rule's clip would make a picture nobody saw.
+        var scene = TestScene();
+        var outside = LayerOf(Key(Bar(100, "#2040c0")));
+        var clipped = LayerOf(Key(Bar(40, "#c02040")));
+        clipped.ClipToBelow = true;
+        clipped.GroupId = "group-character";
+        scene.LayerGroups.Add(new LayerGroup { Id = "group-character" });
+        scene.Layers.AddRange([outside, clipped]);
+
+        Assert.False(LayerMerge.WouldBakePixels(clipped, outside, scene));
+        LayerMerge.MergeDown(scene, clipped, outside);
+
+        using var merged = Render(outside, 0);
+        Assert.True(merged.GetPixel(100, 40).Alpha > 0, "the bar the canvas showed survives the merge");
+        Assert.True(merged.GetPixel(100, 100).Alpha > 0, "and the lower bar is still there");
+    }
+
+    [Fact]
     public void MergingTheShapeLayerDownMovesTheFolderShapeWithIt()
     {
         var scene = TestScene();

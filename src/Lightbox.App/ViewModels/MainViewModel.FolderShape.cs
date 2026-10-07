@@ -40,41 +40,60 @@ public partial class MainViewModel
     /// told so rather than the command doing nothing: "nothing happened" is
     /// Krita's inherit alpha outside a group, the confusion this replaces.
     /// </remarks>
-    internal void SetFolderShape(Layer layer, bool keepInside, string? labelPrefix = null)
+    internal void SetFolderShape(Layer layer, bool keepInside) => SetFolderShape(layer, keepInside, byAgent: false);
+
+    /// <returns>Whether anything changed.</returns>
+    private bool SetFolderShape(Layer layer, bool keepInside, bool byAgent)
     {
         if (FolderTree.Folder(Scene, layer.GroupId) is not { } folder)
         {
-            if (keepInside)
+            if (keepInside && !byAgent)
             {
                 AiStatus = $"Put “{layer.Name}” in a folder first — the folder is what keeps the layers above it inside.";
             }
-            return;
+            return false;
         }
-        if (keepInside == (folder.ShapeLayerId == layer.Id)) return;
+        if (keepInside == (folder.ShapeLayerId == layer.Id)) return false;
+        var label = keepInside ? "keep layers above inside" : "stop keeping layers inside";
         _editor.Perform(_ => folder.ShapeLayerId = keepInside ? layer.Id : null,
-            label: labelPrefix + (keepInside ? "Keep layers above inside" : "Stop keeping layers inside"),
+            label: byAgent ? "Agent: " + label : char.ToUpperInvariant(label[0]) + label[1..],
             frameContentUnchanged: true);
         SyncMaskRows();
-        AiStatus = keepInside
-            ? $"Layers above “{layer.Name}” in “{folder.Name}” now stay inside it and everything under it."
-            : $"Layers in “{folder.Name}” are no longer kept inside “{layer.Name}”.";
+        if (!byAgent)
+        {
+            AiStatus = keepInside
+                ? $"Layers above “{layer.Name}” in “{folder.Name}” now stay inside it and everything under it."
+                : $"Layers in “{folder.Name}” are no longer kept inside “{layer.Name}”.";
+        }
+        return true;
     }
 
     /// <summary>
     /// The MCP surface's door to <see cref="SetFolderShape"/>: refuses rather
     /// than reporting in the status bar, because an agent reads the reply.
     /// </summary>
-    internal string? ExternalSetFolderShape(string layerId, bool keepInside, out string? folderId)
+    /// <remarks>
+    /// Locks refuse it as they refuse the sibling folder verbs (ExternalLockOn),
+    /// and releasing a layer that is not the shape is refused rather than
+    /// answered with a success that changed nothing (ai-engineer on Q215).
+    /// </remarks>
+    internal string? ExternalSetFolderShape(string layerId, bool keepInside, out string? folderId, out bool changed)
     {
         folderId = null;
+        changed = false;
         if (Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer)
-            return $"No layer \"{layerId}\".";
+            return $"No layer “{layerId}”.";
         if (FolderTree.Folder(Scene, layer.GroupId) is not { } folder)
-            return $"Layer \"{layer.Name}\" is in no folder; a shape keeps the layers above it inside its folder, so group it first.";
-        if (FolderTree.LockedFolderOf(Scene, layer) is { } locked)
-            return $"Folder \"{locked.Name}\" is locked.";
+            return $"Layer “{layer.Name}” is in no folder; a shape keeps the layers above it inside its folder, so group it first.";
+        if (ExternalLockOn(new StackRef(layer.Id, false)) is { } locked) return locked;
+        if (!keepInside && folder.ShapeLayerId != layer.Id)
+        {
+            return Scene.Layers.FirstOrDefault(l => l.Id == folder.ShapeLayerId) is { } shape
+                ? $"Layer “{layer.Name}” is not the shape of “{folder.Name}”; the shape is “{shape.Name}” ({shape.Id}). Send keepInside=false for that layer to release it."
+                : $"Folder “{folder.Name}” keeps nothing inside, so there is nothing to release.";
+        }
         folderId = folder.Id;
-        if (keepInside || folder.ShapeLayerId == layer.Id) SetFolderShape(layer, keepInside, "Agent: ");
+        changed = SetFolderShape(layer, keepInside, byAgent: true);
         return null;
     }
 

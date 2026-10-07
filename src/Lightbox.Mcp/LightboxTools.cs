@@ -48,10 +48,10 @@ public static class LightboxTools
     [McpServerTool(Name = "get_scene"), Description(
         "Get the Lightbox scene: canvas size, fps, frame count, current frame, " +
         "and the layers (id, name, kind, visibility, which frames are keyed, the folderId it is in, " +
-        "and the carve/effect state: hasMask, clipped, isAdjustment, " +
+        "and the carve/effect state: hasMask, clipped, keptInsideOf (the folder-shape layer carving it), isAdjustment, " +
         "hasEffects — render_frame already shows all of them applied), and, " +
         "when there are any, the folders topmost first (id, name, parentId, " +
-        "visible, locked, empty, and shapeLayerId when the folder keeps its layers inside one). " +
+        "visible, locked, empty, and shapeLayerId plus shapeHidden when the folder keeps its layers inside one). " +
         "Call this first to orient yourself. It also reports which builds you " +
         "are talking to: appBuild is the running Lightbox, mcpBuild is this " +
         "server. If they disagree, or mcpBuild is missing entirely, this server " +
@@ -326,13 +326,16 @@ public static class LightboxTools
         Text("group_layers", new { ids, name, reorder }, ct);
 
     [McpServerTool(Name = "set_folder_shape"), Description(
-        "Make a layer its folder's shape: every layer ABOVE it in the same folder then " +
-        "shows only where it and the layers UNDER it in that folder have content, so " +
-        "shading and highlights stay inside the flat colours (Krita's inherit alpha, set " +
-        "once on the folder). The shape is everything up to and including that layer. " +
-        "keepInside=false releases the folder. The strokes are never cut: releasing " +
-        "shows them all again. Refused for a layer in no folder, or in a locked one. " +
-        "Returns folderId and shapeLayerId (absent once released). One undo step.")]
+        "Make a layer its folder's shape: every layer ABOVE it in the same folder (higher " +
+        "in the stack, drawn later) then shows only where it or the layers UNDER it in that " +
+        "folder have content, so shading and highlights stay inside the flat colours. The " +
+        "shape layer and everything under it are not carved. One shape per folder; setting " +
+        "a new one replaces the old. If every layer of the shape is hidden, the layers above " +
+        "show nothing (get_scene's shapeHidden). The strokes are never cut: keepInside=false " +
+        "on the shape layer releases the folder and shows them all again; moving the shape " +
+        "layer out of the folder or deleting it releases it too. Refused for a layer in no " +
+        "folder, a locked layer or folder, or keepInside=false on a layer that is not the " +
+        "shape. Returns folderId, shapeLayerId (absent once released) and changed. One undo step.")]
     public static Task<string> SetFolderShape(
         [Description("Layer id from get_scene; it must be inside a folder")] string layerId,
         CancellationToken ct,

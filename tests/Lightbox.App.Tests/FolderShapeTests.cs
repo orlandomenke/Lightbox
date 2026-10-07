@@ -125,6 +125,21 @@ public class FolderShapeTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void AFolderLoopInACraftedFileCarvesOnce()
+    {
+        // Sensitivity S1: A inside B inside A. Each folder's shape carves once;
+        // the loop is not walked to the depth cap stacking the same carve.
+        var (scene, folder) = Character();
+        var outer = new LayerGroup { Id = "group-outer", ParentId = folder.Id };
+        folder.ParentId = outer.Id;
+        scene.LayerGroups.Add(outer);
+
+        var shapes = LayerShapes.For(scene, 3, 0)!;
+        Assert.Single(shapes);
+        Assert.Same(folder, LayerShapes.FolderShapingOf(scene, 3));
+    }
+
+    [Fact]
     public void AShapeIdThatLeftTheFolderCarvesNothing()
     {
         var (scene, folder) = Character();

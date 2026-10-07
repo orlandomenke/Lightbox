@@ -99,9 +99,14 @@ public static class LayerShapes
         if (folders is not null && layer.GroupId is not null && AnyFolderShape(folders))
         {
             var folder = FindFolder(folders, layer.GroupId);
+            // A crafted file can loop its parents; each folder carves once, as
+            // FolderTree's own walk visits each once (sensitivity S1 on Q215).
+            List<string>? seen = null;
             for (var depth = 0; folder is not null && depth < FolderTree.MaxDepth;
                  depth++, folder = FindFolder(folders, folder.ParentId))
             {
+                if (seen is not null && seen.Contains(folder.Id)) break;
+                (seen ??= new List<string>(4)).Add(folder.Id);
                 var top = ShapeTopBelow(layers, folders, folder, layerIndex);
                 if (top < 0) continue;
                 if (FolderShape(layers, visible, folders, folder, top, frameIndex) is not { } shape)

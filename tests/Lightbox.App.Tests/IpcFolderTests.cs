@@ -55,12 +55,63 @@ public sealed class IpcFolderTests(ITestOutputHelper output) : BrushStateIsolate
         Assert.Contains($"\"shapeLayerId\":\"{a}\"", Scene(api));
         Assert.StartsWith("Agent:", vm.UndoHistory.Rows.Single(r => r.IsCurrent).Label);
 
+        Assert.True(set.Payload!.Value.GetProperty("changed").GetBoolean());
+        // The layer above says what carves it, so an agent need not derive it.
+        Assert.Contains($"\"keptInsideOf\":\"{a}\"", Scene(api));
+        Assert.DoesNotContain("\"shapeHidden\"", Scene(api));
+
+        // Setting it again is a success that changed nothing, and says so.
+        var again = api.Handle(Req("set_folder_shape", new { layerId = a }));
+        Assert.True(again.Ok, again.Error);
+        Assert.False(again.Payload!.Value.GetProperty("changed").GetBoolean());
+
+        // Releasing the wrong layer is refused, naming the shape.
+        var wrong = api.Handle(Req("set_folder_shape", new { layerId = b, keepInside = false }));
+        Assert.False(wrong.Ok);
+        Assert.Contains("not the shape", wrong.Error);
+        Assert.Contains(a, wrong.Error);
+
+        // A missing id is a refusal, not an exception.
+        var empty = api.Handle(Req("set_folder_shape", new { layerId = (string?)null }));
+        Assert.False(empty.Ok);
+
+        // Hiding the shape: the agent can see why the layer above renders blank.
+        vm.Doc.Scene.Layers.Single(l => l.Id == a).Visible = false;
+        Assert.Contains("\"shapeHidden\":true", Scene(api));
+        vm.Doc.Scene.Layers.Single(l => l.Id == a).Visible = true;
+
         var released = api.Handle(Req("set_folder_shape", new { layerId = a, keepInside = false }));
         Assert.True(released.Ok, released.Error);
         Assert.DoesNotContain("\"shapeLayerId\"", Scene(api));
+        Assert.DoesNotContain("\"keptInsideOf\"", Scene(api));
 
         vm.UndoCommand.Execute(null);
         Assert.Equal(a, vm.Doc.Scene.LayerGroups.Single().ShapeLayerId);
+    }
+
+    [AvaloniaFact]
+    public void AFolderShapeChangesThePictureAndNoStroke()
+    {
+        // ai-engineer on Q215: the carve is composite-time only. The strokes
+        // are byte-identical across set and release; the render is not.
+        var (vm, api, a, b) = Open();
+        Assert.True(api.Handle(Req("group_layers", new { ids = new[] { a, b }, name = "Hero" })).Ok);
+        vm.ActiveLayerIndex = vm.Doc.Scene.Layers.FindIndex(l => l.Id == a);
+        vm.BeginStroke(20, 100, 1); vm.MoveStroke(200, 100, 1); vm.EndStroke();
+        vm.ActiveLayerIndex = vm.Doc.Scene.Layers.FindIndex(l => l.Id == b);
+        vm.BeginStroke(20, 300, 1); vm.MoveStroke(200, 300, 1); vm.EndStroke();
+        string Strokes() => JsonSerializer.Serialize(vm.Doc.Scene.Layers.Select(l => l.Cels), IpcProtocol.Json);
+        string Render() => api.Handle(Req("render_frame", new { frameIndex = 0 })).Payload!.Value.GetRawText();
+
+        var strokesBefore = Strokes();
+        var renderBefore = Render();
+        Assert.True(api.Handle(Req("set_folder_shape", new { layerId = a })).Ok);
+        Assert.Equal(strokesBefore, Strokes());
+        Assert.NotEqual(renderBefore, Render()); // b's bar, off a's, is carved away
+
+        Assert.True(api.Handle(Req("set_folder_shape", new { layerId = a, keepInside = false })).Ok);
+        Assert.Equal(strokesBefore, Strokes());
+        Assert.Equal(renderBefore, Render());
     }
 
     [AvaloniaFact]
