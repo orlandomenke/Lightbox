@@ -604,7 +604,7 @@ public static partial class Catalog
         return new Border { Width = 800, Child = wrap };
     }
 
-    private static IBrush Brush(string key) => (IBrush)Application.Current!.FindResource(key)!;
+    private static IBrush Brush(string key) => (IBrush)Application.Current!.FindResource(Application.Current!.ActualThemeVariant, key)!;
 
     /// <summary>A role's radius from the look; a story never writes a radius as a number.</summary>
     private static CornerRadius Radius(string role) =>

@@ -235,7 +235,7 @@
                        VerticalAlignment="Center"
                        ToolTip.Tip="The art style. These redraw from the solve already in hand, so they are cheap and preview as you move them." />
             <TextBlock Grid.Column="1" Text="{Binding PenSummary}" FontSize="{StaticResource TypeHint}" Opacity="0.5"
-                       VerticalAlignment="Center" Margin="{StaticResource GapAfterWide}" />
+                       VerticalAlignment="Center" Margin="{StaticResource GapAfter}" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="{StaticResource Space4}">
               <Button Classes="text" Content="Take brush" Click="OnUseCurrentBrush"
                       ToolTip.Tip="Draw this element's outlines with the brush the toolbar is holding. Copied now, not read at bake time — so re-baking always draws the same line." />

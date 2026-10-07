@@ -429,6 +429,12 @@ public class TrackView : Control
             RulerHeight + (rows + clipRows) * RowPitch + audioBand + volumeBand + 6);
     }
 
+    // Chrome drawn in code reads the theme (ThemeColour). This renders on every
+    // playback frame, so it reads once and keeps it until the theme switches.
+    public TrackView() => ThemeColour.RepaintOnThemeChange(this, () => _chrome = null);
+
+    private (IBrush Text, Pen Faint, Pen Grid)? _chrome;
+
     // ---- painting -------------------------------------------------------------
 
     public override void Render(DrawingContext context)
@@ -436,14 +442,15 @@ public class TrackView : Control
         var tracks = Tracks;
         if (tracks is null || tracks.Count == 0) return;
 
-        var text = new SolidColorBrush(Color.Parse("#A6ABB8"));
-        var faint = new Pen(new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF)), 1);
+        var (text, faint, grid) = _chrome ??= (
+            new SolidColorBrush(ThemeColour.Of(this, "TextSecondaryBrush", Color.Parse("#A6ABB8"))),
+            new Pen(new SolidColorBrush(ThemeColour.Hairline(this, 0x22)), 1),
+            new Pen(new SolidColorBrush(ThemeColour.Hairline(this, 0x10)), 1));
         var typeface = new Typeface(Avalonia.Media.FontFamily.Default);
 
         // The light grid: a per-frame vertical when the frames are wide enough
         // to want one, and a hairline under each track row. Barely-there — it
         // exists so a dot's frame can be read without counting.
-        var grid = new Pen(new SolidColorBrush(Color.FromArgb(0x10, 0xFF, 0xFF, 0xFF)), 1);
         if (FrameWidth >= 8)
         {
             for (var f = 0; f < FrameCount; f++)

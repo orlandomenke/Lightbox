@@ -96,11 +96,15 @@ public class TimingChartView : Control
         return -1;
     }
 
+    // Chrome drawn in code reads the theme at render time (ThemeColour), so a
+    // theme switch has to ask for a fresh render.
+    public TimingChartView() => ThemeColour.RepaintOnThemeChange(this);
+
     public override void Render(DrawingContext context)
     {
         var mid = Bounds.Height / 2;
-        var text = new SolidColorBrush(Color.Parse("#A6ABB8"));
-        var rail = new Pen(new SolidColorBrush(Color.Parse("#5A5F6E")), 2);
+        var text = new SolidColorBrush(ThemeColour.Of(this, "TextSecondaryBrush", Color.Parse("#A6ABB8")));
+        var rail = new Pen(new SolidColorBrush(ThemeColour.Hairline(this, 0x60)), 2);
         var post = new SolidColorBrush(Color.Parse("#B49CFF"));
         var rung = new SolidColorBrush(Color.Parse("#E8C55F"));
         var typeface = new Typeface(FontFamily.Default);

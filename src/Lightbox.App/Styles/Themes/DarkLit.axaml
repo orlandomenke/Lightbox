@@ -1,0 +1,123 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Dark-lit (Q203): the default theme. Graphite surfaces with no tint, light
+    from above, and no colour for "on" — state is value and light. Chosen in
+    tools/Lightbox.Gallery, where its first version lives.
+
+    Only BRUSHES (and the edge light's shadows) live here. Colours stay at the top of Palette.axaml (with this
+    theme's values, because it is the default): they are read once, with
+    StaticResource, inside other resources. Brushes are what the views read
+    with DynamicResource, so these are what switch when the theme does.
+  -->
+  <SolidColorBrush x:Key="BackgroundPrimaryBrush" Color="#161618" />
+  <SolidColorBrush x:Key="BackgroundSecondaryBrush" Color="#1A1A1C" />
+  <SolidColorBrush x:Key="SurfacePanelBrush" Color="#222225" />
+  <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="#2E2E32" />
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="#ECECEA" />
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="#9A9A97" />
+  <SolidColorBrush x:Key="TextOnAccentBrush" Color="#F2F2F0" />
+  <SolidColorBrush x:Key="AccentVioletDeepBrush" Color="#3C3C41" />
+  <SolidColorBrush x:Key="BorderBrush" Color="#232326" />
+  <SolidColorBrush x:Key="BorderStrongBrush" Color="#2E2E33" />
+  <SolidColorBrush x:Key="PrimaryFillBrush" Color="#ECECEA" />
+  <SolidColorBrush x:Key="PrimaryForegroundBrush" Color="#111112" />
+  <SolidColorBrush x:Key="SelectionBrush" Color="#FFFFFF" Opacity="0.08" />
+  <SolidColorBrush x:Key="SelectionWeakBrush" Color="#FFFFFF" Opacity="0.04" />
+  <SolidColorBrush x:Key="PressTintBrush" Color="#FFFFFF" Opacity="0.06" />
+  <SolidColorBrush x:Key="HoverTintBrush" Color="#FFFFFF" Opacity="0.065" />
+  <SolidColorBrush x:Key="GroupRowBrush" Color="#222225" />
+  <SolidColorBrush x:Key="CelBrush" Color="#2E2E32" />
+  <SolidColorBrush x:Key="FieldGroundBrush" Color="#161618" />
+  <SolidColorBrush x:Key="FieldGroundHoverBrush" Color="#1A1A1D" />
+  <SolidColorBrush x:Key="RimBrush" Color="#FFFFFF" Opacity="0.075" />
+  <SolidColorBrush x:Key="RimStrongBrush" Color="#FFFFFF" Opacity="0.14" />
+  <!-- Round the artwork, behind the canvas (read by CanvasControl in code). -->
+  <SolidColorBrush x:Key="CanvasSurroundBrush" Color="#2B2B2B" />
+  <SolidColorBrush x:Key="GroundBrush" Color="#0B0B0C" />
+  <SolidColorBrush x:Key="ActiveFillBrush" Color="#FFFFFF" Opacity="0.13" />
+  <StaticResource x:Key="TextControlBackground" ResourceKey="FieldGroundBrush" />
+  <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="FieldGroundBrush" />
+  <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent" />
+  <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#FFFFFF" Opacity="0.10" />
+  <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#FFFFFF" Opacity="0.22" />
+  <SolidColorBrush x:Key="ComboBoxBackground" Color="Transparent" />
+  <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="Transparent" />
+  <SolidColorBrush x:Key="SliderTrackFill" Color="#161618" />
+  <SolidColorBrush x:Key="SliderTrackValueFill" Color="#8E8E8B" />
+  <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#ACACA9" />
+  <SolidColorBrush x:Key="SliderThumbBackground" Color="#ECECEA" />
+  <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="#FFFFFF" />
+  <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#1C1C1F" />
+  <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#FFFFFF" Opacity="0.03" />
+  <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="TextSecondaryBrush" />
+  <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#FFFFFF" Opacity="0.065" />
+  <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#FFFFFF" Opacity="0.13" />
+  <StaticResource x:Key="ButtonBackground" ResourceKey="SurfaceElevatedBrush" />
+  <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#37373C" />
+  <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#28282B" />
+  <SolidColorBrush x:Key="ButtonBorderBrush" Color="Transparent" />
+  <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+  <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+  <StaticResource x:Key="ToggleButtonBackground" ResourceKey="SurfaceElevatedBrush" />
+  <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#37373C" />
+  <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="Transparent" />
+  <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#2E2E32" />
+  <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="#2E2E32" />
+  <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#2E2E32" />
+  <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#FFFFFF" Opacity="0.065" />
+  <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="#FFFFFF" Opacity="0.13" />
+  <SolidColorBrush x:Key="FieldGroundDisabledBrush" Color="#FFFFFF" Opacity="0.03" />
+  <SolidColorBrush x:Key="MenuFlyoutItemBackgroundSelected" Color="#FFFFFF" Opacity="0.13" />
+
+  <!--
+    Light on the edge (Q203): chrome, white and grey with two narrow warm and blue flecks where it is brightest. A conic brush is colour by angle round
+    the centre, which is how light sweeps round a rounded edge, and a static
+    brush costs nothing to draw. EdgeBrush at full strength on a field being
+    typed in and an open dropdown; EdgeSubtleBrush, the same light faint, on
+    text buttons and switches. Never on a docker frame (owner, 2026-10-07).
+  -->
+  <ConicGradientBrush x:Key="EdgeBrush" Center="50%,50%" Angle="-45">
+      <GradientStop Color="#FFFFFF" Offset="0.00" />
+      <GradientStop Color="#E4E4E4" Offset="0.05" />
+      <GradientStop Color="#FFC07A" Offset="0.085" />
+      <GradientStop Color="#86CCFF" Offset="0.105" />
+      <GradientStop Color="#CFCFCF" Offset="0.13" />
+      <GradientStop Color="#5E5E5E" Offset="0.28" />
+      <GradientStop Color="#8C8C8C" Offset="0.42" />
+      <GradientStop Color="#FFFFFF" Offset="0.50" />
+      <GradientStop Color="#C9A6FF" Offset="0.535" />
+      <GradientStop Color="#80E3FF" Offset="0.555" />
+      <GradientStop Color="#BEBEBE" Offset="0.58" />
+      <GradientStop Color="#4E4E4E" Offset="0.78" />
+      <GradientStop Color="#8A8A8A" Offset="0.92" />
+      <GradientStop Color="#FFFFFF" Offset="1.00" />
+  </ConicGradientBrush>
+  <ConicGradientBrush x:Key="EdgeSubtleBrush" Center="50%,50%" Angle="-45" Opacity="0.42">
+      <GradientStop Color="#FFFFFF" Offset="0.00" />
+      <GradientStop Color="#E4E4E4" Offset="0.05" />
+      <GradientStop Color="#FFC07A" Offset="0.085" />
+      <GradientStop Color="#86CCFF" Offset="0.105" />
+      <GradientStop Color="#CFCFCF" Offset="0.13" />
+      <GradientStop Color="#5E5E5E" Offset="0.28" />
+      <GradientStop Color="#8C8C8C" Offset="0.42" />
+      <GradientStop Color="#FFFFFF" Offset="0.50" />
+      <GradientStop Color="#C9A6FF" Offset="0.535" />
+      <GradientStop Color="#80E3FF" Offset="0.555" />
+      <GradientStop Color="#BEBEBE" Offset="0.58" />
+      <GradientStop Color="#4E4E4E" Offset="0.78" />
+      <GradientStop Color="#8A8A8A" Offset="0.92" />
+      <GradientStop Color="#FFFFFF" Offset="1.00" />
+  </ConicGradientBrush>
+  <!--
+    Light from above. A rim is an inset shadow one pixel tall, not a top
+    border: Avalonia draws no box shadow on a border whose thickness is not
+    uniform, so a 0,1,0,0 rim switches every drop shadow off.
+      IslandShadow  a docker: top rim, soft drop
+      RaisedShadow  the bar over the canvas: a brighter rim, a short drop
+      InsetShadow   a field: shade at the top of the well
+  -->
+  <BoxShadows x:Key="IslandShadow">inset 0 1 0 0 #14FFFFFF, 0 10 28 -12 #A6000000, 0 2 6 -2 #80000000</BoxShadows>
+  <BoxShadows x:Key="RaisedShadow">inset 0 1 0 0 #26FFFFFF, 0 2 5 -2 #80000000</BoxShadows>
+  <BoxShadows x:Key="InsetShadow">inset 0 1 2 0 #59000000</BoxShadows>
+</ResourceDictionary>

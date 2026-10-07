@@ -19,7 +19,7 @@ public static class Program
     public static int Main(string[] args)
     {
         var app = Array.IndexOf(args, "--snapshot-app");
-        if (app >= 0) return SnapshotApp(app + 1 < args.Length ? args[app + 1] : "app-snapshots");
+        if (app >= 0) return SnapshotApp(app + 1 < args.Length ? args[app + 1] : "app-snapshots", light: args.Contains("--light"));
 
         var at = Array.IndexOf(args, "--snapshot");
         if (at >= 0)
@@ -64,7 +64,7 @@ public static class Program
                 {
                     Width = 960,
                     SizeToContent = SizeToContent.Height,
-                    Background = (Avalonia.Media.IBrush?)app.FindResource("BackgroundSecondaryBrush"),
+                    Background = (Avalonia.Media.IBrush?)app.FindResource(app.ActualThemeVariant, "BackgroundSecondaryBrush"),
                     Content = new Border { Padding = new Thickness(24), Child = StoryPanel.Build(story) },
                 };
                 window.Show();
@@ -95,7 +95,7 @@ public static class Program
     /// settings and logs go to a scratch folder and the workspace store saves
     /// nowhere, so a snapshot never touches the person's own setup.
     /// </remarks>
-    private static int SnapshotApp(string dir)
+    private static int SnapshotApp(string dir, bool light = false)
     {
         var scratch = Path.Combine(Path.GetTempPath(), $"lightbox-gallery-{Guid.NewGuid():N}");
         Directory.CreateDirectory(scratch);
@@ -103,7 +103,8 @@ public static class Program
         Lightbox.App.Services.AppSettings.Path = Path.Combine(scratch, "settings.json");
         // Autosave off: its path is the artist's own recovery copy, and is not
         // redirectable, so the timer must never run in here.
-        File.WriteAllText(Lightbox.App.Services.AppSettings.Path, """{ "AutosaveMinutes": 0 }""");
+        File.WriteAllText(Lightbox.App.Services.AppSettings.Path,
+            light ? """{ "AutosaveMinutes": 0, "Theme": "Light" }""" : """{ "AutosaveMinutes": 0 }""");
         // A pipe of its own, so an agent talking to the live Lightbox can never
         // be answered by this throwaway window.
         Lightbox.App.Services.IpcServer.PipeNameOverride = $"lightbox-gallery-{Guid.NewGuid():N}";

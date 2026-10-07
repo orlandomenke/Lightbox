@@ -89,6 +89,21 @@ Its README carries the rules that came out of these.
   important part of actually building it, is tokenizing."*
 - **The gallery PR goes first.** The token work stacks on its shared-style split.
 
+## Step 3's open choices, answered 2026-10-07
+
+These came out of the step-2 reviews (docs/DESIGN-tokens.md lists them):
+
+- **Label columns: one width per context.** Dockers use one label width (90);
+  dialogs keep 110, because their labels are longer prose. Two tokens, each
+  with its rule written down.
+- **Gaps: one scale, 4 and 8.** The 6 px between-control and 10 px
+  above-section variants become 4 and 8.
+- **Image previews follow the corner set**, at the inner radius (2 in Tight).
+  *Against the recommendation*, which was to make them square like other
+  artwork. The owner wants previews to round with the chrome; swatches and
+  layer thumbnails keep the square rule.
+- **9 px text rises to 10**, so DESIGN.md's floor holds without exception.
+
 ## What is not a question
 
 - The layout stays: rail, canvas, right column, bottom sheet. This is a

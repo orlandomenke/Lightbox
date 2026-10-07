@@ -17,13 +17,13 @@
   <!-- ===== Core ===================================================== -->
   <!-- Four surfaces, from furthest back to nearest front. The order is the
        whole meaning: anything raised above its neighbour goes one step up. -->
-  <Color x:Key="BackgroundPrimary">#0B0D12</Color>
-  <Color x:Key="BackgroundSecondary">#13161D</Color>
-  <Color x:Key="SurfacePanel">#1A1E27</Color>
-  <Color x:Key="SurfaceElevated">#222634</Color>
+  <Color x:Key="BackgroundPrimary">#161618</Color>
+  <Color x:Key="BackgroundSecondary">#1A1A1C</Color>
+  <Color x:Key="SurfacePanel">#222225</Color>
+  <Color x:Key="SurfaceElevated">#2E2E32</Color>
 
-  <Color x:Key="TextPrimary">#E6E8F0</Color>
-  <Color x:Key="TextSecondary">#9AA1B2</Color>
+  <Color x:Key="TextPrimary">#ECECEA</Color>
+  <Color x:Key="TextSecondary">#9A9A97</Color>
 
   <!--
     Text that sits ON an accent rather than on a surface — the primary button's
@@ -32,15 +32,8 @@
     light because the surfaces are dark, and if the surfaces ever went light it
     would follow them down while this one stayed put.
   -->
-  <Color x:Key="TextOnAccent">#FFFFFF</Color>
+  <Color x:Key="TextOnAccent">#F2F2F0</Color>
 
-  <SolidColorBrush x:Key="BackgroundPrimaryBrush" Color="{StaticResource BackgroundPrimary}" />
-  <SolidColorBrush x:Key="BackgroundSecondaryBrush" Color="{StaticResource BackgroundSecondary}" />
-  <SolidColorBrush x:Key="SurfacePanelBrush" Color="{StaticResource SurfacePanel}" />
-  <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="{StaticResource SurfaceElevated}" />
-  <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}" />
-  <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondary}" />
-  <SolidColorBrush x:Key="TextOnAccentBrush" Color="{StaticResource TextOnAccent}" />
 
   <!-- ===== Borders — derived, and that is worth stating ============== -->
   <!--
@@ -53,8 +46,6 @@
     makes a raised edge read as raised rather than as a drawn line. The strong
     variant is for a focused or dragged edge that has to win against content.
   -->
-  <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource SurfaceElevated}" />
-  <SolidColorBrush x:Key="BorderStrongBrush" Color="#2E3444" />
 
   <!-- ===== Accents =================================================== -->
   <!--
@@ -80,12 +71,11 @@
     AccentViolet over BackgroundPrimary at 70%, so it stays the same hue and
     follows a retune of either parent by re-deriving.
   -->
-  <Color x:Key="AccentVioletDeep">#5B48C8</Color>
+  <Color x:Key="AccentVioletDeep">#3C3C41</Color>
 
   <SolidColorBrush x:Key="AccentCoralBrush" Color="{StaticResource AccentCoral}" />
   <SolidColorBrush x:Key="AccentMagentaBrush" Color="{StaticResource AccentMagenta}" />
   <SolidColorBrush x:Key="AccentVioletBrush" Color="{StaticResource AccentViolet}" />
-  <SolidColorBrush x:Key="AccentVioletDeepBrush" Color="{StaticResource AccentVioletDeep}" />
   <SolidColorBrush x:Key="AccentCyanBrush" Color="{StaticResource AccentCyan}" />
   <SolidColorBrush x:Key="AccentLimeBrush" Color="{StaticResource AccentLime}" />
   <SolidColorBrush x:Key="AccentAmberBrush" Color="{StaticResource AccentAmber}" />
@@ -101,10 +91,6 @@
     uses it on the primary button and the loading bar, and two hand-built copies
     would drift the moment either is touched.
   -->
-  <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0%,0%" EndPoint="100%,0%">
-    <GradientStop Offset="0" Color="{StaticResource AccentCoral}" />
-    <GradientStop Offset="1" Color="{StaticResource AccentMagenta}" />
-  </LinearGradientBrush>
 
   <!-- ===== Derived states ============================================ -->
   <!--
@@ -119,7 +105,6 @@
     elevated panel differ in the way they should, rather than being the same
     flat colour in two places where it reads differently.
   -->
-  <SolidColorBrush x:Key="SelectionBrush" Color="{StaticResource AccentViolet}" Opacity="0.30" />
   <!--
     A row that is in a multi-selection but is not the active one. The same
     accent at roughly half the tint, so the set reads as one block and the
@@ -127,76 +112,8 @@
     where every row looks equally chosen loses the only thing the artist needs
     to know before drawing.
   -->
-  <SolidColorBrush x:Key="SelectionWeakBrush" Color="{StaticResource AccentViolet}" Opacity="0.16" />
   <SolidColorBrush x:Key="StatusWarningSurfaceBrush" Color="{StaticResource AccentAmber}" Opacity="0.18" />
 
-  <!--
-    The ground under the tab that is showing, straight off the design reference
-    in docs/design/. Measured rather than guessed: a column down the active
-    "Layers" tab in the mockup runs from about #222B2A at the top to the panel's
-    own ground by two thirds of the way down, which is `SurfaceElevated` fading
-    out — the tab is lit from the top and merges into the panel below it.
-
-    **It ends at Transparent rather than at a colour.** The header, a floating
-    panel and a docked strip are not all the same ground, and a gradient that
-    named its destination would be a visible seam on two of the three. Fading to
-    nothing merges into whatever is actually behind it, which is what "fades
-    into the background" has to mean when the background is not one thing.
-
-    The fade runs the tab's whole height. It ended at 0.62 first, read off a
-    26px tab in the compressed mockup, and at that size "fast" and "full
-    height" are two pixels apart; the owner's correction is that the real
-    thing fades over a larger distance — the subtlety IS the length of the
-    fade. What keeps it from becoming a segmented-control block is that it
-    still ends at nothing and starts soft.
-
-    No lean. There was a 12% x-lean read off the reference, and it was a
-    trap: gradient points are RELATIVE, so on a 26px docker tab the lean was
-    invisible and on a 200px document tab it became a sideways fade-out — the
-    same brush telling two different stories at two widths. Purely vertical
-    is the version that scales.
-  -->
-  <LinearGradientBrush x:Key="TabActiveGroundBrush" StartPoint="0%,0%" EndPoint="0%,100%">
-    <GradientStop Offset="0" Color="#D8222634" />
-    <GradientStop Offset="1" Color="#00222634" />
-  </LinearGradientBrush>
-
-  <!--
-    The line along the active tab's top edge — the reference draws it on the
-    Brush Settings' active tab, and the owner named it as the marker to keep:
-    a purple gradient, brightest where the tab is, dying before the far edge.
-    Violet into magenta rather than the full coral gradient, because at 2px
-    tall coral reads as a warning stripe.
-  -->
-  <LinearGradientBrush x:Key="TabActiveLineBrush" StartPoint="0%,0%" EndPoint="100%,0%">
-    <GradientStop Offset="0" Color="{StaticResource AccentViolet}" />
-    <GradientStop Offset="0.75" Color="{StaticResource AccentMagenta}" />
-    <GradientStop Offset="1" Color="#00D946FF" />
-  </LinearGradientBrush>
-
-  <!--
-    A rim light: the top edge catches light, the sides fade, the bottom gets
-    none. Used as a BorderBrush — a border samples this gradient by position,
-    so one brush gives the lit-from-above edge the reference's buttons have
-    without a second border element anywhere. On a BorderThickness of 1 the
-    cost is nothing.
-  -->
-  <!--
-    The press flash on a glyph toggle. The old treatment filled a checked
-    toggle with the accent, so a row of layer buttons was a row of purple
-    boxes; the state lives in the glyph now, and what remains of the purple
-    is this — a subtle tint for the moment of the press, so the click still
-    answers the finger without shouting afterwards.
-  -->
-  <SolidColorBrush x:Key="PressTintBrush" Color="{StaticResource AccentVioletDeep}" Opacity="0.28" />
-
-  <!-- Diagonal, so the light lands on the top and LEFT edges and the right
-       and bottom get none — one light source, upper left, per the owner. -->
-  <LinearGradientBrush x:Key="RimLightBrush" StartPoint="0%,0%" EndPoint="100%,100%">
-    <GradientStop Offset="0" Color="#3CFFFFFF" />
-    <GradientStop Offset="0.5" Color="#0CFFFFFF" />
-    <GradientStop Offset="1" Color="#00FFFFFF" />
-  </LinearGradientBrush>
 
   <!-- ===== Fields ==================================================== -->
   <!--
@@ -207,14 +124,11 @@
     pointing at something makes it lighter, never darker. White rather than
     grey so the lift keeps the surface's own blue.
   -->
-  <SolidColorBrush x:Key="FieldGroundBrush" Color="#FFFFFF" Opacity="0.09" />
-  <SolidColorBrush x:Key="FieldGroundHoverBrush" Color="#FFFFFF" Opacity="0.14" />
   <!--
     Weaker than the resting ground, not stronger. Fluent's disabled field is
     `#33ffffff` — brighter than its enabled one, so switching a field off makes
     it stand out more.
   -->
-  <SolidColorBrush x:Key="FieldGroundDisabledBrush" Color="#FFFFFF" Opacity="0.04" />
 
   <!-- ===== The exposure sheet's vocabulary ============================ -->
   <!--
@@ -229,7 +143,6 @@
     Tints rather than full accents. At full strength six of these in a row is a
     fruit salad, and the grid has to stay scannable with a hundred cels on it.
   -->
-  <SolidColorBrush x:Key="CelBrush" Color="{StaticResource SurfaceElevated}" />
   <SolidColorBrush x:Key="CelBreakdownBrush" Color="{StaticResource AccentViolet}" Opacity="0.34" />
   <SolidColorBrush x:Key="CelTweenBrush" Color="{StaticResource AccentCyan}" Opacity="0.30" />
   <SolidColorBrush x:Key="CelCurrentBrush" Color="{StaticResource AccentViolet}" Opacity="0.62" />
@@ -266,12 +179,10 @@
 
   <!-- A group's row sits above the layers it holds, so it takes the raised
        surface rather than a colour of its own. -->
-  <SolidColorBrush x:Key="GroupRowBrush" Color="{StaticResource SurfaceElevated}" />
 
   <!-- Hover and banding: a tint of nothing in particular, over whatever is
        beneath. Grey by intent — these must not read as a state that means
        something, which any accent immediately would. -->
-  <SolidColorBrush x:Key="HoverTintBrush" Color="#808080" Opacity="0.13" />
   <SolidColorBrush x:Key="BandTintBrush" Color="#808080" Opacity="0.07" />
 
   <!-- ===== Meaning ==================================================== -->
@@ -300,4 +211,13 @@
   -->
   <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="#C42B1C" />
 
+
+  <!-- ===== Themes (Q203) ===================================================
+       The brushes that differ between Dark-lit and Studio grey. A brush listed
+       in a theme must not also appear above: the dictionary's own keys are
+       searched before its theme dictionaries, so it would shadow both. -->
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceInclude x:Key="Dark" Source="avares://Lightbox.App/Styles/Themes/DarkLit.axaml" />
+    <ResourceInclude x:Key="Light" Source="avares://Lightbox.App/Styles/Themes/StudioGrey.axaml" />
+  </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

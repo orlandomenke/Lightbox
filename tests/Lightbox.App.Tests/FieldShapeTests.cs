@@ -44,10 +44,14 @@ public class FieldShapeTests
         return w;
     }
 
-    /// <summary>The border that actually paints the control's box.</summary>
+    /// <summary>
+    /// The border that paints the control's box, by its template name: a
+    /// dropdown is text at rest since Q203 and draws no border until it opens,
+    /// so "the one with a border" no longer finds it.
+    /// </summary>
     private static Border PaintedBox(TemplatedControl c) =>
         c.GetVisualDescendants().OfType<Border>()
-            .First(b => b.Bounds.Width > 0 && b.BorderThickness != default);
+            .First(b => b.Bounds.Width > 0 && b.Name is "PART_BorderElement" or "Background");
 
     [AvaloniaFact]
     public void EveryFieldIsTheSameShapeAsEveryOtherOne()
@@ -122,27 +126,31 @@ public class FieldShapeTests
     [AvaloniaFact]
     public void AFieldIsAWellRatherThanARaisedSurface()
     {
-        // The reversal, stated as the rule rather than as a colour: a field
-        // takes the *darkest* surface, so it is a hole in whatever it lands on
-        // and the same colour everywhere it lands.
-        Application.Current!.TryFindResource("BackgroundPrimaryBrush", out var primary);
-        var well = ((SolidColorBrush)primary!).Color;
-
-        foreach (var key in new[] { "TextControlBackground", "ComboBoxBackground" })
+        // The reversal, stated as the rule rather than as a colour: a text
+        // field takes the *darkest* surface, so it is a hole in whatever it
+        // lands on and the same colour everywhere it lands. A dropdown is not a
+        // field (Q203): it is text at rest, with no ground until it is pointed at.
+        foreach (var variant in new[] { Avalonia.Styling.ThemeVariant.Dark, Avalonia.Styling.ThemeVariant.Light })
         {
-            Assert.True(Application.Current!.TryFindResource(
-                key, Avalonia.Styling.ThemeVariant.Dark, out var found), $"{key} does not resolve");
-            Assert.Equal(well, Assert.IsType<SolidColorBrush>(found).Color);
-        }
+            Color Of(string key)
+            {
+                Assert.True(Application.Current!.TryFindResource(key, variant, out var found), $"{variant}: {key} does not resolve");
+                return Assert.IsAssignableFrom<ISolidColorBrush>(found).Color;
+            }
 
-        // Hover still lifts. The direction argument holds at the point of
-        // contact even though it lost the resting state: pointing at something
-        // should make it lighter, never darker, and Fluent's original did the
-        // opposite — #66000000 resting against #99000000 hovered.
-        Application.Current!.TryFindResource(
-            "TextControlBackgroundPointerOver", Avalonia.Styling.ThemeVariant.Dark, out var hover);
-        var tint = Assert.IsType<SolidColorBrush>(hover);
-        Assert.True(tint.Color.R > well.R && tint.Opacity is > 0 and < 1,
-            $"hover {tint.Color} at {tint.Opacity} does not lift the well {well}");
+            // Dark-lit's well is its ground; Studio grey sets its fields a step
+            // above its mid-grey ground, as the gallery chose, so only the
+            // direction of hover is shared.
+            var well = Of("TextControlBackground");
+            if (variant == Avalonia.Styling.ThemeVariant.Dark)
+                Assert.Equal(Of("BackgroundPrimaryBrush"), well);
+            Assert.Equal(0, Of("ComboBoxBackground").A);
+
+            // Hover still lifts. Pointing at something should make it lighter,
+            // never darker, and Fluent's original did the opposite — #66000000
+            // resting against #99000000 hovered.
+            var hover = Of("TextControlBackgroundPointerOver");
+            Assert.True(hover.R > well.R, $"{variant}: hover {hover} does not lift the well {well}");
+        }
     }
 }

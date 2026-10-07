@@ -1239,6 +1239,39 @@ public partial class MainViewModel
     /// and the step, so a value arriving from the field, the slider or a
     /// hand-edited settings file all land on the same grid.
     /// </remarks>
+    /// <summary>The theme choices Configure offers, in its order.</summary>
+    public static IReadOnlyList<string> ThemeChoices { get; } = ["Dark-lit", "Studio grey"];
+
+    /// <summary>
+    /// The theme by its shown name (Q203). Applies at once — every brush on a
+    /// control is a DynamicResource, so the palette's theme dictionary swaps
+    /// under the whole app without a restart — and persists at once.
+    /// </summary>
+    public string ThemeChoice
+    {
+        get => Settings.Theme == "Light" ? "Studio grey" : "Dark-lit";
+        set
+        {
+            var theme = value == "Studio grey" ? "Light" : "Dark";
+            if (Settings.Theme == theme) return;
+            Settings.Theme = theme;
+            ApplyTheme(theme);
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Point the application at a theme variant; null-safe for view models built without an app.</summary>
+    private static void ApplyTheme(string theme)
+    {
+        if (Avalonia.Application.Current is { } app)
+        {
+            app.RequestedThemeVariant = theme == "Light"
+                ? Avalonia.Styling.ThemeVariant.Light
+                : Avalonia.Styling.ThemeVariant.Dark;
+        }
+    }
+
     public double UiScalePercent
     {
         get => Math.Round(Settings.UiScale * 100);

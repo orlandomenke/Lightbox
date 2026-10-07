@@ -40,7 +40,8 @@
   -->
   <FluentTheme>
     <FluentTheme.Palettes>
-      <ColorPaletteResources x:Key="Dark" Accent="#5B48C8" RegionColor="#222634" />
+      <ColorPaletteResources x:Key="Dark" Accent="#3C3C41" RegionColor="#2E2E32" />
+      <ColorPaletteResources x:Key="Light" Accent="#2A2A29" RegionColor="#C9C9C7" />
     </FluentTheme.Palettes>
   </FluentTheme>
   <!-- ColorSpectrum/ColorSlider templates live in a separate theme file;
@@ -65,22 +66,47 @@
     a value written inline in a ControlTemplate outranks every style, so a look
     tried in tools/Lightbox.Gallery (Q203) could not change it. Same values.
   -->
-  <!-- The header's ground, a style for the same reason as the frame's. -->
+  <!--
+    Docker tabs, v.2 (Q203, owner 2026-10-07): the header is a darker strip,
+    and the active tab is a piece of the panel rising into it (Controls.axaml).
+    Rounded on top with its container, so the strip's corners do not poke past
+    the frame's: the frame no longer clips, or it would clip its own shadow.
+  -->
   <Style Selector="controls|Docker /template/ Border#PART_Header">
-    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Background" Value="{DynamicResource BackgroundSecondaryBrush}" />
+    <Setter Property="Padding" Value="{StaticResource HeaderPadding}" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusContainerTop}" />
   </Style>
+  <!--
+    A docker is an island (Q203): its surface, a rim of light along the top and
+    a soft shadow, not an outline. No edge light on the frame (owner,
+    2026-10-07: tried, not liked); the light went to the controls.
+  -->
   <Style Selector="controls|Docker /template/ Border#PART_Frame">
-    <Setter Property="ClipToBounds" Value="True" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-    <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="ClipToBounds" Value="False" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusContainer}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource IslandShadow}" />
+  </Style>
+  <!-- A docker's own actions, float and close, show when the pointer is in it:
+       they are reached for, not read. Opacity rather than visibility, so the
+       header keeps its height and the buttons stay in the tab order. -->
+  <Style Selector="controls|Docker /template/ Border#PART_Header StackPanel > Button">
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="controls|Docker:pointerover /template/ Border#PART_Header StackPanel > Button, controls|Docker /template/ Border#PART_Header StackPanel > Button:focus-visible">
+    <Setter Property="Opacity" Value="1" />
   </Style>
   <Style Selector="controls|Docker">
     <Setter Property="Background" Value="{DynamicResource SurfacePanelBrush}" />
     <!-- A card, per the alternate reference: rounded, hairline edge, a
          breath of space to the next panel. The gap is what makes a strip of
          dockers read as instruments on a desk rather than as one wall. -->
-    <Setter Property="Margin" Value="0,0,0,3" />
+    <Setter Property="Margin" Value="{StaticResource DockerGap}" />
+    <!-- Every docker's content starts and ends on the same inset (Q203). -->
+    <Setter Property="Padding" Value="{StaticResource PanelPadding}" />
     <Setter Property="Template">
       <ControlTemplate>
         <Border x:Name="PART_Frame" Background="{TemplateBinding Background}">
@@ -115,7 +141,7 @@
             <!-- No bottom padding: the active tab's ground has to run INTO the
                  content below it — a 2px strip of header between them reads as
                  a seam across what should be one element. -->
-            <Border x:Name="PART_Header" DockPanel.Dock="Top" Padding="8,3,8,0">
+            <Border x:Name="PART_Header" DockPanel.Dock="Top">
               <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{StaticResource Space2}">
                   <ContentPresenter Content="{TemplateBinding TitleBarExtra}" VerticalAlignment="Center" />
@@ -224,10 +250,13 @@
     along the edge and every icon in it stays the right way up.
   -->
   <!-- The bar's outline as a style, for the reason the docker frame's is. -->
+  <!-- A lit surface over the artwork: the edge light, a short shadow, the
+       container's corners (Q203). -->
   <Style Selector="controls|CanvasOverlayBar /template/ Border#PART_Bar">
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusContainer}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource RaisedShadow}" />
   </Style>
   <Style Selector="controls|CanvasOverlayBar">
     <Setter Property="Background" Value="{DynamicResource SurfacePanelBrush}" />

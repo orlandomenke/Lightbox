@@ -36,29 +36,30 @@
       <Setter Property="Background" Value="#e0a030" />
     </Style>
     <!--
-      One tab treatment everywhere: the document tabs wear exactly what the
-      docker tabs wear — outlined at rest, the lit fading ground and the
-      purple gradient top line when active. Two tab languages in one window
+      One tab treatment everywhere: the document tabs wear what the docker
+      tabs wear (v.2, Q203) — words at rest, and the active one a piece of
+      what it shows, the canvas surround, rising into the strip. Two tab languages in one window
       was the app telling the artist these strips are different kinds of
       thing, when both answer "which of these is in front".
     -->
     <Style Selector="Border.docTab">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="CornerRadius" Value="4,4,0,0" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusTab}" />
+      <!-- An unseen bottom pixel: a top-only rounding with no border takes no hit (see the docker tabs). -->
+      <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+    <Style Selector="Border.docTab:pointerover">
+      <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
     </Style>
     <Style Selector="Border.docTab.active">
-      <Setter Property="Background" Value="{DynamicResource TabActiveGroundBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
-      <Setter Property="BorderThickness" Value="1,1,1,0" />
+      <Setter Property="Background" Value="{DynamicResource CanvasSurroundBrush}" />
     </Style>
     <!-- The tab's project-membership badge: a small squarish P before the
          name. Violet rather than a status colour — membership is identity,
          not news, and it must not read as a warning. -->
     <Style Selector="Border.projectBadge">
       <Setter Property="Background" Value="{DynamicResource AccentVioletDeepBrush}" />
-      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
       <Setter Property="Padding" Value="4,1" />
       <Setter Property="Margin" Value="6,0,-4,0" />
     </Style>
@@ -966,7 +967,7 @@
                ToolTip.Tip="Foreground over background — click to pick, drag onto the canvas to fill. X swaps them, D resets to black over white">
           <Border x:Name="BackgroundSwatch" Tag="background"
                   Width="18" Height="18" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                  CornerRadius="3" BorderBrush="#555" BorderThickness="1"
+                  CornerRadius="{StaticResource RadiusPreview}" BorderBrush="#555" BorderThickness="1"
                   Background="{Binding BackgroundColorHex}"
                   PointerPressed="OnColorSwatchPressed" Cursor="Hand">
             <FlyoutBase.AttachedFlyout>
@@ -978,7 +979,7 @@
           </Border>
           <Border x:Name="ForegroundSwatch" Tag="foreground"
                   Width="18" Height="18" HorizontalAlignment="Left" VerticalAlignment="Top"
-                  CornerRadius="3" BorderBrush="#888" BorderThickness="1"
+                  CornerRadius="{StaticResource RadiusPreview}" BorderBrush="#888" BorderThickness="1"
                   Background="{Binding ColorPicker.SwatchBrush}"
                   PointerPressed="OnColorSwatchPressed" Cursor="Hand">
             <FlyoutBase.AttachedFlyout>
@@ -1109,7 +1110,7 @@
                       <DataTemplate x:DataType="views:BrushChoice">
                         <StackPanel Margin="0,2" Spacing="{StaticResource Space2}" ToolTip.Tip="{Binding Tip}">
                           <Panel>
-                            <Border Height="44" Background="{DynamicResource CanvasPaperBrush}" CornerRadius="3">
+                            <Border Height="44" Background="{DynamicResource CanvasPaperBrush}" CornerRadius="{StaticResource RadiusPreview}">
                               <Image Source="{Binding Preview}" Stretch="None"
                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
@@ -1122,9 +1123,9 @@
                             <TextBlock Text="{Binding CostBadge}" Foreground="{DynamicResource StatusWarningBrush}" FontSize="{StaticResource TypeDense}"
                                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,1,3,0" />
                             <!-- The one thing the picture cannot carry: the brush's real size -->
-                            <Border Background="{DynamicResource CanvasPaperBrush}" CornerRadius="2" Padding="3,0"
+                            <Border Background="{DynamicResource CanvasPaperBrush}" CornerRadius="{StaticResource RadiusInner}" Padding="3,0"
                                     HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,2,2">
-                              <TextBlock Text="{Binding SizeLabel}" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" />
+                              <TextBlock Text="{Binding SizeLabel}" FontSize="{StaticResource TypeHint}" Foreground="{DynamicResource TextSecondaryBrush}" />
                             </Border>
                           </Panel>
                           <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}" TextTrimming="CharacterEllipsis" />
@@ -1618,7 +1619,7 @@
                     <Border Classes="projectBadge" IsVisible="{Binding IsProjectWork}"
                             VerticalAlignment="Center"
                             ToolTip.Tip="Part of the open project — saving goes through the project">
-                      <TextBlock Text="P" FontSize="9" FontWeight="Bold" />
+                      <TextBlock Text="P" FontSize="{StaticResource TypeHint}" FontWeight="Bold" />
                     </Border>
                     <Button Content="{Binding DisplayTitle}" Background="Transparent" BorderThickness="0" Padding="11,2"
                             Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateTabCommand}"
@@ -1628,7 +1629,6 @@
                       <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
                     </Button>
                   </StackPanel>
-                  <Border Classes="tabline" />
                 </Panel>
               </Border>
             </DataTemplate>
@@ -1693,7 +1693,7 @@
         </Grid.ColumnDefinitions>
 
         <controls:ScaledChrome Grid.Column="0"><Border x:Name="Toolbar" Background="{DynamicResource SurfacePanelBrush}"
-                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusContainer}"
                 Margin="4,4,0,4" ClipToBounds="True" SizeChanged="OnToolbarSizeChanged">
           <ScrollViewer VerticalScrollBarVisibility="Auto">
             <!-- Columns are decided in ReflowToolRail (Q56): 1 when the
@@ -2120,7 +2120,7 @@
         <!-- Tool options: the gear flyout grown into a panel, per the owner.
              Same pages, same code-behind category switch; only the host
              changed. -->
-        <controls:Docker x:Name="ToolOptionsDocker" PanelId="ToolOptions" Title="Tool options"
+        <controls:Docker x:Name="ToolOptionsDocker" PanelId="ToolOptions" Title="Tool options" Padding="{StaticResource PanelPaddingFlush}"
                          CloseCommand="{Binding ToggleToolOptionsDockerCommand}">
               <Panel>
                 <views:BoneOptionsBar />
@@ -2179,7 +2179,7 @@
                                   ToolTip.Tip="The shape each dab stamps. Painting with one copies it into the drawing.">
                             <DockPanel>
                               <Border DockPanel.Dock="Left" Width="26" Height="26" Background="{DynamicResource SurfacePanelBrush}"
-                                      CornerRadius="3" Margin="0,0,8,0">
+                                      CornerRadius="{StaticResource RadiusPreview}" Margin="0,0,8,0">
                                 <Image x:Name="TipPickerThumb" Stretch="Uniform" Margin="1" />
                               </Border>
                               <TextBlock x:Name="TipPickerName" Text="Round" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
@@ -2202,7 +2202,7 @@
                                       <ListBox.ItemTemplate>
                                         <DataTemplate x:DataType="views:TipChoice">
                                           <StackPanel Margin="0,2" Spacing="{StaticResource Space2}">
-                                            <Border Height="60" Background="{DynamicResource SurfacePanelBrush}" CornerRadius="3">
+                                            <Border Height="60" Background="{DynamicResource SurfacePanelBrush}" CornerRadius="{StaticResource RadiusPreview}">
                                               <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="3" />
                                             </Border>
                                             <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}" TextTrimming="CharacterEllipsis" />
@@ -2247,31 +2247,31 @@
                         </StackPanel>
                         <TextBlock Text="Shape Dynamics" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="{StaticResource SectionGap}" />
                           <DockPanel ToolTip.Tip="How much dab diameter varies. This is the biggest single difference between a digital mark and a natural one.">
-                            <TextBlock Text="Size jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Size jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="Floor for jittered size. Without it, jitter produces dabs that vanish and the stroke reads as broken rather than varied.">
-                            <TextBlock Text="Minimum size" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Minimum size" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="1 is circular; lower squashes the dab into a chisel.">
-                            <TextBlock Text="Roundness" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Roundness" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Roundness jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Roundness jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Angle jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Angle jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
@@ -2282,7 +2282,7 @@
 
                         <TextBlock Text="Scattering" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="{StaticResource SectionGap}" />
                           <DockPanel>
-                            <TextBlock Text="Scatter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Scatter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushScatter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushScatter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
@@ -2290,7 +2290,7 @@
 
                         <TextBlock Text="Texture" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="{StaticResource SectionGap}" />
                         <DockPanel ToolTip.Tip="Paper surface multiplied into the stroke. Anchored to the document, so the grain stays put as you paint over it.">
-                          <TextBlock Text="Surface" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                          <TextBlock Text="Surface" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <ComboBox ItemsSource="{Binding TextureSurfaceChoices}" SelectedItem="{Binding BrushTextureSurface}"
                                     HorizontalAlignment="Stretch" IsEnabled="{Binding !HasImportedTexture}" />
                         </DockPanel>
@@ -2313,25 +2313,25 @@
                         <TextBlock x:Name="TextureSourceNote" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                                    IsVisible="False" TextWrapping="Wrap" />
                           <DockPanel>
-                            <TextBlock Text="Grain size" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Grain size" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128"
                                            Increment="1" FormatString="0" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Depth" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Depth" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="The flat grain used when no texture surface is chosen.">
-                            <TextBlock Text="Granulation" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Granulation" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushGranulation}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Wet edge" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Wet edge" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
@@ -2339,7 +2339,7 @@
 
                         <TextBlock Text="Transfer" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="{StaticResource SectionGap}" />
                           <DockPanel ToolTip.Tip="Per-dab paint amount varies, giving wash and build-up variation that pressure alone cannot.">
-                            <TextBlock Text="Flow jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Flow jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
@@ -2347,30 +2347,30 @@
 
                         <TextBlock Text="Color Dynamics" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="{StaticResource SectionGap}" />
                         <DockPanel ToolTip.Tip="Natural media drifts between two chosen colours rather than randomly around one. Leave empty to vary only hue, saturation and brightness.">
-                          <TextBlock Text="Second color" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                          <TextBlock Text="Second color" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <controls:ColorField Hex="{Binding BrushSecondaryColor, Mode=TwoWay}"
                                                AllowsNone="True" HorizontalAlignment="Left" />
                         </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Toward second" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Toward second" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Hue jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Hue jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Saturation jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Saturation jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Brightness jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Brightness jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
@@ -2560,7 +2560,7 @@
                       <StackPanel x:Name="BrushPagePresets" Spacing="{StaticResource Space6}" IsVisible="False">
                         <TextBlock Text="Presets" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
 
-                        <Border x:Name="PresetModifiedNote" Background="{DynamicResource StatusWarningSurfaceBrush}" CornerRadius="4"
+                        <Border x:Name="PresetModifiedNote" Background="{DynamicResource StatusWarningSurfaceBrush}" CornerRadius="{StaticResource RadiusControl}"
                                 Padding="8,6" IsVisible="False">
                           <TextBlock x:Name="PresetModifiedText" TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" />
                         </Border>
@@ -3212,7 +3212,7 @@
                                    ToolTip.Tip="What kind of asset this is. Automatic — every asset of a kind wears the same word and glyph." />
                         <!-- Status as a dot, because the column has to read down at a
                              glance and a word per row would not. The tooltip names it. -->
-                        <Border DockPanel.Dock="Right" Width="8" Height="8" CornerRadius="4"
+                        <Border DockPanel.Dock="Right" Width="8" Height="8" CornerRadius="{StaticResource RadiusPill}"
                                 VerticalAlignment="Center" Margin="4,0,2,0"
                                 IsVisible="{Binding HasStatus}"
                                 Background="{Binding StatusColor}"
@@ -3352,17 +3352,17 @@
                               Classes.dropInto="{Binding DropInto}" Classes.selected="{Binding IsSelected}"
                               Focusable="True"
                               PointerPressed="OnGroupRowPressed"
-                              BorderBrush="{Binding ColorBrush}" BorderThickness="4,0,0,0" CornerRadius="3">
+                              BorderBrush="{Binding ColorBrush}" BorderThickness="4,0,0,0" CornerRadius="{StaticResource RadiusControl}">
                         <Border.ContextMenu>
                           <ContextMenu>
                             <MenuItem Header="Rename" Click="OnGroupMenuRename" />
                             <MenuItem Header="Folder color">
-                              <MenuItem Header="Blue" Tag="#4a6ea9" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#4a6ea9" CornerRadius="2" /></MenuItem.Icon></MenuItem>
-                              <MenuItem Header="Green" Tag="#4a9a5e" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#4a9a5e" CornerRadius="2" /></MenuItem.Icon></MenuItem>
-                              <MenuItem Header="Orange" Tag="#e0a030" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#e0a030" CornerRadius="2" /></MenuItem.Icon></MenuItem>
-                              <MenuItem Header="Red" Tag="#c25050" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#c25050" CornerRadius="2" /></MenuItem.Icon></MenuItem>
-                              <MenuItem Header="Purple" Tag="#8a5ac2" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#8a5ac2" CornerRadius="2" /></MenuItem.Icon></MenuItem>
-                              <MenuItem Header="Gray" Tag="#6a7280" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#6a7280" CornerRadius="2" /></MenuItem.Icon></MenuItem>
+                              <MenuItem Header="Blue" Tag="#4a6ea9" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#4a6ea9" CornerRadius="{StaticResource RadiusPreview}" /></MenuItem.Icon></MenuItem>
+                              <MenuItem Header="Green" Tag="#4a9a5e" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#4a9a5e" CornerRadius="{StaticResource RadiusPreview}" /></MenuItem.Icon></MenuItem>
+                              <MenuItem Header="Orange" Tag="#e0a030" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#e0a030" CornerRadius="{StaticResource RadiusPreview}" /></MenuItem.Icon></MenuItem>
+                              <MenuItem Header="Red" Tag="#c25050" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#c25050" CornerRadius="{StaticResource RadiusPreview}" /></MenuItem.Icon></MenuItem>
+                              <MenuItem Header="Purple" Tag="#8a5ac2" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#8a5ac2" CornerRadius="{StaticResource RadiusPreview}" /></MenuItem.Icon></MenuItem>
+                              <MenuItem Header="Gray" Tag="#6a7280" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#6a7280" CornerRadius="{StaticResource RadiusPreview}" /></MenuItem.Icon></MenuItem>
                             </MenuItem>
                             <MenuItem Header="Collapse / expand" Click="OnGroupMenuCollapse" />
                             <Separator />
@@ -3545,7 +3545,7 @@
                           <Border Classes="clipBar" DockPanel.Dock="Left" IsVisible="{Binding IsClipped}"
                                   Background="Transparent"
                                   ToolTip.Tip="Clipped to the layer below — this layer shows only where that one has content">
-                            <Border Width="2" Margin="0,4" CornerRadius="1" HorizontalAlignment="Center"
+                            <Border Width="2" Margin="0,4" CornerRadius="{StaticResource RadiusPill}" HorizontalAlignment="Center"
                                     VerticalAlignment="Stretch"
                                     Background="{DynamicResource AccentCyanBrush}" />
                           </Border>
@@ -3556,7 +3556,7 @@
                           <ToggleButton Classes="icon glyph alpha" DockPanel.Dock="Left" IsChecked="{Binding AlphaLocked}"
                                         ToolTip.Tip="Lock transparency — paint only lands where the layer already has content, so the silhouette cannot change"><Path /></ToggleButton>
                           <Border Classes="layerThumb" DockPanel.Dock="Left" Margin="{StaticResource GapBefore}" BorderBrush="#555" BorderThickness="1"
-                                  CornerRadius="2" Width="38" Height="22" VerticalAlignment="Center"
+                                  CornerRadius="{StaticResource RadiusPreview}" Width="38" Height="22" VerticalAlignment="Center"
                                   Background="#111" PointerPressed="OnLayerThumbPressed"
                                   ToolTip.Tip="Layer content — Ctrl+click to select its visible pixels (Shift adds, Alt subtracts)">
                             <Image Source="{Binding Thumb}" Stretch="Uniform" />
@@ -3567,7 +3567,7 @@
                           <Border Classes="maskChip" Classes.editing="{Binding IsEditingMask}"
                                   Classes.disabledMask="{Binding MaskDisabled}"
                                   DockPanel.Dock="Left" Margin="2,0,0,0" Width="14" Height="22"
-                                  CornerRadius="2" VerticalAlignment="Center" IsVisible="{Binding HasMask}"
+                                  CornerRadius="{StaticResource RadiusInner}" VerticalAlignment="Center" IsVisible="{Binding HasMask}"
                                   PointerPressed="OnLayerMaskChipPressed"
                                   ToolTip.Tip="Layer mask — click to paint it, click again to return to the drawing" />
                           <!-- The fx chip: the mask chip's pattern for the
@@ -3575,10 +3575,10 @@
                                is off (Q158), one click to the sliders. -->
                           <Border Classes="fxChip" Classes.disabledFx="{Binding EffectsDisabled}"
                                   DockPanel.Dock="Left" Margin="2,0,0,0" Height="22"
-                                  CornerRadius="2" VerticalAlignment="Center" IsVisible="{Binding HasEffects}"
+                                  CornerRadius="{StaticResource RadiusInner}" VerticalAlignment="Center" IsVisible="{Binding HasEffects}"
                                   PointerPressed="OnLayerFxChipPressed"
                                   ToolTip.Tip="Layer effects — click to edit them in the Effects panel; the row menu's Layer style switches them on and off">
-                            <TextBlock Text="fx" FontSize="9" FontStyle="Italic" Margin="3,0"
+                            <TextBlock Text="fx" FontSize="{StaticResource TypeHint}" FontStyle="Italic" Margin="3,0"
                                        VerticalAlignment="Center" />
                           </Border>
                           <Button Classes="icon" DockPanel.Dock="Right" Background="Transparent"
@@ -3723,13 +3723,13 @@
                       <DataTemplate>
                         <StackPanel Width="72" Margin="1" Spacing="1"
                                     ToolTip.Tip="{Binding Tags}">
-                          <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="3" Height="48">
+                          <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="{StaticResource RadiusPreview}" Height="48">
                             <Image Source="{Binding Thumb}" Stretch="Uniform" />
                           </Border>
                           <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeHint}" TextTrimming="CharacterEllipsis" />
                           <DockPanel>
-                            <TextBlock DockPanel.Dock="Right" Text="{Binding Length}" FontSize="9" Opacity="0.5" />
-                            <TextBlock Text="{Binding KindLabel}" FontSize="9" Opacity="0.5"
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding Length}" FontSize="{StaticResource TypeHint}" Opacity="0.5" />
+                            <TextBlock Text="{Binding KindLabel}" FontSize="{StaticResource TypeHint}" Opacity="0.5"
                                        TextTrimming="CharacterEllipsis" />
                           </DockPanel>
                         </StackPanel>
@@ -3835,7 +3835,7 @@
                       Dragging the swatch onto the canvas still fills.
                     -->
                     <Border x:Name="ColorSwatch" DockPanel.Dock="Left" Width="28" Height="28"
-                            CornerRadius="14" BorderBrush="#555" BorderThickness="1"
+                            CornerRadius="{StaticResource RadiusPill}" BorderBrush="#555" BorderThickness="1"
                             Background="{Binding ColorPicker.SwatchBrush}"
                             PointerPressed="OnColorSwatchPressed"
                             Cursor="Hand"
@@ -4232,7 +4232,7 @@
                     </ListBox.Styles>
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="vm:SwatchRow">
-                        <Border Width="26" Height="26" CornerRadius="3" BorderBrush="#666" BorderThickness="1"
+                        <Border Width="26" Height="26" CornerRadius="{StaticResource RadiusPreview}" BorderBrush="#666" BorderThickness="1"
                                 Background="{Binding Fill}"
                                 PointerPressed="OnSwatchPressed"
                                 PointerMoved="OnSwatchMoved"
@@ -4274,7 +4274,7 @@
                     </DockPanel>
                     <!-- The strip is sampled through GradientOps, so it shows
                          the linear-light ramp the canvas will actually paint. -->
-                    <Border Height="22" CornerRadius="3" BorderBrush="#666" BorderThickness="1"
+                    <Border Height="22" CornerRadius="{StaticResource RadiusPreview}" BorderBrush="#666" BorderThickness="1"
                             Background="{Binding GradientDocker.Preview}"
                             IsVisible="{Binding GradientDocker.HasGradient}"
                             ToolTip.Tip="Preview of the ramp" />
@@ -4349,7 +4349,7 @@
                           CommandParameter="{x:Static render:ChannelSolo.Red}"
                           ToolTip.Tip="View the red channel alone — click again for all channels">
               <DockPanel>
-                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="3"
+                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="{StaticResource RadiusPreview}"
                         ClipToBounds="True" Margin="0,0,8,0">
                   <Image Source="{Binding ChannelThumbRed}" Stretch="Uniform" />
                 </Border>
@@ -4362,7 +4362,7 @@
                           CommandParameter="{x:Static render:ChannelSolo.Green}"
                           ToolTip.Tip="View the green channel alone — click again for all channels">
               <DockPanel>
-                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="3"
+                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="{StaticResource RadiusPreview}"
                         ClipToBounds="True" Margin="0,0,8,0">
                   <Image Source="{Binding ChannelThumbGreen}" Stretch="Uniform" />
                 </Border>
@@ -4375,7 +4375,7 @@
                           CommandParameter="{x:Static render:ChannelSolo.Blue}"
                           ToolTip.Tip="View the blue channel alone — click again for all channels">
               <DockPanel>
-                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="3"
+                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="{StaticResource RadiusPreview}"
                         ClipToBounds="True" Margin="0,0,8,0">
                   <Image Source="{Binding ChannelThumbBlue}" Stretch="Uniform" />
                 </Border>
@@ -4388,7 +4388,7 @@
                           CommandParameter="{x:Static render:ChannelSolo.Alpha}"
                           ToolTip.Tip="View coverage alone — transparent is black, solid is white. Click again for all channels">
               <DockPanel>
-                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="3"
+                <Border DockPanel.Dock="Left" Width="64" Height="36" CornerRadius="{StaticResource RadiusPreview}"
                         ClipToBounds="True" Margin="0,0,8,0">
                   <Image Source="{Binding ChannelThumbAlpha}" Stretch="Uniform" />
                 </Border>
@@ -4852,7 +4852,7 @@
                       <ToggleButton IsChecked="{Binding IsShown, Mode=TwoWay}" Padding="6,2"
                                     ToolTip.Tip="Show or hide this curve. The spacing curves read the active layer.">
                         <StackPanel Orientation="Horizontal" Spacing="5">
-                          <Border Width="8" Height="8" CornerRadius="4" VerticalAlignment="Center"
+                          <Border Width="8" Height="8" CornerRadius="{StaticResource RadiusPill}" VerticalAlignment="Center"
                                   Background="{Binding Colour}" />
                           <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}" VerticalAlignment="Center" />
                         </StackPanel>

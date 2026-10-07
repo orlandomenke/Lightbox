@@ -192,6 +192,7 @@ public partial class CanvasControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        ReadSurround();
         StartAntsIfNeeded();
     }
     // ---- Ctrl takes hold of what the marquee holds (Q104) ---------------------

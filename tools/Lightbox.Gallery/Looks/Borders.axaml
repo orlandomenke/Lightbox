@@ -58,31 +58,31 @@
 
   <!-- On any Border: the story's shapes, and a docker frame below. -->
   <Style Selector="Border.chrome">
-    <Setter Property="BorderBrush" Value="{StaticResource LookChromeBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookChromeBrush}" />
     <Setter Property="BorderThickness" Value="1.5" />
   </Style>
   <Style Selector="Border.prism">
-    <Setter Property="BorderBrush" Value="{StaticResource LookPrismBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookPrismBrush}" />
     <Setter Property="BorderThickness" Value="2" />
     <Setter Property="BoxShadow" Value="{StaticResource LookPrismGlow}" />
   </Style>
 
   <!-- On real controls: a class turns the edge on. -->
   <Style Selector="Button.chrome, ToggleButton.chrome:checked">
-    <Setter Property="BorderBrush" Value="{StaticResource LookChromeBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookChromeBrush}" />
     <Setter Property="BorderThickness" Value="1.5" />
   </Style>
   <Style Selector="Button.chrome /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.chrome:checked /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="BorderBrush" Value="{StaticResource LookChromeBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookChromeBrush}" />
     <Setter Property="BorderThickness" Value="1.5" />
   </Style>
   <Style Selector="Button.prism /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.prism:checked /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="BorderBrush" Value="{StaticResource LookPrismBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookPrismBrush}" />
     <Setter Property="BorderThickness" Value="2" />
     <Setter Property="BoxShadow" Value="{StaticResource LookPrismGlow}" />
   </Style>
   <Style Selector="controls|Docker.chrome /template/ Border#PART_Frame">
-    <Setter Property="BorderBrush" Value="{StaticResource LookChromeBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookChromeBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
 </Styles>

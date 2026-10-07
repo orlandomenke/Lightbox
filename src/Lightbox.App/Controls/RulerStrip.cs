@@ -187,10 +187,14 @@ public sealed class RulerStrip : Control
         return power * 10;
     }
 
+    // Chrome drawn in code reads the theme at render time (ThemeColour), so a
+    // theme switch has to ask for a fresh render.
+    public RulerStrip() => ThemeColour.RepaintOnThemeChange(this);
+
     public override void Render(DrawingContext context)
     {
         var bounds = new Rect(Bounds.Size);
-        context.FillRectangle(new SolidColorBrush(Color.FromRgb(0x1c, 0x1c, 0x1c)), bounds);
+        context.FillRectangle(new SolidColorBrush(ThemeColour.Of(this, "BackgroundSecondaryBrush", Color.FromRgb(0x1c, 0x1c, 0x1c))), bounds);
 
         var horizontal = Orientation == Orientation.Horizontal;
         var length = horizontal ? Bounds.Width : Bounds.Height;
@@ -205,8 +209,8 @@ public sealed class RulerStrip : Control
         var hi = Math.Max(DocAt(default), end);
         var first = Math.Floor(lo / step) * step;
 
-        var tickPen = new Pen(new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66)), 1);
-        var text = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99));
+        var tickPen = new Pen(new SolidColorBrush(ThemeColour.Hairline(this, 0x60)), 1);
+        var text = new SolidColorBrush(ThemeColour.Of(this, "TextSecondaryBrush", Color.FromRgb(0x99, 0x99, 0x99)));
 
         for (var doc = first; doc <= hi; doc += step)
         {

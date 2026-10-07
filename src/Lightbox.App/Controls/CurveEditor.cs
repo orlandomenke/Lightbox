@@ -63,6 +63,7 @@ public class CurveEditor : Control
 
     public CurveEditor()
     {
+        ThemeColour.RepaintOnThemeChange(this);
         Height = 96;
         MinWidth = 96;
     }
@@ -211,19 +212,20 @@ public class CurveEditor : Control
 
     // ---- drawing ------------------------------------------------------------
 
-    private static readonly IBrush Frame = new SolidColorBrush(Color.FromRgb(0x3a, 0x3a, 0x3a));
-    private static readonly IBrush Field = new SolidColorBrush(Color.FromRgb(0x1b, 0x1b, 0x1b));
-    private static readonly IBrush Grid = new SolidColorBrush(Color.FromRgb(0x2c, 0x2c, 0x2c));
+    // The live curve's cyan is data; the rest is chrome and follows the theme (Q203).
     private static readonly IBrush Live = new SolidColorBrush(Color.FromRgb(0x7f, 0xd0, 0xff));
-    private static readonly IBrush Dead = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
 
     public override void Render(DrawingContext context)
     {
         var plot = Plot;
-        context.FillRectangle(Field, new Rect(Bounds.Size));
-        context.DrawRectangle(null, new Pen(Frame), new Rect(Bounds.Size));
+        IBrush field = new SolidColorBrush(ThemeColour.Of(this, "FieldGroundBrush", Color.FromRgb(0x1b, 0x1b, 0x1b)));
+        IBrush frame = new SolidColorBrush(ThemeColour.Of(this, "BorderStrongBrush", Color.FromRgb(0x3a, 0x3a, 0x3a)));
+        IBrush gridBrush = new SolidColorBrush(ThemeColour.Hairline(this, 0x14));
+        IBrush dead = new SolidColorBrush(ThemeColour.Of(this, "TextSecondaryBrush", Color.FromRgb(0x55, 0x55, 0x55)));
+        context.FillRectangle(field, new Rect(Bounds.Size));
+        context.DrawRectangle(null, new Pen(frame), new Rect(Bounds.Size));
 
-        var grid = new Pen(Grid);
+        var grid = new Pen(gridBrush);
         for (var i = 1; i < 4; i++)
         {
             var x = plot.X + plot.Width * i / 4;
@@ -235,10 +237,10 @@ public class CurveEditor : Control
         // The identity, so the shape is read against "pressure straight
         // through" rather than against nothing.
         context.DrawLine(
-            new Pen(Grid, dashStyle: DashStyle.Dash),
+            new Pen(gridBrush, dashStyle: DashStyle.Dash),
             new Point(plot.X, plot.Bottom), new Point(plot.Right, plot.Y));
 
-        var ink = IsActive ? Live : Dead;
+        var ink = IsActive ? Live : dead;
         var curve = Curve ?? ResponseCurve.Linear();
 
         // Sampled rather than drawn as beziers: the interpolant the engine uses
@@ -265,7 +267,7 @@ public class CurveEditor : Control
         foreach (var handle in Handles())
         {
             var s = ToScreen(handle);
-            context.DrawEllipse(Field, new Pen(ink, 1.4), s, 3.5, 3.5);
+            context.DrawEllipse(field, new Pen(ink, 1.4), s, 3.5, 3.5);
         }
     }
 }
