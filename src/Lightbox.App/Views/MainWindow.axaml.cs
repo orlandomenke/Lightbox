@@ -319,21 +319,11 @@ public partial class MainWindow : Window
                 SyncCanvasToolMode();
                 RefreshGuideGrab();
             }
-            // The brush and the eraser keep separate settings, and a preset
-            // replaces the lot — so the tip button has to follow the switch or
-            // it shows the shape of a brush that is no longer selected.
-            if (args.PropertyName is nameof(MainViewModel.BrushTipId)
-                or nameof(MainViewModel.ActiveTool)
-                or nameof(MainViewModel.BrushSize))
-            {
-                RefreshTipButton();
-            }
             // B and E switch brushes without going near the picker, and a
             // preset applied from a shortcut has to move the button's label.
             if (args.PropertyName is nameof(MainViewModel.SelectedBrushPreset))
             {
                 RefreshBrushPickerButton();
-                RefreshPresetPage();
             }
         };
         _vm.Workspace.Changed += ApplyDockLayout;
@@ -349,7 +339,6 @@ public partial class MainWindow : Window
         // before anything here was subscribed — so the first paint has to be
         // asked for rather than waited for.
         RefreshBrushPickerButton();
-        RefreshTipButton();
         // The bars are positioned as a fraction of the canvas, so they have to
         // be replaced whenever the canvas changes size.
         CanvasHost.SizeChanged += (_, _) => ApplyOverlayLayout();

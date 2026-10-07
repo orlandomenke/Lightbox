@@ -120,11 +120,12 @@ document, which reference, and what the tool in your hand is set to — all
 questions you ask *between* strokes rather than during one. With no project
 open the Project tab is simply absent, so a loose drawing shows the other two.
 
-**Tool options lives there rather than waiting to be opened.** The **⚙** on the
-toolbar opens the same page as a flyout, right at the button, so you get to it
-without looking away from the canvas — and if the panel is already on screen,
-the gear brings its tab forward instead. It is the same page either way, not a
-copy, so whatever you change in one is what the other shows.
+**Tool options lives there rather than waiting to be opened.** With a paint
+tool in hand the **⚙** on the toolbar opens the **brush editor** at the button,
+because the brush is what it changes (see *Brushes → The brush editor*). With
+any other tool it opens the same Tool options page as a flyout, right at the
+button, so you get to it without looking away from the canvas — and if the
+panel is already on screen, the gear brings its tab forward instead.
 
 The **layers list** is the panel that is never tabbed with anything: it is
 clicked in the middle of drawing, and a tab would trade a scroll for a click on
@@ -312,8 +313,8 @@ untick what this workspace offers. The choice behaves like any other
 workspace edit: the picker marks it with `*` until you save, *reset* undoes
 it, and a saved workspace remembers it. A tool-bound group you carry still
 shows only while its tool is in hand — carrying *Fill options* does not pin a
-dead strip to the bar all day. Everything you untick stays reachable in the
-Tool options panel, which always has the full vocabulary.
+dead strip to the bar all day. Everything you untick stays reachable: a
+brush's in the brush editor, every other tool's in the Tool options panel.
 
 When you create a project, you are asked whether to keep the arrangement you
 are in or take that project type's defaults. It is a question at that moment,

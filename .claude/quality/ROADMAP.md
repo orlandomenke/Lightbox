@@ -69,7 +69,8 @@ item that a painting app is simply expected to have lives here.
     absolute budget had gone red three times - which is the only place the old guard's
     failure was ever reproducible on demand.
 
-- [x] Custom brush editor `evidence: BrushPageGeneral, BrushPageEffects, BrushPagePressure`
+- [x] Custom brush editor `evidence: BrushEditor, BrushScratchpad, RenderStrokes, BrushEditorTests, TurningAnOptionOffLeavesTheMarkAloneAndOnPutsItBack, APressureCurveSitsBesideTheValueItDrives, NothingInAnyOptionIsCutOff, APaintToolsGearOpensTheBrushEditor`
+  - Q211: Krita's split. The bar holds what changes every few strokes, the Tool options panel how the tool behaves, and the brush editor (a popup from the gear) the preset: an option list with a check each, the chosen option's panel with its own pressure curve beside the value, the save verbs in its header, and a scratchpad painted by the real engine at true size. Tilt and speed curves wait for the engine to apply them (pen dynamics, phase 2).
 - [x] Brush presets and tagging `evidence: BrushPreset, PresetStore, BuiltInPresets, BrushPresetList, BrushTagChoices, BrushPresetEditingTests, TagsPersistAndFeedTheFilterList, ABrushNobodyFiledWritesNoTagsKey`
   - "and tagging" was ticked against `BrushCategoryList`, which is the ⚙ window's page list and has nothing to do with tags. Tags are now free text on the preset, absent until one is filed, and the picker collects whatever exists rather than offering a vocabulary written here — the categories worth having are the ones an artist's work has.
 - [x] A brush can be edited, updated and saved as a copy `evidence: BrushComparison, SameMark, UpdateSelectedPreset, RevertBrushPreset, BrushPresetEditingTests, BrushComparisonTests, NudgingAnythingLightsTheIndicator, PuttingASettingBackClearsTheIndicator, EverySettingThatReachesPixelsIsCompared`

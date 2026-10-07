@@ -32,13 +32,13 @@ namespace Lightbox.App.Tests;
 [Collection("BrushState")]
 public class ToolOptionsHeightTests(ITestOutputHelper output) : BrushStateIsolated
 {
-    private static readonly string[] PageNames =
-    [
-        "BrushPageGeneral", "BrushPageEffects", "BrushPageMedium",
-        "BrushPagePressure", "BrushPagePresets",
-    ];
-
-    private static (MainWindow Window, MainViewModel Vm) OpenWithToolOptions()
+    /// <summary>
+    /// Since Q211 the pages are the brush editor's option panels, and the host
+    /// is the editor, a popup from the gear. Its height follows the option on
+    /// show up to a ceiling (<c>SizeBrushEditorMaxHeight</c>), which is the fix
+    /// this entry asked for in the first place.
+    /// </summary>
+    private static (MainWindow Window, BrushEditor Editor) OpenTheEditor()
     {
         var window = new MainWindow { Width = 1400, Height = 900 };
         window.Show();
@@ -46,9 +46,10 @@ public class ToolOptionsHeightTests(ITestOutputHelper output) : BrushStateIsolat
         var vm = (MainViewModel)window.DataContext!;
         vm.NewDocument(new NewDocumentSettings("Untitled-1", 960, 540, 12, 72, "#ffffff", false));
         vm.ActiveTool = ToolId.Brush;
-        vm.OpenToolOptionsCommand.Execute(null);
         Pump();
-        return (window, vm);
+        window.OpenBrushEditor(window.GetVisualDescendants().OfType<Button>().First(b => b.Name == "ToolOptionsGear"));
+        Pump();
+        return (window, window.BrushEditorForTests!);
     }
 
     private static void Pump()
@@ -56,23 +57,26 @@ public class ToolOptionsHeightTests(ITestOutputHelper output) : BrushStateIsolat
         for (var i = 0; i < 6; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
     }
 
-    private static Control Page(MainWindow window, string name) =>
-        window.GetVisualDescendants().OfType<Control>().First(c => c.Name == name);
+    private static Control Page(BrushEditor editor, string name) =>
+        editor.GetVisualDescendants().OfType<Control>().First(c => c.Name == name);
+
+    private static IEnumerable<BrushEditor.Option> Shown(MainWindow window) =>
+        BrushEditor.Options.Where(o => o.Shown?.Invoke((MainViewModel)window.DataContext!) ?? true);
 
     [AvaloniaFact]
     public void NoBrushParameterPageIsPinnedToAHeight()
     {
-        var (window, _) = OpenWithToolOptions();
+        var (window, editor) = OpenTheEditor();
 
-        foreach (var name in PageNames)
+        foreach (var option in Shown(window))
         {
-            var page = Page(window, name);
+            var page = Page(editor, option.Panel);
             Assert.True(double.IsNaN(page.Height),
-                $"{name} declares Height={page.Height} — the five pages are different "
+                $"{option.Panel} declares Height={page.Height} — the options are different "
                 + "lengths, so a constant gives the short ones dead space and makes the "
                 + "long ones scroll, which is B16");
             Assert.True(double.IsNaN(page.MinHeight) || page.MinHeight == 0,
-                $"{name} declares MinHeight={page.MinHeight}, which pins it the same way");
+                $"{option.Panel} declares MinHeight={page.MinHeight}, which pins it the same way");
         }
     }
 
@@ -80,20 +84,17 @@ public class ToolOptionsHeightTests(ITestOutputHelper output) : BrushStateIsolat
     public void NothingHostingThePagesIsPinnedEither()
     {
         // A page free to grow inside a host pinned to 430 is still pinned. Walk
-        // from the page up to the docker and check every step.
-        var (window, _) = OpenWithToolOptions();
-        var docker = window.GetVisualDescendants().OfType<Lightbox.App.Controls.Docker>()
-            .First(d => d.PanelId == Docking.DockPanelId.ToolOptions);
+        // from the page up to the editor, the editor included, and check every step.
+        var (_, editor) = OpenTheEditor();
 
-        for (Visual? v = Page(window, "BrushPageGeneral");
-             v is not null && !ReferenceEquals(v, docker);
-             v = v.GetVisualParent())
+        for (Visual? v = Page(editor, "OptionTip"); v is not null; v = v.GetVisualParent())
         {
             if (v is Control c && !double.IsNaN(c.Height))
             {
                 Assert.Fail($"{c.GetType().Name} '{c.Name}' between the page and the "
-                    + $"docker declares Height={c.Height} — that is the shape of B16");
+                    + $"editor declares Height={c.Height} — that is the shape of B16");
             }
+            if (ReferenceEquals(v, editor)) break;
         }
     }
 
@@ -105,18 +106,16 @@ public class ToolOptionsHeightTests(ITestOutputHelper output) : BrushStateIsolat
     [AvaloniaFact]
     public void ThePagesAreGenuinelyDifferentLengths()
     {
-        var (window, _) = OpenWithToolOptions();
-        var list = window.GetVisualDescendants().OfType<ListBox>()
-            .First(l => l.Name == "BrushCategoryList");
+        var (window, editor) = OpenTheEditor();
 
         var heights = new List<(string Name, double H)>();
-        for (var i = 0; i < PageNames.Length; i++)
+        foreach (var option in Shown(window))
         {
-            list.SelectedIndex = i;
+            editor.SelectOption(option);
             Pump();
-            var page = Page(window, PageNames[i]);
-            page.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            heights.Add((PageNames[i], page.DesiredSize.Height));
+            var page = Page(editor, option.Panel);
+            page.Measure(new Size(400, double.PositiveInfinity));
+            heights.Add((option.Panel, page.DesiredSize.Height));
         }
 
         foreach (var (name, h) in heights) output.WriteLine($"{name}: {h:F0}");
