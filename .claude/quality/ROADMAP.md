@@ -530,7 +530,9 @@ the test needs relaxing.
     slot, so a file with neither writes nothing new. PSD import brings nested
     and empty groups across as nested and empty folders
     (`AnEmptyFolderComesAcrossInItsPlace_AndACollapsedOneStaysCollapsed`).
-    **Not yet:** folders on the MCP surface.
+    An agent reads folders in `get_scene` and makes, files and groups them
+    over MCP — never deletes, never changes the stacking unless it says
+    `reorder` (Q205) — `evidence: ExternalCreateFolder, ExternalMoveToFolder, ExternalGroup, IpcFolderTests`.
   - [x] A folder copies and pastes whole `evidence: FolderCopy, StackClip, AFolderCopiesWholeAndPastesAsANewFolder`
     — Ctrl+C on a picked folder takes everything inside it; a paste is a new
     folder with fresh ids, its contents arranged as they were.

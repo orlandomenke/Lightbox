@@ -21,6 +21,15 @@ namespace Lightbox.App.ViewModels;
 /// any folder above it — and a locked destination are refused, in words,
 /// naming the lock.
 /// </para>
+/// <para>
+/// <b>And about the picture (Q205, the owner's call).</b> Filing a layer into
+/// a folder puts it at the folder's top, and grouping scattered layers gathers
+/// them: either can change the stacking, and so the image on every frame. For
+/// the artist that is Photoshop's and Krita's behaviour; for an agent it is
+/// refused unless the request says <c>reorder</c>, naming the layers it would
+/// pass, and a reply always says whether the stacking changed. The undo step
+/// is labelled "Agent: …" so the artist can find it.
+/// </para>
 /// </remarks>
 public partial class MainViewModel
 {
@@ -59,6 +68,45 @@ public partial class MainViewModel
             ? $"Folder “{locked.Name}” is locked."
             : null;
 
+    /// <summary>
+    /// The layers whose stacking relative to a moved layer the edit would flip,
+    /// by name — empty when the layer order stays as it is. Tried on a skeleton.
+    /// </summary>
+    private List<string> WouldReorder(Func<Scene, string?> edit)
+    {
+        var trial = FolderTree.Skeleton(Scene);
+        if (edit(trial) is not null) return [];
+        var before = Scene.Layers.Select(l => l.Id).ToList();
+        var after = trial.Layers.Select(l => l.Id).ToList();
+        if (before.SequenceEqual(after)) return [];
+        var was = before.Select((id, i) => (id, i)).ToDictionary(p => p.id, p => p.i);
+        var now = after.Select((id, i) => (id, i)).ToDictionary(p => p.id, p => p.i);
+        var passed = new List<string>();
+        for (var x = 0; x < before.Count; x++)
+        {
+            for (var y = x + 1; y < before.Count; y++)
+            {
+                var (a, b) = (before[x], before[y]);
+                if (now[a] < now[b] == was[a] < was[b]) continue;
+                foreach (var id in new[] { a, b })
+                {
+                    var name = Scene.Layers.First(l => l.Id == id).Name;
+                    if (!passed.Contains(name)) passed.Add(name);
+                }
+            }
+        }
+        return passed;
+    }
+
+    /// <summary>The refusal for an agent's edit that would change the picture without saying so.</summary>
+    private static string ReorderRefusal(List<string> passed)
+    {
+        var names = string.Join(", ", passed.Take(6).Select(n => $"\u201c{n}\u201d"));
+        var more = passed.Count > 6 ? $" and {passed.Count - 6} more" : "";
+        return $"That would change the stacking of {names}{more}, and so the picture. "
+               + "Send reorder: true to do it anyway.";
+    }
+
     private string FolderNameOrNext(string? name) =>
         string.IsNullOrWhiteSpace(name) ? NextFolderName()
         : name.Trim().Length > MaxExternalFolderName ? name.Trim()[..MaxExternalFolderName]
@@ -85,7 +133,7 @@ public partial class MainViewModel
             FolderTree.AddFolder(scene, new LayerGroup { Id = id, Name = folderName }, null);
             if (insideId is null) return null;
             return refusal = FolderTree.Move(scene, [new StackRef(id, true)], new StackRef(insideId, true), StackDrop.Into);
-        }, "New folder");
+        }, "Agent: new folder");
         return made ? (id, null) : (null, refusal is { Length: > 0 } ? refusal : "The folder could not be made there.");
     }
 
@@ -95,8 +143,9 @@ public partial class MainViewModel
     /// folder, to sit at the top level just above the folder it was in.
     /// Returns null, or why not.
     /// </summary>
-    public string? ExternalMoveToFolder(string itemId, string? folderId)
+    public string? ExternalMoveToFolder(string itemId, string? folderId, bool reorder, out bool reordered)
     {
+        reordered = false;
         if (StackRefFor(itemId) is not { } item) return $"No layer or folder with id “{itemId}”.";
         if (ExternalLockOn(item) is { } locked) return locked;
 
@@ -120,8 +169,12 @@ public partial class MainViewModel
             (target, where) = (StackRef.Of(outermost), StackDrop.Above);
         }
 
+        Func<Scene, string?> edit = scene => FolderTree.Move(scene, [item], target, where);
+        var passed = WouldReorder(edit);
+        if (passed.Count > 0 && !reorder) return ReorderRefusal(passed);
         string? refusal = null;
-        StackEdit(scene => refusal = FolderTree.Move(scene, [item], target, where), item.IsFolder ? "Move folder" : "Move layer");
+        var done = StackEdit(scene => refusal = edit(scene), item.IsFolder ? "Agent: move folder" : "Agent: move layer");
+        reordered = done && passed.Count > 0;
         return refusal is { Length: > 0 } ? refusal : null;
     }
 
@@ -130,8 +183,9 @@ public partial class MainViewModel
     /// topmost of them was, gathering them if they were apart. Returns the new
     /// folder's id, or why not.
     /// </summary>
-    public (string? FolderId, string? Refusal) ExternalGroup(IReadOnlyList<string> itemIds, string? name)
+    public (string? FolderId, string? Refusal) ExternalGroup(IReadOnlyList<string> itemIds, string? name, bool reorder, out bool reordered)
     {
+        reordered = false;
         if (itemIds.Count == 0) return (null, "Name at least one layer or folder to group.");
         var items = new List<StackRef>();
         foreach (var itemId in itemIds.Distinct())
@@ -142,10 +196,12 @@ public partial class MainViewModel
         }
         var id = Ids.NewId("group");
         var folderName = FolderNameOrNext(name);
+        Func<Scene, string?> edit = scene => FolderTree.Group(scene, new LayerGroup { Id = id, Name = folderName }, items);
+        var passed = WouldReorder(edit);
+        if (passed.Count > 0 && !reorder) return (null, ReorderRefusal(passed));
         string? refusal = null;
-        var made = StackEdit(
-            scene => refusal = FolderTree.Group(scene, new LayerGroup { Id = id, Name = folderName }, items),
-            items.Count == 1 ? "Group layer" : "Group layers");
+        var made = StackEdit(scene => refusal = edit(scene), items.Count == 1 ? "Agent: group layer" : "Agent: group layers");
+        reordered = made && passed.Count > 0;
         return made ? (id, null) : (null, refusal is { Length: > 0 } ? refusal : "Those could not be grouped.");
     }
 }

@@ -295,27 +295,35 @@ public static class LightboxTools
         Text("create_folder", new { name, inFolderId }, ct);
 
     [McpServerTool(Name = "move_to_folder"), Description(
-        "Put a layer or a folder (with everything in it) at the top inside a folder, " +
-        "or omit folderId to take it out of every folder, to sit just above the " +
-        "folder it was in. Layer order otherwise stays as it was. Refused for a " +
-        "locked layer or folder, into a locked folder, a folder into itself, or " +
-        "nesting deeper than 32. Returns the folderId it ended up in. One undo step.")]
+        "Put a layer or a folder (with everything in it) at the TOP inside the folder " +
+        "folderId. folderId is REQUIRED to file into a folder; OMITTING it takes the " +
+        "item OUT of every folder instead, to sit just above the folder it was in. " +
+        "Landing at a folder's top can pass other layers, which changes the stacking " +
+        "and so the picture on every frame: such a move is refused, naming the layers " +
+        "it would pass, unless reorder is true. Also refused for a locked layer or " +
+        "folder, into a locked folder, a folder into itself, or nesting deeper than " +
+        "32. Returns the folderId it ended up in and reordered (whether the stacking " +
+        "changed). One undo step.")]
     public static Task<string> MoveToFolder(
         [Description("Layer or folder id from get_scene")] string id,
         CancellationToken ct,
-        [Description("Destination folder id; omit to move out to the top level")] string? folderId = null) =>
-        Text("move_to_folder", new { id, folderId }, ct);
+        [Description("Destination folder id. Omit ONLY to move the item out of every folder")] string? folderId = null,
+        [Description("Allow a move that changes the stacking (and so the picture); default false")] bool reorder = false) =>
+        Text("move_to_folder", new { id, folderId, reorder }, ct);
 
     [McpServerTool(Name = "group_layers"), Description(
-        "Put layers and folders into a new folder where the topmost of them is, " +
-        "gathering them into one run if they were apart (this changes their " +
-        "stacking order when they were). The same as Ctrl+G in the app. Returns " +
-        "folderId. Refused for a locked item. One undo step.")]
+        "Put layers and folders into a new folder where the topmost of them is. " +
+        "Items that are next to each other in the stack group without changing " +
+        "anything you can see. Items with other layers between them have to be " +
+        "gathered into one run, which changes the stacking and so the picture: " +
+        "that is refused, naming the layers in between, unless reorder is true. " +
+        "Refused for a locked item. Returns folderId and reordered. One undo step.")]
     public static Task<string> GroupLayers(
         [Description("Layer and folder ids from get_scene")] string[] ids,
         CancellationToken ct,
-        [Description("Folder name; omit for the next free \"Folder n\"")] string? name = null) =>
-        Text("group_layers", new { ids, name }, ct);
+        [Description("Folder name; omit for the next free \"Folder n\"")] string? name = null,
+        [Description("Allow gathering items that are apart (changes the picture); default false")] bool reorder = false) =>
+        Text("group_layers", new { ids, name, reorder }, ct);
 
     [McpServerTool(Name = "list_reference_views"), Description(
         "List the document's character sheets and their views (id, name, size). " +

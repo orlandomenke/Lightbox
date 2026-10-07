@@ -191,12 +191,14 @@ public sealed class IpcDocumentApi(MainViewModel vm)
     {
         public string Id { get; set; } = "";
         public string? FolderId { get; set; }
+        public bool Reorder { get; set; }
     }
 
     private sealed class GroupLayersRef
     {
         public List<string> Ids { get; set; } = [];
         public string? Name { get; set; }
+        public bool Reorder { get; set; }
     }
 
     /// <summary><c>create_folder</c>: an empty folder at the top, or at the top inside another.</summary>
@@ -214,22 +216,25 @@ public sealed class IpcDocumentApi(MainViewModel vm)
     {
         var p = Payload<MoveToFolderRef>(request);
         if (p.Id.Length == 0) return IpcProtocol.Response.Fail("Give the id of the layer or folder to move.");
-        if (Vm.ExternalMoveToFolder(p.Id, p.FolderId) is { } refusal) return IpcProtocol.Response.Fail(refusal);
+        if (Vm.ExternalMoveToFolder(p.Id, p.FolderId, p.Reorder, out var reordered) is { } refusal)
+            return IpcProtocol.Response.Fail(refusal);
         var s = Vm.Doc.Scene;
         var now = s.Layers.FirstOrDefault(l => l.Id == p.Id) is { } layer
             ? FolderTree.Folder(s, layer.GroupId)?.Id
             : FolderTree.Folder(s, p.Id) is { } moved ? FolderTree.ParentOf(s, moved)?.Id : null;
-        return IpcProtocol.Response.Success(new { p.Id, FolderId = now });
+        // Always said, because "did the picture change" is the question an
+        // agent cannot answer by looking at the reply's other fields.
+        return IpcProtocol.Response.Success(new { p.Id, FolderId = now, Reordered = reordered });
     }
 
     /// <summary><c>group_layers</c>: wrap layers and folders in a new folder.</summary>
     private IpcProtocol.Response GroupLayers(IpcProtocol.Request request)
     {
         var p = Payload<GroupLayersRef>(request);
-        var (id, refusal) = Vm.ExternalGroup(p.Ids, p.Name);
+        var (id, refusal) = Vm.ExternalGroup(p.Ids, p.Name, p.Reorder, out var reordered);
         if (id is null) return IpcProtocol.Response.Fail(refusal ?? "Those could not be grouped.");
         var folder = FolderTree.Folder(Vm.Doc.Scene, id)!;
-        return IpcProtocol.Response.Success(new { FolderId = id, folder.Name, ParentId = folder.ParentId });
+        return IpcProtocol.Response.Success(new { FolderId = id, folder.Name, ParentId = folder.ParentId, Reordered = reordered });
     }
 
     private class FrameRef
