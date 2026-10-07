@@ -213,6 +213,8 @@ public partial class MainViewModel
     /// again from it. Anything else would leave a selection describing a stack
     /// the artist has since navigated away from.
     /// </summary>
+    // B395: the selection trace names this method; inlined, it vanishes from the stack.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     internal void SyncLayerSelectionToActive(int sceneIndex)
     {
         if (_selectingLayers)
@@ -231,6 +233,7 @@ public partial class MainViewModel
     /// <summary>
     /// Push the selection onto the rows, dropping ids whose layer has gone.
     /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     internal void RefreshLayerSelectionHighlights()
     {
         _selectedLayerIds.RemoveWhere(id => !Scene.Layers.Any(l => l.Id == id));
