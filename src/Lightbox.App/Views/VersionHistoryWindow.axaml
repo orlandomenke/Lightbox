@@ -11,12 +11,12 @@
 
     <!-- The status line carries the one reassurance that makes revert usable:
          nothing is ever lost, the replaced state becomes a version itself. -->
-    <TextBlock DockPanel.Dock="Bottom" Margin="0,8,0,0"
+    <TextBlock DockPanel.Dock="Bottom" Margin="{StaticResource SectionGap}"
                TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                Text="{Binding Status}" />
 
     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
-                HorizontalAlignment="Right" Spacing="{StaticResource Space8}" Margin="0,10,0,0">
+                HorizontalAlignment="Right" Spacing="{StaticResource Space8}" Margin="{StaticResource SectionGapWide}">
       <Button Content="Close" Click="OnClose" IsCancel="True" />
       <Button Classes="primary" Content="Revert to selected"
               Command="{Binding RevertCommand}"
@@ -41,7 +41,7 @@
                 <TextBlock FontWeight="SemiBold" Text="{Binding Number}" />
                 <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
                 <Border IsVisible="{Binding HasMilestone}"
-                        Background="{Binding MilestoneColor}" CornerRadius="3" Padding="4,0">
+                        Background="{Binding MilestoneColor}" CornerRadius="{StaticResource RadiusControl}" Padding="4,0">
                   <TextBlock FontSize="{StaticResource TypeHint}" Foreground="White" Text="{Binding Milestone}" />
                 </Border>
                 <TextBlock IsVisible="{Binding IsActive}" FontSize="{StaticResource TypeHint}" Opacity="0.6"

@@ -85,7 +85,7 @@
                   PlaceholderText="every tag" />
         <Button Command="{Binding ClearTagFilterCommand}"
                 ToolTip.Tip="Show every row again">
-          <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
+          <Path Classes="icon" Width="{StaticResource SizeIcon10}" Height="{StaticResource SizeIcon10}" Data="{StaticResource IconClose}" />
         </Button>
         <TextBlock Classes="head" VerticalAlignment="Center" Margin="10,0,0,0" Text="WHO" />
         <ComboBox MinWidth="140" ItemsSource="{Binding People}"
@@ -99,7 +99,7 @@
         </ComboBox>
         <Button Command="{Binding ClearAssigneeFilterCommand}"
                 ToolTip.Tip="Show everybody's rows again">
-          <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
+          <Path Classes="icon" Width="{StaticResource SizeIcon10}" Height="{StaticResource SizeIcon10}" Data="{StaticResource IconClose}" />
         </Button>
       </StackPanel>
     </Border>
@@ -119,9 +119,9 @@
           <Border DockPanel.Dock="Bottom" Classes="bar"
                   IsVisible="{Binding HasSelection}">
             <WrapPanel>
-              <TextBlock Classes="head" VerticalAlignment="Center" Margin="0,0,6,0"
+              <TextBlock Classes="head" VerticalAlignment="Center" Margin="{StaticResource GapAfterWide}"
                          Text="{Binding SelectionLabel}" />
-              <ComboBox MinWidth="120" Margin="0,0,6,0"
+              <ComboBox MinWidth="120" Margin="{StaticResource GapAfterWide}"
                         ItemsSource="{Binding StatusChoices}"
                         SelectedItem="{Binding StatusToApply}"
                         PlaceholderText="set status…">
@@ -131,7 +131,7 @@
                   </DataTemplate>
                 </ComboBox.ItemTemplate>
               </ComboBox>
-              <ComboBox MinWidth="120" Margin="0,0,6,0"
+              <ComboBox MinWidth="120" Margin="{StaticResource GapAfterWide}"
                         ItemsSource="{Binding AssignChoices}"
                         SelectedItem="{Binding PersonToApply}"
                         PlaceholderText="assign to…">
@@ -141,9 +141,9 @@
                   </DataTemplate>
                 </ComboBox.ItemTemplate>
               </ComboBox>
-              <TextBox Width="130" Margin="0,0,4,0" Text="{Binding TagToApply}"
+              <TextBox Width="130" Margin="{StaticResource GapAfter}" Text="{Binding TagToApply}"
                        Watermark="tag…" />
-              <Button Content="Tag" Margin="0,0,4,0"
+              <Button Content="Tag" Margin="{StaticResource GapAfter}"
                       Command="{Binding TagSelectionCommand}"
                       CommandParameter="{Binding TagToApply}" />
               <Button Content="Untag"
@@ -155,7 +155,7 @@
                 the docker, and offering two movers for one thing invites the
                 question of why they differ.
               -->
-              <ComboBox MinWidth="150" Margin="6,0,0,0"
+              <ComboBox MinWidth="150" Margin="{StaticResource GapBeforeWide}"
                         IsVisible="{Binding HasSheetSelection}"
                         ItemsSource="{Binding SheetHomeChoices}"
                         SelectedItem="{Binding SheetHomeToApply}"
@@ -233,7 +233,7 @@
                             <Button Grid.Column="1"
                                     Command="{Binding $parent[ItemsControl].((vm:ProjectWindowViewModel)DataContext).RemoveVariantCommand}"
                                     CommandParameter="{Binding Variant}">
-                              <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+                              <Path Classes="icon" Width="{StaticResource SizeIcon9}" Height="{StaticResource SizeIcon9}" Data="{StaticResource IconClose}" />
                             </Button>
                           </Grid>
                           <!--
@@ -254,7 +254,7 @@
                                             Command="{Binding $parent[ItemsControl].((vm:VariantRow)DataContext).RemoveAttachmentCommand}"
                                             CommandParameter="{Binding}"
                                             ToolTip.Tip="Stop wearing it. The symbol stays in the library.">
-                                      <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+                                      <Path Classes="icon" Width="{StaticResource SizeIcon9}" Height="{StaticResource SizeIcon9}" Data="{StaticResource IconClose}" />
                                     </Button>
                                   </Grid>
                                   <!-- Two short rows rather than one long one: this
@@ -330,7 +330,7 @@
               clip the sentence rather than move it to a second line.
             -->
             <WrapPanel>
-              <Button Content="＋ New ▾" Margin="0,0,6,0"
+              <Button Content="＋ New ▾" Margin="{StaticResource GapAfterWide}"
                       ToolTip.Tip="Create something in this project">
                 <Button.Flyout>
                   <MenuFlyout>
@@ -341,7 +341,7 @@
                   </MenuFlyout>
                 </Button.Flyout>
               </Button>
-              <Button Content="✎ Rename project…" Margin="0,0,6,0"
+              <Button Content="✎ Rename project…" Margin="{StaticResource GapAfterWide}"
                       Command="{Binding RenameProjectCommand}"
                       ToolTip.Tip="Renames the project and its folder on disk">
               </Button>
@@ -352,13 +352,13 @@
                 opens in the file manager. Opening a document closes this
                 window — it is modal, and a tab behind it is a tab nobody sees.
               -->
-              <Button Content="⏵ Open" Margin="0,0,6,0"
+              <Button Content="⏵ Open" Margin="{StaticResource GapAfterWide}"
                       Command="{Binding OpenSelectedInLightboxCommand}"
                       ToolTip.Tip="Open the selected documents in Lightbox as tabs. Closes this window." />
-              <Button Content="🗀 Show on disk" Margin="0,0,6,0"
+              <Button Content="🗀 Show on disk" Margin="{StaticResource GapAfterWide}"
                       Command="{Binding RevealSelectedCommand}"
                       ToolTip.Tip="Show the selected row in the file manager — a folder opened, a document selected inside its folder" />
-              <Button Content="🗁 Project folder" Margin="0,0,6,0"
+              <Button Content="🗁 Project folder" Margin="{StaticResource GapAfterWide}"
                       Command="{Binding RevealProjectFolderCommand}"
                       ToolTip.Tip="Show the project's own folder in the file manager, whatever is selected" />
               <TextBlock Classes="dim" VerticalAlignment="Center"
@@ -524,7 +524,7 @@
                   can check.
                 -->
                 <Border Width="190" Margin="3" Padding="6"
-                        Background="{DynamicResource BandTintBrush}" CornerRadius="4"
+                        Background="{DynamicResource BandTintBrush}" CornerRadius="{StaticResource RadiusCard}"
                         DragDrop.AllowDrop="True"
                         DragDrop.DragOver="OnStatusDragOver"
                         DragDrop.Drop="OnStatusDrop">
@@ -533,7 +533,7 @@
                       <TextBlock DockPanel.Dock="Right" Classes="dim"
                                  Text="{Binding Count}" />
                       <StackPanel Orientation="Horizontal" Spacing="5">
-                        <Border Width="8" Height="8" CornerRadius="4"
+                        <Border Width="8" Height="8" CornerRadius="{StaticResource RadiusCard}"
                                 VerticalAlignment="Center"
                                 Background="{Binding Color}" />
                         <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" />
@@ -542,7 +542,7 @@
                     <ItemsControl ItemsSource="{Binding Rows}">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:BoardRow">
-                          <Border Padding="5,3" Margin="0,0,0,3" CornerRadius="3"
+                          <Border Padding="5,3" Margin="0,0,0,3" CornerRadius="{StaticResource RadiusControl}"
                                   Background="{DynamicResource HoverTintBrush}"
                                   PointerPressed="OnStatusCardPressed">
                             <StackPanel>
@@ -727,9 +727,9 @@
                               <!-- The arrow carries the state: up to the bar
                                    publishes, down from it takes back. -->
                               <Panel>
-                                <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconArrowUpToBar}"
+                                <Path Classes="icon" Width="{StaticResource SizeIcon9}" Height="{StaticResource SizeIcon9}" Data="{StaticResource IconArrowUpToBar}"
                                       IsVisible="{Binding !IsPublished}" />
-                                <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconArrowDownToBar}"
+                                <Path Classes="icon" Width="{StaticResource SizeIcon9}" Height="{StaticResource SizeIcon9}" Data="{StaticResource IconArrowDownToBar}"
                                       IsVisible="{Binding IsPublished}" />
                               </Panel>
                             </Button>
@@ -739,7 +739,7 @@
                                     Command="{Binding $parent[ListBox].((vm:ProjectWindowViewModel)DataContext).UndeclareOnScopeCommand}"
                                     CommandParameter="{Binding}"
                                     ToolTip.Tip="Stop sharing this here">
-                              <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+                              <Path Classes="icon" Width="{StaticResource SizeIcon9}" Height="{StaticResource SizeIcon9}" Data="{StaticResource IconClose}" />
                             </Button>
                           </StackPanel>
                         </Border>
@@ -780,7 +780,7 @@
             <ItemsControl ItemsSource="{Binding ExportRows}" Margin="6">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ProjectWindowViewModel+ExportRow">
-                  <Border Padding="6" Margin="0,0,0,4" CornerRadius="3"
+                  <Border Padding="6" Margin="0,0,0,4" CornerRadius="{StaticResource RadiusControl}"
                           Background="{DynamicResource BandTintBrush}">
                     <StackPanel Spacing="{StaticResource Space2}">
                       <DockPanel>

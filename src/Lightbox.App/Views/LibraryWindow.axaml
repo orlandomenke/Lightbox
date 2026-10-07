@@ -12,7 +12,7 @@
 
     <!-- Where libraries live. At the bottom, set once and left — the shelf is
          what the window is for. -->
-    <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource Space6}" Margin="0,10,0,0">
+    <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource Space6}" Margin="{StaticResource SectionGapWide}">
       <TextBlock Text="Library folders" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
       <TextBlock FontSize="{StaticResource TypeDense}" Opacity="0.6" TextWrapping="Wrap"
                  Text="A library is an ordinary project whose type is Asset library. Point this at one, or at a folder holding several." />
@@ -25,7 +25,7 @@
     </StackPanel>
 
     <!-- Import bar. -->
-    <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+    <DockPanel DockPanel.Dock="Bottom" Margin="{StaticResource SectionGap}">
       <Button DockPanel.Dock="Right" Content="Import" Click="OnImport" IsDefault="True" Classes="primary"
               ToolTip.Tip="Copy the character into the open project — animations, palette and variants. Importing again later updates the copies you have not edited and never touches your own work." />
       <TextBlock x:Name="Status" VerticalAlignment="Center" FontSize="{StaticResource TypeDense}" Opacity="0.7"

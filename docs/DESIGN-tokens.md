@@ -72,6 +72,7 @@ should be none.
 | 1 · foundation | 1,239 | type scale, spacing scale, density sizes, dynamic brushes |
 | 2 · dockers | 912 | setting rows (label, slider gap, value floor), icon sizes, section gaps — the docker part of MainWindow.axaml and the panels it hosts (tool option pages, effects, guides, scene) |
 | 2 · Configure | 865 | the settings page inset, the settings field and combo widths, the information card's corners and inset |
+| 2 · windows and dialogs | 748 | the dialog inset, label column, small field and button floor, the wider gaps, card radii — the project window and 25 dialogs, panels and bars |
 
 **How each area proves "no visual change":** the gallery's `--snapshot-app`
 renders the main window empty and with a document open, every docker brought to
@@ -107,6 +108,16 @@ until the look sets them:
   of 10. It is a question, not a token.
 - **ScenePanel's depth row** (`*,58,90`) needs a role for its diagram and field
   columns.
+- **Gaps on one scale.** `GapBefore`/`GapAfter` (4) and their `Wide` twins (6), and
+  `SectionGap` (8) and `SectionGapWide` (10), are two tiers or one. Decide which.
+- **Label columns.** Three widths are in use: `SizeDialogLabel` (110),
+  `SizeDockerLabel` (90) and `SizeDockerLabelWide` (100). Collapse them, or write
+  down the rule that picks one.
+- **Previews.** `RadiusPreview` (3) covers image thumbnails and previews. Do
+  they go square, like the rest of the artwork?
+- **Leftovers in the windows:** `Padding="8,6"` (BrushLibraryWindow,
+  VideoExportWindow), `Padding="4,0"` (VersionHistoryWindow's milestone badge),
+  `Margin="24,0,0,0"` (PlacementChoiceDialog's indent).
 
 ## What a hostile file could do
 

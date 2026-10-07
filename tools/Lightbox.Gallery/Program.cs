@@ -164,6 +164,45 @@ public static class Program
             list.SelectedIndex = i;
             Shoot(config, $"configure-{i:00}");
         }
+        // The project window, on an empty project: its chrome and lists.
+        var project = new Lightbox.App.Views.ProjectWindow { Width = 1080, Height = 700 };
+        project.Show();
+        Shoot(project, "project-window");
+        project.Close();
+
+        // Every other window and panel in the app's views that opens without
+        // arguments: the dialogs, the start screen, the bars. One that needs a
+        // document, a project or a service to open is skipped and named, so the
+        // gap in coverage is visible rather than silent.
+        // BrushTipsWindow is left out on purpose: it reads the artist's real tip
+        // store (TipStore's path is fixed), and isolation outranks a picture —
+        // its lines are covered by scripts/tokenpairs.py instead.
+        var skip = new HashSet<Type>
+        {
+            typeof(Lightbox.App.Views.MainWindow), typeof(Lightbox.App.Views.ConfigureWindow),
+            typeof(Lightbox.App.Views.ProjectWindow), typeof(Lightbox.App.Views.BrushTipsWindow),
+        };
+        var views = typeof(Lightbox.App.Views.MainWindow).Assembly.GetTypes()
+            .Where(t => t.Namespace == "Lightbox.App.Views" && typeof(Control).IsAssignableFrom(t) && !t.IsAbstract
+                        && !skip.Contains(t) && t.GetConstructor(Type.EmptyTypes) is not null)
+            .OrderBy(t => t.Name, StringComparer.Ordinal);
+        foreach (var type in views)
+        {
+            try
+            {
+                var control = (Control)Activator.CreateInstance(type)!;
+                var window = control as Window ?? new Window { Width = 900, Height = 600, Content = control };
+                if (control is Window w && (double.IsNaN(w.Width) || w.Width <= 0)) { w.Width = 900; w.Height = 600; }
+                window.Show();
+                Shoot(window, $"view-{type.Name}");
+                window.Close();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"skipped {type.Name}: {e.GetType().Name}");
+            }
+        }
+
         Console.WriteLine($"app snapshots in {Path.GetFullPath(dir)}");
         try { Directory.Delete(scratch, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         return 0;

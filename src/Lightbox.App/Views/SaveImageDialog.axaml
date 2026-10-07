@@ -8,7 +8,7 @@
         WindowStartupLocation="CenterOwner"
         Title="Save as image">
 
-  <StackPanel Margin="16" Spacing="{StaticResource Space12}">
+  <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
 
     <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
       <TextBlock Grid.Row="0" Grid.Column="0" Text="Format" VerticalAlignment="Center" />
@@ -63,13 +63,13 @@
       and the status line says so. Typing the extension is the deliberate act,
       which is why it is allowed to win rather than being second-guessed here.
     -->
-    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="4" Padding="10"
+    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}"
             IsVisible="{Binding MayLoseTransparency}">
       <TextBlock TextWrapping="Wrap"
                  Text="This format has no transparency. The see-through areas will be filled in — save as PNG or WebP to keep them." />
     </Border>
 
-    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="4" Padding="10">
+    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}">
       <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
     </Border>
 
