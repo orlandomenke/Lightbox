@@ -385,6 +385,22 @@ public partial class MainWindow
         if (GroupRowOf(sender) is { } row) _vm.AddActiveLayerToGroupCommand.Execute(row);
     }
 
+    // Copy and paste act on the folder whose menu it is: picking it first is
+    // what makes "copy" mean the folder and "paste" mean into it (Q204).
+    private void OnGroupMenuCopy(object? sender, RoutedEventArgs e)
+    {
+        if (GroupRowOf(sender) is not { } row) return;
+        _vm.SelectGroup(row, toggle: false, range: false);
+        _vm.CopyLayers();
+    }
+
+    private void OnGroupMenuPaste(object? sender, RoutedEventArgs e)
+    {
+        if (GroupRowOf(sender) is not { } row) return;
+        _vm.SelectGroup(row, toggle: false, range: false);
+        _vm.PasteLayers();
+    }
+
     private void OnGroupMenuDelete(object? sender, RoutedEventArgs e)
     {
         if (GroupRowOf(sender) is { } row) _vm.DeleteGroupCommand.Execute(row);

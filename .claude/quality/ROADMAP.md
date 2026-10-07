@@ -527,9 +527,11 @@ the test needs relaxing.
     what is picked, **Group layers** (Ctrl+G) wraps the selection, folders drop
     into folders, and visibility and lock inherit through every level. Layers
     stay one flat list; a folder records its parent and, only while empty, its
-    slot, so a file with neither writes nothing new. **Not yet:** copying and
-    pasting a whole folder, PSD import of nested groups as nested folders, and
-    folders on the MCP surface.
+    slot, so a file with neither writes nothing new. **Not yet:** PSD import of
+    nested groups as nested folders, and folders on the MCP surface.
+  - [x] A folder copies and pastes whole `evidence: FolderCopy, StackClip, AFolderCopiesWholeAndPastesAsANewFolder`
+    — Ctrl+C on a picked folder takes everything inside it; a paste is a new
+    folder with fresh ids, its contents arranged as they were.
 - [x] Layer and alpha locking `evidence: LayerLockTests, AlphaLockTests`
 - [x] Non-destructive filters `evidence: EffectUse, EffectStack, EffectRegistry, EffectPasses, EffectRecordTests, EffectRegistryTests, EffectPassTests, EffectComposeCostTests, ASelfEffectFiltersOnlyItsOwnPass, AnUnknownKindIsPreservedNotDropped, AKeyedRadiusEvaluatesPerFrame, AFilteredLayerRefusesToFoldAndStillRenders, TheSceneStackDescribesALastPass`
   - **Built to `docs/DESIGN-effects.md`, steps 1–3 of its own build order**:

@@ -3379,26 +3379,17 @@
                           <ContextMenu>
                             <MenuItem Header="Rename" Click="OnGroupMenuRename" />
                             <MenuItem Header="Folder color">
-                              <MenuItem Header="Blue" Tag="#4a6ea9" Click="OnGroupColorClicked">
-                                <MenuItem.Icon><Border Width="14" Height="14" Background="#4a6ea9" CornerRadius="2" /></MenuItem.Icon>
-                              </MenuItem>
-                              <MenuItem Header="Green" Tag="#4a9a5e" Click="OnGroupColorClicked">
-                                <MenuItem.Icon><Border Width="14" Height="14" Background="#4a9a5e" CornerRadius="2" /></MenuItem.Icon>
-                              </MenuItem>
-                              <MenuItem Header="Orange" Tag="#e0a030" Click="OnGroupColorClicked">
-                                <MenuItem.Icon><Border Width="14" Height="14" Background="#e0a030" CornerRadius="2" /></MenuItem.Icon>
-                              </MenuItem>
-                              <MenuItem Header="Red" Tag="#c25050" Click="OnGroupColorClicked">
-                                <MenuItem.Icon><Border Width="14" Height="14" Background="#c25050" CornerRadius="2" /></MenuItem.Icon>
-                              </MenuItem>
-                              <MenuItem Header="Purple" Tag="#8a5ac2" Click="OnGroupColorClicked">
-                                <MenuItem.Icon><Border Width="14" Height="14" Background="#8a5ac2" CornerRadius="2" /></MenuItem.Icon>
-                              </MenuItem>
-                              <MenuItem Header="Gray" Tag="#6a7280" Click="OnGroupColorClicked">
-                                <MenuItem.Icon><Border Width="14" Height="14" Background="#6a7280" CornerRadius="2" /></MenuItem.Icon>
-                              </MenuItem>
+                              <MenuItem Header="Blue" Tag="#4a6ea9" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#4a6ea9" CornerRadius="2" /></MenuItem.Icon></MenuItem>
+                              <MenuItem Header="Green" Tag="#4a9a5e" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#4a9a5e" CornerRadius="2" /></MenuItem.Icon></MenuItem>
+                              <MenuItem Header="Orange" Tag="#e0a030" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#e0a030" CornerRadius="2" /></MenuItem.Icon></MenuItem>
+                              <MenuItem Header="Red" Tag="#c25050" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#c25050" CornerRadius="2" /></MenuItem.Icon></MenuItem>
+                              <MenuItem Header="Purple" Tag="#8a5ac2" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#8a5ac2" CornerRadius="2" /></MenuItem.Icon></MenuItem>
+                              <MenuItem Header="Gray" Tag="#6a7280" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#6a7280" CornerRadius="2" /></MenuItem.Icon></MenuItem>
                             </MenuItem>
                             <MenuItem Header="Collapse / expand" Click="OnGroupMenuCollapse" />
+                            <Separator />
+                            <MenuItem Header="Copy folder" InputGesture="Ctrl+C" Click="OnGroupMenuCopy" />
+                            <MenuItem Header="Paste into folder" InputGesture="Ctrl+V" Click="OnGroupMenuPaste" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasLayerClipboard}" />
                             <Separator />
                             <MenuItem Header="Add active layer to folder" Click="OnGroupMenuAddActive" />
                             <MenuItem Header="Ungroup (keep what is inside)" Click="OnGroupMenuDissolve" />

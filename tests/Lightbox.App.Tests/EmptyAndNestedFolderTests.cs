@@ -109,10 +109,10 @@ public sealed class EmptyAndNestedFolderTests : BrushStateIsolated
     /// <summary>
     /// A lock on an outer folder protects what is inside it from a delete of an
     /// inner folder too (sensitivity-guardian, W4) — and Copy with an empty
-    /// folder picked copies nothing rather than the layer behind it.
+    /// folder picked copies that folder, never the layer behind it.
     /// </summary>
     [AvaloniaFact]
-    public void AnInnerFolderUnderALockedOneIsNotDeleted_AndAnEmptyPickCopiesNothing()
+    public void AnInnerFolderUnderALockedOneIsNotDeleted_AndAnEmptyPickCopiesTheFolder()
     {
         var vm = Vm();
         vm.GroupLayersCommand.Execute(null);                 // Folder 1 holds "b"
@@ -129,8 +129,75 @@ public sealed class EmptyAndNestedFolderTests : BrushStateIsolated
         Header(vm, "Folder 1").Locked = false;
         vm.SelectLayer(Row(vm, "a"), toggle: false, range: false);
         vm.CreateLayerFolderCommand.Execute(null);           // an empty "Folder 3", picked
-        Assert.False(vm.CopyLayers());
-        Assert.False(vm.HasLayerClipboard);
+        Assert.True(vm.CopyLayers());
+        Assert.Equal("Folder “Folder 3” copied.", vm.AiStatus);
+    }
+
+    /// <summary>
+    /// A picked folder copies with everything inside it — layers, a folder in
+    /// it, an empty folder in its place — and pastes as a new, independent
+    /// folder where a new layer would go. Twice is two copies; undo takes one.
+    /// </summary>
+    [AvaloniaFact]
+    public void AFolderCopiesWholeAndPastesAsANewFolder()
+    {
+        var vm = Vm();
+        vm.SelectLayer(Row(vm, "a"), toggle: false, range: false);
+        vm.SelectLayer(Row(vm, "b"), toggle: true, range: false);
+        vm.GroupLayersCommand.Execute(null);                 // Folder 1: b, a
+        vm.SelectLayer(Row(vm, "a"), toggle: false, range: false);
+        vm.GroupLayersCommand.Execute(null);                 // Folder 2 inside, around a
+        vm.SelectLayer(Row(vm, "b"), toggle: false, range: false);
+        vm.CreateLayerFolderCommand.Execute(null);           // an empty Folder 3 above b
+        Assert.Equal("[Folder 1] .[Folder 3] .b .[Folder 2] ..a Background", Docker(vm));
+        var layersBefore = vm.Doc.Scene.Layers.Count;
+
+        vm.SelectGroup(Header(vm, "Folder 1"), toggle: false, range: false);
+        Assert.True(vm.CopyLayers());
+        vm.SelectLayer(Row(vm, "Background"), toggle: false, range: false);
+        Assert.True(vm.PasteLayers());
+
+        Assert.Equal(
+            "[Folder 1] .[Folder 3] .b .[Folder 2] ..a [Folder 1 copy] .[Folder 3] .b copy .[Folder 2] ..a copy Background",
+            Docker(vm));
+        Assert.Equal("Folder 1 copy", vm.SelectedGroup?.Name);
+        var ids = vm.Doc.Scene.LayerGroups.Select(g => g.Id).ToList();
+        Assert.Equal(ids.Count, ids.Distinct().Count());
+        Assert.Equal(layersBefore + 2, vm.Doc.Scene.Layers.Count);
+
+        vm.PasteLayers();
+        Assert.Contains("[Folder 1 copy 2]", Docker(vm));
+
+        vm.UndoCommand.Execute(null);
+        Assert.DoesNotContain("[Folder 1 copy 2]", Docker(vm));
+        Assert.Contains("[Folder 1 copy]", Docker(vm));
+    }
+
+    /// <summary>
+    /// A paste the move would refuse — it would nest past the limit — is
+    /// refused whole: nothing added, no step, and the status says why.
+    /// </summary>
+    [AvaloniaFact]
+    public void APasteThatWouldNestTooDeepIsRefusedWhole()
+    {
+        var vm = Vm();
+        vm.GroupLayersCommand.Execute(null);
+        for (var i = 1; i < 17; i++)
+        {
+            vm.SelectLayer(Row(vm, "b"), toggle: false, range: false);
+            vm.GroupLayersCommand.Execute(null);
+        }
+        var outer = vm.LayerPanelItems.OfType<GroupRow>().First();
+        var inner = vm.LayerPanelItems.OfType<GroupRow>().Last();
+        vm.SelectGroup(outer, toggle: false, range: false);
+        Assert.True(vm.CopyLayers());
+        var before = FolderTree.Signature(vm.Doc.Scene);
+
+        vm.SelectGroup(inner, toggle: false, range: false);
+        Assert.False(vm.PasteLayers());
+
+        Assert.Equal(before, FolderTree.Signature(vm.Doc.Scene));
+        Assert.Contains("deep", vm.AiStatus);
     }
 
     [AvaloniaFact]

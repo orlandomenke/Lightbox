@@ -125,7 +125,7 @@ undo step**:
 Anything you do to a row that is *not* in the selection is done to that row
 alone. Right-clicking a layer you have not selected is not a trap.
 
-### Copying a layer
+### Copying a layer or a folder
 
 **Copy layer** and **Paste layer** are on the row's right-click menu in the
 docker and on a layer's name on the X-sheet, and **Ctrl+C / Ctrl+V** do the same
@@ -138,6 +138,14 @@ above the active layer, in that layer's folder, named *Ink copy* (*Ink copy 2*
 and so on if that is taken). Several layers paste together in their original
 order, the pasted layers become the selection, and the whole paste is **one undo
 step**. Pasting twice gives two independent layers.
+
+**A folder copies whole.** Pick a folder by its header and press **Ctrl+C**, or
+use **Copy folder** on the header's right-click menu: the folder comes with
+everything in it — its layers, the folders inside it, and any empty folder in
+its place. **Ctrl+V** pastes it as a new folder, named *Hero copy*, wherever a
+new layer would go; **Paste into folder** on a header pastes at the top inside
+that folder. Everything inside keeps its arrangement, the pasted folder is
+picked, and the paste is one undo step. An empty folder copies too.
 
 What a copy does not keep is what tied the original to other layers: it does not
 join the original's link or fluid group, and it is never the paper.
