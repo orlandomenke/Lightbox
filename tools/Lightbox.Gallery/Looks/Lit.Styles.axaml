@@ -183,6 +183,23 @@
     <Setter Property="MinWidth" Value="0" />
   </Style>
 
+  <!--
+    The active field (owner, 2026-10-07): a field being typed in, and a
+    dropdown that is open, take the edge light at FULL strength — chrome in
+    the dark, prism in the light. Stronger than the buttons' faint edge on
+    purpose: focus is a state that has to be found at a glance, and the faint
+    version reads as decoration. Thickness stays 1, so focusing moves nothing.
+    Covers number fields too: their typing surface is a TextBox.
+  -->
+  <Style Selector="TextBox:focus /template/ Border#PART_BorderElement, TextBox:focus:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="ComboBox:dropdownopen /template/ Border#Background">
+    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
   <!-- 4 · One primary, plain. -->
   <Style Selector="Button.primary">
     <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />

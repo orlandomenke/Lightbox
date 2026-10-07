@@ -71,7 +71,9 @@ header strip.
 switches get a faint edge (`LookEdgeSubtleBrush`, about 40%): chrome in the dark
 theme, prism in the light one. The canvas bar and popups carry the full edge
 (`LookEdgeBrush`). Docker frames carry none; the owner tried it and turned it
-down.
+down. The active field, meaning a field being typed in or a dropdown that is open,
+takes the full edge: focus has to be findable at a glance, which the faint
+version is not.
 
 ## Snapshots
 
