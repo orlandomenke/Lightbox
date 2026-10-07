@@ -232,10 +232,32 @@ only thing it changes is a wait that is no longer there.
 Under **Edit**. Choose off, 30 seconds, 1, 5 or 15 minutes. Zero is a real
 answer, not a mistake to guard against.
 
-Autosave writes a **recovery copy** to your app data folder, not over your file.
-Recover by opening it. If you would rather it wrote over the real file too,
-there is a checkbox — off by default, because silently rewriting the file you
-opened takes away the ability to close without saving.
+Autosave keeps a **recovery copy of every open document with unsaved work** —
+each one on its own, in your local app data folder (`%LOCALAPPDATA%\Lightbox\recovery`), not over your
+files. A copy is deleted when you save or close that document, and they all go
+when you quit normally. If you would rather autosave also wrote over the real
+file, there is a checkbox — off by default, because silently rewriting the file
+you opened takes away the ability to close without saving.
+
+### After a crash
+
+If Lightbox closes without quitting — a crash, a power cut, the process being
+ended — the copies stay, and the **next launch offers them back**: a list of the
+documents, when each copy was kept and which file it came from, with three
+answers.
+
+- **Restore** opens each one as a new tab named *"name (recovered)"*. It is **not
+  tied to the original file**: saving asks where, starting beside the original,
+  so a recovery can never quietly overwrite a file that changed after the crash.
+  Until you save it, closing it asks first.
+- **Not now** leaves the copies exactly where they are. **File ▸ Recover unsaved
+  work…** brings the list back whenever you want it.
+- **Discard…** deletes them, after asking you to confirm — it is the only answer
+  that cannot be undone.
+
+Each running Lightbox keeps its copies separate, so a second window or the next
+launch can never write over what a crashed one left. A crash costs at most one
+autosave interval of work — which is also why *off* is a choice to make knowingly.
 
 The write happens **in the background**: autosave takes its snapshot in a few
 milliseconds and does the disk work off to the side, so it never pauses the

@@ -669,7 +669,7 @@ public partial class MainViewModel
         }
         RefreshCamera();
         NotifyCameraSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>
