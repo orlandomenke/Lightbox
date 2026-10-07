@@ -323,18 +323,25 @@ public partial class MainViewModel
     /// </remarks>
     private readonly List<SKBitmap> _fetchHolds = [];
 
+    /// <summary>
+    /// The flatten cache's half of <see cref="_fetchHolds"/>: every flattened
+    /// tile pass fetched or inserted for the publish in flight (B392).
+    /// </summary>
+    private readonly List<SKBitmap> _flatHolds = [];
+
     private RenderPass MaterializePass(ScenePassBuilder.PassSpec spec)
     {
-        var pass = ScenePassBuilder.Materialize(spec, _cache, Scene.Width, Scene.Height);
         // Only cache-owned bitmaps need the hold: eviction is the only thing
         // that frees pixels mid-publish, and it only reaches what the cache
         // owns. Live scratches, transform parts and reference sheets are
         // owned elsewhere and outlive the publish on their own.
-        if (spec.CelFrame is not null && pass.Bitmap is { } bmp)
-        {
-            _cache.Pin(bmp);
-            _fetchHolds.Add(bmp);
-        }
+        //
+        // B392: pinned inside the fetch, not after it. A masked layer fetches
+        // its masks before its cel, so the cel's fetch could evict the mask
+        // fetched a moment before — and only the cel used to be pinned.
+        using var fetches = _cache.HoldFetches();
+        var pass = ScenePassBuilder.Materialize(spec, _cache, Scene.Width, Scene.Height);
+        fetches.HandOver(_fetchHolds);
         return pass;
     }
 
@@ -343,6 +350,8 @@ public partial class MainViewModel
     {
         for (var i = 0; i < _fetchHolds.Count; i++) _cache.Unpin(_fetchHolds[i]);
         _fetchHolds.Clear();
+        for (var i = 0; i < _flatHolds.Count; i++) _tileFlats.Unpin(_flatHolds[i]);
+        _flatHolds.Clear();
     }
 
     /// <summary>
@@ -999,7 +1008,17 @@ public partial class MainViewModel
         var held = new List<SKBitmap>(passes.Count);
         for (var i = 0; i < passes.Count; i++)
         {
-            if (passes[i].Bitmap is not { } bmp) continue;
+            if (passes[i].Bitmap is { } bmp) Hold(bmp);
+            // B392: a mask is a cache bitmap too, and the snapshot draws it
+            // after the publish's own fetch holds are gone.
+            if (passes[i].Shapes is { } shapes)
+            {
+                for (var s = 0; s < shapes.Count; s++) Hold(shapes[s].Mask);
+            }
+        }
+
+        void Hold(SKBitmap bmp)
+        {
             // Both caches, because a pass list mixes their bitmaps: layer rasters
             // belong to the frame cache and flattened tiles to the flatten cache
             // (B167 phase 2). Asking which owns a given bitmap would be a third
@@ -2011,6 +2030,11 @@ public partial class MainViewModel
                 // as every publish did before phase 2.
                 if (!_tileFlats.Insert(tileSrc.Id, stamp, level, lvp, flat)) owned.Add(flat);
             }
+            // B392: held from here to the end of the publish. The next layer's
+            // Insert evicts by bytes, and an unpinned flat fetched for this
+            // layer would be freed before PinPasses ever saw it.
+            _tileFlats.Pin(flat);
+            _flatHolds.Add(flat);
 
             // Translate then scale, which is what the canvas did around the draw.
             var placement = SKMatrix.CreateScaleTranslation(
@@ -2074,6 +2098,7 @@ public partial class MainViewModel
     {
         var scene = Scene;
         var active = ActiveLayer;
+        using var hold = _cache.HoldFetches(); // B392
         var passes = new List<RenderPass>();
         for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {

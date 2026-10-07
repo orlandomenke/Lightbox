@@ -270,29 +270,79 @@ public class PsdImportTests(ITestOutputHelper output)
         Assert.False(Assert.Single(scene.LayerGroups).Visible);
     }
 
+    /// <summary>
+    /// Photoshop's nesting comes across as nesting (Q204): the inner folder sits
+    /// inside the outer one under its own name, and the layer inside both.
+    /// </summary>
+    /// <remarks>
+    /// This used to flatten — Lightbox folders were one level deep — keeping the
+    /// path in the name ("Character / Head") and folding an outer folder's
+    /// hidden state into each inner one. Folders nest now, and a folder's
+    /// visibility reaches everything inside it, so neither fold is needed.
+    /// </remarks>
     [Fact]
-    public void NestedFoldersFlattenAndKeepTheirPathInTheName()
+    public void NestedFoldersStayNested()
     {
-        // Lightbox folders are one level deep. Nesting is organisation rather
-        // than image, so it flattens and the path survives in the name.
         var bytes = new PsdFixture
         {
             Layers =
             {
                 PsdLayerFixture.Group("</outer>", 3),
+                PsdLayerFixture.Solid("Body", 2, 2, 2, a: 255),
                 PsdLayerFixture.Group("</inner>", 3),
                 PsdLayerFixture.Solid("Eye", 1, 1, 1, a: 255),
                 PsdLayerFixture.Group("Head", 1),
-                PsdLayerFixture.Group("Character", 1),
+                new PsdLayerFixture { Name = "Character", SectionType = 1, Visible = false },
             },
         }.Build();
 
         var scene = PsdDocumentImport.Open(bytes).Document.Scene;
 
-        output.WriteLine(string.Join(", ", scene.LayerGroups.ConvertAll(g => g.Name)));
-        Assert.Contains(scene.LayerGroups, g => g.Name.Contains("Head"));
-        var eye = Assert.Single(scene.Layers);
-        Assert.NotNull(eye.GroupId);
+        output.WriteLine(string.Join(", ", scene.LayerGroups.ConvertAll(g => $"{g.Name}<{g.ParentId}")));
+        var character = scene.LayerGroups.Single(g => g.Name == "Character");
+        var head = scene.LayerGroups.Single(g => g.Name == "Head");
+        Assert.Equal(character.Id, head.ParentId);
+        Assert.Null(character.ParentId);
+        Assert.True(head.Visible); // its own flag; the outer one hides it
+        var eye = scene.Layers.Single(l => l.Name == "Eye");
+        var body = scene.Layers.Single(l => l.Name == "Body");
+        Assert.Equal(head.Id, eye.GroupId);
+        Assert.Equal(character.Id, body.GroupId);
+        Assert.False(scene.IsLayerVisible(eye));
+    }
+
+    /// <summary>
+    /// An empty Photoshop folder is an empty folder here too, in its place; one
+    /// collapsed in Photoshop's panel opens collapsed.
+    /// </summary>
+    [Fact]
+    public void AnEmptyFolderComesAcrossInItsPlace_AndACollapsedOneStaysCollapsed()
+    {
+        var bytes = new PsdFixture
+        {
+            Layers =
+            {
+                PsdLayerFixture.Solid("Under", 1, 1, 1, a: 255),
+                PsdLayerFixture.Group("</Layer group>", 3),
+                PsdLayerFixture.Group("Spare", 1),
+                PsdLayerFixture.Solid("Over", 2, 2, 2, a: 255),
+                PsdLayerFixture.Group("</Layer group>", 3),
+                PsdLayerFixture.Solid("Tucked", 3, 3, 3, a: 255),
+                PsdLayerFixture.Group("Closed", 2),
+            },
+        }.Build();
+
+        var scene = PsdDocumentImport.Open(bytes).Document.Scene;
+
+        var rows = FolderTree.Rows(scene).Select(r => r.Item switch
+        {
+            LayerGroup g => $"[{g.Name}]",
+            Layer l => l.Name,
+            _ => "?",
+        });
+        Assert.Equal("[Closed] Tucked Over [Spare] Under", string.Join(" ", rows));
+        Assert.True(scene.LayerGroups.Single(g => g.Name == "Closed").Collapsed);
+        Assert.False(scene.LayerGroups.Single(g => g.Name == "Spare").Collapsed);
     }
 
     [Fact]

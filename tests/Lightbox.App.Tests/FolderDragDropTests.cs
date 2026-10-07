@@ -44,7 +44,7 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
         // directly: those are what rebuild the panel, and a test that reaches
         // past them is testing a docker nobody will ever see.
         vm.ActiveLayerIndex = 2;
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
         vm.MoveLayerIntoGroup(layers.Single(l => l.Name == "in b"), vm.Doc.Scene.LayerGroups[0]);
         return vm;
     }
@@ -71,9 +71,8 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
     [InlineData(1.0, LayerDropHint.Below)]
     public void ALayerRowSplitsInHalf(double fraction, LayerDropHint expected)
     {
-        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.LooseLayer, draggingFolder: false));
-        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.LooseLayer, draggingFolder: true));
-        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.GroupedLayer, draggingFolder: false));
+        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.LooseLayer));
+        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.GroupedLayer));
     }
 
     /// <summary>
@@ -93,7 +92,7 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
     [InlineData(0.76, LayerDropHint.Below)]
     [InlineData(0.95, LayerDropHint.Below)]
     public void AFolderHeaderOffersInsideAndBeside(double fraction, LayerDropHint expected) =>
-        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.CollapsedFolder, draggingFolder: false));
+        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.CollapsedFolder));
 
     /// <summary>
     /// Under an open header is the top of that folder, never "below the folder".
@@ -109,7 +108,7 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
     [InlineData(0.5, LayerDropHint.Into)]
     [InlineData(0.95, LayerDropHint.Into)]
     public void BelowAnOpenFolderHeaderIsInsideIt(double fraction, LayerDropHint expected) =>
-        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.OpenFolder, draggingFolder: false));
+        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.OpenFolder));
 
     /// <summary>
     /// The gaps between rows and the indent in front of folder members belong
@@ -131,26 +130,35 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
     }
 
     /// <summary>
-    /// A folder in hand never sees an <c>Into</c>, because folders do not nest.
+    /// A folder in hand goes into another folder like a layer does — and is
+    /// never offered its own inside (Q204).
     /// </summary>
     /// <remarks>
-    /// <c>Layer.GroupId</c> is a single id with no parent of its own, so there
-    /// is nothing for a folder to be filed into. Offering the zone would be a
-    /// gesture the drop has to refuse — feedback that promises something the
-    /// record cannot hold is worse than none.
+    /// This used to read the other way: folders did not nest, so a header never
+    /// offered <c>Into</c> to a carried folder. The owner asked for nesting;
+    /// the one drop left to refuse is a folder into itself, and that is decided
+    /// by trying the move, so the hint and the drop cannot disagree.
     /// </remarks>
-    [Theory]
-    [InlineData(0.1)]
-    [InlineData(0.5)]
-    [InlineData(0.9)]
-    public void AFolderInHandIsNeverOfferedAFolderToGoInside(double fraction)
+    [AvaloniaFact]
+    public void AFolderInHandGoesIntoAnotherFolder_ButNeverIntoItself()
     {
-        foreach (var target in Enum.GetValues<LayerDropTarget>())
-        {
-            Assert.NotEqual(LayerDropHint.Into, LayerDropPlan.Resolve(fraction, target, draggingFolder: true));
-        }
-        // And never between two members of another folder, which would split it.
-        Assert.Equal(LayerDropHint.None, LayerDropPlan.Resolve(fraction, LayerDropTarget.GroupedLayer, draggingFolder: true));
+        var vm = VmLayers.PaperVm();
+        vm.CreateLayerFolderCommand.Execute(null);
+        vm.CreateLayerFolderCommand.Execute(null);
+        var headers = vm.LayerPanelItems.OfType<GroupRow>().ToList();
+        Assert.Equal(2, headers.Count);
+        var (upper, lower) = (headers[0], headers[1]);
+
+        var hint = vm.LayerDropHintFor(lower, upper, 0.5);
+        Assert.Equal(LayerDropHint.Into, hint);
+        vm.DropOnLayerPanel(lower, upper, hint);
+        Assert.Equal(upper.Group.Id, lower.Group.ParentId);
+
+        // Now the outer one, carried onto the folder inside it: refused, and
+        // no line is drawn for it.
+        var inner = vm.LayerPanelItems.OfType<GroupRow>().Single(h => h.Group.Id == lower.Group.Id);
+        var outer = vm.LayerPanelItems.OfType<GroupRow>().Single(h => h.Group.Id == upper.Group.Id);
+        Assert.Equal(LayerDropHint.None, vm.LayerDropHintFor(outer, inner, 0.5));
     }
 
     // ---- moving the block ----------------------------------------------------
@@ -197,7 +205,7 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
         var vm = Stacked();
         // A second folder holding "over", made the way the app makes one.
         vm.ActiveLayerIndex = vm.Doc.Scene.Layers.FindIndex(l => l.Name == "over");
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
         var second = vm.Doc.Scene.LayerGroups[^1];
 
         vm.DropGroupBeside(second, Row(vm, "in a"), above: false);

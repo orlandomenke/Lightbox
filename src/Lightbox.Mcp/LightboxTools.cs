@@ -47,9 +47,11 @@ public static class LightboxTools
 
     [McpServerTool(Name = "get_scene"), Description(
         "Get the Lightbox scene: canvas size, fps, frame count, current frame, " +
-        "and the layers (id, name, kind, visibility, which frames are keyed, " +
+        "and the layers (id, name, kind, visibility, which frames are keyed, the folderId it is in, " +
         "and the carve/effect state: hasMask, clipped, isAdjustment, " +
-        "hasEffects — render_frame already shows all of them applied). " +
+        "hasEffects — render_frame already shows all of them applied), and, " +
+        "when there are any, the folders topmost first (id, name, parentId, " +
+        "visible, locked, empty). " +
         "Call this first to orient yourself. It also reports which builds you " +
         "are talking to: appBuild is the running Lightbox, mcpBuild is this " +
         "server. If they disagree, or mcpBuild is missing entirely, this server " +
@@ -280,6 +282,48 @@ public static class LightboxTools
         CancellationToken ct,
         [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null) =>
         Text("set_exposure_step", new { from, to, step, layerId }, ct);
+
+    [McpServerTool(Name = "create_folder"), Description(
+        "Make an empty layer folder: at the top of the stack, or at the top inside " +
+        "another folder (inFolderId, from get_scene's folders). A folder groups layers " +
+        "and other folders; hiding or locking it hides or locks everything inside. " +
+        "Returns folderId. Refused inside a locked folder. One undo step.")]
+    public static Task<string> CreateFolder(
+        CancellationToken ct,
+        [Description("Folder name; omit for the next free \"Folder n\"")] string? name = null,
+        [Description("Folder id to create it inside; omit for the top level")] string? inFolderId = null) =>
+        Text("create_folder", new { name, inFolderId }, ct);
+
+    [McpServerTool(Name = "move_to_folder"), Description(
+        "Put a layer or a folder (with everything in it) at the TOP inside the folder " +
+        "folderId. folderId is REQUIRED to file into a folder; OMITTING it takes the " +
+        "item OUT of every folder instead, to sit just above the folder it was in. " +
+        "Landing at a folder's top can pass other layers, which changes the stacking " +
+        "and so the picture on every frame: such a move is refused, naming the layers " +
+        "it would pass, unless reorder is true. Also refused for a locked layer or " +
+        "folder, into a locked folder, a folder into itself, or nesting deeper than " +
+        "32. Returns the folderId it ended up in and reordered (whether the stacking " +
+        "changed). One undo step.")]
+    public static Task<string> MoveToFolder(
+        [Description("Layer or folder id from get_scene")] string id,
+        CancellationToken ct,
+        [Description("Destination folder id. Omit ONLY to move the item out of every folder")] string? folderId = null,
+        [Description("Allow a move that changes the stacking (and so the picture); default false")] bool reorder = false) =>
+        Text("move_to_folder", new { id, folderId, reorder }, ct);
+
+    [McpServerTool(Name = "group_layers"), Description(
+        "Put layers and folders into a new folder where the topmost of them is. " +
+        "Items that are next to each other in the stack group without changing " +
+        "anything you can see. Items with other layers between them have to be " +
+        "gathered into one run, which changes the stacking and so the picture: " +
+        "that is refused, naming the layers in between, unless reorder is true. " +
+        "Refused for a locked item. Returns folderId and reordered. One undo step.")]
+    public static Task<string> GroupLayers(
+        [Description("Layer and folder ids from get_scene")] string[] ids,
+        CancellationToken ct,
+        [Description("Folder name; omit for the next free \"Folder n\"")] string? name = null,
+        [Description("Allow gathering items that are apart (changes the picture); default false")] bool reorder = false) =>
+        Text("group_layers", new { ids, name, reorder }, ct);
 
     [McpServerTool(Name = "list_reference_views"), Description(
         "List the document's character sheets and their views (id, name, size). " +

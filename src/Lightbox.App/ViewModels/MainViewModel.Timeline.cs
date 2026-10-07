@@ -810,7 +810,7 @@ public partial class MainViewModel
         {
             return null;
         }
-        return layer.Locked ? layer.Name : Scene.GroupOf(layer)?.Name ?? layer.Name;
+        return layer.Locked ? layer.Name : FolderTree.LockedFolderOf(Scene, layer)?.Name ?? layer.Name;
     }
 
     /// <summary>
@@ -833,7 +833,7 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// <b>Insert blank frame</b>: a hold goes in <em>at</em> the cel, so the new
+    /// <b>Insert empty cell</b> (Q196's <i>Insert blank frame</i>): a hold goes in <em>at</em> the cel, so the new
     /// cel shows the drawing before it and the cel and the rest of its row move
     /// right. A run of n selected cels inserts n holds at its start. When the
     /// selection is a column it is a column insert — every layer, the paper
@@ -873,6 +873,40 @@ public partial class MainViewModel
         ClearCelRange(); // the indices it held have shifted out from under it
         ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
+        RefreshThumbnails();
+    }
+
+    /// <summary>
+    /// <b>Insert blank keyframe</b>: every empty cel in the selection becomes a
+    /// keyframe with nothing drawn on it — a white cel, the sheet of paper before
+    /// the first mark. Drawn cels are left as they are. One undo step.
+    /// </summary>
+    /// <remarks>
+    /// Unlike the other three verbs this reaches past the end of the scene: a
+    /// key there is an edit that lands, the same as drawing there (Q103), so the
+    /// scene grows to it. Pushing frames along past the end has nothing to push,
+    /// which is why Insert empty cell refuses there and this does not.
+    /// </remarks>
+    public void InsertBlankKeyframeAt(FrameCell cell)
+    {
+        var picks = new List<(Layer Layer, int Index)>();
+        foreach (var layerIndex in OpLayersFor(cell))
+        {
+            if (LayerAt(layerIndex) is not { } layer) continue;
+            foreach (var i in OpCelsOn(cell, layerIndex))
+            {
+                if (i >= 0) picks.Add((layer, i));
+            }
+        }
+        var editable = EditablePicks(picks, "insert a blank keyframe on it");
+        if (editable.Count == 0) return;
+        if (_editor.KeyBlankCels(editable) == 0)
+        {
+            AiStatus = picks.Count == 1
+                ? "That cel already has a drawing — Delete it first to start it blank."
+                : "Every cel picked already has a drawing — a blank keyframe goes on an empty cel.";
+            return;
+        }
         RefreshThumbnails();
     }
 
@@ -1041,6 +1075,11 @@ public partial class MainViewModel
         if (SelectionOrCurrentCell() is { } cell) InsertBlankFrameAt(cell);
     }
 
+    public void InsertBlankKeyframeAtPlayhead()
+    {
+        if (SelectionOrCurrentCell() is { } cell) InsertBlankKeyframeAt(cell);
+    }
+
     /// <summary>
     /// A cel inside the selection (the playhead's, when it is one of them), or
     /// the playhead's cel when nothing is selected — the anchor that makes an
@@ -1129,22 +1168,75 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>Shift+click: select the contiguous run from the anchor cel to this one.</summary>
+    /// <summary>
+    /// Shift+click: select the block from the anchor cel to this one — every
+    /// frame between them on every row between them, as a spreadsheet does.
+    /// </summary>
     /// <remarks>
-    /// The run <em>replaces</em> the selection rather than adding to it, which is
-    /// what makes Shift a way to correct an overshoot: click 4, Shift+click 20,
-    /// then Shift+click 12 and the selection is 4–12 rather than 4–20 with a
+    /// <para>
+    /// The block <em>replaces</em> the selection rather than adding to it, which
+    /// is what makes Shift a way to correct an overshoot: click 4, Shift+click
+    /// 20, then Shift+click 12 and the selection is 4–12 rather than 4–20 with a
     /// second run bolted on. Ctrl is the additive gesture; Shift is the ranging
     /// one, and giving both the same job would leave no way to shrink a run.
+    /// </para>
+    /// <para>
+    /// <b>Across rows since Q207.</b> It used to range along one row and drop
+    /// the anchor when the click landed on another, so a block over several
+    /// layers had to be Ctrl+clicked a cel at a time — the selection the X-sheet
+    /// deletes and the animation-aware tools are meant to act on.
+    /// </para>
     /// </remarks>
     public void RangeSelectTo(FrameCell cell)
     {
         if (cell.IsVirtual) return;
-        var anchor = _celAnchor.Layer == cell.LayerIndex ? _celAnchor : (cell.LayerIndex, cell.Index);
-        _keySelection.Clear();
-        for (var i = Math.Min(anchor.Index, cell.Index); i <= Math.Max(anchor.Index, cell.Index); i++)
+        var anchor = _celAnchor;
+        if (RowPosition(anchor.Layer) < 0) anchor = (cell.LayerIndex, cell.Index);
+        SelectBlock(anchor, (cell.LayerIndex, cell.Index));
+    }
+
+    /// <summary>
+    /// A drag across the sheet (Q207): the block from the cel the press landed
+    /// on to the one under the pointer now. The press cel becomes the anchor, so
+    /// a Shift+click afterwards resizes the same block.
+    /// </summary>
+    public void DragSelectTo(FrameCell from, FrameCell to)
+    {
+        if (from.IsVirtual) return;
+        _celAnchor = (from.LayerIndex, from.Index);
+        SelectBlock(_celAnchor, (to.LayerIndex, to.Index));
+    }
+
+    /// <summary>Where a scene layer sits among the sheet's rows, or -1.</summary>
+    private int RowPosition(int sceneLayer)
+    {
+        for (var r = 0; r < LayerRows.Count; r++)
         {
-            _keySelection.Add(TimelineKey.Cel(cell.LayerIndex, i));
+            if (LayerRows[r].SceneIndex == sceneLayer) return r;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Select every cel in the rectangle between two corners, in the sheet's row
+    /// order — which is the order on screen, not the scene's stacking order.
+    /// </summary>
+    /// <remarks>
+    /// Frames past the end of the scene are left out: there is no cel there to
+    /// act on (Q103), so a block dragged into the hatch stops at its edge.
+    /// </remarks>
+    private void SelectBlock((int Layer, int Index) a, (int Layer, int Index) b)
+    {
+        var ra = RowPosition(a.Layer);
+        var rb = RowPosition(b.Layer);
+        if (ra < 0 || rb < 0) return;
+        var first = Math.Min(a.Index, b.Index);
+        var last = Math.Min(Math.Max(a.Index, b.Index), Scene.FrameCount - 1);
+        _keySelection.Clear();
+        for (var r = Math.Min(ra, rb); r <= Math.Max(ra, rb); r++)
+        {
+            var layer = LayerRows[r].SceneIndex;
+            for (var i = first; i <= last; i++) _keySelection.Add(TimelineKey.Cel(layer, i));
         }
         RefreshTimelineSelection();
     }

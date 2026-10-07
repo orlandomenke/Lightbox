@@ -137,12 +137,12 @@ public class ProjectSaveAfterUndoTests(ITestOutputHelper output) : IDisposable
         var layer = vm.Doc.Scene.Layers.First(l => !l.IsBackground);
         ExposureSheet.ExposedFrame(layer, 0)!.Strokes.Add(
             new Stroke { Points = [new StrokePoint(10, 10, 1), new StrokePoint(20, 20, 1)] });
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
         vm.UndoCommand.Execute(null);
 
         ExposureSheet.ExposedFrame(vm.Doc.Scene.Layers.First(l => !l.IsBackground), 0)!.Strokes.Add(
             new Stroke { Points = [new StrokePoint(30, 30, 1), new StrokePoint(40, 40, 1)] });
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
 
         vm.SaveProject();
 

@@ -153,7 +153,7 @@ public class MainMenuShapeTests(ITestOutputHelper output) : BrushStateIsolated
         var layer = TopLevel(window, "La_yer").Items.OfType<MenuItem>().ToList();
         output.WriteLine(string.Join(" | ", layer.Select(i => i.Header)));
         Assert.Equal(
-            ["_New layer", "New _folder with this layer", "Move _up", "Move _down", "Merge do_wn",
+            ["_New layer", "New _folder", "_Group layers", "Move _up", "Move _down", "Merge do_wn",
              "_Visible", "_Locked", "Lock _transparency",
              "_Select layer contents", "_Blank layer content", "Delete la_yer"],
             layer.Select(i => i.Header as string).ToList());
@@ -169,7 +169,7 @@ public class MainMenuShapeTests(ITestOutputHelper output) : BrushStateIsolated
         output.WriteLine(string.Join(" | ", animation.Select(i => i.Header)));
         Assert.Equal(
             ["_Play / pause", "P_revious key drawing", "_Next key drawing",
-             "Insert _keyframe", "Insert _breakdown", "Insert _inbetween frame", "Insert blank _frame",
+             "Insert _keyframe", "Insert _breakdown", "Insert _inbetween frame", "Insert empt_y cell", "Insert blank key_frame",
              "_Extend exposure (+1 hold)", "Re_duce exposure (−1 hold)",
              "_Copy cel", "Cu_t cel", "Pa_ste cel", "De_lete", "Delete and p_ull",
              "_Onion skin", "Keyed dra_wings only", "_Motion trail",

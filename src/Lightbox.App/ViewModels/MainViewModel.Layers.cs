@@ -100,13 +100,21 @@ public partial class MainViewModel
     /// Move a layer toward the viewer (+1) or away (−1), keeping it active —
     /// or the whole selection when this layer is inside it, as one step.
     /// </summary>
+    /// <remarks>
+    /// One layer steps past its neighbour in its own folder, a whole folder at a
+    /// time, and at the edge of its folder it steps out of it (Q204). A
+    /// selection still shifts as a block on the flat list.
+    /// </remarks>
     internal void MoveLayer(LayerRow row, int delta)
     {
         var id = row.Layer.Id;
         var targets = LayersForOp(row.Layer);
         if (targets.Count == 1)
         {
-            _editor.MoveLayer(id, delta);
+            if (StepTarget(row.Layer, delta) is { } step)
+            {
+                StackEdit(scene => FolderTree.Move(scene, [StackRef.Of(row.Layer)], step.Target, step.Where), "Move layer");
+            }
         }
         else
         {
@@ -121,33 +129,43 @@ public partial class MainViewModel
         ActivateWithinSelection(Scene.Layers.FindIndex(l => l.Id == id));
     }
 
+    /// <summary>Where one ▲/▼ step takes a layer: past its neighbour in its container, or out of its folder.</summary>
+    private (StackRef Target, StackDrop Where)? StepTarget(Layer layer, int delta)
+    {
+        var container = FolderTree.ContainerOf(Scene, layer);
+        var siblings = FolderTree.Rows(Scene)
+            .Select(r => r.Item)
+            .Where(item => FolderTree.ContainerOf(Scene, item)?.Id == container?.Id)
+            .ToList(); // topmost first
+        var at = siblings.IndexOf(layer);
+        var next = delta > 0 ? at - 1 : at + 1;
+        if (next >= 0 && next < siblings.Count)
+        {
+            return (StackRef.Of(siblings[next]), delta > 0 ? StackDrop.Above : StackDrop.Below);
+        }
+        return container is null ? null : (StackRef.Of(container), delta > 0 ? StackDrop.Above : StackDrop.Below);
+    }
+
     /// <summary>
-    /// Whether a drop may go ahead, given the paper.
+    /// Run a stack edit as one undo step — after trying it on a skeleton of the
+    /// stack, so a refusal says why and a move that changes nothing records
+    /// nothing.
     /// </summary>
     /// <remarks>
-    /// The paper is the desk the drawings lie on, not one of them: it is the
-    /// bottom of the stack and locked, which is what makes everything paint
-    /// over it (<c>BackgroundLayerTests</c>). The ▲/▼ buttons never threatened
-    /// that — they step one place and the paper is already at the end — but a
-    /// drag can drop anything anywhere, so the rule has to be said out loud
-    /// here. Refusing silently rather than clamping: a drop that quietly did
-    /// something other than what the pointer said would be worse than one that
-    /// does nothing, and the row does not move under the cursor to suggest it.
+    /// <paramref name="edit"/> runs twice, on the skeleton and then on the
+    /// document, so anything it creates is created inside it.
     /// </remarks>
-    private bool CanReorderPastPaper(Layer dragged, Layer target, bool above)
+    private bool StackEdit(Func<Scene, string?> edit, string label, bool frameContentUnchanged = true)
     {
-        if (dragged.IsBackground)
+        var trial = FolderTree.Skeleton(Scene);
+        if (edit(trial) is { } why)
         {
-            AiStatus = $"“{dragged.Name}” is the paper — it stays at the bottom of the stack.";
+            if (why.Length > 0) AiStatus = why;
             return false;
         }
-        // Landing under the paper is the same displacement seen from the other
-        // side, and it is the one an artist reaches by dragging *down*.
-        if (target.IsBackground && !above)
-        {
-            AiStatus = $"“{target.Name}” is the paper — nothing goes under it.";
-            return false;
-        }
+        FolderTree.Settle(trial, Scene); // as Perform will, so the trial judges what the edit really does
+        if (FolderTree.Signature(trial) == FolderTree.Signature(Scene)) return false;
+        _editor.Perform(doc => edit(doc.Scene), label: label, frameContentUnchanged: frameContentUnchanged);
         return true;
     }
 
@@ -178,169 +196,66 @@ public partial class MainViewModel
         if (ActiveLayerRow() is { } row) SelectLayerAlpha(row, add: false, subtract: false);
     }
 
+    // ---- dragging in the docker ---------------------------------------------------
+
     /// <summary>
-    /// Drop a dragged layer beside another row — visually above it (toward the
-    /// viewer) or below. The layer adopts the target's folder, so dragging into
-    /// a folder's block joins the folder and dragging out to a loose row leaves
-    /// it. One undo step.
+    /// What a drag carries: the selection when the dragged row is in it, the
+    /// row alone otherwise.
     /// </summary>
-    /// <remarks>
-    /// The panel lists topmost first while <c>Scene.Layers</c> stores bottom
-    /// first, so "above the target on screen" is "after the target in the
-    /// list" — the same inversion the ▲/▼ buttons already encode as +1 up.
-    /// </remarks>
-    internal void DropLayerOnRow(LayerRow draggedRow, LayerRow targetRow, bool above)
+    private List<StackRef> CarriedItems(object carried)
     {
-        var dragged = draggedRow.Layer;
-        var target = targetRow.Layer;
-        if (dragged.Id == target.Id) return;
-        if (!CanReorderPastPaper(dragged, target, above)) return;
-        if (dragged.GroupId == target.GroupId && !ReorderChanges([dragged.Id], target.Id, above)) return;
-        _editor.Perform(doc =>
+        var inSelection = carried switch
         {
-            var layers = doc.Scene.Layers;
-            var from = layers.FindIndex(l => l.Id == dragged.Id);
-            if (from < 0) return;
-            var layer = layers[from];
-            layers.RemoveAt(from);
-            var at = layers.FindIndex(l => l.Id == target.Id);
-            if (at < 0)
-            {
-                layers.Insert(from, layer); // target vanished mid-drag: put it back
-                return;
-            }
-            layers.Insert(above ? at + 1 : at, layer);
-            layer.GroupId = target.GroupId;
-        }, label: "Move layer", frameContentUnchanged: true);
-        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == dragged.Id);
-    }
-
-    /// <summary>
-    /// Drop a dragged folder beside a row or another folder: the whole block
-    /// moves, keeping its own order, and lands above or below the target's
-    /// block. One undo step.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>Blocks, not rows, on both sides.</b> A folder is a run of layers
-    /// sharing a <c>GroupId</c>, and <c>RebuildLayerPanel</c> emits its header
-    /// where the first member appears — so a folder split around another layer
-    /// would draw one header with its members scattered under it. Landing beside
-    /// a <em>member</em> of some other folder therefore has to mean beside that
-    /// folder, not between two of its layers; anything else quietly breaks the
-    /// panel it is being dragged in.
-    /// </para>
-    /// <para>
-    /// <b>Nothing is filed into anything.</b> <c>Layer.GroupId</c> is one id, so
-    /// folders do not nest — a dragged folder passes other folders and never
-    /// joins them, which is why <see cref="LayerDropPlan"/> gives a header no
-    /// <c>Into</c> zone while one is in hand.
-    /// </para>
-    /// </remarks>
-    internal void DropGroupBeside(LayerGroup dragged, object target, bool above)
-    {
-        var moving = Scene.Layers.Where(l => l.GroupId == dragged.Id).ToList();
-        if (moving.Count == 0) return;
-        if (TargetBlock(target) is not { Count: > 0 } block) return;
-        if (block[0].GroupId == dragged.Id) return; // dropped on itself
-        if (!CanReorderPastPaper(moving[0], above ? block[^1] : block[0], above)) return;
-
-        var movingIds = moving.Select(l => l.Id).ToHashSet();
-        var anchorId = above ? block[^1].Id : block[0].Id;
-        if (!ReorderChanges(movingIds, anchorId, above)) return;
-        _editor.Perform(doc =>
+            LayerRow r => r.IsSelected && HasMultiLayerSelection,
+            GroupRow g => g.IsSelected && _selectedLayerIds.Any(id =>
+                Scene.Layers.FirstOrDefault(l => l.Id == id) is { } l && !FolderTree.IsWithin(Scene, l, g.Group)),
+            _ => false,
+        };
+        if (inSelection) return SelectedStackItems();
+        return carried switch
         {
-            var layers = doc.Scene.Layers;
-            var run = layers.Where(l => movingIds.Contains(l.Id)).ToList();
-            if (run.Count == 0) return;
-            layers.RemoveAll(l => movingIds.Contains(l.Id));
-            var at = layers.FindIndex(l => l.Id == anchorId);
-            if (at < 0)
+            LayerRow r => [StackRef.Of(r.Layer)],
+            GroupRow g => [StackRef.Of(g.Group)],
+            _ => [],
+        };
+    }
+
+    /// <summary>
+    /// The selection as stack items, topmost first: the picked folder, and each
+    /// selected layer that is not inside it.
+    /// </summary>
+    internal List<StackRef> SelectedStackItems()
+    {
+        var folder = SelectedGroup;
+        var items = new List<StackRef>();
+        foreach (var row in FolderTree.Rows(Scene))
+        {
+            switch (row.Item)
             {
-                // The anchor went away mid-drag. Putting the folder back where
-                // it was is the only answer that cannot be wrong.
-                layers.AddRange(run);
-                return;
+                case LayerGroup g when g.Id == folder?.Id && !row.Continued:
+                    items.Add(StackRef.Of(g));
+                    break;
+                case Layer l when _selectedLayerIds.Contains(l.Id)
+                                  && (folder is null || !FolderTree.IsWithin(Scene, l, folder)):
+                    items.Add(StackRef.Of(l));
+                    break;
             }
-            layers.InsertRange(above ? at + 1 : at, run);
-        }, label: "Move folder", frameContentUnchanged: true);
-        ActiveLayerIndex = Scene.Layers.FindIndex(l => movingIds.Contains(l.Id));
+        }
+        return items;
     }
 
-    /// <summary>
-    /// Whether lifting <paramref name="moving"/> out of the stack and putting
-    /// it back beside <paramref name="anchorId"/> would change the order.
-    /// </summary>
-    /// <remarks>
-    /// A drop beside a row's own neighbour, on the side it already sits, moves
-    /// nothing — and used to be an undo step, a dirty document and a panel
-    /// rebuild anyway. Measuring every row of the docker makes such a drop
-    /// easy to make, so it is now refused before it is recorded.
-    /// </remarks>
-    private bool ReorderChanges(IReadOnlyCollection<string> moving, string anchorId, bool above)
+    /// <summary>The drop a hint on a row stands for, as a move.</summary>
+    private (StackRef Target, StackDrop Where)? DropSpec(object target, LayerDropHint hint) => (target, hint) switch
     {
-        var before = Scene.Layers.Select(l => l.Id).ToList();
-        var rest = before.Where(id => !moving.Contains(id)).ToList();
-        var at = rest.IndexOf(anchorId);
-        if (at < 0) return false;
-        rest.InsertRange(above ? at + 1 : at, before.Where(moving.Contains));
-        return !rest.SequenceEqual(before);
-    }
-
-    /// <summary>
-    /// The run of layers a drop target stands for, bottom-first: a folder's
-    /// members for a header or a grouped row, and the row itself for a loose
-    /// one.
-    /// </summary>
-    private List<Layer>? TargetBlock(object target) => target switch
-    {
-        GroupRow header => Scene.Layers.Where(l => l.GroupId == header.Group.Id).ToList(),
-        LayerRow row when row.Layer.GroupId is { } id =>
-            Scene.Layers.Where(l => l.GroupId == id).ToList(),
-        LayerRow row => [row.Layer],
+        (LayerRow r, LayerDropHint.BelowFolder) when FolderTree.Folder(Scene, r.Layer.GroupId) is { } home =>
+            (StackRef.Of(home), StackDrop.Below),
+        (LayerRow r, LayerDropHint.Above) => (StackRef.Of(r.Layer), StackDrop.Above),
+        (LayerRow r, LayerDropHint.Below) => (StackRef.Of(r.Layer), StackDrop.Below),
+        (GroupRow g, LayerDropHint.Into) => (StackRef.Of(g.Group), StackDrop.Into),
+        (GroupRow g, LayerDropHint.Above) => (StackRef.Of(g.Group), StackDrop.Above),
+        (GroupRow g, LayerDropHint.Below or LayerDropHint.BelowFolder) => (StackRef.Of(g.Group), StackDrop.Below),
         _ => null,
     };
-
-    /// <summary>
-    /// Drop a dragged layer beside a folder header — above or below the whole
-    /// folder rather than into it.
-    /// </summary>
-    /// <remarks>
-    /// The header's outer quarters, where <see cref="LayerDropPlan"/> says
-    /// <c>Above</c> or <c>Below</c> rather than <c>Into</c>. Without this the
-    /// only thing a header could do was swallow what was dropped on it, so
-    /// putting a layer immediately above a folder meant aiming at the last row
-    /// of whatever was above it.
-    /// </remarks>
-    internal void DropLayerBesideGroup(LayerRow draggedRow, GroupRow header, bool above)
-    {
-        var dragged = draggedRow.Layer;
-        var block = Scene.Layers.Where(l => l.GroupId == header.Group.Id).ToList();
-        if (block.Count == 0) return;
-        if (dragged.GroupId == header.Group.Id && block.Count == 1) return;
-        var anchor = above ? block[^1] : block[0];
-        if (!CanReorderPastPaper(dragged, anchor, above)) return;
-        var anchorId = anchor.Id;
-        if (dragged.GroupId is null && !ReorderChanges([dragged.Id], anchorId, above)) return;
-        _editor.Perform(doc =>
-        {
-            var layers = doc.Scene.Layers;
-            var from = layers.FindIndex(l => l.Id == dragged.Id);
-            if (from < 0) return;
-            var layer = layers[from];
-            layers.RemoveAt(from);
-            var at = layers.FindIndex(l => l.Id == anchorId);
-            if (at < 0)
-            {
-                layers.Insert(from, layer);
-                return;
-            }
-            layers.Insert(above ? at + 1 : at, layer);
-            // Beside a folder is outside it, whichever folder it came from.
-            layer.GroupId = null;
-        }, label: "Move layer", frameContentUnchanged: true);
-        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == dragged.Id);
-    }
 
     /// <summary>What kind of row a docker item is, as far as a drop cares.</summary>
     internal LayerDropTarget LayerDropTargetOf(object item)
@@ -348,14 +263,17 @@ public partial class MainViewModel
         switch (item)
         {
             case GroupRow header:
-                return header.Group.Collapsed ? LayerDropTarget.CollapsedFolder : LayerDropTarget.OpenFolder;
-            case LayerRow { Layer.GroupId: { } groupId } row:
+                // An empty folder has no members to aim below, so like a closed
+                // one it takes a drop below itself on its own row.
+                return header.Group.Collapsed || FolderTree.SubtreeLayers(Scene, header.Group).Count == 0
+                       && !Scene.LayerGroups.Any(g => g.ParentId == header.Group.Id)
+                    ? LayerDropTarget.CollapsedFolder
+                    : LayerDropTarget.OpenFolder;
+            case LayerRow { Depth: > 0 } row:
                 var at = LayerPanelItems.IndexOf(row);
                 var next = at >= 0 && at + 1 < LayerPanelItems.Count ? LayerPanelItems[at + 1] : null;
-                if (next is LayerRow { Layer.GroupId: { } nextGroup } && nextGroup == groupId)
-                {
-                    return LayerDropTarget.GroupedLayer;
-                }
+                var nextDepth = next switch { LayerRow r => r.Depth, GroupRow g => g.Depth, _ => -1 };
+                if (nextDepth >= row.Depth) return LayerDropTarget.GroupedLayer;
                 return next is null ? LayerDropTarget.BottomGroupedLayer : LayerDropTarget.LastGroupedLayer;
             default:
                 return LayerDropTarget.LooseLayer;
@@ -365,35 +283,18 @@ public partial class MainViewModel
     /// <summary>
     /// What dropping <paramref name="carried"/> on <paramref name="target"/>,
     /// <paramref name="fraction"/> of the way down it, would do — or None when
-    /// it would do nothing, so no line is drawn that the drop then declines.
+    /// it would do nothing or be refused, so no line is drawn that the drop
+    /// then declines.
     /// </summary>
     internal LayerDropHint LayerDropHintFor(object carried, object target, double fraction)
     {
         if (ReferenceEquals(carried, target)) return LayerDropHint.None;
-        var kind = LayerDropTargetOf(target);
-        switch (carried)
-        {
-            case GroupRow folder:
-                // On its own header or its own members: the move that means nothing.
-                if (target is GroupRow h && h.Group.Id == folder.Group.Id) return LayerDropHint.None;
-                if (target is LayerRow m && m.Layer.GroupId == folder.Group.Id) return LayerDropHint.None;
-                var forFolder = LayerDropPlan.Resolve(fraction, kind, draggingFolder: true);
-                if (forFolder == LayerDropHint.Below && target is LayerRow { Layer.IsBackground: true })
-                {
-                    return LayerDropHint.None;
-                }
-                return forFolder;
-            case LayerRow row:
-                if (row.Layer.IsBackground) return LayerDropHint.None; // the paper never moves
-                var hint = LayerDropPlan.Resolve(fraction, kind, draggingFolder: false);
-                if (hint == LayerDropHint.Below && target is LayerRow { Layer.IsBackground: true })
-                {
-                    return LayerDropHint.None; // nothing goes under the paper
-                }
-                return hint;
-            default:
-                return LayerDropHint.None;
-        }
+        var hint = LayerDropPlan.Resolve(fraction, LayerDropTargetOf(target));
+        if (DropSpec(target, hint) is not { } drop) return LayerDropHint.None;
+        var trial = FolderTree.Skeleton(Scene);
+        if (FolderTree.Move(trial, CarriedItems(carried), drop.Target, drop.Where) is not null) return LayerDropHint.None;
+        FolderTree.Settle(trial, Scene);
+        return FolderTree.Signature(trial) == FolderTree.Signature(Scene) ? LayerDropHint.None : hint;
     }
 
     /// <summary>
@@ -402,27 +303,41 @@ public partial class MainViewModel
     /// </summary>
     internal void DropOnLayerPanel(object carried, object target, LayerDropHint hint)
     {
-        if (hint == LayerDropHint.None) return;
-        var above = hint == LayerDropHint.Above;
-        switch (carried, target)
+        if (DropSpec(target, hint) is not { } drop) return;
+        var items = CarriedItems(carried);
+        var label = items.Count > 1 ? "Move layers" : items[0].IsFolder ? "Move folder" : "Move layer";
+        if (!StackEdit(scene => FolderTree.Move(scene, items, drop.Target, drop.Where), label)) return;
+        if (items.FirstOrDefault(i => !i.IsFolder) is { } moved)
         {
-            case (GroupRow folder, _):
-                DropGroupBeside(folder.Group, target, above);
-                break;
-            case (LayerRow row, LayerRow { Layer.GroupId: { } groupId }) when hint == LayerDropHint.BelowFolder:
-                if (_groupRows.TryGetValue(groupId, out var home)) DropLayerBesideGroup(row, home, above: false);
-                break;
-            case (LayerRow row, LayerRow onto):
-                DropLayerOnRow(row, onto, above);
-                break;
-            case (LayerRow row, GroupRow header) when hint == LayerDropHint.Into:
-                MoveLayerIntoGroup(row.Layer, header.Group);
-                break;
-            case (LayerRow row, GroupRow header):
-                DropLayerBesideGroup(row, header, above);
-                break;
+            var index = Scene.Layers.FindIndex(l => l.Id == moved.Id);
+            if (items.Count > 1) ActivateWithinSelection(index);
+            else ActiveLayerIndex = index;
         }
     }
+
+    /// <summary>Drop a dragged layer above or below another row. Kept for the gesture's callers and tests.</summary>
+    internal void DropLayerOnRow(LayerRow draggedRow, LayerRow targetRow, bool above) =>
+        DropOnLayerPanel(draggedRow, targetRow, above ? LayerDropHint.Above : LayerDropHint.Below);
+
+    /// <summary>Drop a dragged folder above or below a row or another folder.</summary>
+    internal void DropGroupBeside(LayerGroup dragged, object target, bool above)
+    {
+        if (!StackEdit(scene => FolderTree.Move(
+                scene, [StackRef.Of(dragged)],
+                target switch { GroupRow g => StackRef.Of(g.Group), LayerRow r => StackRef.Of(r.Layer), _ => StackRef.Of(dragged) },
+                above ? StackDrop.Above : StackDrop.Below), "Move folder"))
+        {
+            return;
+        }
+        if (FolderTree.SubtreeLayers(Scene, dragged).FirstOrDefault() is { } first)
+        {
+            ActiveLayerIndex = Scene.Layers.IndexOf(first);
+        }
+    }
+
+    /// <summary>Drop a dragged layer above or below a whole folder, outside it.</summary>
+    internal void DropLayerBesideGroup(LayerRow draggedRow, GroupRow header, bool above) =>
+        DropOnLayerPanel(draggedRow, header, above ? LayerDropHint.Above : LayerDropHint.Below);
 
     /// <summary>Clear every row's drop hint — called from every exit of a drag.</summary>
     internal void ClearLayerDropHints()
@@ -455,10 +370,13 @@ public partial class MainViewModel
 
     // ---- layer folders ----------------------------------------------------------
 
-    /// <summary>The docker's item list: folder headers followed by their (uncollapsed) member rows.</summary>
+    /// <summary>The docker's item list: folder headers and layer rows, topmost first, at their depths.</summary>
     public ObservableCollection<object> LayerPanelItems { get; } = [];
 
-    /// <summary>Folder headers by folder id, kept across rebuilds so their controls are too.</summary>
+    /// <summary>
+    /// Folder headers by folder id — and a second header of a folder split in
+    /// two by id and a count — kept across rebuilds so their controls are too.
+    /// </summary>
     private readonly Dictionary<string, GroupRow> _groupRows = [];
 
     /// <summary>
@@ -478,28 +396,42 @@ public partial class MainViewModel
     /// folders a reorder now changes nothing in this list at all. Headers are
     /// kept by folder id for the same reason.
     /// </para>
+    /// <para>
+    /// <b>The rows are <see cref="FolderTree.Rows"/>'s</b> (Q204): an empty
+    /// folder is a row like any other, and folders nest to any depth.
+    /// </para>
     /// </remarks>
     private void RebuildLayerPanel()
     {
-        var desired = new List<object>(LayerRows.Count + 4);
-        var emitted = new HashSet<string>();
-        foreach (var row in LayerRows) // topmost first
+        var byId = new Dictionary<string, LayerRow>();
+        foreach (var row in LayerRows) byId.TryAdd(row.Layer.Id, row);
+        var desired = new List<object>(LayerRows.Count + Scene.LayerGroups.Count);
+        var used = new HashSet<string>();
+        var repeats = new Dictionary<string, int>();
+        foreach (var line in FolderTree.Rows(Scene))
         {
-            var group = Scene.GroupOf(row.Layer);
-            if (group is null)
+            switch (line.Item)
             {
-                desired.Add(row);
-                continue;
+                case Layer layer when byId.TryGetValue(layer.Id, out var row):
+                    row.Depth = line.Depth;
+                    if (!line.Hidden) desired.Add(row);
+                    break;
+                case LayerGroup group:
+                    var key = group.Id;
+                    if (line.Continued)
+                    {
+                        repeats[group.Id] = repeats.GetValueOrDefault(group.Id) + 1;
+                        key = $"{group.Id}+{repeats[group.Id]}";
+                    }
+                    if (_groupRows.TryGetValue(key, out var header)) header.SyncFromModel(group);
+                    else _groupRows[key] = header = new GroupRow(this, group);
+                    header.Depth = line.Depth;
+                    used.Add(key);
+                    if (!line.Hidden) desired.Add(header);
+                    break;
             }
-            if (emitted.Add(group.Id))
-            {
-                if (_groupRows.TryGetValue(group.Id, out var header)) header.SyncFromModel(group);
-                else _groupRows[group.Id] = header = new GroupRow(this, group);
-                desired.Add(header);
-            }
-            if (!group.Collapsed) desired.Add(row);
         }
-        foreach (var gone in _groupRows.Keys.Where(id => !emitted.Contains(id)).ToList())
+        foreach (var gone in _groupRows.Keys.Where(id => !used.Contains(id)).ToList())
         {
             _groupRows.Remove(gone);
         }
@@ -549,27 +481,89 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>New folder containing the active layer — or every selected layer.</summary>
+    /// <summary>"Folder n" with the lowest n no folder in the document is using.</summary>
+    private string NextFolderName()
+    {
+        var taken = Scene.LayerGroups.Select(g => g.Name).ToHashSet();
+        var n = 1;
+        while (taken.Contains($"Folder {n}")) n++;
+        return $"Folder {n}";
+    }
+
+    /// <summary>The item a new folder goes directly above: the picked folder, else the active layer.</summary>
+    private StackRef? NewFolderAnchor() =>
+        SelectedGroup is { } group ? StackRef.Of(group)
+        : ActiveLayerIndex >= 0 && ActiveLayerIndex < Scene.Layers.Count ? StackRef.Of(Scene.Layers[ActiveLayerIndex])
+        : null;
+
+    /// <summary>
+    /// <b>New folder</b>: an empty folder directly above what is picked, in the
+    /// same folder — or at the top of the stack (Q204).
+    /// </summary>
+    /// <remarks>
+    /// Photoshop's <em>New Group</em> and Krita's <em>Add Group Layer</em>. It
+    /// used to wrap the active layer, which pulled a layer that was already in
+    /// a folder out of it and could empty — and so hide — the folder it left.
+    /// Wrapping is <see cref="GroupLayersCommand"/>.
+    /// </remarks>
     [RelayCommand]
     private void CreateLayerFolder()
     {
-        var ids = LayersForOp(ActiveLayer).Select(l => l.Id).ToHashSet();
-        _editor.Perform(doc =>
+        var anchor = NewFolderAnchor();
+        var name = NextFolderName();
+        var id = Ids.NewId("group");
+        if (!StackEdit(scene =>
+            {
+                FolderTree.AddFolder(scene, new LayerGroup { Id = id, Name = name }, anchor);
+                return null;
+            }, "New folder"))
         {
-            var group = new LayerGroup { Name = $"Folder {doc.Scene.LayerGroups.Count + 1}" };
-            doc.Scene.LayerGroups.Add(group);
-            foreach (var layer in doc.Scene.Layers.Where(l => ids.Contains(l.Id))) layer.GroupId = group.Id;
-        }, label: ids.Count == 1 ? "Create layer folder" : "Create folder from layers");
+            return;
+        }
+        PickFolder(id);
     }
 
-    /// <summary>Put the active layer into this folder (moved adjacent so the folder stays one block).</summary>
+    /// <summary>
+    /// <b>Group layers</b> (Ctrl+G): wrap the selection — layers and a picked
+    /// folder — in a new folder where the topmost of them was (Q204).
+    /// </summary>
+    /// <remarks>
+    /// Photoshop's <em>Group from Layers</em> and Krita's <em>Quick Group</em>.
+    /// A selection with gaps in it is gathered into one run, as both do; undo
+    /// puts the layers back.
+    /// </remarks>
+    [RelayCommand]
+    private void GroupLayers()
+    {
+        var items = SelectedStackItems();
+        if (items.Count == 0 && ActiveLayer is { } active) items = [StackRef.Of(active)];
+        var name = NextFolderName();
+        var id = Ids.NewId("group");
+        if (!StackEdit(
+                scene => FolderTree.Group(scene, new LayerGroup { Id = id, Name = name }, items),
+                items.Count == 1 ? "Group layer" : "Group layers"))
+        {
+            return;
+        }
+        PickFolder(id);
+    }
+
+    /// <summary>Pick a folder on its own, as clicking its header does.</summary>
+    private void PickFolder(string id)
+    {
+        if (LayerPanelItems.OfType<GroupRow>().FirstOrDefault(h => h.Group.Id == id) is { } header)
+        {
+            SelectGroup(header, toggle: false, range: false);
+        }
+    }
+
+    /// <summary>Put the active layer into this folder, at its top.</summary>
     [RelayCommand]
     private void AddActiveLayerToGroup(GroupRow header) => MoveLayerIntoGroup(ActiveLayer, header.Group);
 
     /// <summary>
-    /// Put a layer into a folder, moved to the top of the folder's block so the
-    /// folder stays contiguous. Shared by the header's ＋ button and dropping a
-    /// dragged row on the header.
+    /// Put a layer into a folder, at the top of it. Shared by the header's ＋
+    /// button and dropping a dragged row on the header.
     /// </summary>
     /// <remarks>
     /// A layer already in the folder still moves to its top: dropping a member
@@ -578,72 +572,101 @@ public partial class MainViewModel
     /// </remarks>
     internal void MoveLayerIntoGroup(Layer layer, LayerGroup group)
     {
-        if (layer.GroupId == group.Id
-            && Scene.Layers.LastOrDefault(l => l.GroupId == group.Id)?.Id == layer.Id) return;
-        if (layer.IsBackground)
+        if (!StackEdit(
+                scene => FolderTree.Move(scene, [StackRef.Of(layer)], StackRef.Of(group), StackDrop.Into),
+                "Move layer into folder"))
         {
-            // Filing the paper into a folder moves it up the stack to join that
-            // folder's block, which is the same displacement CanReorderPastPaper
-            // refuses by another route.
-            AiStatus = $"“{layer.Name}” is the paper — it stays at the bottom of the stack.";
             return;
         }
-        _editor.Perform(doc =>
-        {
-            var layers = doc.Scene.Layers;
-            layers.Remove(layer);
-            var top = -1;
-            for (var i = 0; i < layers.Count; i++)
-            {
-                if (layers[i].GroupId == group.Id) top = i;
-            }
-            if (top < 0)
-            {
-                layers.Add(layer); // empty folder: just append
-            }
-            else
-            {
-                layers.Insert(top + 1, layer); // top of the folder's block
-            }
-            layer.GroupId = group.Id;
-        });
         ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == layer.Id);
     }
 
-    /// <summary>Take a layer out of its folder (placed just above the folder's block).</summary>
+    /// <summary>Take a layer out of its folder, to sit just above the folder.</summary>
     [RelayCommand]
     private void RemoveLayerFromGroup(LayerRow row)
     {
         var layer = row.Layer;
-        if (layer.GroupId is null) return;
-        var groupId = layer.GroupId;
-        _editor.Perform(doc =>
+        if (FolderTree.Folder(Scene, layer.GroupId) is not { } home) return;
+        if (!StackEdit(
+                scene => FolderTree.Move(scene, [StackRef.Of(layer)], StackRef.Of(home), StackDrop.Above),
+                "Take layer out of folder"))
         {
-            var layers = doc.Scene.Layers;
-            layers.Remove(layer);
-            var top = -1;
-            for (var i = 0; i < layers.Count; i++)
-            {
-                if (layers[i].GroupId == groupId) top = i;
-            }
-            layers.Insert(top < 0 ? layers.Count : top + 1, layer);
-            layer.GroupId = null;
-        });
+            return;
+        }
         ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == layer.Id);
     }
 
-    /// <summary>Dissolve the folder: its layers stay, ungrouped.</summary>
+    /// <summary><b>Ungroup</b>: the folder goes and what was in it stays, in its place.</summary>
     [RelayCommand]
     private void DissolveGroup(GroupRow header)
     {
-        _editor.Perform(doc =>
+        var id = header.Group.Id;
+        StackEdit(scene =>
         {
-            foreach (var layer in doc.Scene.Layers)
+            if (FolderTree.Folder(scene, id) is { } folder) FolderTree.Ungroup(scene, folder);
+            return null;
+        }, "Ungroup");
+    }
+
+    /// <summary>
+    /// <b>Delete folder</b>: the folder and everything inside it, as Krita does
+    /// (Q204, the owner's choice). Undo brings it all back; Ungroup is the way
+    /// to keep the contents.
+    /// </summary>
+    /// <remarks>
+    /// Refused while anything inside is locked, for <see cref="DeleteLayer"/>'s
+    /// reason pointed the other way: a delete that skipped the locked layers
+    /// would leave them with no folder, which is not what either choice meant.
+    /// </remarks>
+    [RelayCommand]
+    private void DeleteGroup(GroupRow header)
+    {
+        var folder = header.Group;
+        // A lock above it protects it as surely as one inside it does: the
+        // layers under a locked outer folder refuse a delete one at a time,
+        // and picking the inner folder must not be the way round that.
+        if (FolderTree.Ancestors(Scene, folder).FirstOrDefault(f => f.Locked) is { } lockedAbove)
+        {
+            AiStatus = $"\u201c{lockedAbove.Name}\u201d is locked \u2014 unlock it to delete a folder inside it.";
+            return;
+        }
+        if (folder.Locked || FolderTree.SubtreeFolders(Scene, folder).Any(f => f.Locked))
+        {
+            AiStatus = $"“{folder.Name}” has a locked folder in it — unlock it to delete the folder.";
+            return;
+        }
+        if (FolderTree.SubtreeLayers(Scene, folder).FirstOrDefault(l => l.Locked) is { } locked)
+        {
+            AiStatus = $"“{locked.Name}” is locked — unlock it to delete the folder it is in.";
+            return;
+        }
+        var id = folder.Id;
+        var name = folder.Name;
+        var count = FolderTree.SubtreeLayers(Scene, folder).Count;
+        var at = FolderTree.SubtreeLayers(Scene, folder).Select(l => Scene.Layers.IndexOf(l)).DefaultIfEmpty(-1).Min();
+        if (!StackEdit(scene =>
             {
-                if (layer.GroupId == header.Group.Id) layer.GroupId = null;
-            }
-            doc.Scene.LayerGroups.RemoveAll(g => g.Id == header.Group.Id);
-        });
+                if (FolderTree.Folder(scene, id) is { } f) FolderTree.DeleteWithContents(scene, f);
+                RegrowAPaintableLayer(scene);
+                return null;
+            }, "Delete folder", frameContentUnchanged: false))
+        {
+            return;
+        }
+        _selectedGroupId = null;
+        if (at >= 0)
+        {
+            var next = Math.Clamp(at, 0, Scene.Layers.Count - 1);
+            ActiveLayerIndex = Scene.Layers[next].IsBackground ? FirstPaintableLayer(Doc) : next;
+        }
+        RefreshLayerSelectionHighlights();
+        // Saying how much went is the receipt for a delete that takes contents.
+        AiStatus = count switch
+        {
+            0 => $"Deleted the folder \u201c{name}\u201d.",
+            1 => $"Deleted the folder \u201c{name}\u201d and the layer in it \u2014 Ctrl+Z brings it back.",
+            _ => $"Deleted the folder \u201c{name}\u201d and the {count} layers in it \u2014 Ctrl+Z brings them back.",
+        };
     }
 
     internal void CommitGroupRename(LayerGroup group, string name)
@@ -1150,7 +1173,7 @@ public partial class MainViewModel
     }
 
     /// <summary>A row needs this to dim itself without reaching into the scene.</summary>
-    internal bool IsLayerLockedByFolder(Layer layer) => Scene.GroupOf(layer) is { Locked: true };
+    internal bool IsLayerLockedByFolder(Layer layer) => FolderTree.LockedFolderOf(Scene, layer) is not null;
 
     /// <summary>Shown in the tool options so the restriction is never invisible.</summary>
     /// <remarks>
@@ -1266,7 +1289,18 @@ public partial class MainViewModel
 
     /// <summary>Delete the active layer; an empty document always regrows one blank layer.</summary>
     [RelayCommand]
-    private void DeleteActiveLayer() => DeleteLayer(ActiveLayer);
+    private void DeleteActiveLayer()
+    {
+        // A folder picked on its header is what Delete means (Q204), even an
+        // empty one — the active layer is only where the brush would land.
+        if (SelectedGroup is { } folder
+            && LayerPanelItems.OfType<GroupRow>().FirstOrDefault(h => h.Group.Id == folder.Id) is { } header)
+        {
+            DeleteGroup(header);
+            return;
+        }
+        DeleteLayer(ActiveLayer);
+    }
 
     /// <summary>
     /// Delete a layer — or every selected layer when this one is inside the
@@ -1297,23 +1331,28 @@ public partial class MainViewModel
             {
                 scene.TransparentBackground = true;
             }
-            // Regrow when nothing PAINTABLE is left, not merely when nothing is
-            // left: a document down to its locked paper has layers and still
-            // nowhere to draw.
-            if (!scene.Layers.Any(l => !l.IsBackground))
-            {
-                var fresh = new Layer
-                {
-                    Name = "Paint 1",
-                    Cels = [new Cel { Frame = new Frame() }],
-                };
-                while (fresh.Cels.Count < scene.FrameCount) fresh.Cels.Add(new Cel());
-                scene.Layers.Add(fresh);
-            }
+            RegrowAPaintableLayer(scene);
         });
         var next = Math.Clamp(removedIndex, 0, Scene.Layers.Count - 1);
         // Never land on the paper: it is locked, so the next stroke would bounce.
         ActiveLayerIndex = Scene.Layers[next].IsBackground ? FirstPaintableLayer(Doc) : next;
+    }
+
+    /// <summary>
+    /// Regrow one blank layer when nothing PAINTABLE is left, not merely when
+    /// nothing is left: a document down to its locked paper has layers and
+    /// still nowhere to draw.
+    /// </summary>
+    private static void RegrowAPaintableLayer(Scene scene)
+    {
+        if (scene.Layers.Any(l => !l.IsBackground)) return;
+        var fresh = new Layer
+        {
+            Name = "Paint 1",
+            Cels = [new Cel { Frame = new Frame() }],
+        };
+        while (fresh.Cels.Count < scene.FrameCount) fresh.Cels.Add(new Cel());
+        scene.Layers.Add(fresh);
     }
 
     /// <summary>Blank the active layer: every drawing on it loses its content, the timing stays.</summary>
@@ -1590,13 +1629,7 @@ public partial class MainViewModel
     /// </remarks>
     private void AddLayer(LayerKind kind)
     {
-        var (anchorId, groupId) = NewLayerPlacement();
-        // A new layer filed into a collapsed folder would be active and have no
-        // row to show it. Opening the folder is a view preference, not an edit.
-        if (groupId is not null && Scene.LayerGroups.FirstOrDefault(g => g.Id == groupId) is { Collapsed: true } closed)
-        {
-            closed.Collapsed = false;
-        }
+        var place = NewLayerPlacement();
         string? addedId = null;
         _editor.Perform(doc =>
         {
@@ -1605,38 +1638,32 @@ public partial class MainViewModel
                 Name = $"Paint {doc.Scene.Layers.Count + 1}",
                 Kind = kind,
                 Cels = [new Cel { Frame = new Frame() }],
-                GroupId = groupId,
             };
             while (layer.Cels.Count < doc.Scene.FrameCount) layer.Cels.Add(new Cel());
-            var layers = doc.Scene.Layers;
-            var at = anchorId is null ? -1 : layers.FindIndex(l => l.Id == anchorId);
-            if (at < 0) layers.Add(layer);
-            else layers.Insert(at + 1, layer);
+            doc.Scene.Layers.Add(layer);
+            if (place is { } p) FolderTree.Move(doc.Scene, [StackRef.Of(layer)], p.Target, p.Where);
             addedId = layer.Id;
+            // A new layer filed into a collapsed folder would be active and
+            // have no row to show it. Opening is a view preference, not an edit.
+            foreach (var folder in FolderTree.FoldersOf(doc.Scene, layer)) folder.Collapsed = false;
         }, frameContentUnchanged: true);
         ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == addedId);
     }
 
     /// <summary>
-    /// The layer a new one goes directly above, and the folder it joins.
+    /// Where a new layer goes: at the top inside a picked folder — empty or
+    /// not, at any depth (Q204) — or directly above the active layer, in its
+    /// folder.
     /// </summary>
-    /// <returns>
-    /// A null anchor means the top of the stack — an empty document, or no
-    /// active layer to speak of.
-    /// </returns>
-    private (string? AnchorId, string? GroupId) NewLayerPlacement()
+    /// <returns>Null for the top of the stack — an empty document, or no active layer to speak of.</returns>
+    private (StackRef Target, StackDrop Where)? NewLayerPlacement()
     {
-        if (SelectedGroup is { } group)
-        {
-            var top = Scene.Layers.LastOrDefault(l => l.GroupId == group.Id);
-            if (top is not null) return (top.Id, group.Id);
-        }
+        if (SelectedGroup is { } group) return (StackRef.Of(group), StackDrop.Into);
         if (ActiveLayerIndex >= 0 && ActiveLayerIndex < Scene.Layers.Count)
         {
-            var active = Scene.Layers[ActiveLayerIndex];
-            return (active.Id, active.GroupId);
+            return (StackRef.Of(Scene.Layers[ActiveLayerIndex]), StackDrop.Above);
         }
-        return (null, null);
+        return null;
     }
 
     [RelayCommand]

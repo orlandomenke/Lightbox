@@ -184,8 +184,12 @@ public sealed class DocumentEditor
         Action<Doc> mutate, string? label = null, bool frameContentUnchanged = false,
         [CallerMemberName] string caller = "")
     {
-        PushStep(new SnapshotStep(Doc.Clone(), frameContentUnchanged), label ?? Humanize(caller));
+        var before = Doc.Clone();
+        PushStep(new SnapshotStep(before, frameContentUnchanged), label ?? Humanize(caller));
         mutate(Doc);
+        // Q204: an empty folder keeps its slot whatever the edit did to the
+        // layers around it. The snapshot is already the "before" it needs.
+        FolderTree.Settle(Doc.Scene, before.Scene);
         Changed?.Invoke();
     }
 
@@ -1169,6 +1173,55 @@ public sealed class DocumentEditor
     }
 
     /// <summary>
+    /// <b>Insert blank keyframe</b> over a selection on any number of layers:
+    /// every empty cel in it — a hold — becomes a keyframe with an empty
+    /// drawing, in place. Cels that already hold a drawing are left alone. One
+    /// undo step. Returns the keys made; nothing is recorded when there were none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>In place, not inserted.</b> The owner's vocabulary: a cel is either
+    /// empty (a hold, showing the drawing before it, as in Krita) or blank (a
+    /// drawing with nothing in it). This turns the one into the other and moves
+    /// nothing — <see cref="InsertHolds"/> is the verb that opens a gap.
+    /// </para>
+    /// <para>
+    /// <b>A drawn cel is skipped, not emptied.</b> Replacing its drawing with
+    /// nothing would be Delete followed by this, and a key that silently threw
+    /// work away to make room would be the one verb on the sheet you could not
+    /// trust to read.
+    /// </para>
+    /// <para>
+    /// A cel past the end of the scene grows it, as <see cref="SetKeyAt"/> does
+    /// and as drawing there does (Q103); the cels the growth adds are empties.
+    /// </para>
+    /// </remarks>
+    public int KeyBlankCels(IEnumerable<(string LayerId, int Index)> cels)
+    {
+        var byLayer = GroupByLayer(cels);
+        var empties = byLayer.Sum(kv => FindLayer(kv.Key) is { } layer
+            ? kv.Value.Count(i => i >= layer.Cels.Count || layer.Cels[i].Frame is null)
+            : 0);
+        if (empties == 0) return 0;
+        Perform(doc =>
+        {
+            var scene = doc.Scene;
+            var furthest = byLayer.Values.SelectMany(v => v).Max();
+            if (furthest >= scene.FrameCount) scene.FrameCount = furthest + 1;
+            foreach (var layer in scene.Layers) PadCels(layer, scene.FrameCount);
+            foreach (var (layerId, indices) in byLayer)
+            {
+                if (scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) continue;
+                foreach (var i in indices)
+                {
+                    if (layer.Cels[i].Frame is null) layer.Cels[i].Frame = NewEmptyFrame(layer);
+                }
+            }
+        }, label: "Insert blank keyframe");
+        return empties;
+    }
+
+    /// <summary>
     /// Insert blank frames on the rows of a selection: each contiguous run of
     /// <c>n</c> selected cels gets <c>n</c> holds inserted <b>at</b> the run's
     /// first cel, on that layer only, so the run and everything after it move
@@ -1215,7 +1268,7 @@ public sealed class DocumentEditor
             var longest = scene.Layers.Count == 0 ? 0 : scene.Layers.Max(l => l.Cels.Count);
             if (longest > scene.FrameCount) scene.FrameCount = longest;
             foreach (var layer in scene.Layers) PadCels(layer, scene.FrameCount);
-        }, label: "Insert blank frame");
+        }, label: "Insert empty cell");
         return inserted;
     }
 
@@ -1257,7 +1310,7 @@ public sealed class DocumentEditor
                 for (var k = 0; k < count; k++) RippleReferences(doc.Scene, start, +1);
                 inserted += count;
             }
-        }, label: "Insert blank frame");
+        }, label: "Insert empty cell");
         return inserted;
     }
 

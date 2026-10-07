@@ -449,10 +449,10 @@ public class XsheetDeleteAndInsertTests : BrushStateIsolated
         // Cel context menu.
         Assert.Matches(new Regex(@"<MenuItem Header=""Delete"" Click=""OnClearCel"""), xaml);
         Assert.Matches(new Regex(@"<MenuItem Header=""Delete and pull"" Click=""OnDeleteCel"""), xaml);
-        Assert.Matches(new Regex(@"<MenuItem Header=""Insert blank frame"" Click=""OnInsertBlankFrame"""), xaml);
+        Assert.Matches(new Regex(@"<MenuItem Header=""Insert empty cell"" Click=""OnInsertBlankFrame"""), xaml);
         // Animation menu.
         Assert.Matches(new Regex(@"<MenuItem Header=""De_lete"" Click=""OnMenuClearCel"""), xaml);
         Assert.Matches(new Regex(@"<MenuItem Header=""Delete and p_ull"" Click=""OnMenuDeleteCel"""), xaml);
-        Assert.Matches(new Regex(@"<MenuItem Header=""Insert blank _frame"" Click=""OnMenuInsertBlankFrame"""), xaml);
+        Assert.Matches(new Regex(@"<MenuItem Header=""Insert empt_y cell"" Click=""OnMenuInsertBlankFrame"""), xaml);
     }
 }

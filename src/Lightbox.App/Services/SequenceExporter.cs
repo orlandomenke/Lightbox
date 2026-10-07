@@ -52,6 +52,9 @@ public static class SequenceExporter
                 pf, CameraFraming.Centred(scene.Width, scene.Height), outWidth, outHeight)
             : null;
 
+        // B392: an export whose layers outgrow the byte budget evicts layer 1
+        // while fetching layer N of the same frame.
+        using var hold = cache.HoldFetches();
         var passes = new List<RenderPass>();
         var footageQueued = false;
         for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)

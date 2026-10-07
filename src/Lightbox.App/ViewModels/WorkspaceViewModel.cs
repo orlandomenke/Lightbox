@@ -532,8 +532,19 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     /// saved. Writing to the layout directly would skip both, and the symptom —
     /// an arrangement that quietly survives a restart, or one that quietly does
     /// not — is the kind nobody traces back to a missing wrapper.
+    /// <para>
+    /// <b>Nothing to do is nothing done (B393),</b> the same early return
+    /// <see cref="SetVisible"/> has. Every transform start asks for Tool
+    /// Options; when it was already the tab showing, this still rebuilt the
+    /// whole dock — 600 ms at p90 on an 11-layer document — and starred a
+    /// workspace nobody had rearranged.
+    /// </para>
     /// </remarks>
-    public void Activate(DockPanelId id) => Mutate(l => l.Activate(id));
+    public void Activate(DockPanelId id)
+    {
+        if (IsActiveInItsSlot(id)) return;
+        Mutate(l => l.Activate(id));
+    }
 
     /// <summary>
     /// Whether this panel is the tab showing in its slot — false when it is

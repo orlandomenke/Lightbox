@@ -1,0 +1,38 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    The X-sheet's cel buttons: the frame-role colours, the hatch past the end of
+    the scene, and the current and selected states.
+
+    Lifted out of MainWindow.axaml whole, and included from the window's own
+    styles rather than AppStyles so precedence over the window's other styles is
+    exactly what it was. It moved because the window is on a ratchet and the
+    blank keyframe verb needed two menu lines there.
+  -->
+  <Style Selector="Button.cel">
+    <Setter Property="Background" Value="{DynamicResource CelBrush}" />
+  </Style>
+  <!-- Frame-role colors: key (default), breakdown, inbetween -->
+  <Style Selector="Button.cel.breakdown">
+    <Setter Property="Background" Value="{DynamicResource CelBreakdownBrush}" />
+  </Style>
+  <Style Selector="Button.cel.tween">
+    <Setter Property="Background" Value="{DynamicResource CelTweenBrush}" />
+  </Style>
+  <!-- Past the end of the scene: hatched, so "no frame here" cannot be read
+       as "a frame with no drawing". Q89. -->
+  <Style Selector="Button.cel.virtualCell">
+    <Setter Property="Opacity" Value="0.35" />
+    <Setter Property="Background" Value="{DynamicResource CelVirtualHatchBrush}" />
+  </Style>
+  <Style Selector="Button.cel.dim">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+  <Style Selector="Button.cel.current">
+    <Setter Property="Background" Value="{DynamicResource CelCurrentBrush}" />
+  </Style>
+  <Style Selector="Button.cel.sel">
+    <Setter Property="Background" Value="{DynamicResource CelSelectedBrush}" />
+  </Style>
+</Styles>

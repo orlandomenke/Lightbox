@@ -500,6 +500,10 @@ public partial class MainWindow
                 _vm.InsertBlankFrameAtPlayhead();
                 e.Handled = true;
                 break;
+            case "xsheet.insertBlankKeyframe":
+                _vm.InsertBlankKeyframeAtPlayhead();
+                e.Handled = true;
+                break;
             case "timeline.copyKeys":
                 _vm.CopySelectedTimelineKeys();
                 e.Handled = true;
@@ -620,6 +624,12 @@ public partial class MainWindow
                 break;
             case "docker.clipToBelow":
                 _vm.ToggleActiveLayerClippedCommand.Execute(null);
+                break;
+            case "docker.groupLayers":
+                _vm.GroupLayersCommand.Execute(null);
+                break;
+            case "docker.newFolder":
+                _vm.CreateLayerFolderCommand.Execute(null);
                 break;
             case "docker.editMask":
                 _vm.ToggleActiveLayerMaskEditingCommand.Execute(null);

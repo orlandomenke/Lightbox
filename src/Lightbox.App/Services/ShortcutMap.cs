@@ -458,6 +458,10 @@ public sealed class ShortcutMap
             // for from the canvas while colouring, not only from the docker.
             new("docker.clipToBelow", "Clip layer to the one below", "Dockers",
                 G(Key.G, KeyModifiers.Control | KeyModifiers.Alt)),
+            // Photoshop's and Krita's key for wrapping the selection in a
+            // folder, global like theirs (Q204).
+            new("docker.groupLayers", "Group layers into a folder", "Dockers", G(Key.G, KeyModifiers.Control)),
+            new("docker.newFolder", "New empty folder", "Dockers", null),
             // No default gesture: there is no convention to borrow, and
             // guessing one costs somebody their key. Bindable is the
             // requirement.
@@ -496,8 +500,15 @@ public sealed class ShortcutMap
             // No default gesture: the owner asked for it registered rather than
             // bound, and Insert is missing from many laptop keyboards. Being here
             // is what lets an artist give it one.
-            new("xsheet.insertBlankFrame", "Insert blank frame (a hold at the cel)", "Timeline",
+            // Labelled in the owner's vocabulary (empty = a hold, blank = a key
+            // with no drawing); the id keeps Q196's name so a rebind survives.
+            new("xsheet.insertBlankFrame", "Insert empty cell (a hold at the cel)", "Timeline",
                 null, ShortcutContext.Panel, DockPanelId.Xsheet),
+            // I over the cels, as I over the Timeline docker inserts a key there:
+            // the same letter means "a key here" in both panels, and the
+            // eyedropper keeps I everywhere else.
+            new("xsheet.insertBlankKeyframe", "Insert blank keyframe (empty cels become empty drawings)", "Timeline",
+                G(Key.I), ShortcutContext.Panel, DockPanelId.Xsheet),
             // `timeline.deleteColumn` (Q108) is retired rather than re-pointed.
             // shortcuts.json is keyed by id, so this drops anyone's rebind of it —
             // and that is the honest outcome: it removed the playhead's frame
