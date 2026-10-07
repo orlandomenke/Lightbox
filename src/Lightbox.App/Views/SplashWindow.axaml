@@ -31,7 +31,7 @@
     panel is invisible to that.
   -->
   <Panel x:Name="Backdrop">
-    <Border x:Name="Ground" Background="{StaticResource BrandGroundBrush}" />
+    <Border x:Name="Ground" Background="{DynamicResource BrandGroundBrush}" />
     <!--
       The background image slot. Hidden until the code-behind finds the
       asset: ship art as Assets/splash-background.png and it fills the
@@ -56,18 +56,18 @@
              HorizontalAlignment="Center" Margin="0,26,0,0" />
       <!-- The payoff, as the reference writes it: the two halves of the
            product in the two accents, then the quiet line under it. -->
-      <TextBlock HorizontalAlignment="Center" Margin="0,20,0,0" FontSize="15">
+      <TextBlock HorizontalAlignment="Center" Margin="0,20,0,0" FontSize="{StaticResource TypeTitle}">
         <Run Text="Professional " Foreground="#FFFFFF" /><Run Text="Painting"
-             Foreground="{StaticResource BrandCoralBrush}" /><Run Text=" &amp; "
+             Foreground="{DynamicResource BrandCoralBrush}" /><Run Text=" &amp; "
              Foreground="#FFFFFF" /><Run Text="Animation"
-             Foreground="{StaticResource BrandVioletBrush}" />
+             Foreground="{DynamicResource BrandVioletBrush}" />
       </TextBlock>
       <TextBlock Text="Built for Artists. Designed for Creativity."
-                 FontSize="11" Foreground="#9BA0AC"
+                 FontSize="{StaticResource TypeDense}" Foreground="#9BA0AC"
                  HorizontalAlignment="Center" Margin="0,6,0,0" />
     </StackPanel>
 
-    <TextBlock x:Name="Status" Text="Loading…" FontSize="11" Foreground="#9BA0AC"
+    <TextBlock x:Name="Status" Text="Loading…" FontSize="{StaticResource TypeDense}" Foreground="#9BA0AC"
                HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" />
   </Panel>
 </Window>

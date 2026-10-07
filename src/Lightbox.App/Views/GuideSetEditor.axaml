@@ -6,7 +6,7 @@
         WindowStartupLocation="CenterOwner"
         Title="Guide sets">
 
-  <StackPanel Margin="16" Spacing="12">
+  <StackPanel Margin="16" Spacing="{StaticResource Space12}">
 
     <!--
       One sentence of orientation, because the feature spans three surfaces:
@@ -33,7 +33,7 @@
       and remove one. Deleting also takes back every share of the set —
       a declaration pointing at nothing would scope the project to air.
     -->
-    <StackPanel Spacing="6">
+    <StackPanel Spacing="{StaticResource Space6}">
       <Button x:Name="SaveNewButton" Click="OnSaveNew" HorizontalAlignment="Stretch"
               Content="Save this document's guides as a new set" />
       <Button x:Name="OverwriteButton" Click="OnOverwrite" HorizontalAlignment="Stretch"
@@ -42,7 +42,7 @@
               Content="Delete the selected set (and its shares)" />
     </StackPanel>
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}">
       <Button Content="Close" Click="OnClose" IsCancel="True" Classes="tertiary" />
     </StackPanel>
   </StackPanel>

@@ -6,7 +6,7 @@
         WindowStartupLocation="CenterOwner"
         Title="Lightbox">
 
-  <StackPanel Margin="16" Spacing="12">
+  <StackPanel Margin="16" Spacing="{StaticResource Space12}">
     <TextBlock x:Name="Headline" FontWeight="SemiBold" TextWrapping="Wrap" />
 
     <!--

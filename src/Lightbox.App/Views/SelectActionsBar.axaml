@@ -9,18 +9,18 @@
     entries. The modifier hint rides here for the same reason — it is a
     reminder rather than a control, so it should be the first thing to go.
   -->
-  <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+  <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space14}" VerticalAlignment="Center">
     <StackPanel.IsVisible>
       <MultiBinding Converter="{x:Static BoolConverters.And}">
         <Binding Path="IsSelectTool" />
         <Binding Path="Workspace.QuickSelectOptions" />
       </MultiBinding>
     </StackPanel.IsVisible>
-    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}" VerticalAlignment="Center">
       <Button Content="All" Command="{Binding SelectAllCommand}" ToolTip.Tip="Select the whole canvas (Ctrl+A)" />
       <Button Content="None" Command="{Binding DeselectCommand}" ToolTip.Tip="Deselect (Ctrl+D)" />
       <Button Content="Invert" Command="{Binding InvertSelectionCommand}" ToolTip.Tip="Invert the selection (Ctrl+Shift+I)" />
     </StackPanel>
-    <TextBlock Text="Shift adds · Alt subtracts" VerticalAlignment="Center" Opacity="0.6" FontSize="12" />
+    <TextBlock Text="Shift adds · Alt subtracts" VerticalAlignment="Center" Opacity="0.6" FontSize="{StaticResource TypeBody}" />
   </StackPanel>
 </UserControl>

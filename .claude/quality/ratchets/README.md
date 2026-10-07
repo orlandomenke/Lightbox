@@ -77,3 +77,13 @@ ceilings equal their file's exact line count, which makes an automatic re-measur
 look obvious — and it would delete the mechanism. A ceiling re-measured from the
 tree can never be exceeded, so the test could never fail. `remeasure` is for
 resolving a merge and is wired to no hook.
+
+## literals.json is a different ratchet
+
+`literals.json` holds budgets for **literal sizes** — `FontSize`, `Spacing`,
+`Margin`, `Padding`, `CornerRadius` and widths and heights written as numbers in
+the app's XAML — rather than for lines. `TokenRatchetTests` reads it, not
+`MonolithRatchetTests`, which is why it is JSON and not one Markdown file per
+target. Its budget has no slack: moving a view's margins onto tokens lowers its
+number in the same change (`python3 scripts/literals.py` re-measures). See
+`docs/DESIGN-tokens.md`.
