@@ -179,13 +179,21 @@ wherever you drop it, or inside another folder, exactly as a layer does. An
 empty folder drags the same way. The one drop a folder refuses is into itself
 or into a folder inside it; nothing is offered there.
 
-**Dropping a layer or a folder on a folder header files it into the folder**, at the top.
-The top quarter of the header puts it just *above* the folder instead. On an
-open folder the rest of the header is "inside", because directly under the
-header is the top of the folder. On a collapsed folder, whose layers are hidden,
-the bottom quarter puts the layer just *below* the folder. And when a folder is
-the very last thing in the docker — a transparent document has no paper under
-it — the bottom quarter of its last layer takes a layer out below the folder.
+**A folder header is three drops in one row**, the same whether you are
+carrying a layer or a folder, and whether the folder is open or collapsed:
+
+| Where on the header | What happens |
+| --- | --- |
+| Top third | Lands just **above** the folder, beside it |
+| Middle third | Goes **into** the folder, at the top |
+| Bottom third | Lands just **below the whole folder**, beside it |
+
+On an open folder the line for "below" is drawn under the folder's last row,
+because that is where the drop lands — not under the header, which is where
+"into" lands. This is how a folder is put between two others: aim at the top
+or bottom third of the neighbour's header. And when a folder is the very last
+thing in the docker — a transparent document has no paper under it — the
+bottom quarter of its last layer also takes a layer out below the folder.
 
 A drop that would leave everything where it is does nothing at all: it is not
 an undo step and does not mark the document changed.

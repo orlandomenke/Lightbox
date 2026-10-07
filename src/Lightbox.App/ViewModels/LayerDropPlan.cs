@@ -104,6 +104,16 @@ public static class LayerDropPlan
     /// </remarks>
     public const double HeaderEdgeShare = 0.25;
 
+    /// <summary>The share of a folder header at each edge that means "beside the folder".</summary>
+    /// <remarks>
+    /// A third each way since Q210: above, into, below. The quarter that came
+    /// before left the slot between two folders a sliver to hit — and on an open
+    /// folder there was no "below" on the header at all, so putting a folder
+    /// after another meant finding the top edge of whatever row came next. The
+    /// owner reported folders could not be moved between folders.
+    /// </remarks>
+    public const double FolderHeaderEdgeShare = 1.0 / 3;
+
     /// <summary>
     /// Which row a height in the list belongs to, and how far down that row it is.
     /// </summary>
@@ -141,9 +151,9 @@ public static class LayerDropPlan
     /// hint for one that would be refused or change nothing.
     /// </para>
     /// <para>
-    /// A header's top quarter is above the folder, outside it; the rest is into
-    /// it, except that a closed or empty folder, with no members on screen to
-    /// aim below, gives its bottom quarter to "below it". The last row of a
+    /// A header's top third is above the folder, outside it; its middle third is
+    /// into it; its bottom third is below the whole folder, outside it — open or
+    /// closed (Q210; it was a quarter, and an open folder had no "below"). The last row of a
     /// folder at the bottom of the docker gives its bottom quarter to "below the
     /// folder", which is otherwise the one place nothing can be aimed at.
     /// </para>
@@ -158,10 +168,16 @@ public static class LayerDropPlan
                 y > 1 - HeaderEdgeShare ? LayerDropHint.BelowFolder
                 : upper ? LayerDropHint.Above
                 : LayerDropHint.Below,
-            LayerDropTarget.OpenFolder => y < HeaderEdgeShare ? LayerDropHint.Above : LayerDropHint.Into,
+            // Below an OPEN folder is below the whole folder, and the hint is
+            // drawn under its last row rather than under the header — the line
+            // and the landing must agree (ShowLayerDropHint).
+            LayerDropTarget.OpenFolder =>
+                y < FolderHeaderEdgeShare ? LayerDropHint.Above
+                : y > 1 - FolderHeaderEdgeShare ? LayerDropHint.BelowFolder
+                : LayerDropHint.Into,
             LayerDropTarget.CollapsedFolder =>
-                y < HeaderEdgeShare ? LayerDropHint.Above
-                : y > 1 - HeaderEdgeShare ? LayerDropHint.Below
+                y < FolderHeaderEdgeShare ? LayerDropHint.Above
+                : y > 1 - FolderHeaderEdgeShare ? LayerDropHint.Below
                 : LayerDropHint.Into,
             _ => upper ? LayerDropHint.Above : LayerDropHint.Below,
         };
