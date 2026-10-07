@@ -221,56 +221,30 @@ public sealed class WorkspaceTests : BrushStateIsolated
 
         // The ground is the actual marker, and text weight only supports it —
         // which is why it is asserted separately rather than trusted to follow.
-        // The design's panel tab is a sheet edge: lit at the top, fading into
-        // the panel below within the tab's own height. A flat fill would be the
-        // segmented-control look these are specifically not.
+        // v.2 (Q203, owner 2026-10-07): the active tab IS a piece of the panel
+        // rising into the darker header strip — the panel's own surface, no
+        // outline, no rule, no line along its top. It replaced the sheet edge
+        // (a gradient fading into the panel, a violet top line, a rule along
+        // the strip) that this test used to pin.
         static Border Tab(ListBoxItem item) =>
             item.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_Tab");
+        static Color Ground(IBrush? brush) => Assert.IsAssignableFrom<ISolidColorBrush>(brush).Color;
 
-        var lit = Assert.IsType<LinearGradientBrush>(Tab(active).Background);
-        Assert.True(lit.GradientStops[^1].Color.A == 0,
-            "the active tab's gradient must end transparent — a named end colour is a "
-            + "visible seam on any ground that is not the one it named");
-        // The fade runs the tab's whole height. It ended at 0.62 first; the
-        // owner's correction is that the subtlety IS the length of the fade,
-        // and what keeps it from being a filled block is the soft start and
-        // the transparent end, both asserted, not the early stop.
-        Assert.True(lit.GradientStops[0].Color.A < 0xFF,
-            "the fade must start soft, or the tab is a filled block with a soft bottom");
+        Assert.True(docker.TryFindResource("SurfacePanelBrush", docker.ActualThemeVariant, out var panel));
+        Assert.Equal(Ground(panel as IBrush), Ground(Tab(active).Background));
+        var header = docker.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_Header");
+        Assert.NotEqual(Ground(header.Background), Ground(Tab(active).Background));
 
-        // And the purple gradient line along the active tab's TOP edge — the
-        // second marker the reference draws, and the one the owner named.
-        static Border TopLine(ListBoxItem item) =>
-            item.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_TopLine");
-        Assert.IsType<LinearGradientBrush>(TopLine(active).Background);
-        Assert.IsNotType<LinearGradientBrush>(TopLine(resting).Background);
+        // A resting tab is a word on the strip: no ground of its own, so the
+        // strip shows through.
+        Assert.True(Tab(resting).Background is null or ISolidColorBrush { Color.A: 0 },
+            $"a resting tab has a ground: {Tab(resting).Background}");
 
-        // The resting tab takes no lit ground — it merges with the header it
-        // sits in. What it does carry is an outline, and that is not incidental:
-        // a strip where only the active tab has a shape reads as one tab beside
-        // two words, which is the same failure as having no marks at all moved
-        // along by one.
-        Assert.IsNotType<LinearGradientBrush>(Tab(resting).Background);
-        Assert.NotNull(Tab(resting).BorderBrush);
-
-        // **The rule runs along the strip and breaks at the active tab.** Each
-        // tab draws its own bottom edge, which is what lets the line stop: a
-        // single rule under the strip would have to be *covered*, and the
-        // active tab cannot cover anything — its gradient ends transparent so
-        // it merges into whatever ground it lands on. Anything opaque enough to
-        // hide a line would be a seam.
-        Assert.Equal(0, Tab(active).BorderThickness.Bottom);
-        Assert.True(Tab(resting).BorderThickness.Bottom > 0,
-            "a resting tab must close at the bottom, or the rule has nothing to run along");
-
-        // A resting tab has NO box — just its stretch of the rule. The active
-        // one keeps the full sheet edge. (The resting outline existed for one
-        // round and the owner had it removed: with the ground and the top line
-        // carrying the active state, a box on every resting tab was noise.)
-        Assert.Equal(0, Tab(resting).BorderThickness.Top);
-        Assert.Equal(0, Tab(resting).BorderThickness.Left);
-        Assert.True(Tab(active).BorderThickness.Top > 0,
-            "the active tab lost its sheet edge");
+        // No visible outline on either: the surface is the whole statement. (Each
+        // keeps a transparent bottom pixel, which is what makes it clickable.)
+        foreach (var tab in new[] { Tab(active), Tab(resting) })
+            Assert.True(tab.BorderThickness == default || tab.BorderBrush is ISolidColorBrush { Color.A: 0 },
+                $"a tab draws an outline: {tab.BorderThickness} in {tab.BorderBrush}");
     }
 
     [AvaloniaFact]

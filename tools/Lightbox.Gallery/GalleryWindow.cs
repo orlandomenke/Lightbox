@@ -60,7 +60,7 @@ public sealed class GalleryWindow : Window
     private void Rebuild()
     {
         var look = App.Look;
-        Background = (Avalonia.Media.IBrush?)Application.Current!.FindResource("BackgroundSecondaryBrush");
+        Background = (Avalonia.Media.IBrush?)Application.Current!.FindResource(Application.Current!.ActualThemeVariant, "BackgroundSecondaryBrush");
 
         var bar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16, Margin = new Thickness(12, 8) };
         bar.Children.Add(Choice("Theme", Enum.GetValues<LookTheme>(), look.Theme, v => Use(look with { Theme = v })));

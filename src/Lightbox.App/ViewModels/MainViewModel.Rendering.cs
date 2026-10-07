@@ -1272,6 +1272,7 @@ public partial class MainViewModel
     public void PublishSnapshot(
         [System.Runtime.CompilerServices.CallerMemberName] string publisher = "")
     {
+        using var perf = PerfLog.Begin(IsPlaying ? "publish.play" : "publish", publisher);
         // B178: publishing outran drawing 1.5× in the field capture — 757
         // published against 339 ticks — and which of PublishSnapshot's 45 call
         // sites supply the surplus is a question for a counter, not a grep.

@@ -1841,7 +1841,7 @@ public sealed partial class CanvasControl : Control
             (float)_rotationDeg,
             _mirrored,
             (float)(Bounds.Width / 2 + _pan.X),
-            (float)(Bounds.Height / 2 + _pan.Y));
+            (float)(Bounds.Height / 2 + _pan.Y), _surround);
 
         // Selection overlay paths (surface pixels, the space the op draws in) —
         // built in CanvasControl.Selection.cs from the cached base.
@@ -3816,7 +3816,7 @@ public sealed partial class CanvasControl : Control
     /// only (translate/rotate/scale), no matrix API edge cases.
     /// </summary>
     private readonly record struct ViewState(
-        float DocW, float DocH, float Scale, float RotationDeg, bool Mirrored, float CenterX, float CenterY);
+        float DocW, float DocH, float Scale, float RotationDeg, bool Mirrored, float CenterX, float CenterY, SKColor Surround);
 
     /// <summary>Called from the render thread once a snapshot has been drawn.</summary>
     /// <summary>
@@ -3947,7 +3947,7 @@ public sealed partial class CanvasControl : Control
 
             canvas.Save();
             canvas.ClipRect(new SKRect(0, 0, (float)Bounds.Width, (float)Bounds.Height));
-            canvas.Clear(new SKColor(0x2b, 0x2b, 0x2b));
+            canvas.Clear(view.Surround);
 
             canvas.Save();
             canvas.Translate(view.CenterX, view.CenterY);

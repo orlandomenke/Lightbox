@@ -87,27 +87,31 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
     /// </remarks>
     [Theory]
     [InlineData(0.1, LayerDropHint.Above)]
-    [InlineData(0.24, LayerDropHint.Above)]
+    [InlineData(0.32, LayerDropHint.Above)]
     [InlineData(0.5, LayerDropHint.Into)]
-    [InlineData(0.76, LayerDropHint.Below)]
+    [InlineData(0.68, LayerDropHint.Below)]
     [InlineData(0.95, LayerDropHint.Below)]
     public void AFolderHeaderOffersInsideAndBeside(double fraction, LayerDropHint expected) =>
         Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.CollapsedFolder));
 
     /// <summary>
-    /// Under an open header is the top of that folder, never "below the folder".
+    /// An open header is thirds too (Q210): above, into, and below the whole folder.
     /// </summary>
     /// <remarks>
-    /// The lower quarter used to say Below, drew its line between the header and
-    /// the folder's first member, and then dropped the layer under the folder's
-    /// last member — wherever that was. The line and the landing disagreed by
-    /// the height of the whole folder.
+    /// It used to be a quarter above and the rest into, because a lower quarter
+    /// once said Below, drew its line between the header and the folder's first
+    /// member, and then landed under the last member — the line and the landing
+    /// disagreed by the height of the folder. The bottom third is back, as
+    /// BelowFolder, and its line is drawn under the last member
+    /// (<see cref="TheBelowFolderLineIsDrawnUnderTheFoldersLastRow"/>).
     /// </remarks>
     [Theory]
     [InlineData(0.1, LayerDropHint.Above)]
+    [InlineData(0.32, LayerDropHint.Above)]
     [InlineData(0.5, LayerDropHint.Into)]
-    [InlineData(0.95, LayerDropHint.Into)]
-    public void BelowAnOpenFolderHeaderIsInsideIt(double fraction, LayerDropHint expected) =>
+    [InlineData(0.68, LayerDropHint.BelowFolder)]
+    [InlineData(0.95, LayerDropHint.BelowFolder)]
+    public void AnOpenFolderHeaderOffersAboveIntoAndBelowTheFolder(double fraction, LayerDropHint expected) =>
         Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.OpenFolder));
 
     /// <summary>
@@ -300,5 +304,121 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
             item => Assert.Equal(
                 LayerDropHint.None,
                 item is LayerRow r ? r.DropHint : ((GroupRow)item).DropHint));
+    }
+
+    // ---- Q210: between folders -----------------------------------------------------
+
+    /// <summary>Bottom to top: paper, a, [Folder 1: b, c], [Folder 2: d, e], f.</summary>
+    private static MainViewModel TwoFolders()
+    {
+        var vm = VmLayers.PaperVm();
+        while (vm.Doc.Scene.Layers.Count < 7) vm.AddPaintedLayerCommand.Execute(null);
+        string[] names = ["a", "b", "c", "d", "e", "f"];
+        for (var i = 1; i < 7; i++) vm.Doc.Scene.Layers[i].Name = names[i - 1];
+        vm.SelectLayer(Row(vm, "b"), toggle: false, range: false);
+        vm.SelectLayer(Row(vm, "c"), toggle: true, range: false);
+        vm.GroupLayersCommand.Execute(null);
+        vm.SelectLayer(Row(vm, "d"), toggle: false, range: false);
+        vm.SelectLayer(Row(vm, "e"), toggle: true, range: false);
+        vm.GroupLayersCommand.Execute(null);
+        return vm;
+    }
+
+    private static GroupRow HeaderOf(MainViewModel vm, string folder) =>
+        vm.LayerPanelItems.OfType<GroupRow>().Single(g => g.Group.Name == folder);
+
+    /// <summary>The docker top-first: [Folder] headers, members indented by depth.</summary>
+    private static string Panel(MainViewModel vm) => string.Join(" ", vm.LayerPanelItems.Select(i => i switch
+    {
+        GroupRow g => new string('>', g.Depth) + $"[{g.Group.Name}]",
+        LayerRow r => new string('>', r.Depth) + r.Layer.Name,
+        _ => "?",
+    }));
+
+    /// <summary>
+    /// The owner's report: a folder could only be dropped INTO another folder.
+    /// The lower third of an open header now puts it after the folder, beside it.
+    /// </summary>
+    [AvaloniaFact]
+    public void AFolderDroppedOnTheLowerThirdOfAnOpenFolderLandsBesideIt()
+    {
+        var vm = TwoFolders();
+        output.WriteLine("before: " + Panel(vm));
+        var two = HeaderOf(vm, "Folder 2");
+        var one = HeaderOf(vm, "Folder 1");
+
+        var hint = vm.LayerDropHintFor(two, one, 0.9);
+        Assert.Equal(LayerDropHint.BelowFolder, hint);
+        vm.DropOnLayerPanel(two, one, hint);
+
+        output.WriteLine("after: " + Panel(vm));
+        Assert.Equal("f [Folder 1] >c >b [Folder 2] >e >d a Background", Panel(vm));
+    }
+
+    [AvaloniaFact]
+    public void AFolderDroppedOnTheUpperThirdOfAFolderLandsAboveIt()
+    {
+        var vm = TwoFolders();
+        var one = HeaderOf(vm, "Folder 1");
+        var two = HeaderOf(vm, "Folder 2");
+
+        var hint = vm.LayerDropHintFor(one, two, 0.3);
+        Assert.Equal(LayerDropHint.Above, hint);
+        vm.DropOnLayerPanel(one, two, hint);
+
+        Assert.Equal("f [Folder 1] >c >b [Folder 2] >e >d a Background", Panel(vm));
+    }
+
+    /// <summary>The middle third still files the folder inside — folders nest (Q204).</summary>
+    [AvaloniaFact]
+    public void TheMiddleThirdStillNestsTheFolder()
+    {
+        var vm = TwoFolders();
+        var two = HeaderOf(vm, "Folder 2");
+        var one = HeaderOf(vm, "Folder 1");
+
+        vm.DropOnLayerPanel(two, one, vm.LayerDropHintFor(two, one, 0.5));
+
+        Assert.StartsWith("f [Folder 1] >[Folder 2]", Panel(vm));
+    }
+
+    /// <summary>
+    /// Below an open folder lands under its last member, so the line is drawn
+    /// there — under the header it would mark the spot a drop INTO lands.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheBelowFolderLineIsDrawnUnderTheFoldersLastRow()
+    {
+        var vm = TwoFolders();
+        var two = HeaderOf(vm, "Folder 2");
+
+        vm.ShowLayerDropHint(two, LayerDropHint.BelowFolder);
+
+        Assert.Equal(LayerDropHint.None, two.DropHint);
+        Assert.True(Row(vm, "d").DropBelow, "the line is not under the folder's last row");
+        Assert.All(vm.LayerPanelItems.Where(i => !ReferenceEquals(i, Row(vm, "d"))),
+            item => Assert.Equal(LayerDropHint.None, item is LayerRow r ? r.DropHint : ((GroupRow)item).DropHint));
+    }
+
+    /// <summary>
+    /// A dragged layer gets the same thirds on a header: above the folder, into
+    /// it, or below the whole folder — the owner asked for layers and folders to
+    /// behave alike, and they share the one table.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(0.2, "[Folder 2] >e >d f [Folder 1] >c >b a Background")]
+    [InlineData(0.5, "[Folder 2] >e >d [Folder 1] >f >c >b a Background")]
+    [InlineData(0.9, "[Folder 2] >e >d [Folder 1] >c >b f a Background")]
+    public void ALayerGetsTheSameThirdsOnAFolderHeader(double fraction, string expected)
+    {
+        var vm = TwoFolders();
+        var f = Row(vm, "f");
+        var one = HeaderOf(vm, "Folder 1");
+
+        var hint = vm.LayerDropHintFor(f, one, fraction);
+        vm.DropOnLayerPanel(f, one, hint);
+
+        output.WriteLine($"{fraction}: {hint} -> {Panel(vm)}");
+        Assert.Equal(expected, Panel(vm));
     }
 }

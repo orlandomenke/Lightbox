@@ -357,6 +357,15 @@ public partial class MainViewModel
     /// </summary>
     internal void ShowLayerDropHint(object? target, LayerDropHint hint)
     {
+        // Below an open folder lands under its last member, so that is where the
+        // line goes. Drawn under the header it would sit between the header and
+        // the first member — the place a drop INTO the folder lands — and the
+        // line and the landing would disagree by the height of the folder.
+        if (target is GroupRow { Group.Collapsed: false } openHeader && hint == LayerDropHint.BelowFolder
+            && LastRowOf(openHeader) is { } last)
+        {
+            target = last;
+        }
         foreach (var item in LayerPanelItems)
         {
             var mine = ReferenceEquals(item, target) ? hint : LayerDropHint.None;
@@ -366,6 +375,21 @@ public partial class MainViewModel
                 case GroupRow header: header.DropHint = mine; break;
             }
         }
+    }
+
+    /// <summary>The last docker row inside a folder's block, or null when it shows none.</summary>
+    private object? LastRowOf(GroupRow header)
+    {
+        var at = LayerPanelItems.IndexOf(header);
+        if (at < 0) return null;
+        object? last = null;
+        for (var i = at + 1; i < LayerPanelItems.Count; i++)
+        {
+            var depth = LayerPanelItems[i] switch { LayerRow r => r.Depth, GroupRow g => g.Depth, _ => -1 };
+            if (depth <= header.Depth) break;
+            last = LayerPanelItems[i];
+        }
+        return last;
     }
 
     // ---- layer folders ----------------------------------------------------------
@@ -714,6 +738,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void AddFrame()
     {
+        using var perf = PerfLog.Begin("frame.add");
         _editor.AddFrameAfter(CurrentFrameIndex);
         CurrentFrameIndex++;
     }
@@ -798,6 +823,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void Undo()
     {
+        using var perf = PerfLog.Begin("undo");
         if (TransformActive)
         {
             StepTransformSession(undo: true);
@@ -816,6 +842,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void Redo()
     {
+        using var perf = PerfLog.Begin("redo");
         if (TransformActive)
         {
             StepTransformSession(undo: false);
@@ -1795,6 +1822,7 @@ public partial class MainViewModel
     /// </summary>
     private void RefreshThumbnails()
     {
+        using var perf = PerfLog.Begin("thumbnails");
         foreach (var row in LayerRows)
         {
             foreach (var cell in row.Cells)

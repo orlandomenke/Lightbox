@@ -326,12 +326,20 @@ public partial class ConfigureWindow : Window
     /// </summary>
     private bool _loadingInterface = true;
 
+    private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingInterface || _vm is null) return;
+        if (ThemeBox.SelectedItem is string choice) _vm.ThemeChoice = choice;
+    }
+
     private void LoadInterfacePage()
     {
         if (_vm is null) return;
         _loadingInterface = true;
         UiScaleSlider.Value = _vm.UiScalePercent;
         UiScaleBox.Value = (decimal)_vm.UiScalePercent;
+        ThemeBox.ItemsSource = ViewModels.MainViewModel.ThemeChoices;
+        ThemeBox.SelectedItem = _vm.ThemeChoice;
         _loadingInterface = false;
     }
 

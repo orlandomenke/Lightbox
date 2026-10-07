@@ -29,15 +29,15 @@
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="ToggleButton.tool:pointerover:not(:checked) /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
   </Style>
   <Style Selector="ToggleButton:checked:not(.eye) /template/ ContentPresenter#PART_ContentPresenter, ToggleButton:checked:not(.eye):pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource LookBarActiveBrush}" />
+    <Setter Property="Background" Value="{DynamicResource LookBarActiveBrush}" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="BoxShadow" Value="none" />
   </Style>
   <Style Selector="Border.layerRow.active">
-    <Setter Property="Background" Value="{StaticResource LookBarActiveBrush}" />
+    <Setter Property="Background" Value="{DynamicResource LookBarActiveBrush}" />
     <Setter Property="BorderThickness" Value="0" />
   </Style>
   <!--
@@ -46,10 +46,10 @@
     pressed or chosen by keyboard is active.
   -->
   <Style Selector="MenuItem:pointerover /template/ Border#PART_LayoutRoot">
-    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
   </Style>
   <Style Selector="MenuItem:selected /template/ Border#PART_LayoutRoot, MenuItem:open /template/ Border#PART_LayoutRoot, MenuItem:pressed /template/ Border#PART_LayoutRoot">
-    <Setter Property="Background" Value="{StaticResource LookBarActiveBrush}" />
+    <Setter Property="Background" Value="{DynamicResource LookBarActiveBrush}" />
   </Style>
 
   <!-- 1 · Islands, edged with light (chrome in the dark, prism in the light) -->
@@ -89,7 +89,7 @@
     Resting tabs are words on the strip; hover is a quiet pill.
   -->
   <Style Selector="controls|Docker /template/ Border#PART_Header">
-    <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}" />
+    <Setter Property="Background" Value="{DynamicResource BackgroundSecondaryBrush}" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem /template/ Border#PART_Tab">
     <Setter Property="BorderThickness" Value="0" />
@@ -101,16 +101,16 @@
   <!-- Hover takes the active tab's own shape, so the strip never shows a
        differently rounded block with gaps round it. -->
   <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ Border#PART_Tab">
-    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
     <Setter Property="CornerRadius" Value="{StaticResource LookTabRadius}" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_Tab, ListBox.tabs > ListBoxItem:selected:pointerover /template/ Border#PART_Tab">
-    <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
+    <Setter Property="Background" Value="{DynamicResource SurfacePanelBrush}" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="CornerRadius" Value="{StaticResource LookTabRadius}" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem:selected">
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_TopLine">
     <Setter Property="Opacity" Value="0" />
@@ -126,12 +126,12 @@
     rim this removes.
   -->
   <Style Selector="Button, Button.secondary">
-    <Setter Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
     <Setter Property="BorderThickness" Value="0" />
   </Style>
   <Style Selector="Button.tertiary">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
   <Style Selector="Button /template/ ContentPresenter#PART_ContentPresenter, ToggleButton /template/ ContentPresenter#PART_ContentPresenter">
@@ -158,11 +158,11 @@
   -->
   <Style Selector="Button.text, ToggleButton.text">
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookEdgeSubtleBrush}" />
   </Style>
   <Style Selector="Button.text /template/ ContentPresenter#PART_ContentPresenter, Button.text:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.text:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.text /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.text:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.text:checked /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookEdgeSubtleBrush}" />
   </Style>
   <Style Selector="Button.text.ghost">
     <Setter Property="BorderThickness" Value="0" />
@@ -172,11 +172,11 @@
   </Style>
   <Style Selector="ToggleSwitch /template/ Border#OuterBorder">
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookEdgeSubtleBrush}" />
   </Style>
   <Style Selector="ToggleSwitch /template/ Border#SwitchKnobBounds">
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookEdgeSubtleBrush}" />
   </Style>
   <!-- A switch takes only the room it draws; Fluent reserves 154 px for labels. -->
   <Style Selector="ToggleSwitch">
@@ -192,11 +192,11 @@
     Covers number fields too: their typing surface is a TextBox.
   -->
   <Style Selector="TextBox:focus /template/ Border#PART_BorderElement, TextBox:focus:pointerover /template/ Border#PART_BorderElement">
-    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookEdgeBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
   <Style Selector="ComboBox:dropdownopen /template/ Border#Background">
-    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookEdgeBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
 
@@ -207,12 +207,12 @@
 
   <!-- 4 · One primary, plain. -->
   <Style Selector="Button.primary">
-    <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
-    <Setter Property="Foreground" Value="{StaticResource LookPrimaryForegroundBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource LookPrimaryForegroundBrush}" />
   </Style>
   <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
-    <Setter Property="Foreground" Value="{StaticResource LookPrimaryForegroundBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource LookPrimaryForegroundBrush}" />
     <Setter Property="Opacity" Value="0.92" />
   </Style>
 
@@ -240,10 +240,10 @@
     <Setter Property="BorderThickness" Value="0" />
   </Style>
   <Style Selector="ListBox:not(.segmented):not(.tabs):not(.sectiontabs) > ListBoxItem:selected /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource LookBarActiveBrush}" />
+    <Setter Property="Background" Value="{DynamicResource LookBarActiveBrush}" />
   </Style>
   <Style Selector="ListBox:not(.segmented):not(.tabs):not(.sectiontabs) > ListBoxItem:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
   </Style>
 
   <!-- A dropdown is text at rest (see the palettes): no well, no border. -->
@@ -260,7 +260,7 @@
   <!-- Containers that float: the same edge as a docker. -->
   <Style Selector="FlyoutPresenter, MenuFlyoutPresenter, ContextMenu">
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookEdgeBrush}" />
   </Style>
 
   <!--
@@ -284,21 +284,21 @@
     <Setter Property="CornerRadius" Value="{StaticResource LookContainerInnerRadius}" />
   </Style>
   <Style Selector="controls|CanvasOverlayBar Button:pointerover /template/ ContentPresenter#PART_ContentPresenter, controls|CanvasOverlayBar ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
   </Style>
   <Style Selector="controls|CanvasOverlayBar ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter, controls|CanvasOverlayBar ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource LookBarActiveBrush}" />
+    <Setter Property="Background" Value="{DynamicResource LookBarActiveBrush}" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="BoxShadow" Value="none" />
   </Style>
   <Style Selector="controls|CanvasOverlayBar ToggleButton:checked Path">
-    <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
 
   <!-- The bar over the canvas: a lit surface, its shadow from the effects switch. -->
   <Style Selector="controls|CanvasOverlayBar /template/ Border#PART_Bar">
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource LookEdgeBrush}" />
     <Setter Property="BoxShadow" Value="{StaticResource LookRaisedShadow}" />
   </Style>
 </Styles>

@@ -1523,6 +1523,7 @@ public partial class MainViewModel
         TransformOps.PointMap map, double sizeScale, SKMatrix baselineMatrix,
         Action<Frame>? baselineResample = null)
     {
+        using var perf = PerfLog.Begin("transform.commit");
         var frames = _transform.Frames.ToList();
         // B381: how each drawing's strokes travel — through the pose for a
         // frame the canvas shows posed, plainly for every other. Resolved from

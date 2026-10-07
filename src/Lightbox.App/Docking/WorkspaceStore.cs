@@ -328,8 +328,7 @@ public sealed class WorkspaceStore
 
     /// <summary>Where <see cref="Load"/> reads from and a loaded store writes back to.</summary>
     public static string Path { get; set; } = System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Lightbox", "workspaces.json");
+        Lightbox.Core.ProfileFolder.Root, "workspaces.json");
 
     /// <summary>
     /// Where this particular store persists, or null for one that does not.

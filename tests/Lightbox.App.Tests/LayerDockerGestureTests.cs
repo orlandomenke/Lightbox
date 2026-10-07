@@ -241,8 +241,9 @@ public class LayerDockerGestureTests(ITestOutputHelper output) : BrushStateIsola
         var header = ControlOf(window, HeaderOf(vm));
         var a = ControlOf(window, RowOf(vm, "a"));
 
-        // The lower part of an open header: under the header is inside the folder.
-        Drag(window, Centre(window, a), At(window, header, 0.6, 0.9));
+        // The middle third of an open header is inside the folder (Q210: the
+        // bottom third is below the whole folder now, not inside it).
+        Drag(window, Centre(window, a), At(window, header, 0.6, 0.5));
 
         output.WriteLine(Order(vm));
         Assert.Equal("Background,[b],[c],[a],d", Order(vm));

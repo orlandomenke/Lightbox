@@ -22,10 +22,7 @@ namespace Lightbox.App.Services;
 public sealed class AutosaveService
 {
     public static string AutosavePath =>
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Lightbox",
-            "autosave.lightbox.json");
+        Path.Combine(Lightbox.Core.ProfileFolder.Root, "autosave.lightbox.json");
 
     private readonly DispatcherTimer _timer;
     private readonly Func<Doc> _docProvider;
@@ -123,6 +120,30 @@ public sealed class AutosaveService
     /// <summary>Whether the recovery copy is also written over the real file.</summary>
     public bool InPlace { get; set; }
 
+    /// <summary>
+    /// The per-document recovery copies (B394), or null where there is no
+    /// running application to own them — every test that does not ask for one.
+    /// </summary>
+    /// <remarks>
+    /// When set, it replaces the single shared copy at <see cref="AutosavePath"/>,
+    /// which held one tab's work and was overwritten by the next launch: the
+    /// exact way a crash on 2026-10-07 lost work that autosave had in fact saved.
+    /// </remarks>
+    public RecoverySession? Recovery { get; set; }
+
+    /// <summary>Every open document, as the recovery copies need to see it.</summary>
+    public Func<IReadOnlyList<RecoverySource>>? RecoverySources { get; set; }
+
+    /// <summary>
+    /// Bring the recovery copies in line with the open documents now — what a
+    /// save or a close calls, so a saved document's copy cannot outlive it
+    /// until the next tick.
+    /// </summary>
+    public void SyncRecovery()
+    {
+        if (Recovery is { } recovery && RecoverySources is { } sources) recovery.Sync(sources());
+    }
+
     /// <summary>Call whenever the document changes; the next tick persists it.</summary>
     public void MarkDirty() => _dirty = true;
 
@@ -149,6 +170,13 @@ public sealed class AutosaveService
     /// </remarks>
     public void Flush()
     {
+        // Every tick, dirty flag or not: the copies follow each document's own
+        // revision, and a document that changed without MarkDirty is still work.
+        SyncRecovery();
+        // With per-document copies running, the single shared copy is not
+        // written at all; only in-place autosave is left for this path to do.
+        var single = Recovery is null;
+        if (!single && !InPlace) return;
         if (!_dirty || !_write.IsCompleted) return;
         Doc snapshot;
         string? inPlacePath;
@@ -169,7 +197,7 @@ public sealed class AutosaveService
         {
             try
             {
-                DocJson.Save(snapshot, _targetPath);
+                if (single) DocJson.Save(snapshot, _targetPath);
                 if (inPlacePath is { Length: > 0 } path) DocJson.Save(snapshot, path);
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)

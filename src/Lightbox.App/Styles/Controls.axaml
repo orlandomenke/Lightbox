@@ -48,30 +48,35 @@
     it means "this is the thing you came here to do", and a screen with three
     of them has told the artist nothing.
   -->
+  <!-- The primary is a plain full-contrast fill (Q203): light on Dark-lit,
+       near-black on Studio grey, with the text colour that reads on it. The
+       coral-to-magenta gradient is the brand's, on the logo and the splash. -->
   <Style Selector="Button.primary">
-    <Setter Property="Background" Value="{DynamicResource AccentGradientBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource PrimaryFillBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryForegroundBrush}" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
   <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource AccentGradientBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource PrimaryFillBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryForegroundBrush}" />
+    <Setter Property="Opacity" Value="0.92" />
   </Style>
 
   <!-- The ordinary button, and what most things are. -->
   <!--
-    Dark ground, rim light on the top edge — the same treatment the theme now
-    gives every unranked button, restated here so the rank survives a theme
-    change. The reference's buttons are the bar's own dark with only a lit top
-    edge saying "pressable"; the old SurfaceElevated fill made every button a
-    pale box and a row of them a wall.
+    Flat (Q203, owner 2026-10-07): a quiet fill one step up from the panel, no
+    rim and no shadow, on any rank or state. Rank is fill against outline
+    against text, never light. The same as every unranked button (the themes'
+    ButtonBackground), restated so the rank survives a theme change.
   -->
   <Style Selector="Button.secondary">
-    <Setter Property="Background" Value="{DynamicResource SurfacePanelBrush}" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource RimLightBrush}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button /template/ ContentPresenter#PART_ContentPresenter, ToggleButton /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BoxShadow" Value="none" />
   </Style>
 
   <!-- Outlined: present, clearly not the answer. -->
@@ -97,6 +102,90 @@
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
 
+  <!--
+    A faint edge of light on text buttons (Q203, owner 2026-10-07): chrome in
+    Dark-lit, prism in Studio grey, at about 40%. Icon-only, ghost and canvas
+    bar buttons stay bare: an edge round a lone glyph is louder than the glyph.
+    Set on the presenter in every state too, because Fluent's state styles set
+    the presenter's border and outrank a plain style on the button.
+  -->
+  <Style Selector="Button.text:not(.ghost)">
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource EdgeSubtleBrush}" />
+  </Style>
+  <Style Selector="Button.text:not(.ghost) /template/ ContentPresenter#PART_ContentPresenter, Button.text:not(.ghost):pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.text:not(.ghost):pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource EdgeSubtleBrush}" />
+  </Style>
+  <Style Selector="ToggleSwitch /template/ Border#OuterBorder, ToggleSwitch /template/ Border#SwitchKnobBounds">
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource EdgeSubtleBrush}" />
+  </Style>
+
+  <!--
+    The active field (Q203): a field being typed in and a dropdown that is open
+    take the edge light at FULL strength. Focus has to be found at a glance,
+    and the faint version reads as decoration. Thickness stays 1, so focusing
+    moves nothing. Number fields too: their typing surface is a TextBox.
+  -->
+  <Style Selector="TextBox:focus /template/ Border#PART_BorderElement, TextBox:focus:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="ComboBox:dropdownopen /template/ Border#Background">
+    <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <!-- A field is a well: shade at the top, where the light does not reach. -->
+  <Style Selector="TextBox /template/ Border#PART_BorderElement">
+    <Setter Property="BoxShadow" Value="{DynamicResource InsetShadow}" />
+  </Style>
+  <!-- A dropdown is text at rest (the themes give it no ground): no border. -->
+  <Style Selector="ComboBox">
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <!--
+    "On" is flat (Q203, owner 2026-10-07, after trying a glow, rim and
+    indicator and rejecting them): the tool in hand, a toggle that is on, the
+    layer being drawn on, the menu item opened, all take one quiet lighter
+    fill, ActiveFillBrush, so "on" reads the same everywhere. Hover is the same
+    shape at half that fill (HoverTintBrush). A glyph toggle is excluded: its
+    drawing is the state.
+  -->
+  <Style Selector="ToggleButton:checked:not(.glyph) /template/ ContentPresenter#PART_ContentPresenter, ToggleButton:checked:not(.glyph):pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource ActiveFillBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <!-- A tool at rest is its icon alone. -->
+  <Style Selector="ToggleButton.tool:not(:checked) /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ToggleButton.tool:pointerover:not(:checked) /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
+  </Style>
+  <Style Selector="MenuItem /template/ Border#PART_LayoutRoot">
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusContainerInner}" />
+  </Style>
+  <Style Selector="MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
+  </Style>
+  <Style Selector="MenuItem:selected /template/ Border#PART_LayoutRoot, MenuItem:open /template/ Border#PART_LayoutRoot, MenuItem:pressed /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource ActiveFillBrush}" />
+  </Style>
+  <Style Selector="ComboBoxItem">
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusContainerInner}" />
+  </Style>
+  <Style Selector="ComboBoxItem /template/ ContentPresenter">
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusContainerInner}" />
+  </Style>
+  <Style Selector="CheckBox /template/ Border#NormalRectangle">
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusInner}" />
+  </Style>
+  <Style Selector="Slider /template/ Thumb">
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusPill}" />
+  </Style>
+
   <!-- ===== Badges ==================================================== -->
   <!--
     Four meanings, named for the meaning rather than the colour. A badge is a
@@ -107,8 +196,9 @@
     red one reads as two warnings shouting; the text carries the message and
     the colour only says which kind it is.
   -->
+  <!-- Badges follow the corner set with the controls (owner, 2026-10-07). -->
   <Style Selector="Border.badge">
-    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Padding" Value="6,1" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
@@ -160,29 +250,12 @@
     divide:
 
     * **Panel tabs** — Layers / Channels / History, and these docker headers.
-      The active one is a *sheet edge*: a lighter ground with rounded top
-      corners fading fast into the panel below, so the tab and its content read
-      as one surface and the others as sheets behind it. No accent anywhere.
+      The active one is a piece of its panel rising into the header strip
+      (v.2, below). No accent anywhere.
     * **Section tabs** — PAINT / ANIMATE / COMPOSITING, and the timeline's
-      modes. No ground at all, and an accent underline. They divide a *mode*
+      modes. No ground at all, and an underline. They divide a *mode*
       rather than a stack of panels, so there is nothing behind them to be
       behind.
-
-    These are the panel kind, and the treatment below is the first one measured
-    off the reference rather than reasoned from the tokens: a column down the
-    active tab in the mockup starts at `SurfaceElevated` and is back at the
-    panel's own ground by two thirds of the way down.
-
-    An accent underline was here for one commit and was wrong — it is the
-    section treatment, and wearing it made a docker header claim to divide the
-    application. The version before *that* had no mark at all, which was wrong
-    the other way: three words at slightly different brightnesses read as a row
-    of labels rather than as a control, and a tab strip nobody recognises has
-    hidden two panels instead of offering them.
-
-    It takes a template because a ListBoxItem has nowhere to put a rounded top
-    otherwise, and the template is the smallest thing that works: one border
-    and a presenter.
   -->
   <!--
     The tab's shape and its bottom rule, as a style rather than as attributes in
@@ -192,15 +265,31 @@
     style with a state in its selector outranks the template — which is why the
     active tab already behaved and the resting ones did not.
   -->
+  <!--
+    v.2 (Q203, owner 2026-10-07), and it replaces the sheet-edge treatment
+    described above: the header is a darker strip (AppStyles.axaml), and the
+    active tab is a piece of the panel rising into it, the same surface as the
+    content, rounded on top, no line between them. A tab means "this panel's
+    content is showing", and v.2 draws exactly that. Resting tabs are words on
+    the strip; hover is the active tab's own shape at half its weight. Chosen
+    over a pill bar because the pill is the segmented selector, and a tab that
+    looked like one would blur "switch view" with "pick a value". No outline,
+    no rule, no violet line: the surface is the whole statement.
+  -->
   <Style Selector="ListBox.tabs > ListBoxItem /template/ Border#PART_Tab">
-    <Setter Property="CornerRadius" Value="4,4,0,0" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusTab}" />
+    <!-- An edge nobody sees, and it is the click target. A border rounded on
+         top only, with no border at all, took no hit over its fill: a resting
+         tab answered only on its word (DockerDragRoutingTests found it, and a
+         near-transparent ground did not help). One transparent pixel along the
+         bottom, in every state so the tabs stay one height. -->
+    <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0,0,0,1" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Padding" Value="13,4" />
-    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="Padding" Value="{StaticResource TabPadding}" />
+    <Setter Property="MinHeight" Value="{StaticResource SizeRow}" />
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="Template">
       <ControlTemplate>
@@ -208,20 +297,6 @@
           Named and always present, rather than a border added on selection. A
           box that appears on click changes the strip's height as tabs are
           picked; one that is always there and only changes colour does not.
-
-          Bottom corners square, and **the bottom border is the strip's rule**.
-          It closes a resting tab and is absent on the active one, so the line
-          runs along the strip, past the resting tabs, and stops where the
-          active tab meets its panel. That gap is the whole difference between
-          a tab and a button that happens to be in a row: the active tab and
-          its content are one surface, and the rule is the front edge of the
-          sheets behind it.
-
-          Drawn per tab rather than as one line under the strip, and that is
-          load-bearing. A single rule would have to be *covered* by the active
-          tab, and the active tab cannot cover anything — its gradient ends
-          transparent so it merges into whatever ground it lands on. Anything
-          opaque enough to hide a line would be a seam.
         -->
         <Border Name="PART_Tab"
                 Background="{TemplateBinding Background}">
@@ -232,30 +307,13 @@
                               Foreground="{TemplateBinding Foreground}"
                               Padding="{TemplateBinding Padding}"
                               VerticalAlignment="Center" />
-            <!--
-              The active tab's purple gradient line, along the TOP edge — where
-              the reference draws it (the Brush Settings' active tab), not
-              underneath. Always present and usually transparent, for the same
-              reason as the ground: a mark that appears on click changes the
-              strip's height, one that only changes colour does not. Inset 2px
-              so it does not overrun the rounded corners.
-            -->
-            <Border Name="PART_TopLine" Height="2" Margin="2,0"
-                    VerticalAlignment="Top" CornerRadius="1"
-                    Background="Transparent" IsHitTestVisible="False" />
           </Panel>
         </Border>
       </ControlTemplate>
     </Setter>
   </Style>
-  <!--
-    Three states, and each says one more thing than the last: **every** tab is
-    outlined so the row reads as tabs at rest, hover lifts the ground so one
-    reads as reachable, and the active one takes the lit gradient. The
-    reference outlines the resting tabs too — a strip where only the active tab
-    has a shape reads as one tab beside two words, which is the failure the
-    no-mark version had, moved along by one.
-  -->
+  <!-- Hover is the active tab's own shape at half its weight, so the strip
+       never shows a differently rounded block (Q203). -->
   <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ Border#PART_Tab">
     <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
   </Style>
@@ -265,18 +323,8 @@
     hover tint — the active tab going *dimmer* when you point at it, which
     looks like a click that failed.
   -->
-  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_Tab">
-    <Setter Property="Background" Value="{DynamicResource TabActiveGroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
-    <Setter Property="BorderThickness" Value="1,1,1,0" />
-  </Style>
-  <Style Selector="ListBox.tabs > ListBoxItem:selected:pointerover /template/ Border#PART_Tab">
-    <Setter Property="Background" Value="{DynamicResource TabActiveGroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
-    <Setter Property="BorderThickness" Value="1,1,1,0" />
-  </Style>
-  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_TopLine">
-    <Setter Property="Background" Value="{DynamicResource TabActiveLineBrush}" />
+  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_Tab, ListBox.tabs > ListBoxItem:selected:pointerover /template/ Border#PART_Tab">
+    <Setter Property="Background" Value="{DynamicResource SurfacePanelBrush}" />
   </Style>
   <!--
     Both halves, and the second is the one that does the work: the theme sets a
@@ -294,9 +342,8 @@
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
   <!--
-    No hover tint on the presenter. The tab outline is the hover affordance now,
-    and a tinted box behind the word would put back exactly the second box the
-    underline exists to avoid.
+    No hover tint on the presenter: the tab's own shape (PART_Tab) carries
+    hover, and a tint behind the word would be a second box inside it.
   -->
   <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
@@ -342,7 +389,7 @@
 
   <Style Selector="ToggleButton.glyph Path">
     <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
-    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeThickness" Value="{StaticResource IconStroke}" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
@@ -388,7 +435,7 @@
   -->
   <Style Selector="Path.icon">
     <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
-    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeThickness" Value="{StaticResource IconStroke}" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
@@ -411,7 +458,7 @@
   -->
   <Style Selector="controls|CanvasOverlayBar ToggleButton Path">
     <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
-    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeThickness" Value="{StaticResource IconStroke}" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
@@ -419,11 +466,33 @@
     <Setter Property="Width" Value="15" />
     <Setter Property="Height" Value="15" />
   </Style>
+  <!--
+    The canvas bar (Q203, owner 2026-10-07): only icons are visible. No fill,
+    rim or glow at rest; the one that is on gets the flat active fill, fitting
+    the bar exactly, its corners one padding smaller than the bar's so the two
+    shapes are concentric. Set on the control as well as the presenter: the
+    presenter's background is a template binding, which outranks a style.
+  -->
+  <Style Selector="controls|CanvasOverlayBar Button, controls|CanvasOverlayBar ToggleButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="controls|CanvasOverlayBar Button /template/ ContentPresenter#PART_ContentPresenter, controls|CanvasOverlayBar ToggleButton /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusContainerInner}" />
+  </Style>
+  <Style Selector="controls|CanvasOverlayBar Button:pointerover /template/ ContentPresenter#PART_ContentPresenter, controls|CanvasOverlayBar ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
+  </Style>
+  <Style Selector="controls|CanvasOverlayBar ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter, controls|CanvasOverlayBar ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource ActiveFillBrush}" />
+  </Style>
   <!-- The bars' plain buttons (zoom, rotate, play) wear the same 15px drawing
        as the tiles beside them, so the grid keeps one weight throughout. -->
   <Style Selector="controls|CanvasOverlayBar Button Path">
     <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
-    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeThickness" Value="{StaticResource IconStroke}" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
@@ -460,7 +529,7 @@
   <!-- The tool rail's glyphs: quiet at rest, full-strength on the active tool. -->
   <Style Selector="ToggleButton.tool Path:not(.variantmark)">
     <Setter Property="Stroke" Value="{DynamicResource TextSecondaryBrush}" />
-    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeThickness" Value="{StaticResource IconStroke}" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
@@ -475,37 +544,19 @@
     <Setter Property="Fill" Value="{DynamicResource TextOnAccentBrush}" />
   </Style>
 
-  <!--
-    The shared shape of every tab strip's top line, so the document tabs and
-    the docker tabs stay one treatment. Transparent until an .active ancestor
-    says otherwise.
-  -->
-  <Style Selector="Border.tabline">
-    <Setter Property="Height" Value="2" />
-    <Setter Property="Margin" Value="2,0" />
-    <Setter Property="VerticalAlignment" Value="Top" />
-    <Setter Property="CornerRadius" Value="1" />
-    <Setter Property="Background" Value="Transparent" />
-    <Setter Property="IsHitTestVisible" Value="False" />
-  </Style>
-  <Style Selector="Border.docTab.active Border.tabline">
-    <Setter Property="Background" Value="{DynamicResource TabActiveLineBrush}" />
-  </Style>
-
   <!-- ===== Floating chrome =========================================== -->
   <!--
     Context menus and flyouts are cards too: same radius as the dockers, so
     everything that floats shares one shape language. The elevated surface
     they already have; this is the missing half of the card.
   -->
-  <Style Selector="MenuFlyoutPresenter">
-    <Setter Property="CornerRadius" Value="6" />
+  <Style Selector="MenuFlyoutPresenter, FlyoutPresenter, ContextMenu, ToolTip">
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusContainer}" />
   </Style>
-  <Style Selector="FlyoutPresenter">
-    <Setter Property="CornerRadius" Value="6" />
-  </Style>
-  <Style Selector="ContextMenu">
-    <Setter Property="CornerRadius" Value="6" />
+  <!-- What floats takes the edge light (Q203): it is above everything else. -->
+  <Style Selector="MenuFlyoutPresenter, FlyoutPresenter, ContextMenu">
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
   </Style>
 
   <!-- ===== Section tabs ============================================== -->
@@ -536,7 +587,7 @@
                             Padding="{TemplateBinding Padding}"
                             VerticalAlignment="Center" />
           <Border Name="PART_Underline" Height="2" Margin="4,0"
-                  VerticalAlignment="Bottom" CornerRadius="1"
+                  VerticalAlignment="Bottom" CornerRadius="{StaticResource RadiusPill}"
                   Background="Transparent" IsHitTestVisible="False" />
         </Panel>
       </ControlTemplate>
@@ -571,8 +622,9 @@
   <Style Selector="ListBox.sectiontabs > ListBoxItem:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
   </Style>
+  <!-- Full-strength text colour, not violet: the chrome is grey (Q203). -->
   <Style Selector="ListBox.sectiontabs > ListBoxItem:selected /template/ Border#PART_Underline">
-    <Setter Property="Background" Value="{DynamicResource AccentVioletBrush}" />
+    <Setter Property="Background" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
   <Style Selector="ListBox.sectiontabs > ListBoxItem:pointerover /template/ Border#PART_Underline">
     <Setter Property="Background" Value="{DynamicResource BorderStrongBrush}" />
@@ -598,8 +650,10 @@
     colour systems, and the clearest evidence that repointing the theme was the
     missing half of the palette rather than a polish item.
   -->
+  <!-- The value side of a track: the theme's neutral fill (Q203: the chrome
+       is grey; colour is for data). -->
   <Style Selector="Slider">
-    <Setter Property="Foreground" Value="{DynamicResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SliderTrackValueFill}" />
   </Style>
 
   <!-- ===== Toggles and checks ======================================== -->

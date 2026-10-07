@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lightbox.App.Views.RecoveryDialog"
+        Title="Recover unsaved work"
+        Width="{StaticResource SizeDialogWidth}" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    B394 / Q208. Shown when a session that is no longer running left recovery copies
+    behind. Three answers, and only one of them is permanent:
+
+    - Restore opens every copy as a "(recovered)" tab and moves it into this session.
+    - Not now keeps the copies exactly where they are; File ▸ Recover unsaved work…
+      brings this back. Escape means this, because the window closing must never be
+      the thing that deletes someone's afternoon.
+    - Discard asks again before deleting, in this same window.
+  -->
+  <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
+    <TextBlock x:Name="Message" TextWrapping="Wrap" />
+    <ItemsControl x:Name="Copies">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <StackPanel Spacing="{StaticResource Space4}" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="x:String">
+          <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <TextBlock x:Name="Note" Classes="dim" TextWrapping="Wrap" />
+
+    <StackPanel x:Name="Choices" Orientation="Horizontal" Spacing="{StaticResource Space8}" HorizontalAlignment="Right">
+      <Button Classes="tertiary" x:Name="DiscardButton" Content="Discard…" Click="OnDiscardClicked" MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="tertiary" x:Name="LaterButton" Content="Not now" IsCancel="True" Click="OnLaterClicked" MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="primary" x:Name="RestoreButton" Content="Restore" IsDefault="True" Click="OnRestoreClicked" MinWidth="{StaticResource SizeDialogButton}" />
+    </StackPanel>
+
+    <StackPanel x:Name="Confirm" IsVisible="False" Orientation="Horizontal" Spacing="{StaticResource Space8}" HorizontalAlignment="Right">
+      <Button Classes="tertiary" Content="Back" Click="OnBackClicked" MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="tertiary" Content="Delete for good" Click="OnDeleteClicked" MinWidth="{StaticResource SizeDialogButton}" />
+    </StackPanel>
+  </StackPanel>
+</Window>
