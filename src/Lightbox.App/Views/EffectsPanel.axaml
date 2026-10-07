@@ -41,7 +41,7 @@
 
     <!-- Adding: one row of the catalogue as buttons, and the adjustment-layer
          row beneath — Photoshop's gesture on the ordinary layer machinery. -->
-    <StackPanel DockPanel.Dock="Bottom" Margin="0,6,0,0" Spacing="{StaticResource Space4}">
+    <StackPanel DockPanel.Dock="Bottom" Margin="{StaticResource SubsectionGap}" Spacing="{StaticResource Space4}">
       <TextBlock Text="Add to this stack" FontSize="{StaticResource TypeHint}"
                  Foreground="{DynamicResource TextSecondaryBrush}"
                  ToolTip.Tip="On a plain layer this offers the effects that work on a layer's own drawing. Hue / Saturation works on what is beneath — add it as an adjustment layer and clip it to the layer below." />
@@ -100,7 +100,7 @@
                   <Button DockPanel.Dock="Right" Classes="icon" Background="Transparent"
                           Command="{Binding $parent[UserControl].((vm:EffectsViewModel)DataContext).RemoveUseCommand}"
                           CommandParameter="{Binding}" ToolTip.Tip="Remove this effect">
-                    <Path Classes="icon" Width="8" Height="8" Data="{StaticResource IconClose}" />
+                    <Path Classes="icon" Width="{StaticResource SizeIcon8}" Height="{StaticResource SizeIcon8}" Data="{StaticResource IconClose}" />
                   </Button>
                   <Button Background="Transparent" BorderThickness="0" Padding="4,1"
                           HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
@@ -122,7 +122,7 @@
 
         <!-- The selected effect's colours: a swatch and a hex field, the
              lightweight entry the fluid-effects window already uses. -->
-        <ItemsControl ItemsSource="{Binding ColorRows}" Margin="0,4,0,0">
+        <ItemsControl ItemsSource="{Binding ColorRows}" Margin="{StaticResource LineGap}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:EffectColorRow">
               <Grid ColumnDefinitions="86,20,*" Margin="0,1" MinHeight="24">
@@ -139,14 +139,14 @@
         </ItemsControl>
 
         <!-- The selected effect's parameters. -->
-        <ItemsControl ItemsSource="{Binding Params}" Margin="0,4,0,0">
+        <ItemsControl ItemsSource="{Binding Params}" Margin="{StaticResource LineGap}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:EffectParamRow">
               <Grid ColumnDefinitions="86,*,52" Margin="0,1" MinHeight="24">
                 <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="{StaticResource TypeDense}"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 <Slider Grid.Column="1" Minimum="{Binding Min}" Maximum="{Binding Max}"
-                        Value="{Binding Value, Mode=TwoWay}" Margin="4,0" VerticalAlignment="Center" />
+                        Value="{Binding Value, Mode=TwoWay}" Margin="{StaticResource RowColumnGap}" VerticalAlignment="Center" />
                 <NumericUpDown Grid.Column="2" Value="{Binding Value, Mode=TwoWay}"
                                Minimum="{Binding Min}" Maximum="{Binding Max}"
                                Increment="{Binding Increment}" FormatString="0.#" FontSize="{StaticResource TypeHint}"

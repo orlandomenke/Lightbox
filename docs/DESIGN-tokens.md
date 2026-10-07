@@ -65,6 +65,21 @@ should be none.
 - **Code-behind is out of scope here.** `new Thickness(…)` in C# is not counted
   yet. The gallery's stories are the one place that does this deliberately.
 
+## Progress
+
+| Step | Literals left | What it moved |
+| --- | --- | --- |
+| 1 · foundation | 1,239 | type scale, spacing scale, density sizes, dynamic brushes |
+| 2 · dockers | 912 | setting rows (label, slider gap, value floor), icon sizes, section gaps — the docker part of MainWindow.axaml and the panels it hosts (tool option pages, effects, guides, scene) |
+
+**How each area proves "no visual change":** the gallery's `--snapshot-app`
+renders the main window empty and with a document open, every docker brought to
+the front one at a time, every tool's options page and every Configure page —
+44 images. They are compared pixel by pixel against the previous step with the
+status line masked: it carries live readings. The comparison must first catch a
+deliberate one-pixel break in a token the area introduced; for the dockers,
+`SizeDockerLabel` at 91 showed in 15 of the 44.
+
 ## What a hostile file could do
 
 Nothing new. Tokens are compiled resources in the app's own assembly, and no

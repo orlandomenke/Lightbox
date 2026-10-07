@@ -22,7 +22,7 @@
          off-scale on purpose to match the brush pages sharing this docker
          (BrushPageGeneral and siblings), so switching tools does not switch
          rhythms. Labels are the 52px column the transform rows use. -->
-    <StackPanel Spacing="{StaticResource Space8}" Margin="0,0,4,0">
+    <StackPanel Spacing="{StaticResource Space8}" Margin="{StaticResource GapAfter}">
 
       <!-- Which third of the tool is in hand, said rather than remembered. -->
       <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space8}">
@@ -74,9 +74,9 @@
                       Padding="2,0" HorizontalAlignment="Left"
                       ToolTip.Tip="Show or hide the bone list.">
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}" VerticalAlignment="Center">
-            <Path Classes="icon" Width="8" Height="8" Data="{StaticResource IconChevronDown}"
+            <Path Classes="icon" Width="{StaticResource SizeIcon8}" Height="{StaticResource SizeIcon8}" Data="{StaticResource IconChevronDown}"
                   IsVisible="{Binding #BoneListToggle.IsChecked}" />
-            <Path Classes="icon" Width="8" Height="8" Data="{StaticResource IconChevronRight}"
+            <Path Classes="icon" Width="{StaticResource SizeIcon8}" Height="{StaticResource SizeIcon8}" Data="{StaticResource IconChevronRight}"
                   IsVisible="{Binding !#BoneListToggle.IsChecked}" />
             <TextBlock Text="Bones" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
           </StackPanel>
@@ -110,12 +110,12 @@
            until one is picked. -->
       <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasSelectedBone}">
         <DockPanel>
-          <TextBlock Text="Name" Width="52" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
+          <TextBlock Text="Name" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
           <TextBox Text="{Binding SelectedBoneName, Mode=TwoWay}"
                    ToolTip.Tip="Rename the bone. Ending a pair in .l and .r is what lets X-symmetry paint both sides at once." />
         </DockPanel>
         <DockPanel>
-          <TextBlock Text="Length" Width="52" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
+          <TextBlock Text="Length" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
           <NumericUpDown Value="{Binding SelectedBoneLength, Mode=TwoWay}" Minimum="4" Maximum="4000"
                          Increment="4" FormatString="0"
                          ToolTip.Tip="How long the bone is, in document pixels — the same thing dragging its tip changes." />
@@ -132,13 +132,13 @@
                   ToolTip.Tip="The bone lags and settles behind the motion driving it — tails, ears, antennae. Solved per frame from the pose track, so the same document always renders the same swing." />
         <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding SelectedBoneJiggles}">
           <DockPanel>
-            <TextBlock Text="Catch up" Width="52" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
+            <TextBlock Text="Catch up" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <NumericUpDown Value="{Binding SelectedBoneJiggleStiffness, Mode=TwoWay}" Minimum="0.01" Maximum="1"
                            Increment="0.05" FormatString="0.00"
                            ToolTip.Tip="How hard the bone is pulled toward where the pose wants it. Low is a whippy antenna, high follows almost immediately." />
           </DockPanel>
           <DockPanel>
-            <TextBlock Text="Settle" Width="52" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
+            <TextBlock Text="Settle" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <NumericUpDown Value="{Binding SelectedBoneJiggleDamping, Mode=TwoWay}" Minimum="0.02" Maximum="1"
                            Increment="0.05" FormatString="0.00"
                            ToolTip.Tip="How quickly the swing dies. Low keeps it bouncing; high is a heavy tail that settles at once." />
@@ -155,13 +155,13 @@
         <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasSelectedChain}">
           <TextBlock Text="IK" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
           <DockPanel>
-            <TextBlock Text="Bones" Width="52" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
+            <TextBlock Text="Bones" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <NumericUpDown Value="{Binding SelectedChainBoneCount, Mode=TwoWay}" Minimum="1" Maximum="16"
                            Increment="1" FormatString="0"
                            ToolTip.Tip="How many bones up from the chain's end the solve may turn. Two is a limb; more is a tail." />
           </DockPanel>
           <DockPanel>
-            <TextBlock Text="Pole" Width="52" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
+            <TextBlock Text="Pole" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <ComboBox ItemsSource="{Binding PoleRows}" SelectedValue="{Binding SelectedChainPoleKey, Mode=TwoWay}"
                       SelectedValueBinding="{Binding Id}" HorizontalAlignment="Stretch"
                       ToolTip.Tip="A bone that says which way the knee or elbow bends. Without one the chain keeps whichever way it is already bent.">
@@ -185,7 +185,7 @@
         <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasSelectedSpline}">
           <TextBlock Text="Spline" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
           <DockPanel>
-            <TextBlock Text="Bones" Width="52" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
+            <TextBlock Text="Bones" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <NumericUpDown Value="{Binding SelectedSplineBoneCount, Mode=TwoWay}" Minimum="1" Maximum="32"
                            Increment="1" FormatString="0"
                            ToolTip.Tip="How many bones up from the end lie along the curve. Every one keeps its own length — the curve bends the run, it never stretches it." />
@@ -225,13 +225,13 @@
             <ComboBoxItem Content="Copy place of" />
           </ComboBox>
           <DockPanel>
-            <TextBlock Text="Offset" Width="52" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
+            <TextBlock Text="Offset" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <NumericUpDown Value="{Binding ConstraintOffsetDeg, Mode=TwoWay}" Minimum="-360" Maximum="360"
                            Increment="5" FormatString="0"
                            ToolTip.Tip="Degrees added after the constraint resolves — a head that should look slightly past what it aims at." />
           </DockPanel>
           <DockPanel>
-            <TextBlock Text="Strength" Width="52" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
+            <TextBlock Text="Strength" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <NumericUpDown Value="{Binding ConstraintInfluencePercent, Mode=TwoWay}" Minimum="0" Maximum="100"
                            Increment="5" FormatString="0"
                            ToolTip.Tip="How far toward the constrained result the bone goes. 0 leaves it exactly where it was." />
@@ -251,7 +251,7 @@
           <ComboBoxItem Content="Smooth" />
         </ComboBox>
         <DockPanel>
-          <TextBlock Text="Size" Width="52" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
+          <TextBlock Text="Size" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
           <NumericUpDown Value="{Binding WeightBrushRadius, Mode=TwoWay}" Minimum="2" Maximum="400"
                          Increment="2" FormatString="0"
                          ToolTip.Tip="Brush radius in document pixels. Pressure drives strength within it." />
