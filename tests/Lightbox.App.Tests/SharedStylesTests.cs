@@ -79,22 +79,27 @@ public sealed class SharedStylesTests
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         var borders = window.GetVisualDescendants().OfType<Border>().ToList();
+        // The values of the look (Q203, step 3): an island with no outline that
+        // does not clip its own shadow, a darker header strip, a bar with the
+        // edge light and the container's corners, tabs rounded on top.
         var frame = borders.First(b => b.Name == "PART_Frame");
-        Assert.Equal(new Thickness(1), frame.BorderThickness);
+        Assert.Equal(default, frame.BorderThickness);
         Assert.Equal(new CornerRadius(6), frame.CornerRadius);
-        Assert.True(frame.ClipToBounds);
+        Assert.False(frame.ClipToBounds);
+        Assert.NotEqual(default, frame.BoxShadow);
 
         var header = borders.First(b => b.Name == "PART_Header");
-        Assert.Equal(Colors.Transparent, Assert.IsAssignableFrom<ISolidColorBrush>(header.Background).Color);
+        Assert.True(window.TryFindResource("BackgroundSecondaryBrush", window.ActualThemeVariant, out var strip));
+        Assert.Equal(((ISolidColorBrush)strip!).Color, Assert.IsAssignableFrom<ISolidColorBrush>(header.Background).Color);
 
         var bar = borders.First(b => b.Name == "PART_Bar");
         Assert.Equal(new Thickness(1), bar.BorderThickness);
-        Assert.Equal(new CornerRadius(4), bar.CornerRadius);
+        Assert.Equal(new CornerRadius(6), bar.CornerRadius);
+        Assert.IsType<ConicGradientBrush>(bar.BorderBrush);
 
         var tabs = borders.Where(b => b.Name == "PART_Tab").ToList();
         Assert.NotEmpty(tabs);
         var resting = tabs.First(t => t.TemplatedParent is ListBoxItem { IsSelected: false });
-        Assert.Equal(new Thickness(0, 0, 0, 1), resting.BorderThickness);
         Assert.Equal(new CornerRadius(4, 4, 0, 0), resting.CornerRadius);
 
         // Fluent's accent, from the ColorPaletteResources inside AppStyles.axaml:

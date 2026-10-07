@@ -151,7 +151,8 @@ where it would land:
   its tab back to a dock zone to put it away again.
 
 Every panel also has a **⧉ button** beside its close button: it floats the
-panel where it stands. On a floating panel the same button reads **⇱** and
+panel where it stands. Both show when the pointer is over the panel and stay
+out of the way otherwise; tabbing to them with the keyboard shows them too. On a floating panel the same button reads **⇱** and
 docks it back where it came from. The timeline has neither — it never leaves
 the bottom.
 
@@ -217,6 +218,22 @@ proportions at another.
 changes nothing in your documents. It belongs to this machine, not to a
 workspace, so switching workspaces does not change how big the text is. The
 Configure window and other dialogs stay at their own size.
+
+### Dark-lit and Studio grey
+
+**Edit → Configure → Interface → Theme** chooses how the interface around your
+work looks. It switches at once, everywhere, with no restart.
+
+- **Dark-lit**, the default, keeps the canvas the brightest thing on the screen
+  and suits a dim room.
+- **Studio grey** is a mid-grey surround, the most neutral for judging a
+  painting's values, and suits a bright room.
+
+Neither changes a pixel of your work, and the choice belongs to this machine,
+like the interface scale. Both are grey on purpose: colour on screen is your
+drawing's, so a control that is on is a lighter fill rather than a hue, and a
+field you are typing in or a list you have opened is marked by a thin edge of
+light.
 
 ---
 

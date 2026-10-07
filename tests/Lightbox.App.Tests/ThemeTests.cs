@@ -72,6 +72,60 @@ public sealed class ThemeTests : BrushStateIsolated
         }
     }
 
+    [AvaloniaFact]
+    public void ChromeDrawnInCodeReadsTheThemeItIsIn()
+    {
+        // The timeline, rulers and graph draw their own text and grid, so they
+        // cannot name a DynamicResource. Before Q203's piece 3 they drew white
+        // hairlines and #A6ABB8 text, which vanished on Studio grey.
+        var window = new MainWindow();
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        var vm = (MainViewModel)window.DataContext!;
+        try
+        {
+            var probe = new Lightbox.App.Controls.TrackView();
+            ((Panel)window.FindControl<Grid>("RootGrid")!).Children.Add(probe);
+            // The canvas reads its surround on the UI thread when the theme
+            // changes, and hands it to the render thread with the frame.
+            var canvas = new Lightbox.App.Rendering.CanvasControl();
+            ((Panel)window.FindControl<Grid>("RootGrid")!).Children.Add(canvas);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(Color.Parse("#2B2B2B"), Lightbox.App.Controls.ThemeColour.Of(probe, "CanvasSurroundBrush", Colors.Red));
+            Assert.True(Lightbox.App.Controls.ThemeColour.Hairline(probe, 0x10).R > 0x80, "Dark-lit's hairline is light ink");
+            Assert.Equal(new SkiaSharp.SKColor(0x2B, 0x2B, 0x2B), canvas.SurroundForTests);
+
+            vm.ThemeChoice = "Studio grey";
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(Color.Parse("#8A8A88"), Lightbox.App.Controls.ThemeColour.Of(probe, "CanvasSurroundBrush", Colors.Red));
+            Assert.Equal(new SkiaSharp.SKColor(0x8A, 0x8A, 0x88), canvas.SurroundForTests);
+            var ink = Lightbox.App.Controls.ThemeColour.Hairline(probe, 0x10);
+            Assert.True(ink.R < 0x80 && ink.A == 0x10, $"Studio grey's hairline is {ink}: it must be dark ink, or it vanishes on the grey");
+        }
+        finally
+        {
+            vm.ThemeChoice = "Dark-lit";
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [Theory]
+    [InlineData("Controls/TrackView.cs")]
+    [InlineData("Controls/TimelineRuler.cs")]
+    [InlineData("Controls/RulerStrip.cs")]
+    [InlineData("Controls/GraphView.cs")]
+    [InlineData("Controls/TimingChartView.cs")]
+    [InlineData("Controls/CurveEditor.cs")]
+    public void ChromeDrawnInCodeRepaintsWhenTheThemeSwitches(string file)
+    {
+        // Reading the theme at render time is half of it; a control that is not
+        // asked to render again keeps the old theme's colours on screen until
+        // something else happens to invalidate it.
+        var source = File.ReadAllText(Path.Combine(Root(), "src", "Lightbox.App", file));
+        Assert.Contains("ThemeColour.RepaintOnThemeChange(this", source);
+    }
+
     [Fact]
     public void AHandEditedThemeCanOnlyLandOnOneThatExists()
     {

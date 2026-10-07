@@ -92,7 +92,7 @@
         <ItemsControl ItemsSource="{Binding Uses}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:EffectUseRow">
-              <Border Background="Transparent" CornerRadius="3" Padding="2,1"
+              <Border Background="Transparent" CornerRadius="{StaticResource RadiusControl}" Padding="2,1"
                       Classes.selectedFx="{Binding IsSelected}">
                 <DockPanel>
                   <CheckBox DockPanel.Dock="Left" IsChecked="{Binding Enabled}" MinWidth="0"
@@ -128,7 +128,7 @@
               <Grid ColumnDefinitions="86,20,*" Margin="0,1" MinHeight="24">
                 <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="{StaticResource TypeDense}"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                <Border Grid.Column="1" Width="14" Height="14" CornerRadius="3"
+                <Border Grid.Column="1" Width="14" Height="14" CornerRadius="{StaticResource RadiusPreview}"
                         Background="{Binding Swatch}" VerticalAlignment="Center"
                         BorderBrush="{DynamicResource TextSecondaryBrush}" BorderThickness="1" />
                 <TextBox Grid.Column="2" Text="{Binding Value, Mode=TwoWay}"

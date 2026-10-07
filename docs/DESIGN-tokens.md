@@ -74,6 +74,8 @@ should be none.
 | 2 · Configure | 865 | the settings page inset, the settings field and combo widths, the information card's corners and inset |
 | 2 · windows and dialogs | 748 | the dialog inset, label column, small field and button floor, the wider gaps, card radii — the project window and 25 dialogs, panels and bars |
 | 3 · values | 746 | the new look's values: Tight corners (and Fluent's own two radii), one docker label width, one gap scale (4 and 8), the 10 px floor, a 1.25 icon line |
+| 3 · themes | 746 | Dark-lit and Studio grey: the chrome's brushes in two theme dictionaries, switched live from Configure |
+| 3 · treatments | 682 | the gallery's treatments in the app's own styles: flat buttons, one "on" fill, v.2 tabs (panel and document), docker islands, the edge light, the icons-only canvas bar; every literal radius onto a role; code-drawn chrome (timeline, rulers, graph, curve editor, canvas surround) reading the theme |
 
 **How each area proves "no visual change":** the gallery's `--snapshot-app`
 renders the main window empty and with a document open, every docker brought to
@@ -119,6 +121,21 @@ until the look sets them:
 - **Leftovers in the windows:** `Padding="8,6"` (BrushLibraryWindow,
   VideoExportWindow), `Padding="4,0"` (VersionHistoryWindow's milestone badge),
   `Margin="24,0,0,0"` (PlacementChoiceDialog's indent).
+
+## Still open after step 3
+
+Step 3 changes what the app looks like on purpose, so its evidence is the
+snapshots read side by side in both themes rather than a pixel diff of zero.
+What it chose in the gallery and has not yet built, because each needs view work
+rather than a style:
+
+- **Effect sliders** for opacity and flow (a track that pictures its value) and
+  **segmented selectors** for a handful of choices. Both exist only as gallery
+  prototypes (`tools/Lightbox.Gallery/Looks/Controls.axaml`).
+- **The effects switch.** The gallery could turn the soft shadows off; the app
+  has them on and no preference yet.
+- **One fixed field width**, **fewer icon sizes**, **ScenePanel's depth row** and
+  the **window leftovers** above are still literal and counted.
 
 ## What a hostile file could do
 

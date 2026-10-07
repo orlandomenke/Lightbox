@@ -338,7 +338,7 @@
        the filled and unfilled sides together. -->
   <Style Selector="Slider /template/ Border#TrackBackground">
     <Setter Property="Height" Value="3" />
-    <Setter Property="CornerRadius" Value="1.5" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusPill}" />
   </Style>
   <!-- 10, from the reference's sliders: a dot riding a hairline track, not a
        knob. The track is already 2px; the thumb was the fat part. -->

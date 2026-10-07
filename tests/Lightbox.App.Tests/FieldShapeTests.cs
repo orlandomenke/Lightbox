@@ -44,10 +44,14 @@ public class FieldShapeTests
         return w;
     }
 
-    /// <summary>The border that actually paints the control's box.</summary>
+    /// <summary>
+    /// The border that paints the control's box, by its template name: a
+    /// dropdown is text at rest since Q203 and draws no border until it opens,
+    /// so "the one with a border" no longer finds it.
+    /// </summary>
     private static Border PaintedBox(TemplatedControl c) =>
         c.GetVisualDescendants().OfType<Border>()
-            .First(b => b.Bounds.Width > 0 && b.BorderThickness != default);
+            .First(b => b.Bounds.Width > 0 && b.Name is "PART_BorderElement" or "Background");
 
     [AvaloniaFact]
     public void EveryFieldIsTheSameShapeAsEveryOtherOne()

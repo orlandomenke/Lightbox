@@ -25,7 +25,7 @@
                      IsVisible="{TemplateBinding Label, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
           <Button x:Name="PART_Swatch" Width="26" Height="22" Padding="0"
                   Background="{TemplateBinding Swatch}"
-                  BorderBrush="#666" BorderThickness="1" CornerRadius="3"
+                  BorderBrush="#666" BorderThickness="1" CornerRadius="{StaticResource RadiusPreview}"
                   ToolTip.Tip="Pick a colour">
             <Button.Flyout>
               <Flyout Placement="Bottom">
@@ -172,7 +172,7 @@
               <DataTemplate x:DataType="docs:Swatch">
                 <Button Width="18" Height="18" Padding="0" Margin="0,0,3,3"
                         Background="{Binding Color}"
-                        BorderBrush="#666" BorderThickness="1" CornerRadius="2"
+                        BorderBrush="#666" BorderThickness="1" CornerRadius="{StaticResource RadiusPreview}"
                         ToolTip.Tip="{Binding Name}"
                         Command="{Binding $parent[ItemsControl].((vm:ColorPickerViewModel)DataContext).PickSwatchCommand}"
                         CommandParameter="{Binding}" />

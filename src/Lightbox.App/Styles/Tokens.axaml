@@ -112,6 +112,33 @@
   <CornerRadius x:Key="RadiusControl">4</CornerRadius>
   <CornerRadius x:Key="RadiusContainer">6</CornerRadius>
   <CornerRadius x:Key="RadiusInner">2</CornerRadius>
+  <!-- Inside a container's 2 px padding: a canvas-bar icon, a menu item, a
+       dropdown's item. The container's radius less the padding, so the two
+       shapes are concentric rather than two unrelated roundings. -->
+  <CornerRadius x:Key="RadiusContainerInner">4</CornerRadius>
+  <!-- A docker header strip's top: the container's, square below where the
+       content meets it. -->
+  <CornerRadius x:Key="RadiusContainerTop">6,6,0,0</CornerRadius>
+  <!-- A docker tab: the control's radius on top, square where it joins its panel. -->
+  <CornerRadius x:Key="RadiusTab">4,4,0,0</CornerRadius>
+  <!-- Handles: a slider's thumb, a switch. Round in every corner set. -->
+  <CornerRadius x:Key="RadiusPill">999</CornerRadius>
+
+  <!-- ===== Panels (Q203, step 3) ===== -->
+  <!-- Inside a docker, round its content: every row starts and ends here. -->
+  <Thickness x:Key="PanelPadding">12,10,12,12</Thickness>
+  <!-- The override, for a docker whose content is panes that run to its
+       edges (Tool options: a section list beside the settings). Inset, a
+       300 px column left its sliders a few pixels wide. -->
+  <Thickness x:Key="PanelPaddingFlush">0</Thickness>
+  <!-- The docker's header strip: room above the tabs, none below; the active
+       tab has to touch the content it belongs to. -->
+  <Thickness x:Key="HeaderPadding">8,6,8,0</Thickness>
+  <Thickness x:Key="TabPadding">14,6</Thickness>
+  <!-- Text and icons inside a list row, from its own edge. -->
+  <Thickness x:Key="ItemPadding">8,0</Thickness>
+  <!-- Between one docker and the next in a column. -->
+  <Thickness x:Key="DockerGap">0,0,0,6</Thickness>
 
   <!-- ===== Icons ===== -->
   <!-- The icon line (owner, 2026-10-07: slightly thinner than the old 1.5). -->
