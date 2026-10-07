@@ -1967,10 +1967,19 @@ public partial class MainViewModel
     /// Opening the owner-shaped document replayed 64 drawings for their
     /// thumbnails on the UI thread, 5.9 s in one call (the performance lab).
     /// A source already in the frame cache is still used at once.
+    /// <para>
+    /// <b>A layer row needs the source even when the sheet's thumbnail is held.</b>
+    /// The sheet's cells are satisfied by that small picture; a row is drawn from
+    /// the source. Letting a held cell thumbnail stand for both sent every row
+    /// past the worker to render its source inline — and on a document larger
+    /// than the frame cache the sources are evicted between jumps, so every
+    /// click on a cel paid ten of them: ~820 ms, the lab's 2026-10-07 run.
+    /// </para>
     /// </remarks>
-    private bool DeferThumbSource(Frame frame, int celIndex)
+    private bool DeferThumbSource(Frame frame, int celIndex, bool forLayerRow = false)
     {
-        if (ThumbWorker is not { } worker || _thumbs.Holds(frame.Id)) return false;
+        if (ThumbWorker is not { } worker) return false;
+        if (!forLayerRow && _thumbs.Holds(frame.Id)) return false;
         // A posed drawing renders through the cache's pose resolver, which a
         // detached render has not got: done in the background it would come out
         // at the rest pose — and InsertWarm would put that on the canvas under
@@ -2003,20 +2012,19 @@ public partial class MainViewModel
         // render predates it. Refused, and the refresh that follows asks again.
         if (_allThumbsDirty) return false;
         _thumbs.Put(id, ThumbnailRenderer.Render(made.Bitmap));
-        var taken = _cache.InsertWarm(made.Frame, made.Width, made.Height, made.Scale, made.Cel, made.Bitmap);
-        if (!taken)
+        // The rows that show this drawing take their picture now, from the
+        // render in hand — a walk of the rows, not of every cell. Whether or not
+        // the cache keeps the source: on a document over its budget the source
+        // can be evicted before the refresh below reads it, and a row that went
+        // back to the worker for it would ask again on every jump.
+        foreach (var row in LayerRows)
         {
-            // The cache had no room, so the layer rows could not find the source
-            // later; give the few that show this drawing their picture now — a
-            // walk of the rows, not of every cell.
-            foreach (var row in LayerRows)
-            {
-                if (ExposureSheet.ExposedFrame(row.Layer, CurrentFrameIndex)?.Id != id) continue;
-                row.Thumb = ThumbnailRenderer.RenderChecker(made.Bitmap, 44, 26);
-                row.ThumbFrameId = id;
-                LayerThumbRenders++;
-            }
+            if (ExposureSheet.ExposedFrame(row.Layer, CurrentFrameIndex)?.Id != id) continue;
+            row.Thumb = ThumbnailRenderer.RenderChecker(made.Bitmap, 44, 26);
+            row.ThumbFrameId = id;
+            LayerThumbRenders++;
         }
+        var taken = _cache.InsertWarm(made.Frame, made.Width, made.Height, made.Scale, made.Cel, made.Bitmap);
         if (ThumbnailWorker.Post is { } post) QueueThumbRefresh(post);
         return taken;
     }
@@ -2119,7 +2127,7 @@ public partial class MainViewModel
                         || row.ThumbFrameId != frame.Id
                         || _dirtyThumbIds.Contains(frame.Id);
             if (!stale && row.Thumb is not null) continue;
-            if (DeferThumbSource(frame, CurrentFrameIndex))
+            if (DeferThumbSource(frame, CurrentFrameIndex, forLayerRow: true))
             {
                 if (row.ThumbFrameId != frame.Id) row.Thumb = null;
                 continue;
