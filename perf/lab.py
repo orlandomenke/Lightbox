@@ -398,7 +398,19 @@ def locate(pipe: Pipe, target: dict) -> tuple[float, float]:
         q = {"kind": "tip", "text": target["tip"]}
     else:
         raise ValueError(f"unknown target {target}")
-    r = pipe.ask("lab_locate", q)
+    # Something can sit over a target for the first seconds after opening (a panel
+    # drawn over the window, gone a moment later): a third of the first A/B's runs
+    # were refused at their first click for it. Covered is retried; anything else
+    # is an answer.
+    deadline = time.monotonic() + 8
+    while True:
+        try:
+            r = pipe.ask("lab_locate", q)
+            break
+        except RuntimeError as e:
+            if "not clickable" not in str(e) or time.monotonic() > deadline:
+                raise
+            time.sleep(0.5)
     x, y = r["x"] + r["w"] / 2, r["y"] + r["h"] / 2
     # Off every monitor is off screen, however the app laid it out: a cel scrolled
     # below the bottom edge was "found", and the pointer, clamped to the screen,
