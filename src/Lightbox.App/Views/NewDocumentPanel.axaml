@@ -13,7 +13,7 @@
   <StackPanel Spacing="{StaticResource Space10}">
 
     <DockPanel>
-      <TextBlock Text="Name" Width="110" VerticalAlignment="Center" />
+      <TextBlock Text="Name" Width="{StaticResource SizeDialogLabel}" VerticalAlignment="Center" />
       <TextBox x:Name="NameBox" Text="Untitled" />
     </DockPanel>
 
@@ -24,19 +24,19 @@
       and, if a project is created later, what type it is recorded as.
     -->
     <DockPanel>
-      <TextBlock Text="For" Width="110" VerticalAlignment="Center" />
+      <TextBlock Text="For" Width="{StaticResource SizeDialogLabel}" VerticalAlignment="Center" />
       <ComboBox x:Name="TypeBox" SelectionChanged="OnTypeChanged" HorizontalAlignment="Stretch"
                 ToolTip.Tip="None makes a single file with no project structure" />
     </DockPanel>
 
     <DockPanel x:Name="WorkspaceRow" IsVisible="False">
-      <TextBlock Text="Panels" Width="110" VerticalAlignment="Center" />
+      <TextBlock Text="Panels" Width="{StaticResource SizeDialogLabel}" VerticalAlignment="Center" />
       <ComboBox x:Name="WorkspaceBox" HorizontalAlignment="Stretch"
                 ToolTip.Tip="Keep the arrangement you are working in, or take this type's defaults" />
     </DockPanel>
 
     <DockPanel>
-      <TextBlock Text="Preset" Width="110" VerticalAlignment="Center" />
+      <TextBlock Text="Preset" Width="{StaticResource SizeDialogLabel}" VerticalAlignment="Center" />
       <ComboBox x:Name="PresetBox" SelectionChanged="OnPresetChanged" HorizontalAlignment="Stretch" />
     </DockPanel>
 
@@ -48,14 +48,14 @@
       <TextBlock Grid.Row="1" Grid.Column="0" Text="Height (px)" VerticalAlignment="Center" />
       <NumericUpDown Grid.Row="1" Grid.Column="1" x:Name="HeightBox" Minimum="16" Maximum="8192" Increment="10" FormatString="0" Value="1080" />
       <Button Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Classes="icon"
-              Margin="6,0,0,0" VerticalAlignment="Center" Click="OnSwapSizeClicked"
+              Margin="{StaticResource GapBeforeWide}" VerticalAlignment="Center" Click="OnSwapSizeClicked"
               ToolTip.Tip="Swap width and height">
         <Path Classes="icon" Data="{StaticResource IconSwapVertical}" />
       </Button>
     </Grid>
 
     <DockPanel>
-      <TextBlock Text="Frame rate (fps)" Width="110" VerticalAlignment="Center" />
+      <TextBlock Text="Frame rate (fps)" Width="{StaticResource SizeDialogLabel}" VerticalAlignment="Center" />
       <NumericUpDown x:Name="FpsBox" Minimum="1" Maximum="60" Increment="1" FormatString="0" Value="12" />
     </DockPanel>
 
@@ -64,13 +64,13 @@
          one place that says what a new document opens as rather than a literal
          here and a fallback in Collect() drifting apart. -->
     <DockPanel>
-      <TextBlock Text="Resolution (ppi)" Width="110" VerticalAlignment="Center"
+      <TextBlock Text="Resolution (ppi)" Width="{StaticResource SizeDialogLabel}" VerticalAlignment="Center"
                  ToolTip.Tip="Metadata only for now — relevant when print/export sizing arrives" />
       <NumericUpDown x:Name="PpiBox" Minimum="36" Maximum="1200" Increment="1" FormatString="0" />
     </DockPanel>
 
     <DockPanel>
-      <TextBlock Text="Background" Width="110" VerticalAlignment="Center" />
+      <TextBlock Text="Background" Width="{StaticResource SizeDialogLabel}" VerticalAlignment="Center" />
       <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space8}">
         <!-- The same picker every other colour in the app opens — wheel first,
              hex at the bottom of the flyout as the readout it is. -->

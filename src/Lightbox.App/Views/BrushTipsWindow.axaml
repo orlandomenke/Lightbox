@@ -24,7 +24,7 @@
       <TextBlock DockPanel.Dock="Top" Text="Tips you have made. Painting with one copies it into the drawing, so the file keeps rendering without the library."
                  TextWrapping="Wrap" Opacity="0.7" Margin="0,0,0,8" />
 
-      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="{StaticResource Space8}" Margin="0,8,0,0"
+      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="{StaticResource Space8}" Margin="{StaticResource SectionGap}"
                   HorizontalAlignment="Right">
         <Button x:Name="EditCopyButton" Content="Edit a copy" Click="OnEditCopy"
                 ToolTip.Tip="Load this tip's recipe into the generator. The original is left alone — a tip's pixels never change under a drawing that used it." />
@@ -39,7 +39,7 @@
                  Text="You have not made any tips yet — the eight below ship with the app. Generate a shape, or bring in a scan."
                  Opacity="0.5" Margin="0,20,0,0" HorizontalAlignment="Center" IsVisible="False" />
 
-      <TextBlock DockPanel.Dock="Bottom" Opacity="0.5" FontSize="{StaticResource TypeDense}" Margin="0,6,0,0"
+      <TextBlock DockPanel.Dock="Bottom" Opacity="0.5" FontSize="{StaticResource TypeDense}" Margin="{StaticResource SubsectionGap}"
                  TextWrapping="Wrap"
                  Text="The eight tips marked Built-in ship with the app and cannot be deleted or renamed. Edit a copy to start from one." />
 
@@ -49,7 +49,7 @@
             <DataTemplate x:DataType="views:TipRow">
               <DockPanel Margin="0,2">
                 <Border DockPanel.Dock="Left" Width="52" Height="52" Background="{DynamicResource SurfacePanelBrush}"
-                        CornerRadius="3" Margin="0,0,10,0">
+                        CornerRadius="{StaticResource RadiusControl}" Margin="0,0,10,0">
                   <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="2" />
                 </Border>
                 <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Space2}">
@@ -65,7 +65,7 @@
 
     <!-- Generate -->
     <DockPanel x:Name="GeneratePage" Grid.Column="2" Margin="10" IsVisible="False">
-      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="{StaticResource Space8}" Margin="0,8,0,0"
+      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="{StaticResource Space8}" Margin="{StaticResource SectionGap}"
                   HorizontalAlignment="Right">
         <TextBox x:Name="GenerateName" Width="180" Watermark="Name" Text="Soft round" />
         <Button Content="Add to library" Click="OnGenerate" />
@@ -88,7 +88,7 @@
             <ComboBoxItem Content="Halo" />
           </ComboBox>
 
-          <TextBlock Text="Baked size" Opacity="0.7" Margin="0,6,0,0" />
+          <TextBlock Text="Baked size" Opacity="0.7" Margin="{StaticResource SubsectionGap}" />
           <ComboBox x:Name="SizeBox" SelectedIndex="1" HorizontalAlignment="Stretch"
                     SelectionChanged="OnRecipeChanged">
             <ComboBoxItem Content="128" />
@@ -97,7 +97,7 @@
             <ComboBoxItem Content="1024" />
           </ComboBox>
 
-          <StackPanel x:Name="HardnessRow" Spacing="{StaticResource Space2}" Margin="0,6,0,0">
+          <StackPanel x:Name="HardnessRow" Spacing="{StaticResource Space2}" Margin="{StaticResource SubsectionGap}">
             <TextBlock x:Name="HardnessLabel" Text="Hardness" Opacity="0.7" />
             <Slider x:Name="HardnessSlider" Minimum="0" Maximum="1" Value="0.5"
                     ValueChanged="OnRecipeChanged" />
@@ -138,14 +138,14 @@
                     ValueChanged="OnRecipeChanged" />
           </StackPanel>
 
-          <TextBlock Text="Angle" Opacity="0.7" Margin="0,6,0,0" />
+          <TextBlock Text="Angle" Opacity="0.7" Margin="{StaticResource SubsectionGap}" />
           <Slider x:Name="AngleSlider" Minimum="0" Maximum="180" Value="0"
                   ValueChanged="OnRecipeChanged" />
         </StackPanel>
 
         <StackPanel Grid.Column="2" Spacing="{StaticResource Space6}">
           <TextBlock Text="Preview" Opacity="0.7" />
-          <Border Width="180" Height="180" Background="{DynamicResource SurfacePanelBrush}" CornerRadius="3">
+          <Border Width="180" Height="180" Background="{DynamicResource SurfacePanelBrush}" CornerRadius="{StaticResource RadiusControl}">
             <Image x:Name="GeneratePreview" Stretch="Uniform" Margin="4" />
           </Border>
           <TextBlock Text="Baked once when you add it. Nothing here is computed while you draw."
@@ -159,14 +159,14 @@
       <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Opacity="0.7" Margin="0,0,0,8"
                  Text="Ink on white paper, scanned flat at 600 DPI or better. Load a batch and one set of levels is applied to all of them — a series that will be blended has to match exactly." />
 
-      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="{StaticResource Space8}" Margin="0,8,0,0"
+      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="{StaticResource Space8}" Margin="{StaticResource SectionGap}"
                   HorizontalAlignment="Right">
         <Button Content="Choose images…" Click="OnChooseImages" />
         <Button x:Name="ScanAddButton" Content="Add to library" Click="OnAddScans" IsEnabled="False" />
       </StackPanel>
 
-      <Border x:Name="ScanWarning" DockPanel.Dock="Bottom" Background="{DynamicResource StatusWarningSurfaceBrush}" CornerRadius="4"
-              Padding="10,8" Margin="0,8,0,0" IsVisible="False">
+      <Border x:Name="ScanWarning" DockPanel.Dock="Bottom" Background="{DynamicResource StatusWarningSurfaceBrush}" CornerRadius="{StaticResource RadiusCard}"
+              Padding="10,8" Margin="{StaticResource SectionGap}" IsVisible="False">
         <TextBlock x:Name="ScanWarningText" TextWrapping="Wrap" />
       </Border>
 
@@ -174,17 +174,17 @@
         <StackPanel Grid.Column="0" Spacing="{StaticResource Space6}">
           <TextBlock x:Name="ScanCount" Text="No images loaded." Opacity="0.6" />
 
-          <TextBlock Text="Black point" Opacity="0.7" Margin="0,6,0,0" />
+          <TextBlock Text="Black point" Opacity="0.7" Margin="{StaticResource SubsectionGap}" />
           <Slider x:Name="BlackSlider" Minimum="0" Maximum="1" Value="0.15" ValueChanged="OnScanChanged" />
           <TextBlock Text="White point" Opacity="0.7" />
           <Slider x:Name="WhiteSlider" Minimum="0" Maximum="1" Value="0.85" ValueChanged="OnScanChanged" />
 
           <CheckBox x:Name="InvertBox" Content="Dark ink on light paper" IsChecked="True"
-                    Click="OnScanChanged" Margin="0,6,0,0" />
+                    Click="OnScanChanged" Margin="{StaticResource SubsectionGap}" />
           <CheckBox x:Name="CentreBox" Content="Centre on the mark, not the page" IsChecked="True"
                     Click="OnScanChanged" />
 
-          <TextBlock Text="Baked size" Opacity="0.7" Margin="0,6,0,0" />
+          <TextBlock Text="Baked size" Opacity="0.7" Margin="{StaticResource SubsectionGap}" />
           <ComboBox x:Name="ScanSizeBox" SelectedIndex="1" HorizontalAlignment="Stretch"
                     SelectionChanged="OnScanChanged">
             <ComboBoxItem Content="256" />
@@ -196,7 +196,7 @@
 
         <StackPanel Grid.Column="2" Spacing="{StaticResource Space6}">
           <TextBlock Text="Preview" Opacity="0.7" />
-          <Border Width="180" Height="180" Background="{DynamicResource SurfacePanelBrush}" CornerRadius="3">
+          <Border Width="180" Height="180" Background="{DynamicResource SurfacePanelBrush}" CornerRadius="{StaticResource RadiusControl}">
             <Image x:Name="ScanPreview" Stretch="Uniform" Margin="4" />
           </Border>
         </StackPanel>

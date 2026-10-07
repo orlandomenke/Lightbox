@@ -71,13 +71,13 @@
               <DockPanel ToolTip.Tip="Visibility of the nearest ghost">
                 <TextBlock Text="Opacity" Width="76" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                 <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding OnionOpacity}" Minimum="0.02"
-                               Maximum="1" Increment="0.05" FormatString="0.00" MinWidth="44" />
+                               Maximum="1" Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                 <Slider Value="{Binding OnionOpacity}" Minimum="0.02" Maximum="1" Margin="4,0" />
               </DockPanel>
               <DockPanel ToolTip.Tip="What each further ghost is worth, and it is what decides whether a deeper ghost is visible at all. At 1 they are all as strong as the nearest — right for checking registration across a sequence. At 0.5 each is half the one before, so the third is an eighth of the opacity above it and effectively invisible.">
                 <TextBlock Text="Falloff" Width="76" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                 <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding OnionFalloff}" Minimum="0.05"
-                               Maximum="1" Increment="0.05" FormatString="0.00" MinWidth="44" />
+                               Maximum="1" Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                 <Slider Value="{Binding OnionFalloff}" Minimum="0.05" Maximum="1" Margin="4,0" />
               </DockPanel>
 
@@ -96,15 +96,15 @@
               </Grid>
             </StackPanel>
 
-            <TextBlock Text="Motion trail" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" Margin="0,4,0,0" />
+            <TextBlock Text="Motion trail" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" Margin="{StaticResource LineGap}" />
             <Grid ColumnDefinitions="76,*,8,76,*" RowDefinitions="Auto"
                   ToolTip.Tip="How many drawings the trail runs through, each way from the playhead">
               <TextBlock Grid.Column="0" Text="Before" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
               <NumericUpDown Grid.Column="1" Value="{Binding MotionTrailBefore}" Minimum="0" Maximum="30"
-                             Increment="1" FormatString="0" MinWidth="44" HorizontalAlignment="Left" />
+                             Increment="1" FormatString="0" MinWidth="{StaticResource SizeField}" HorizontalAlignment="Left" />
               <TextBlock Grid.Column="3" Text="After" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
               <NumericUpDown Grid.Column="4" Value="{Binding MotionTrailAfter}" Minimum="0" Maximum="30"
-                             Increment="1" FormatString="0" MinWidth="44" HorizontalAlignment="Left" />
+                             Increment="1" FormatString="0" MinWidth="{StaticResource SizeField}" HorizontalAlignment="Left" />
             </Grid>
             <!-- Behind the ⚙ with the depths, not out on the bar, for the
                  overflow reason the depths moved here — and switching either
@@ -115,7 +115,7 @@
             <CheckBox Content="Predict the next position" IsChecked="{Binding ArcPrediction}"
                       ToolTip.Tip="A dashed tick where the drawing after the last one should go, spacing continued from your own — and, when the playhead stands on an empty cel between drawings, where that drawing's subject belongs. Suggestions are dashed so they cannot be misread as drawings." />
 
-            <TextBlock Text="Analysis" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" Margin="0,4,0,0" />
+            <TextBlock Text="Analysis" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" Margin="{StaticResource LineGap}" />
             <!--
               The analysers ride the trail (Q134): geometry on the canvas
               beside the trail's own ticks, words here. They only speak while
@@ -140,7 +140,7 @@
             <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.8"
                        Text="{Binding AnalysisReadout}" IsVisible="{Binding HasAnalysisReadout}" />
 
-            <TextBlock Text="Ghost poses" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" Margin="0,4,0,0" />
+            <TextBlock Text="Ghost poses" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" Margin="{StaticResource LineGap}" />
             <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                        Text="A pinned frame stays ghosted from every other frame — the extreme you are animating towards, however far away it is." />
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">

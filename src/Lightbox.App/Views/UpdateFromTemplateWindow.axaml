@@ -7,7 +7,7 @@
         Width="460" SizeToContent="Height" MaxHeight="620"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
-  <StackPanel Margin="14" Spacing="{StaticResource Space10}">
+  <StackPanel Margin="{StaticResource PagePadding}" Spacing="{StaticResource Space10}">
 
     <TextBlock Text="Pull forward from the template" FontWeight="SemiBold" />
     <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
@@ -28,7 +28,7 @@
       <!-- The load-bearing part of the design: a layer with work on it is
            skipped unless the artist says otherwise, one layer at a time. -->
       <StackPanel x:Name="DrawnOnPanel" Spacing="{StaticResource Space4}" IsVisible="False">
-        <TextBlock Text="Layers you have drawn on" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" Margin="0,6,0,0" />
+        <TextBlock Text="Layers you have drawn on" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" Margin="{StaticResource SubsectionGap}" />
         <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                    Text="Skipped by default, because a pull should not rename or re-blend a layer you have been painting on. Tick one to include it anyway." />
         <ScrollViewer MaxHeight="180" HorizontalScrollBarVisibility="Disabled">
@@ -43,7 +43,7 @@
       </StackPanel>
     </StackPanel>
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}" Margin="0,6,0,0">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}" Margin="{StaticResource SubsectionGap}">
       <Button Content="Cancel" Click="OnCancel" />
       <Button Classes="primary" x:Name="ApplyButton" Content="Update" Click="OnApply" IsDefault="True" />
     </StackPanel>

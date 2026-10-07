@@ -6,7 +6,7 @@
         Width="440" SizeToContent="Height" MaxHeight="700"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
-  <StackPanel Margin="14" Spacing="{StaticResource Space10}">
+  <StackPanel Margin="{StaticResource PagePadding}" Spacing="{StaticResource Space10}">
 
     <!-- The preset row first, because the whole point of this window is that an
          artist visits it once per project and presses Export after that. -->
@@ -45,7 +45,7 @@
 
       <TextBlock Grid.Row="3" Grid.Column="0" Text="Padding" VerticalAlignment="Center"
                  x:Name="PaddingLabel" />
-      <TextBox Grid.Row="3" Grid.Column="1" x:Name="PaddingBox" Width="70"
+      <TextBox Grid.Row="3" Grid.Column="1" x:Name="PaddingBox" Width="{StaticResource SizeDialogField}"
                HorizontalAlignment="Left"
                ToolTip.Tip="Transparent gutter around each cell, in pixels. Stops an engine's bilinear filtering bleeding one sprite into the next." />
 
@@ -64,12 +64,12 @@
             RowDefinitions="Auto,Auto,Auto" x:Name="NormalRows">
         <TextBlock Grid.Row="0" Grid.Column="0" Text="Bevel" VerticalAlignment="Center" />
         <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Space6}">
-          <TextBox x:Name="BevelBox" Width="70" />
+          <TextBox x:Name="BevelBox" Width="{StaticResource SizeDialogField}" />
           <TextBlock Text="px in from the edge" VerticalAlignment="Center" Opacity="0.7" />
         </StackPanel>
 
         <TextBlock Grid.Row="1" Grid.Column="0" Text="Strength" VerticalAlignment="Center" />
-        <TextBox Grid.Row="1" Grid.Column="1" x:Name="NormalStrengthBox" Width="70"
+        <TextBox Grid.Row="1" Grid.Column="1" x:Name="NormalStrengthBox" Width="{StaticResource SizeDialogField}"
                  HorizontalAlignment="Left" />
 
         <TextBlock Grid.Row="2" Grid.Column="0" Text="Green points" VerticalAlignment="Center" />
@@ -85,7 +85,7 @@
       <Grid ColumnDefinitions="120,*" ColumnSpacing="8">
         <TextBlock Grid.Column="0" Text="Canvas height" VerticalAlignment="Center" />
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Space6}">
-          <TextBox x:Name="WorldHeightBox" Width="70" />
+          <TextBox x:Name="WorldHeightBox" Width="{StaticResource SizeDialogField}" />
           <!-- Metres, not "world units": Unity's unit is a metre and Unreal's is a
                centimetre, so the only unambiguous label is a real-world one. -->
           <TextBlock Text="metres tall" VerticalAlignment="Center" Opacity="0.7" />

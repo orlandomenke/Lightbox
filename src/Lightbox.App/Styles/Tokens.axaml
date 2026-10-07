@@ -83,6 +83,19 @@
   <CornerRadius x:Key="RadiusCard">4</CornerRadius>
   <Thickness x:Key="CardPadding">10</Thickness>
 
+  <!-- ===== Dialogs and secondary windows (step 2, area 3) ===== -->
+  <!-- A dialog's content inset. -->
+  <Thickness x:Key="DialogPadding">16</Thickness>
+  <!-- A dialog's label column, its small text field, its buttons' floor. -->
+  <x:Double x:Key="SizeDialogLabel">110</x:Double>
+  <x:Double x:Key="SizeDialogField">70</x:Double>
+  <x:Double x:Key="SizeDialogButton">80</x:Double>
+  <!-- The wider gaps in use beside GapBefore/GapAfter (4) and SectionGap (8):
+       named so step 3 can see them, and collapse them onto the scale. -->
+  <Thickness x:Key="GapBeforeWide">6,0,0,0</Thickness>
+  <Thickness x:Key="GapAfterWide">0,0,6,0</Thickness>
+  <Thickness x:Key="SectionGapWide">0,10,0,0</Thickness>
+
   <!-- ===== Icon sizes ===== -->
   <!-- Every glyph size in use. Named by size: an icon's size is its box, and
        step 3 is where they get collapsed onto fewer steps. -->
