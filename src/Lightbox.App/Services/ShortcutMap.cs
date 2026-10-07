@@ -330,6 +330,10 @@ public sealed class ShortcutMap
             // is the registry earning its place.
             new("canvas.transformBands", "Transform: band mode (divide and redistribute)", "Tools",
                 G(Key.T, KeyModifiers.Control | KeyModifiers.Shift)),
+            // Q199. Ctrl+Alt+T: the third transform on the same key, beside the
+            // band mode's Ctrl+Shift+T, so the family is found from one letter.
+            new("canvas.transformCage", "Transform: cage mode (bend with a lattice)", "Tools",
+                G(Key.T, KeyModifiers.Control | KeyModifiers.Alt)),
             new("canvas.mirror", "Mirror view", "Canvas", G(Key.M)),
             // Shift+M: the other mirror. M flips what you SEE and leaves the
             // document alone; Shift+M makes the next mark land twice. Beside

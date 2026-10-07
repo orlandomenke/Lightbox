@@ -1247,7 +1247,7 @@ public sealed partial class CanvasControl : Control
         set
         {
             if (_txPerspective == value) return;
-            if (value) { SeedQuadFromCorners(); TxDropBands(); }
+            if (value) { SeedQuadFromCorners(); TxDropBands(); TxDropCage(); }
             _txPerspective = value;
             InvalidateVisual();
         }
@@ -1262,6 +1262,7 @@ public sealed partial class CanvasControl : Control
         _txScaleX = 1; _txScaleY = 1; _txAngle = 0; _txDx = 0; _txDy = 0;
         _txPerspective = false;
         TxResetBands();
+        TxDropCage();
         _txDrag = TxDrag.None;
         SeedQuadFromCorners();
         InvalidateVisual();
@@ -1272,6 +1273,7 @@ public sealed partial class CanvasControl : Control
         _txActive = false;
         _txDrag = TxDrag.None;
         TxDropBands();
+        TxDropCage();
         InvalidateVisual();
     }
 
@@ -1304,6 +1306,7 @@ public sealed partial class CanvasControl : Control
     {
         _txScaleX = 1; _txScaleY = 1; _txAngle = 0; _txDx = 0; _txDy = 0;
         SeedQuadFromCorners();
+        TxResetCage();
         TransformGizmoChanged?.Invoke();
         InvalidateVisual();
     }
@@ -1360,7 +1363,10 @@ public sealed partial class CanvasControl : Control
 
     /// <summary>True when the gizmo is still identity (nothing to commit).</summary>
     /// <remarks>Band mode asks its own axes — see TxAffineIsIdentity.</remarks>
-    public bool TransformIsIdentity => _txBands ? TransformBandsAreIdentity : TxAffineIsIdentity;
+    public bool TransformIsIdentity =>
+        _txCage ? TransformCageIsIdentity
+        : _txBands ? TransformBandsAreIdentity
+        : TxAffineIsIdentity;
 
     private (double X, double Y) TxMap(double x, double y)
     {
@@ -1898,7 +1904,7 @@ public sealed partial class CanvasControl : Control
                 new SKPoint((float)c[2].X, (float)c[2].Y),
                 new SKPoint((float)c[3].X, (float)c[3].Y),
                 new SKPoint((float)pivot.X, (float)pivot.Y),
-                _txPerspective, TxBandOverlayNow());
+                _txPerspective, TxBandOverlayNow(), TxCageOverlayNow());
         }
 
         // Take the queued context work, if any, and hand it over exactly once.
@@ -2409,6 +2415,7 @@ public sealed partial class CanvasControl : Control
             if (_txActive && ToolMode == CanvasToolMode.Transform)
             {
                 if (TxBandPressHandled(x, y, e)) return;
+                if (TxCagePressHandled(x, y, e)) return;
                 (_txDrag, _txHandle) = TxHitTest(x, y);
                 _txDragStart = (x, y);
                 _txStart = (_txScaleX, _txScaleY, _txAngle, _txDx, _txDy);
@@ -3121,6 +3128,7 @@ public sealed partial class CanvasControl : Control
             }
 
             if (TxBandMoveHandled(e)) return;
+            if (TxCageMoveHandled(e)) return;
 
             if (_txActive && _txDrag != TxDrag.None)
             {
@@ -3410,6 +3418,7 @@ public sealed partial class CanvasControl : Control
             return;
         }
         if (TxBandReleaseHandled(e)) return;
+        if (TxCageReleaseHandled(e)) return;
         if (_txActive && _txDrag != TxDrag.None)
         {
             _txDrag = TxDrag.None;
@@ -3838,7 +3847,7 @@ public sealed partial class CanvasControl : Control
     /// <summary>Transform gizmo, all in document space: the transformed quad, pivot, and mode.</summary>
     private readonly record struct TxGizmoData(
         SKPoint C0, SKPoint C1, SKPoint C2, SKPoint C3, SKPoint Pivot, bool Perspective,
-        TxBandOverlay? Bands = null);
+        TxBandOverlay? Bands = null, TxCageOverlay? Cage = null);
 
     /// <summary>
     /// Decomposed view transform for the render thread — primitive canvas ops
@@ -4679,6 +4688,7 @@ public sealed partial class CanvasControl : Control
             }
 
             if (DrawBandsInstead(canvas, g, scale)) return;
+            if (DrawCageInstead(canvas, g, scale)) return;
 
             // Pivot: ring + crosshair, clearly grabbable.
             using var pivotPaint = new SKPaint

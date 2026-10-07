@@ -173,6 +173,13 @@ public sealed record PassShape(
 /// mask trims it; a glow decorates what the layer shows, so it follows the
 /// trim.
 /// </param>
+/// <param name="Mesh">
+/// The cage warp's live preview (Q199): the pass's bitmap drawn as a
+/// textured triangle mesh rather than through one matrix, because a lattice
+/// warp is not one affine map and not a grid of them either. Like a band
+/// crop it carries no shapes or effects — it is a preview of where the
+/// pixels are going, and the commit re-renders the record exactly.
+/// </param>
 public sealed record RenderPass(
     SKBitmap? Bitmap,
     SKColor? Tint,
@@ -186,7 +193,34 @@ public sealed record RenderPass(
     SKImageFilter? Effect = null,
     Lightbox.Core.Effects.EffectStack? AdjustStack = null,
     int EffectFrame = 0,
-    SKImageFilter? Style = null);
+    SKImageFilter? Style = null,
+    PassMesh? Mesh = null);
+
+/// <summary>
+/// A textured triangle mesh over a pass's bitmap: where each vertex lands in
+/// document space and which bitmap pixel it reads. Built once per gizmo
+/// change from <c>CageWarp.MeshOf</c> and shared by every publish of the drag.
+/// </summary>
+public sealed record PassMesh(SKPoint[] Positions, SKPoint[] Texs, ushort[] Indices)
+{
+    /// <summary>The document rectangle the mesh's landing positions cover.</summary>
+    public SKRect Bounds
+    {
+        get
+        {
+            if (Positions.Length == 0) return SKRect.Empty;
+            float l = float.MaxValue, t = float.MaxValue, r = float.MinValue, b = float.MinValue;
+            foreach (var p in Positions)
+            {
+                if (p.X < l) l = p.X;
+                if (p.Y < t) t = p.Y;
+                if (p.X > r) r = p.X;
+                if (p.Y > b) b = p.Y;
+            }
+            return new SKRect(l, t, r, b);
+        }
+    }
+}
 
 /// <summary>
 /// Pure SkiaSharp scene compositing: white paper, then passes in order
@@ -306,6 +340,17 @@ public static class SceneRenderer
             DrawAdjustment(surface, canvas, pass, scale, transform);
             return;
         }
+        // A cage warp's preview: the bitmap through a triangle mesh (Q199).
+        // Under the pass's own matrix when it has one — the layer's plane —
+        // for the same reason the single-matrix preview nests there.
+        if (pass.Mesh is { } mesh)
+        {
+            canvas.Save();
+            if (pass.Matrix is { } planeMatrix) canvas.Concat(planeMatrix);
+            DrawMesh(canvas, pass, mesh);
+            canvas.Restore();
+            return;
+        }
         // A pass may carry a matrix of its own — the transform tool's live
         // preview. It nests inside the scene transform rather than
         // replacing it, so the preview lands in document space, which is
@@ -406,6 +451,35 @@ public static class SceneRenderer
         // exactly as they carve an ordinary pass.
         if (pass.Shapes is { Count: > 0 } shapes) ApplyShapes(canvas, shapes);
         canvas.Restore();
+    }
+
+    /// <summary>
+    /// The pass's bitmap stretched over a triangle mesh: each vertex reads the
+    /// bitmap pixel its texture coordinate names and lands where its position
+    /// says, and Skia interpolates in between. Opacity and blend apply as to
+    /// any pass; tint, shapes and effects do not — see <see cref="PassMesh"/>.
+    /// </summary>
+    private static void DrawMesh(SKCanvas canvas, RenderPass pass, PassMesh mesh)
+    {
+        if (pass.Bitmap is null || mesh.Positions.Length < 3 || mesh.Indices.Length < 3) return;
+        var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
+        // A view over the bitmap's own pixels, never a copy: a bitmap shader
+        // built from a mutable SKBitmap snapshots it, and this runs once per
+        // publish while a handle is being dragged — at 4K that copy would be
+        // the whole canvas per pointer event. Same route DrawLayer takes.
+        using var pixels = pass.Bitmap.PeekPixels();
+        using var view = pixels is null ? null : SKImage.FromPixels(pixels);
+        using var shader = view is not null
+            ? view.ToShader(SKShaderTileMode.Clamp, SKShaderTileMode.Clamp)
+            : SKShader.CreateBitmap(pass.Bitmap, SKShaderTileMode.Clamp, SKShaderTileMode.Clamp);
+        using var paint = new SKPaint
+        {
+            IsAntialias = false,
+            Color = SKColors.White.WithAlpha(alpha),
+            BlendMode = pass.Blend,
+            Shader = shader,
+        };
+        canvas.DrawVertices(SKVertexMode.Triangles, mesh.Positions, mesh.Texs, null, mesh.Indices, paint);
     }
 
     private static void DrawPass(SKCanvas canvas, RenderPass pass)
@@ -948,6 +1022,13 @@ public static class SceneRenderer
                 // compositor already does with one, so it stays a vanished layer
                 // rather than a crash — but it should not happen.
                 continue;
+            }
+            else if (pass.Mesh is not null)
+            {
+                // The cage preview (Q199): one textured mesh, drawn by the same
+                // code the bounded path uses so the two routes cannot differ.
+                // Isolation, when any, is already open above.
+                DrawOne(surface, canvas, pass with { Opacity = needsIsolation ? 1.0 : pass.Opacity }, renderScale, null);
             }
             else if (pass.Matrix is { } m)
             {

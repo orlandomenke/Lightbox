@@ -626,6 +626,39 @@ The band layout is a gesture rather than part of the document: apply, and the
 lines are gone. If you want a proportion you can come back and adjust next week,
 that is what a **rig** is for.
 
+#### Cage mode: bend part of a drawing
+
+**The arm is straight and should curve; the jaw wants pushing out a little.**
+Neither is a scale and neither is a band. **Ctrl+Alt+T** switches the gizmo to
+**cage mode**: a lattice of handles covers the box, and dragging one bends the
+drawing smoothly around it while the rest stays put. It is on the gizmo's
+right-click menu and in Tool options beside *Bands*, and it is rebindable.
+
+| To do this | Do that |
+| --- | --- |
+| Bend the drawing | Drag a handle |
+| Bend a smaller part | Raise **Grid** in Tool options (2 to 6 cells a side; the lattice is laid out afresh) |
+| Start over | *Reset transform* on the right-click menu |
+| Apply | **Enter**, as ever |
+
+**A handle moves what is near it and nothing two cells away.** The box's own
+edges are pinned, as in band mode, and nothing outside the box moves at all —
+so a cage over a figure's arm leaves the torso alone. The handles you have not
+touched hold their part of the drawing where it was.
+
+Lines made of few points gain the points they need to bend, so a straight stroke
+across the cage comes out as a curve rather than a kink. Line weight is not
+changed. **Imported pixels follow the cage**: a photo or a scan under the lines
+is resampled through the same mesh you watched while dragging, which is the
+one way a band scale and a cage differ — a band leaves pixels where they were,
+a cage takes them along.
+
+On a rigged drawing the cage bends the posed picture you are looking at, like
+every other transform now, and the drawing keeps following the rig afterwards.
+
+Like the bands, the cage is a gesture: apply, and the handles are gone. Pressing
+Enter with every handle still at home changes nothing and leaves no undo step.
+
 **Scaling holds the side you did not touch.** Drag a corner and the opposite
 corner stays put; drag an edge and the opposite edge does — which is what every
 other tool does, and what your hand expects when it pulls one side of a box.

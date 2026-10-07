@@ -586,7 +586,8 @@ the test needs relaxing.
   - **The three fallbacks are counted, not assumed**: `MainViewModel.FrameRegionRestores` against `FrameRegionRepaints` and `FrameRenderDrops`, plus `MarkSnapshot.Fallbacks`, which is what answers "how often does the fast path fire in real work" — the question this item left open.
   - Detection power proved with three mutants: writing the patch without taking the old pixels back kills two tests, skipping a rendering the snapshot never saw kills one, and leaving the patches in place across a rebuild kills one. B327's own suite keeps testing the replay, because `UndoRegionRepaintTests` now clears the snapshots in its warm-up.
 - [x] Warp transform `evidence: TransformToolTests, TransformBegun`
-- [?] Liquify
+- [x] Cage warp: a lattice of handles over the transform box, bicubic between them, imported pixels through the same mesh (Q199) `evidence: CageWarp, CageWarpTests, TransformCageTests, ACageCommitBendsTheLineThroughTheDraggedHandle, ImportedPixelsAreResampledThroughTheCage`
+- [ ] Liquify: push, bloat, pinch and twirl as a brush over the stroke record, one undo step per stroke, pixels through the same displacement (Q199; after the cage) `evidence: LiquifyBrush, LiquifyTests`
 - [?] Clone stamp
 - [?] Healing brush
 - [~] Vector selection that matches the hand it was learned with `evidence: PathHoverPreview, PathEditSession, CloseIndicator, PenActive, PathEditingTests, HoveringALinePreviewsItsPointsAndHandles, ClickingALineWithTheWhiteArrowSelectsAllOfItLikeTheArrow, PickingOnePointKeepsTheOthersVisible, TheHeldModifierEntersDirectSelectFromThePen, ClickingTheCloseIndicatorStrokesTheWholeShape`

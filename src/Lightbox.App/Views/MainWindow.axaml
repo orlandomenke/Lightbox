@@ -2839,6 +2839,18 @@
                       </DockPanel>
                       <ToggleButton x:Name="TransformPerspectiveToggle" Content="Perspective" FontSize="12" Click="OnTransformPerspectiveToggled" ToolTip.Tip="Drag the four corners freely instead of the affine box" />
                       <ToggleButton x:Name="TransformBandsToggle" Content="Bands" FontSize="12" Click="OnTransformBandsToggled" ToolTip.Tip="Divide the box with draggable lines and redistribute the space inside it — the outer edges never move, so the drawing keeps its overall size. Click to place a line, Shift+click for an upright one, Alt+click to remove one. (Q184: beside Perspective because it is the same kind of choice, and the docker is where an artist finds a mode.)" />
+                      <ToggleButton x:Name="TransformCageToggle" Content="Cage" FontSize="12" Click="OnTransformCageToggled"
+                                    ToolTip.Tip="Cover the box with a lattice of handles and drag one to bend the drawing around it — a limb, a jaw, a shoulder — while the rest stays put. The box itself is pinned. (Q199)" />
+                      <!-- Its own labelled row, like Scope and Sampling: the grid is a
+                           setting of the cage, not a part of its toggle. -->
+                      <DockPanel>
+                        <TextBlock Text="Grid" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <NumericUpDown x:Name="TransformCageGrid" Value="3" Minimum="2" Maximum="6" Increment="1"
+                                       FormatString="0" Classes="value" VerticalAlignment="Center" Width="56"
+                                       HorizontalAlignment="Left" Margin="4,0,0,0"
+                                       ValueChanged="OnTransformCageGridChanged"
+                                       ToolTip.Tip="Cells per side of the cage, 2 to 6. Changing it lays the lattice out afresh." />
+                      </DockPanel>
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <Button Click="OnTransformMirrorH"
                                 ToolTip.Tip="Mirror horizontally in place (around the pivot)">

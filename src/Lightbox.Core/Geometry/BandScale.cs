@@ -391,7 +391,7 @@ public static class BandScale
         return added;
     }
 
-    private static StrokePoint Lerp(StrokePoint a, StrokePoint b, double t) => new(
+    internal static StrokePoint Lerp(StrokePoint a, StrokePoint b, double t) => new(
         a.X + (b.X - a.X) * t,
         a.Y + (b.Y - a.Y) * t,
         a.Pressure + (b.Pressure - a.Pressure) * t,

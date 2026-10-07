@@ -478,6 +478,9 @@ public sealed class LayerStackBake : IDisposable
             // drag changes pixels behind a stable stack reference) — and an
             // adjustment pass reads the backdrop besides.
             if (s.Fx is not null) return false;
+            // A mesh pass (the cage preview) is one gesture's picture; folding it
+            // would bake a warp in flight into a bitmap that outlives it.
+            if (s.Mesh is not null) return false;
             if (s.CelFrame is { } frame)
             {
                 if (!FrameBitmapCache.CanCache(frame)) return false;
@@ -499,7 +502,8 @@ public sealed class LayerStackBake : IDisposable
             && p.Shapes is null
             && p.Effect is null
             && p.Style is null
-            && p.AdjustStack is null);
+            && p.AdjustStack is null
+            && p.Mesh is null);
 
     private static List<PassKey> KeyOf(List<RenderPass> passes)
     {
