@@ -7,18 +7,18 @@
         Width="460" SizeToContent="Height" MaxHeight="620"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
-  <StackPanel Margin="14" Spacing="10">
+  <StackPanel Margin="14" Spacing="{StaticResource Space10}">
 
     <TextBlock Text="Pull forward from the template" FontWeight="SemiBold" />
-    <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+    <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                Text="Your drawings and your timing are never touched. Tick what you want to bring over." />
 
-    <StackPanel x:Name="NothingPanel" Spacing="6" IsVisible="False">
+    <StackPanel x:Name="NothingPanel" Spacing="{StaticResource Space6}" IsVisible="False">
       <TextBlock TextWrapping="Wrap"
                  Text="Nothing to pull — this document already matches its template." />
     </StackPanel>
 
-    <StackPanel x:Name="ChangesPanel" Spacing="8">
+    <StackPanel x:Name="ChangesPanel" Spacing="{StaticResource Space8}">
       <CheckBox x:Name="NewLayersBox" IsChecked="True" />
       <CheckBox x:Name="LayerPropertiesBox" IsChecked="True" />
       <CheckBox x:Name="GuidesBox" IsChecked="True" />
@@ -27,9 +27,9 @@
 
       <!-- The load-bearing part of the design: a layer with work on it is
            skipped unless the artist says otherwise, one layer at a time. -->
-      <StackPanel x:Name="DrawnOnPanel" Spacing="4" IsVisible="False">
-        <TextBlock Text="Layers you have drawn on" FontWeight="SemiBold" FontSize="12" Margin="0,6,0,0" />
-        <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
+      <StackPanel x:Name="DrawnOnPanel" Spacing="{StaticResource Space4}" IsVisible="False">
+        <TextBlock Text="Layers you have drawn on" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" Margin="0,6,0,0" />
+        <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                    Text="Skipped by default, because a pull should not rename or re-blend a layer you have been painting on. Tick one to include it anyway." />
         <ScrollViewer MaxHeight="180" HorizontalScrollBarVisibility="Disabled">
           <ItemsControl x:Name="DrawnOnList">
@@ -43,7 +43,7 @@
       </StackPanel>
     </StackPanel>
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,6,0,0">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}" Margin="0,6,0,0">
       <Button Content="Cancel" Click="OnCancel" />
       <Button Classes="primary" x:Name="ApplyButton" Content="Update" Click="OnApply" IsDefault="True" />
     </StackPanel>

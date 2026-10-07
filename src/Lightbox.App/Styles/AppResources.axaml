@@ -6,6 +6,9 @@
     loads exactly the same set rather than a copy of the list that drifts.
   -->
   <ResourceDictionary.MergedDictionaries>
+    <!-- The design tokens: sizes, spacing, type, radii. First, so every file
+         below can name a token instead of a number (docs/DESIGN-tokens.md). -->
+    <ResourceInclude Source="avares://Lightbox.App/Styles/Tokens.axaml" />
     <!-- The colour system. First, so everything below can name a role
          instead of a hex value. See docs/DESIGN-ui-system.md. -->
     <ResourceInclude Source="avares://Lightbox.App/Styles/Palette.axaml" />

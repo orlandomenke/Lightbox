@@ -98,8 +98,8 @@
     corners except those text boxes", and visible the moment the two are cropped
     together. It is one value rather than four because a corner radius is the
     kind of number that only reads as deliberate when nothing disagrees with it.
+    The value now lives in Tokens.axaml as RadiusField.
   -->
-  <CornerRadius x:Key="FieldCornerRadius">4</CornerRadius>
   <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="BorderStrongBrush" />
 
   <!-- ===== Buttons =================================================== -->

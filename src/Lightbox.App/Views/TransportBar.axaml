@@ -10,8 +10,8 @@
     against. DataContext flows in from the window, so the bindings are the
     ones the timeline bar always had.
   -->
-  <StackPanel Orientation="Horizontal" Spacing="10">
-    <StackPanel Orientation="Horizontal" Spacing="2">
+  <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space10}">
+    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}">
       <Button Command="{Binding GoToStartFrameCommand}"
               ToolTip.Tip="To start frame (the set start frame, else the first)">
         <Path Classes="icon" Data="{StaticResource IconSkipToStart}" />
@@ -41,12 +41,12 @@
                   ToolTip.Tip="Loop playback. Off plays once and stops on the last frame.">
       <Path Classes="icon" Data="{StaticResource IconLoop}" />
     </ToggleButton>
-    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}" VerticalAlignment="Center">
       <TextBlock Text="fps" VerticalAlignment="Center" />
       <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
                      FormatString="0" Width="48" VerticalAlignment="Center" />
     </StackPanel>
-    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}" VerticalAlignment="Center">
       <TextBlock Text="Speed %" VerticalAlignment="Center" />
       <NumericUpDown Value="{Binding PlaybackSpeedPercent}" Minimum="10" Maximum="400" Increment="10"
                      FormatString="0" Width="50" VerticalAlignment="Center"

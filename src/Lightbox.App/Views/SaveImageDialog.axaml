@@ -8,7 +8,7 @@
         WindowStartupLocation="CenterOwner"
         Title="Save as image">
 
-  <StackPanel Margin="16" Spacing="12">
+  <StackPanel Margin="16" Spacing="{StaticResource Space12}">
 
     <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
       <TextBlock Grid.Row="0" Grid.Column="0" Text="Format" VerticalAlignment="Center" />
@@ -73,7 +73,7 @@
       <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
     </Border>
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}">
       <Button Content="Cancel" Click="OnCancel" IsCancel="True" />
       <Button Content="Save…" Click="OnApply" IsDefault="True" Classes="primary" />
     </StackPanel>
