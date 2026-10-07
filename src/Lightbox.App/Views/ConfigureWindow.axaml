@@ -34,8 +34,8 @@
                TextChanged="OnSearchChanged" Margin="0,0,0,8" />
 
       <!-- Conflict warning: shown before a clashing binding can be committed -->
-      <Border x:Name="ConflictBar" DockPanel.Dock="Bottom" Background="{DynamicResource StatusWarningSurfaceBrush}" CornerRadius="4"
-              Padding="10,8" Margin="0,8,0,0" IsVisible="False">
+      <Border x:Name="ConflictBar" DockPanel.Dock="Bottom" Background="{DynamicResource StatusWarningSurfaceBrush}" CornerRadius="{StaticResource RadiusCard}"
+              Padding="10,8" Margin="{StaticResource SectionGap}" IsVisible="False">
         <DockPanel>
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{StaticResource Space8}">
             <Button Content="Assign anyway" Click="OnAssignAnyway" />
@@ -46,7 +46,7 @@
       </Border>
 
       <Button DockPanel.Dock="Bottom" Content="Reset all to defaults" Click="OnResetAll"
-              HorizontalAlignment="Right" Margin="0,8,0,0" />
+              HorizontalAlignment="Right" Margin="{StaticResource SectionGap}" />
 
       <ScrollViewer VerticalScrollBarVisibility="Auto">
         <ItemsControl x:Name="GroupsHost">
@@ -76,7 +76,7 @@
     </DockPanel>
 
     <!-- Content (center): performance page -->
-    <ScrollViewer x:Name="PerformancePage" Grid.Column="2" Margin="14" IsVisible="False"
+    <ScrollViewer x:Name="PerformancePage" Grid.Column="2" Margin="{StaticResource PagePadding}" IsVisible="False"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="{StaticResource Space16}">
 
@@ -84,7 +84,7 @@
           <TextBlock Text="Canvas quality while drawing" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="Only changes what is drawn on screen. The document, exports and thumbnails are always full resolution. On a large canvas, presenting the image is usually costlier than editing it." />
-          <ComboBox x:Name="QualityBox" Width="260" SelectionChanged="OnQualityChanged" />
+          <ComboBox x:Name="QualityBox" Width="{StaticResource SizeSettingsCombo}" SelectionChanged="OnQualityChanged" />
           <TextBlock x:Name="QualityHint" FontSize="{StaticResource TypeDense}" Opacity="0.6" TextWrapping="Wrap" />
         </StackPanel>
 
@@ -92,7 +92,7 @@
           <TextBlock Text="Canvas quality during playback" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="A still drawing rewards sharpness; a running animation rewards frame rate. Lowering this keeps the canvas crisp while you draw and composites smaller frames only while a scene plays." />
-          <ComboBox x:Name="PlaybackQualityBox" Width="260" SelectionChanged="OnPlaybackQualityChanged" />
+          <ComboBox x:Name="PlaybackQualityBox" Width="{StaticResource SizeSettingsCombo}" SelectionChanged="OnPlaybackQualityChanged" />
           <TextBlock x:Name="PlaybackQualityHint" FontSize="{StaticResource TypeDense}" Opacity="0.6" TextWrapping="Wrap" />
         </StackPanel>
 
@@ -101,7 +101,7 @@
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="Brush strokes are stored as cheap deltas, but structural edits keep a copy of the whole document, so deep history costs memory on a long scene." />
           <DockPanel>
-            <NumericUpDown DockPanel.Dock="Right" x:Name="UndoDepthBox" Width="120"
+            <NumericUpDown DockPanel.Dock="Right" x:Name="UndoDepthBox" Width="{StaticResource SizeSettingsField}"
                            Minimum="5" Maximum="500" Increment="8" FormatString="0"
                            ValueChanged="OnUndoDepthChanged" />
             <TextBlock Text="Steps kept" VerticalAlignment="Center" />
@@ -113,7 +113,7 @@
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="Rendered frames kept in memory so scrubbing and onion skin stay instant. Raising this helps long scenes; lowering it frees memory on a large canvas." />
           <DockPanel>
-            <NumericUpDown DockPanel.Dock="Right" x:Name="CacheBudgetBox" Width="120"
+            <NumericUpDown DockPanel.Dock="Right" x:Name="CacheBudgetBox" Width="{StaticResource SizeSettingsField}"
                            Minimum="64" Maximum="4096" Increment="64" FormatString="0"
                            ValueChanged="OnCacheBudgetChanged" />
             <TextBlock Text="Megabytes" VerticalAlignment="Center" />
@@ -149,11 +149,11 @@
           <TextBlock Text="Composite layers on the GPU" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="Blending layers on the graphics card helps most on a large canvas with many layers — but the layer images have to reach the card first, and on a laptop with shared graphics memory that transfer competes with the drawing itself. It is not faster everywhere. Left on Automatic, Lightbox blends the same layers both ways once at startup and keeps whichever this machine is quicker at." />
-          <ComboBox x:Name="GpuCompositeBox" Width="260" SelectionChanged="OnGpuCompositeChanged" />
+          <ComboBox x:Name="GpuCompositeBox" Width="{StaticResource SizeSettingsCombo}" SelectionChanged="OnGpuCompositeChanged" />
           <TextBlock x:Name="GpuCompositeHint" FontSize="{StaticResource TypeDense}" Opacity="0.6" TextWrapping="Wrap" />
         </StackPanel>
 
-        <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="4" Padding="10">
+        <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}">
           <StackPanel Spacing="{StaticResource Space4}">
             <TextBlock Text="Measured now" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
             <TextBlock x:Name="MeasuredText" FontSize="{StaticResource TypeDense}" Opacity="0.85" TextWrapping="Wrap" />
@@ -177,7 +177,7 @@
     -->
 
     <!-- Features page -->
-    <ScrollViewer x:Name="FeaturesPage" Grid.Column="2" Margin="14" IsVisible="False"
+    <ScrollViewer x:Name="FeaturesPage" Grid.Column="2" Margin="{StaticResource PagePadding}" IsVisible="False"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="{StaticResource Space16}">
         <StackPanel Spacing="{StaticResource Space6}">
@@ -204,7 +204,7 @@
       </StackPanel>
     </ScrollViewer>
 
-    <ScrollViewer x:Name="GuidesPage" Grid.Column="2" Margin="14" IsVisible="False"
+    <ScrollViewer x:Name="GuidesPage" Grid.Column="2" Margin="{StaticResource PagePadding}" IsVisible="False"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="{StaticResource Space16}">
 
@@ -213,7 +213,7 @@
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="The pitch a grid is made with, from View ▸ Guides ▸ Add grid. Changing it never touches a grid that already exists — that one's spacing belongs to the document." />
           <DockPanel>
-            <NumericUpDown DockPanel.Dock="Right" x:Name="GridSpacingBox" Width="120"
+            <NumericUpDown DockPanel.Dock="Right" x:Name="GridSpacingBox" Width="{StaticResource SizeSettingsField}"
                            Minimum="1" Maximum="4096" Increment="4" FormatString="0"
                            ValueChanged="OnGridSpacingChanged" />
             <TextBlock Text="Cell size, in pixels" VerticalAlignment="Center" />
@@ -225,7 +225,7 @@
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="How many rays a vanishing point is drawn with. Fewer to see the drawing through it, more to read the perspective — the point constrains every direction either way. A placed one is changed with the Move tool." />
           <DockPanel>
-            <NumericUpDown DockPanel.Dock="Right" x:Name="VanishingPointRaysBox" Width="120"
+            <NumericUpDown DockPanel.Dock="Right" x:Name="VanishingPointRaysBox" Width="{StaticResource SizeSettingsField}"
                            Minimum="2" Maximum="180" Increment="2" FormatString="0"
                            ValueChanged="OnVanishingPointRaysChanged" />
             <TextBlock Text="Rays" VerticalAlignment="Center" />
@@ -237,13 +237,13 @@
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="What a new height scale stands at. The height is a share of the canvas rather than a pixel count, so the same default reads as a figure on any size of scene." />
           <DockPanel>
-            <NumericUpDown DockPanel.Dock="Right" x:Name="HeightScaleHeadsBox" Width="120"
+            <NumericUpDown DockPanel.Dock="Right" x:Name="HeightScaleHeadsBox" Width="{StaticResource SizeSettingsField}"
                            Minimum="1" Maximum="32" Increment="1" FormatString="0"
                            ValueChanged="OnHeightScaleHeadsChanged" />
             <TextBlock Text="Heads tall" VerticalAlignment="Center" />
           </DockPanel>
           <DockPanel>
-            <NumericUpDown DockPanel.Dock="Right" x:Name="HeightScaleFillBox" Width="120"
+            <NumericUpDown DockPanel.Dock="Right" x:Name="HeightScaleFillBox" Width="{StaticResource SizeSettingsField}"
                            Minimum="5" Maximum="100" Increment="5" FormatString="0"
                            ValueChanged="OnHeightScaleFillChanged" />
             <TextBlock Text="Share of the canvas height, in percent" VerticalAlignment="Center" />
@@ -255,7 +255,7 @@
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="How close a point has to come to a guide before it is pulled onto it. Measured in document pixels, so a zoomed-in artist gets the same guides as a zoomed-out one." />
           <DockPanel>
-            <NumericUpDown DockPanel.Dock="Right" x:Name="SnapToleranceBox" Width="120"
+            <NumericUpDown DockPanel.Dock="Right" x:Name="SnapToleranceBox" Width="{StaticResource SizeSettingsField}"
                            Minimum="0" Maximum="200" Increment="2" FormatString="0"
                            ValueChanged="OnSnapToleranceChanged" />
             <TextBlock Text="Pull distance, in pixels" VerticalAlignment="Center" />
@@ -271,17 +271,17 @@
           <ItemsControl x:Name="GridsHost">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="views:GridRow">
-                <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="4" Padding="10" Margin="0,0,0,6">
+                <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}" Margin="0,0,0,6">
                   <StackPanel Spacing="{StaticResource Space6}">
                     <TextBlock Text="{Binding Title}" FontSize="{StaticResource TypeBody}" FontWeight="SemiBold" />
                     <DockPanel>
-                      <NumericUpDown DockPanel.Dock="Right" Width="110"
+                      <NumericUpDown DockPanel.Dock="Right" Width="{StaticResource SizeSettingsFieldNarrow}"
                                      Minimum="1" Maximum="4096" Increment="4" FormatString="0"
                                      Value="{Binding Spacing, Mode=TwoWay}" />
                       <TextBlock Text="Cell size" VerticalAlignment="Center" />
                     </DockPanel>
                     <DockPanel>
-                      <NumericUpDown DockPanel.Dock="Right" Width="110"
+                      <NumericUpDown DockPanel.Dock="Right" Width="{StaticResource SizeSettingsFieldNarrow}"
                                      Minimum="-180" Maximum="180" Increment="5" FormatString="0.#"
                                      Value="{Binding Angle, Mode=TwoWay}" />
                       <TextBlock Text="Angle, in degrees" VerticalAlignment="Center" />
@@ -307,17 +307,17 @@
           <ItemsControl x:Name="HeightScalesHost">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="views:HeightScaleRow">
-                <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="4" Padding="10" Margin="0,0,0,6">
+                <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}" Margin="0,0,0,6">
                   <StackPanel Spacing="{StaticResource Space6}">
                     <TextBlock Text="{Binding Title}" FontSize="{StaticResource TypeBody}" FontWeight="SemiBold" />
                     <DockPanel>
-                      <NumericUpDown DockPanel.Dock="Right" Width="110"
+                      <NumericUpDown DockPanel.Dock="Right" Width="{StaticResource SizeSettingsFieldNarrow}"
                                      Minimum="1" Maximum="4096" Increment="2" FormatString="0.#"
                                      Value="{Binding Unit, Mode=TwoWay}" />
                       <TextBlock Text="One head, in pixels" VerticalAlignment="Center" />
                     </DockPanel>
                     <DockPanel>
-                      <NumericUpDown DockPanel.Dock="Right" Width="110"
+                      <NumericUpDown DockPanel.Dock="Right" Width="{StaticResource SizeSettingsFieldNarrow}"
                                      Minimum="1" Maximum="32" Increment="1" FormatString="0"
                                      Value="{Binding Divisions, Mode=TwoWay}" />
                       <TextBlock Text="Heads tall" VerticalAlignment="Center" />
@@ -342,14 +342,14 @@
       change art that already exists — which is what lets them live in a
       settings window instead of taking a row of the tool options bar.
     -->
-    <ScrollViewer x:Name="DrawingPage" Grid.Column="2" Margin="14" IsVisible="False"
+    <ScrollViewer x:Name="DrawingPage" Grid.Column="2" Margin="{StaticResource PagePadding}" IsVisible="False"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="{StaticResource Space16}">
         <StackPanel Spacing="{StaticResource Space6}">
           <TextBlock Text="What smudge and blur read" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="Smudge and blur move pixels that are already there. This decides which pixels: only the layer you are painting on, or everything you can see through it." />
-          <ComboBox x:Name="SampleBox" Width="260" SelectionChanged="OnSampleSourceChanged" />
+          <ComboBox x:Name="SampleBox" Width="{StaticResource SizeSettingsCombo}" SelectionChanged="OnSampleSourceChanged" />
           <TextBlock x:Name="SampleHint" FontSize="{StaticResource TypeDense}" Opacity="0.6" TextWrapping="Wrap" />
         </StackPanel>
 
@@ -384,13 +384,13 @@
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="The outline that follows the pointer is one line, and it inks itself dark or light from the artwork underneath so it stays readable without a second line under it. These two decide how much of the drawing it covers." />
           <DockPanel ToolTip.Tip="How far the line stands off the artwork. Lower hides less of the drawing; higher is easier to find on a low-contrast panel.">
-            <NumericUpDown DockPanel.Dock="Right" x:Name="RingContrastBox" Width="120"
+            <NumericUpDown DockPanel.Dock="Right" x:Name="RingContrastBox" Width="{StaticResource SizeSettingsField}"
                            Minimum="25" Maximum="100" Increment="5" FormatString="0"
                            ValueChanged="OnRingContrastChanged" />
             <TextBlock Text="Contrast (%)" VerticalAlignment="Center" />
           </DockPanel>
           <DockPanel ToolTip.Tip="How thick the line is, in screen pixels. It does not scale with zoom — the ring is chrome, not part of the drawing.">
-            <NumericUpDown DockPanel.Dock="Right" x:Name="RingWidthBox" Width="120"
+            <NumericUpDown DockPanel.Dock="Right" x:Name="RingWidthBox" Width="{StaticResource SizeSettingsField}"
                            Minimum="0.5" Maximum="3" Increment="0.1" FormatString="0.0"
                            ValueChanged="OnRingWidthChanged" />
             <TextBlock Text="Width (pixels)" VerticalAlignment="Center" />
@@ -403,7 +403,7 @@
           <TextBlock Text="Where the brush lives" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="Whether the brush belongs to the tool or to the drawing. Come back to a comic or a set of game assets after a fortnight and the question is not which brush you like, but which brush the work is drawn with." />
-          <ComboBox x:Name="BrushScopeBox" Width="260" SelectionChanged="OnBrushScopeChanged" />
+          <ComboBox x:Name="BrushScopeBox" Width="{StaticResource SizeSettingsCombo}" SelectionChanged="OnBrushScopeChanged" />
           <TextBlock x:Name="BrushScopeHint" FontSize="{StaticResource TypeDense}" Opacity="0.6" TextWrapping="Wrap" />
         </StackPanel>
       </StackPanel>
@@ -417,7 +417,7 @@
       page grows a row. Test connection makes a real, tiny drawing request,
       because the ways a connection fails are mostly not reachability.
     -->
-    <ScrollViewer x:Name="AiPage" Grid.Column="2" Margin="14" IsVisible="False"
+    <ScrollViewer x:Name="AiPage" Grid.Column="2" Margin="{StaticResource PagePadding}" IsVisible="False"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="{StaticResource Space16}">
 
@@ -432,7 +432,7 @@
           <TextBlock Text="Provider" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="Who draws the inbetweens. Nothing here reaches the brush engine — an AI pass emits ordinary strokes and the document renders them like any others." />
-          <ComboBox x:Name="AiProviderBox" Width="260" SelectionChanged="OnAiProviderChanged" />
+          <ComboBox x:Name="AiProviderBox" Width="{StaticResource SizeSettingsCombo}" SelectionChanged="OnAiProviderChanged" />
           <TextBlock x:Name="AiSummary" FontSize="{StaticResource TypeDense}" Opacity="0.6" TextWrapping="Wrap" />
         </StackPanel>
 
@@ -486,7 +486,7 @@
                        IsVisible="False" />
           <TextBlock x:Name="AiProfileStatus" FontSize="{StaticResource TypeDense}" TextWrapping="Wrap" />
           <Border x:Name="AiProfileResult" Background="{DynamicResource SurfaceElevatedBrush}"
-                  CornerRadius="4" Padding="10" IsVisible="False">
+                  CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}" IsVisible="False">
             <StackPanel Spacing="{StaticResource Space4}">
               <TextBlock x:Name="AiProfileWhen" FontSize="{StaticResource TypeDense}" Opacity="0.6" TextWrapping="Wrap" />
               <TextBlock x:Name="AiProfileStale" FontSize="{StaticResource TypeDense}" TextWrapping="Wrap"
@@ -502,7 +502,7 @@
           </Border>
         </StackPanel>
 
-        <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="4" Padding="10">
+        <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}">
           <StackPanel Spacing="{StaticResource Space4}">
             <TextBlock Text="The other direction" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
             <TextBlock FontSize="{StaticResource TypeDense}" Opacity="0.75" TextWrapping="Wrap"
@@ -512,7 +512,7 @@
       </StackPanel>
     </ScrollViewer>
 
-    <ScrollViewer x:Name="TimelinePage" Grid.Column="2" Margin="14" IsVisible="False"
+    <ScrollViewer x:Name="TimelinePage" Grid.Column="2" Margin="{StaticResource PagePadding}" IsVisible="False"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="{StaticResource Space16}">
 
@@ -520,7 +520,7 @@
           <TextBlock Text="Drawing on a held cel" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="A cel that holds an earlier drawing is not a drawing of its own, so a mark on one has three honest readings. Which you mean depends on how you work." />
-          <ComboBox x:Name="HoldBox" Width="260" SelectionChanged="OnHoldDrawingChanged" />
+          <ComboBox x:Name="HoldBox" Width="{StaticResource SizeSettingsCombo}" SelectionChanged="OnHoldDrawingChanged" />
           <TextBlock x:Name="HoldHint" FontSize="{StaticResource TypeDense}" Opacity="0.6" TextWrapping="Wrap" />
         </StackPanel>
 
@@ -555,7 +555,7 @@
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="How wide one frame is on the timeline. Also on the timeline's own bar, where it is quicker to reach." />
           <DockPanel>
-            <NumericUpDown DockPanel.Dock="Right" x:Name="FrameWidthBox" Width="120"
+            <NumericUpDown DockPanel.Dock="Right" x:Name="FrameWidthBox" Width="{StaticResource SizeSettingsField}"
                            Minimum="14" Maximum="72" Increment="2" FormatString="0"
                            ValueChanged="OnFrameWidthChanged" />
             <TextBlock Text="Pixels per frame" VerticalAlignment="Center" />
@@ -567,7 +567,7 @@
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="View ▸ Volume and balance check measures the active layer's ink per frame. A frame is flagged when its area drifts further than this from the shot's median — squash and stretch preserves volume, so drift past taste is off-model." />
           <DockPanel>
-            <NumericUpDown DockPanel.Dock="Right" x:Name="VolumeToleranceBox" Width="120"
+            <NumericUpDown DockPanel.Dock="Right" x:Name="VolumeToleranceBox" Width="{StaticResource SizeSettingsField}"
                            Minimum="1" Maximum="100" Increment="1" FormatString="0"
                            ValueChanged="OnVolumeToleranceChanged" />
             <TextBlock Text="Allowed drift, percent" VerticalAlignment="Center" />
@@ -575,7 +575,7 @@
         </StackPanel>
       </StackPanel>
     </ScrollViewer>
-    <ScrollViewer x:Name="ExportPage" Grid.Column="2" Margin="14" IsVisible="False"
+    <ScrollViewer x:Name="ExportPage" Grid.Column="2" Margin="{StaticResource PagePadding}" IsVisible="False"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="{StaticResource Space16}">
 
@@ -593,7 +593,7 @@
           <TextBlock Text="Which status fires it" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="Ready by default. A studio that reviews in engine wants Review instead — when the engine should see an asset is a question about your pipeline, not ours." />
-          <ComboBox x:Name="AutoExportStatusBox" Width="260"
+          <ComboBox x:Name="AutoExportStatusBox" Width="{StaticResource SizeSettingsCombo}"
                     SelectionChanged="OnAutoExportStatusChanged" />
         </StackPanel>
 
@@ -601,7 +601,7 @@
           <TextBlock Text="Export preset" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="The same presets the export window uses. Save one there and it appears here." />
-          <ComboBox x:Name="AutoExportPresetBox" Width="260"
+          <ComboBox x:Name="AutoExportPresetBox" Width="{StaticResource SizeSettingsCombo}"
                     SelectionChanged="OnAutoExportPresetChanged" />
         </StackPanel>
 
@@ -626,7 +626,7 @@
       feel. It applies while the slider moves — the canvas is outside every
       scaled region, so the only cost of a step is one relayout of the chrome.
     -->
-    <ScrollViewer x:Name="InterfacePage" Grid.Column="2" Margin="14" IsVisible="False"
+    <ScrollViewer x:Name="InterfacePage" Grid.Column="2" Margin="{StaticResource PagePadding}" IsVisible="False"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="{StaticResource Space16}">
         <StackPanel Spacing="{StaticResource Space6}">
@@ -654,7 +654,7 @@
       </StackPanel>
     </ScrollViewer>
 
-    <ScrollViewer x:Name="LibraryPage" Grid.Column="2" Margin="14" IsVisible="False"
+    <ScrollViewer x:Name="LibraryPage" Grid.Column="2" Margin="{StaticResource PagePadding}" IsVisible="False"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="{StaticResource Space16}">
         <StackPanel Spacing="{StaticResource Space6}">

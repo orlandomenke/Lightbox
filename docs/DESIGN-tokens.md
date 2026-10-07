@@ -71,6 +71,7 @@ should be none.
 | --- | --- | --- |
 | 1 · foundation | 1,239 | type scale, spacing scale, density sizes, dynamic brushes |
 | 2 · dockers | 912 | setting rows (label, slider gap, value floor), icon sizes, section gaps — the docker part of MainWindow.axaml and the panels it hosts (tool option pages, effects, guides, scene) |
+| 2 · Configure | 865 | the settings page inset, the settings field and combo widths, the information card's corners and inset |
 
 **How each area proves "no visual change":** the gallery's `--snapshot-app`
 renders the main window empty and with a document open, every docker brought to
@@ -87,8 +88,10 @@ section, a popup or a hover is never on screen. Those lines are covered by the
 second half of the evidence: every changed line pairs one-for-one with its old
 form, and differs only in an attribute value replaced by a token holding the same
 number and the same type. A static resource resolves to that number whether or
-not its element is visible. The adversary review checks the pairing by script,
-302 pairs for the dockers, and found no mismatch.
+not its element is visible. `scripts/tokenpairs.py <base>` checks that pairing by
+script, resolving tokens on both sides, and is run on every area: 303 pairs for
+the dockers and 41 for Configure, no mismatch. It was shown to catch a planted
+swap of one token for another of a different value.
 
 ## Left for step 3, from the docker review
 
