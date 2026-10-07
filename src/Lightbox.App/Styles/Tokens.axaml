@@ -52,6 +52,34 @@
   <!-- A numeric field's own height, two under the row. -->
   <x:Double x:Key="SizeFieldHeight">22</x:Double>
 
+  <!-- ===== Docker content (step 2, area 1: the dockers) ===== -->
+  <!-- A setting row in a docker today: label · slider · value. Two label
+       widths are in use (90 and 100) and are kept apart so nothing moves; step
+       3 makes them one, which is easier to see with both named. -->
+  <x:Double x:Key="SizeDockerLabel">90</x:Double>
+  <x:Double x:Key="SizeDockerLabelWide">100</x:Double>
+  <!-- The one-letter channel column: H, S, V, R, G, B. -->
+  <x:Double x:Key="SizeChannelLabel">16</x:Double>
+  <!-- The gap either side of a row's slider, between label and value. -->
+  <Thickness x:Key="RowColumnGap">4,0</Thickness>
+  <!-- Before and after a control in a row. -->
+  <Thickness x:Key="GapBefore">4,0,0,0</Thickness>
+  <Thickness x:Key="GapAfter">0,0,4,0</Thickness>
+  <!-- Above a section, a sub-section and a following line. -->
+  <Thickness x:Key="SectionGap">0,8,0,0</Thickness>
+  <Thickness x:Key="SubsectionGap">0,6,0,0</Thickness>
+  <Thickness x:Key="LineGap">0,4,0,0</Thickness>
+
+  <!-- ===== Icon sizes ===== -->
+  <!-- Every glyph size in use. Named by size: an icon's size is its box, and
+       step 3 is where they get collapsed onto fewer steps. -->
+  <x:Double x:Key="SizeIcon8">8</x:Double>
+  <x:Double x:Key="SizeIcon9">9</x:Double>
+  <x:Double x:Key="SizeIcon10">10</x:Double>
+  <x:Double x:Key="SizeIcon11">11</x:Double>
+  <x:Double x:Key="SizeIcon12">12</x:Double>
+  <x:Double x:Key="SizeIcon16">16</x:Double>
+
   <!-- ===== Radii, by role ===== -->
   <!-- Today's values. Step 3 sets them to the Tight set: control and field 4,
        container 6, inner 2. -->
