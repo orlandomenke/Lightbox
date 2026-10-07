@@ -210,12 +210,26 @@ passing one:
   *complement* of the others rather than a list of its own, so a test class the
   planner never enumerated still runs. `python3 scripts/testplan.py selftest`
   proves that over the real class list, and CI runs it.
-- **The timed tests are kept off a loaded machine.** Everything tagged
+- **The timed tests are kept off a loaded machine.** Every *test* tagged
   `[Trait("Category", "Performance")]` is gathered into one leg per suite,
-  marked `[timed]`, and run on its own after the others. A budget measuring
-  wall clock lies when five other legs are running beside it — that is point 4
-  below, and without this the tool would have become the heavy thing it warns
-  about. CI needs none of this, because there every leg has a runner to itself.
+  marked `[timed]` — by method, so the ordinary tests sharing a class with a
+  budget stay in the parallel pool. A budget measuring wall clock lies when
+  other legs are running beside it — that is point 4 below. CI needs none of
+  this, because there every leg has a runner to itself.
+- **Locally, the timed legs run only with `--perf`** (Q201). Run alone they were
+  over half of a local run, and on a laptop they fail on noise often enough
+  that a local red from one is not evidence. CI runs them on every pull
+  request; `run` prints each one it left out, so the skip is never silent. Pass
+  `--perf` when the change is to a hot path and you want the answer before the
+  PR does.
+
+It is also careful about the machine it runs on (Q202). It starts a quarter of
+the cores' worth of legs, and fewer when free memory cannot hold one per 2 GB —
+the old default of half the cores put eight testhosts on a 16-thread laptop at
+once and ran each of them twice as slowly as one alone. The build does not leave
+MSBuild nodes resident through the run, and the legs run below normal priority,
+so whatever you are doing meanwhile wins. `--jobs N` overrides the count, and the
+run prints which rule chose it.
 
 **`dotnet test` needs no display at all.** `Lightbox.App.Tests` drives Avalonia
 through `Avalonia.Headless.XUnit`, so there is no Xvfb, no X server and no
@@ -391,9 +405,10 @@ that failed, check its duration.
 ### 4. Do not run the suite alongside anything heavy
 
 `python3 scripts/testplan.py run` already handles its own legs — the timed ones
-are gathered into a single `[timed]` leg per suite and run alone, so the tool
-does not become the heavy thing. What it cannot do anything about is what
-*else* is on the box.
+are gathered into a single `[timed]` leg per suite and, with `--perf`, run
+alone, and the rest are sized to the memory that is free — so the tool does not
+become the heavy thing. What it cannot do anything about is what *else* is on
+the box.
 
 Independent of B281, the App suite under concurrent memory pressure can be killed
 outright — observed here as `Test process crashed with exit code 137` (SIGKILL)

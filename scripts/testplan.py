@@ -79,6 +79,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -426,8 +427,9 @@ def performance_classes(project: Project, root: Path = ROOT) -> set[str]:
     the suite the heavy thing.
 
     On CI it does not arise, because every leg has a runner to itself. It
-    arises locally, which is where the script is used most, so these classes are
-    gathered into one leg per project and that leg is run on its own.
+    arises locally, which is where the script is used most, so the tests these
+    classes tag are gathered into one leg per project — by method, see
+    `performance_tests` — and that leg is run on its own.
 
     A class the scan misses is treated as ordinary and may run in parallel —
     that is a flaky measurement, not a skipped test, and the partition is
@@ -457,19 +459,89 @@ def performance_classes(project: Project, root: Path = ROOT) -> set[str]:
     return found
 
 
-def balance(weights: dict[str, int], buckets: int) -> list[list[str]]:
-    """Longest-processing-time first: the heaviest class into the lightest bucket."""
+TEST_METHOD = re.compile(r"\b(?:void|Task|ValueTask)\s+([A-Za-z0-9_]+)\s*\(")
+
+
+def _attributes_before(text: str, at: int, floor: int) -> str:
+    """The attribute block in front of the declaration at `at`.
+
+    Everything back to the last `{`, `}` or `;` — the end of whatever member or
+    scope came before. A `;` inside an attribute's string argument cuts the block
+    short, and the cost of that is the one `performance_classes` already accepts:
+    a budget read as ordinary runs alongside the others, which is a flaky
+    measurement and never a skipped test.
+    """
+    start = max(text.rfind(c, floor, at) for c in "{};")
+    return text[max(start, floor):at]
+
+
+def performance_tests(project: Project, root: Path = ROOT) -> dict[str, set[str] | None]:
+    """The performance-tagged tests, per class — `None` meaning the whole class.
+
+    WHY BY METHOD AND NOT BY CLASS. Most of these classes hold one budget among
+    many ordinary tests — `PigmentModelTests` is one of 29 — and a timed leg
+    built from whole classes carried all of them: 120 tests in App's, of which
+    a handful measure anything. That made the leg that has to run alone longer
+    than it needed to be, and it made "skip the timed leg locally" impossible to
+    offer, because skipping it skipped every ordinary test beside a budget. By
+    method, the timed leg is the budgets and nothing else.
+
+    A class whose every test is tagged is reported whole, so in such a class a
+    method this scan cannot parse still lands in the timed leg.
+    """
+    found: dict[str, set[str] | None] = {}
+    sources = [q for q in (root / project.directory).glob("**/*.cs")
+               if not any(part in ("obj", "bin") for part in q.parts)]
+    sources += [root / linked for linked in sorted(project.linked)]
+    for source in sources:
+        if not source.exists():
+            continue
+        text = source.read_text(encoding="utf-8", errors="ignore")
+        if not PERFORMANCE_TRAIT.search(text):
+            continue
+        namespace_match = NAMESPACE.search(text)
+        if not namespace_match:
+            continue
+        positions = [(m.start(), m.group(1)) for m in CLASS.finditer(text)]
+        for i, (start, name) in enumerate(positions):
+            end = positions[i + 1][0] if i + 1 < len(positions) else len(text)
+            whole = bool(PERFORMANCE_TRAIT.search(_attributes_before(text, start, 0)))
+            tests, timed = 0, set()
+            for method in TEST_METHOD.finditer(text, start, end):
+                block = _attributes_before(text, method.start(), start)
+                if not TEST_ATTRIBUTE.search(block):
+                    continue
+                tests += 1
+                if whole or PERFORMANCE_TRAIT.search(block):
+                    timed.add(method.group(1))
+            if timed:
+                qualified = f"{namespace_match.group(1)}.{name}"
+                found[qualified] = None if len(timed) == tests else timed
+    return found
+
+
+def balance(weights: dict[str, int], buckets: int, pinned: int = 0) -> list[list[str]]:
+    """Longest-processing-time first: the heaviest class into the lightest bucket.
+
+    `pinned` is weight the complement is already carrying — tests no include
+    filter can name, so they land there whatever this does — and the bucket
+    that starts with it is the one returned last.
+    """
     if buckets <= 1:
         return [sorted(weights)]
     loads = [0] * buckets
+    loads[0] = pinned
     groups: list[list[str]] = [[] for _ in range(buckets)]
     for name in sorted(weights, key=lambda n: (-weights[n], n)):
         lightest = loads.index(min(loads))
         loads[lightest] += weights[name]
         groups[lightest].append(name)
     # Heaviest bucket first, so the *lightest* becomes the complement shard —
-    # it is the one that also picks up anything the enumeration missed.
+    # it is the one that also picks up anything the enumeration missed. With
+    # pinned weight the complement is the bucket already holding it instead.
     order = sorted(range(buckets), key=lambda i: (-loads[i], i))
+    if pinned:
+        order = [i for i in order if i != 0] + [0]
     return [sorted(groups[i]) for i in order]
 
 
@@ -487,22 +559,40 @@ def shard_filters(project: Project, count: int) -> list[str]:
     if count <= 1:
         return [""]
     classes = test_classes(project)
-    timed = {name for name in performance_classes(project) if name in classes}
+    timed = {name: methods for name, methods in performance_tests(project).items()
+             if name in classes}
+
+    # A shard is a list of (include, exclude) terms: a whole class by prefix,
+    # or one test by its exact name.
+    def whole(name: str) -> tuple[str, str]:
+        return f"FullyQualifiedName~{name}.", f"FullyQualifiedName!~{name}."
+
+    def exact(name: str) -> tuple[str, str]:
+        return f"FullyQualifiedName={name}", f"FullyQualifiedName!={name}"
 
     if timed and count >= 2:
-        # Shard 1 is every timed class, so exactly one leg per project has to
+        # Shard 1 is every timed test, so exactly one leg per project has to
         # be run on its own. The rest are balanced across what is left, and the
         # last is still the complement of all of them — so the partition is
-        # total exactly as before, and an unenumerated class still runs.
+        # total exactly as before, and an unenumerated test still runs.
+        #
+        # The ordinary tests of a class that also holds a budget cannot be
+        # named by an include — `~Class.` would take the budget with them — so
+        # they fall to the complement, which is weighted for them.
         rest = {name: weight for name, weight in classes.items() if name not in timed}
-        groups = [sorted(timed)] + balance(rest, count - 1)
+        leftover = sum(classes[name] - len(methods)
+                       for name, methods in timed.items() if methods is not None)
+        first = [whole(name) if methods is None else exact(f"{name}.{method}")
+                 for name, methods in sorted(timed.items())
+                 for method in (sorted(methods) if methods is not None else [None])]
+        groups = [first] + [[whole(name) for name in group]
+                            for group in balance(rest, count - 1, pinned=leftover)]
     else:
-        groups = balance(classes, count)
+        groups = [[whole(name) for name in group] for group in balance(classes, count)]
 
-    filters = ["|".join(f"FullyQualifiedName~{name}." for name in group) for group in groups[:-1]]
-    named = [name for group in groups[:-1] for name in group]
-    complement = "&".join(f"FullyQualifiedName!~{name}." for name in sorted(named))
-    return filters + [complement]
+    filters = ["|".join(include for include, _ in group) for group in groups[:-1]]
+    named = sorted(exclude for group in groups[:-1] for _, exclude in group)
+    return filters + ["&".join(named)]
 
 
 def matches_filter(expression: str, name: str) -> bool:
@@ -520,10 +610,14 @@ def matches_filter(expression: str, name: str) -> bool:
     and a shard whose filter means something different to VSTest than it means
     here fails loudly rather than quietly running less.
 
-    Only the two operators the planner emits are accepted, and `&` is never
-    mixed with `|` in what it emits, so there is no precedence to get wrong.
-    Anything else raises rather than guessing: a filter this cannot read is a
-    filter whose coverage nobody can vouch for.
+    Only the operators the planner emits are accepted, and `&` is never mixed
+    with `|` in what it emits, so there is no precedence to get wrong. Anything
+    else raises rather than guessing: a filter this cannot read is a filter
+    whose coverage nobody can vouch for.
+
+    `=` is an exact fully-qualified name, which is `Namespace.Class.Method` with
+    no arguments — so a theory's rows, listed by discovery as `Method(x: 1)`,
+    all answer to it, as they do to VSTest.
     """
     expression = expression.strip()
     if not expression:
@@ -538,7 +632,15 @@ def matches_filter(expression: str, name: str) -> bool:
         return expression[len("FullyQualifiedName!~"):] not in name
     if expression.startswith("FullyQualifiedName~"):
         return expression[len("FullyQualifiedName~"):] in name
+    if expression.startswith("FullyQualifiedName!="):
+        return not _is_exactly(expression[len("FullyQualifiedName!="):], name)
+    if expression.startswith("FullyQualifiedName="):
+        return _is_exactly(expression[len("FullyQualifiedName="):], name)
     raise ValueError(f"unreadable filter term: {expression!r}")
+
+
+def _is_exactly(qualified: str, name: str) -> bool:
+    return name == qualified or name.startswith(qualified + "(")
 
 
 def uncovered(projects: dict[str, Project]) -> list[str]:
@@ -757,10 +859,89 @@ def cmd_shards(args) -> int:
     classes = test_classes(project)
     print(f"{args.project}: {len(classes)} test classes, {sum(classes.values())} tests, {count} shard(s)")
     for index, test_filter in enumerate(shard_filters(project, count), start=1):
-        kind = "complement" if test_filter.startswith("FullyQualifiedName!~") else "include"
+        kind = "complement" if test_filter.startswith("FullyQualifiedName!") else "include"
         terms = len(re.findall(r"FullyQualifiedName", test_filter)) if test_filter else 0
         print(f"  shard {index}/{count}: {kind}, {terms} term(s), {len(test_filter)} chars")
     return 0
+
+
+# ---------------------------------------------------------------------------
+# How hard a local run leans on the machine it runs on
+#
+# CI gives every leg a runner of its own, so none of this arises there. A
+# laptop is one machine, and the first default — half the cores, so eight legs
+# on a 16-thread, 31 GB laptop — was measured on 2026-10-07 to be the heaviest
+# thing on it: eight testhosts at once, one of which peaked at 1.3 GB alone,
+# on top of ~3 GB of MSBuild nodes the build had left resident. The owner heard
+# it before anyone measured it.
+#
+# It was not buying speed either. Under that load an App shard took 304 s that
+# takes 158 s on its own, and `testplan.py filter`, which PlanGateTests runs
+# eleven times, went from 2 s to 24 s. Past the point where legs fight over
+# memory and cores, adding one adds contention rather than throughput.
+# ---------------------------------------------------------------------------
+
+LEG_GB = 2  # what one leg is budgeted, with headroom over the 1.3 GB measured
+
+
+def available_memory_gb() -> float | None:
+    """Physical memory free right now, or None where this cannot ask."""
+    if sys.platform == "win32":
+        import ctypes
+
+        class MemoryStatus(ctypes.Structure):
+            _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong)] + [
+                (field, ctypes.c_ulonglong) for field in (
+                    "ullTotalPhys", "ullAvailPhys", "ullTotalPageFile", "ullAvailPageFile",
+                    "ullTotalVirtual", "ullAvailVirtual", "ullAvailExtendedVirtual")]
+
+        status = MemoryStatus()
+        status.dwLength = ctypes.sizeof(MemoryStatus)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            return status.ullAvailPhys / 2**30
+        return None
+    try:
+        with open("/proc/meminfo", encoding="ascii") as meminfo:
+            for line in meminfo:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) / 2**20
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def default_jobs() -> tuple[int, str]:
+    """How many legs at once, and the reason, for a run that did not say.
+
+    A quarter of the cores, because each leg runs a thread pool of its own; and
+    no more legs than free memory has room for, measured *after* the build so
+    the memory the build gave back counts.
+    """
+    cores = os.cpu_count() or 4
+    by_cores = max(2, cores // 4)
+    free = available_memory_gb()
+    if free is None:
+        return by_cores, f"{cores} cores"
+    return min(by_cores, max(1, int(free // LEG_GB))), f"{cores} cores, {free:.1f} GB free"
+
+
+def below_normal() -> dict:
+    """Popen arguments that start a process, and what it starts, below normal priority.
+
+    The run is background work and should lose to whatever the person at the
+    keyboard is doing. Windows hands a below-normal class down to children, so
+    the testhost `dotnet test` starts inherits it; `nice` does the same on POSIX.
+    Never for a timed leg — a budget measured at low priority measures the
+    scheduler.
+    """
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.BELOW_NORMAL_PRIORITY_CLASS}
+    return {"preexec_fn": lambda: os.nice(10)}
+
+
+# `-nodeReuse:false` because a reused MSBuild node outlives the build by fifteen
+# minutes, which is the whole test run: ten of them held ~3 GB through it.
+BUILD_FLAGS = ["-nodeReuse:false"]
 
 
 def cmd_run(args) -> int:
@@ -781,7 +962,8 @@ def cmd_run(args) -> int:
         print("nothing this change can reach — no tests to run")
         return 0
 
-    build = subprocess.run(["dotnet", "build", "Lightbox.sln", "-c", args.configuration], cwd=ROOT)
+    build = subprocess.run(["dotnet", "build", "Lightbox.sln", "-c", args.configuration, *BUILD_FLAGS],
+                           cwd=ROOT, **below_normal())
     if build.returncode != 0:
         return build.returncode
 
@@ -790,18 +972,32 @@ def cmd_run(args) -> int:
     # which is how the first parallel run of this script produced a red
     # `FourK_WholeStrokeIncludingCommit_HasNoPenLiftStall` with nothing wrong.
     # CI never hits this (one runner per leg) and does not need the ordering.
+    #
+    # And locally, only when asked (Q201). Run alone they were seven and a
+    # half minutes of a fourteen-minute run, and on a laptop they fail on noise
+    # often enough that a local red from one is not evidence. CI runs every one
+    # of them on every pull request. Since the timed leg became the budgets by
+    # *method*, leaving it out leaves out the budgets and nothing else.
     ordinary = [leg for leg in plan if not leg.get("performance")]
     timed = [leg for leg in plan if leg.get("performance")]
+    skipped = [] if args.perf else timed
+    timed = timed if args.perf else []
 
-    print(f"\nrunning {len(plan)} leg(s): {len(ordinary)} up to {args.jobs} at a time"
+    if args.jobs:
+        jobs, why = args.jobs, "--jobs"
+    else:
+        jobs, why = default_jobs()
+
+    print(f"\nrunning {len(ordinary) + len(timed)} leg(s): {len(ordinary)} up to {jobs} at a time"
+          f" ({why})"
           + (f", then {len(timed)} timed leg(s) alone" if timed else "") + "\n")
     running: list[tuple[dict, subprocess.Popen]] = []
     queue = list(ordinary)
     failures: list[str] = []
 
-    def launch(leg: dict) -> subprocess.Popen:
+    def launch(leg: dict, alone: bool = False) -> subprocess.Popen:
         if leg["kind"] == "build":
-            command = ["dotnet", "build", leg["csproj"], "-c", args.configuration]
+            command = ["dotnet", "build", leg["csproj"], "-c", args.configuration, *BUILD_FLAGS]
         else:
             command = ["dotnet", "test", leg["csproj"], "-c", args.configuration,
                        "--no-build", "--logger", "trx"]
@@ -825,25 +1021,32 @@ def cmd_run(args) -> int:
             # a green run into a false shortfall report.
             command += ["--results-directory", str(results)]
         log = results / "leg.log"
-        return subprocess.Popen(command, cwd=ROOT, stdout=log.open("w"), stderr=subprocess.STDOUT)
+        return subprocess.Popen(command, cwd=ROOT, stdout=log.open("w"), stderr=subprocess.STDOUT,
+                                **({} if alone else below_normal()))
 
+    def finished(leg: dict, code: int) -> None:
+        print(f"  {'ok   ' if code == 0 else 'FAIL '}  {leg['name']}")
+        if code != 0:
+            failures.append(leg["name"])
+
+    # Whichever leg finishes first frees its slot, rather than the oldest: with
+    # four slots, waiting on the longest App shard would hold the other three.
     while queue or running:
-        while queue and len(running) < args.jobs:
+        while queue and len(running) < jobs:
             leg = queue.pop(0)
             print(f"  start  {leg['name']}")
             running.append((leg, launch(leg)))
-        leg, process = running.pop(0)
-        code = process.wait()
-        print(f"  {'ok   ' if code == 0 else 'FAIL '}  {leg['name']}")
-        if code != 0:
-            failures.append(leg["name"])
+        time.sleep(0.5)
+        for entry in [entry for entry in running if entry[1].poll() is not None]:
+            running.remove(entry)
+            finished(entry[0], entry[1].returncode)
 
     for leg in timed:
         print(f"  start  {leg['name']} (alone — it is measuring wall clock)")
-        code = launch(leg).wait()
-        print(f"  {'ok   ' if code == 0 else 'FAIL '}  {leg['name']}")
-        if code != 0:
-            failures.append(leg["name"])
+        finished(leg, launch(leg, alone=True).wait())
+
+    for leg in skipped:
+        print(f"  skip   {leg['name']} — the budgets run on CI; --perf runs them here")
 
     if failures:
         print(f"\nfailed: {', '.join(failures)} — see */TestResults/leg-*/leg.log "
@@ -858,7 +1061,7 @@ def cmd_run(args) -> int:
         print("\nevery leg passed (count guard skipped by request)")
         return 0
     print("\nchecking every leg ran what it was given")
-    for leg in plan:
+    for leg in ordinary + timed:
         if leg["kind"] == "build":
             continue  # nothing ran, so there is nothing to count
         test_filter = shard_filters(projects[leg["project"]], leg["shards"])[leg["shard"] - 1]
@@ -874,7 +1077,11 @@ def cmd_run(args) -> int:
             print(check.stdout + check.stderr)
             print(f"\n{leg['name']} proved less than it claimed — see above (B269/B281)")
             return 1
-    print("every leg passed, and ran everything it was given")
+    if skipped:
+        print(f"every leg that ran passed and ran everything it was given; "
+              f"{len(skipped)} timed leg(s) left to CI")
+    else:
+        print("every leg passed, and ran everything it was given")
     return 0
 
 
@@ -1138,7 +1345,8 @@ def cmd_selftest(args) -> int:
     filters = shard_filters(app, 4)
     check("a sharded project gets one filter per shard", len(filters) == 4)
     check("the last shard is a complement, not a list",
-          filters[-1].startswith("FullyQualifiedName!~") and "~FullyQualifiedName" not in filters[-1])
+          all(term.startswith(("FullyQualifiedName!~", "FullyQualifiedName!="))
+              for term in filters[-1].split("&")))
     check("no filter mixes & with |",
           all(not ("&" in f and "|" in f) for f in filters))
 
@@ -1148,6 +1356,10 @@ def cmd_selftest(args) -> int:
     included = set(re.findall(r"FullyQualifiedName~([A-Za-z0-9_.]+)\.", "|".join(filters[:-1])))
     check("every named class is in exactly one include shard and excluded once",
           excluded == included)
+    exact_out = set(re.findall(r"FullyQualifiedName!=([^&|]+)", filters[-1]))
+    exact_in = set(re.findall(r"FullyQualifiedName=([^&|]+)", "|".join(filters[:-1])))
+    check("every test named exactly is included once and excluded once",
+          bool(exact_in) and exact_in == exact_out)
     check("an unknown class is excluded by nothing, so the complement runs it",
           "Lightbox.App.Tests.AClassNobodyEnumerated" not in excluded)
 
@@ -1162,6 +1374,11 @@ def cmd_selftest(args) -> int:
     names = [f"{cls}.ATest" for cls in test_classes(app)]
     names.append("Lightbox.App.Tests.AClassAddedAfterThePlanWasMade.ATest")
     names.append("Lightbox.App.Tests.Outer+Nested.ATest")
+    # A budget named by method, its theory rows, and a method whose name merely
+    # starts with the budget's — the last is the one `~` would have caught.
+    for cls, methods in performance_tests(app).items():
+        for method in sorted(methods or ()):
+            names += [f"{cls}.{method}", f"{cls}.{method}(x: 1)", f"{cls}.{method}Too"]
     landings = [sum(1 for f in filters if matches_filter(f, n)) for n in names]
     check("every test lands in exactly one shard", set(landings) == {1})
     unknown_shard = [i for i, f in enumerate(filters)
@@ -1240,13 +1457,37 @@ def cmd_selftest(args) -> int:
     check("an unsharded project has no timed leg",
           not any(leg["performance"] for leg in full if leg["shards"] == 1))
 
-    # Every timed class must actually be in the timed leg, or the point is lost.
+    # Every timed test must actually be in the timed leg, or the point is lost;
+    # and nothing else may be, or skipping it locally (Q201) skips real tests.
     timed_filter = shard_filters(app, SHARDS["Lightbox.App.Tests"])[0]
-    check("every performance class lands in the timed leg",
-          all(matches_filter(timed_filter, f"{c}.ATest") for c in timed_classes))
-    check("nothing else lands in the timed leg",
+    timed_tests = performance_tests(app)
+    check("the scan by method finds the same classes as the scan by class",
+          set(timed_tests) == timed_classes)
+    check("most budgets share their class with ordinary tests, so they are named by method",
+          sum(1 for methods in timed_tests.values() if methods is not None) > 5)
+    budgets = [f"{c}.ATest" if m is None else f"{c}.{x}"
+               for c, m in timed_tests.items() for x in (m or [None])]
+    check("every performance test lands in the timed leg",
+          all(matches_filter(timed_filter, name) for name in budgets))
+    check("a theory row of a budget lands in the timed leg",
+          all(matches_filter(timed_filter, f"{name}(x: 1)") for name in budgets))
+    check("no ordinary class lands in the timed leg",
           not any(matches_filter(timed_filter, f"{c}.ATest")
                   for c in set(test_classes(app)) - timed_classes))
+    beside = [f"{c}.AnOrdinaryTest" for c, m in timed_tests.items() if m is not None]
+    check("an ordinary test beside a budget is not in the timed leg",
+          not any(matches_filter(timed_filter, name) for name in beside))
+    check("an ordinary test beside a budget runs in the complement",
+          all(matches_filter(shard_filters(app, SHARDS["Lightbox.App.Tests"])[-1], name)
+              for name in beside))
+    check("an exact name does not match a longer one",
+          not matches_filter("FullyQualifiedName=A.B.M", "A.B.MToo")
+          and matches_filter("FullyQualifiedName!=A.B.M", "A.B.MToo"))
+    source = ('class C {\n    public void Before() { }\n\n    [Fact]\n'
+              '    [Trait("Category", "Performance")]\n    [InlineData("a")]\n    public void M() { }\n')
+    block = _attributes_before(source, source.index("void M"), 0)
+    check("a method's attribute block is its own and all of it",
+          bool(PERFORMANCE_TRAIT.search(block)) and "Before" not in block)
     check("a compile leg has no filter to ask for",
           shard_filters(projects["Lightbox.Bench"], 1) == [""])
 
@@ -1288,7 +1529,10 @@ def main() -> int:
     run.add_argument("--head", default=None,
                      help="compare two commits instead of the base against your working tree")
     run.add_argument("-c", "--configuration", default="Release")
-    run.add_argument("-j", "--jobs", type=int, default=max(1, (os.cpu_count() or 4) // 2))
+    run.add_argument("-j", "--jobs", type=int, default=None,
+                     help="legs at once (default: a quarter of the cores, capped by free memory)")
+    run.add_argument("--perf", action="store_true",
+                     help="also run the timed legs, alone, after the rest (CI always does)")
     run.add_argument("--skip-verify", action="store_true",
                      help="do not check each leg against discovery afterwards")
 

@@ -277,7 +277,12 @@ public partial class MainViewModel
     {
         _playDirection = direction;
         if (IsPlaying) return;
+        // A stroke cut off by playback records nothing, so a key its press
+        // made on a hold goes back with it (Q197: a blank key left behind
+        // would play as an empty frame).
+        var strokeInProgress = _strokeBuilder.IsActive;
         _strokeBuilder.Cancel();
+        if (strokeInProgress) TakeBackUnusedKey();
         _live.ClearEffectState();
         IsPlaying = true;
         _clock.Start(Scene.Fps, PlaybackSpeedPercent);

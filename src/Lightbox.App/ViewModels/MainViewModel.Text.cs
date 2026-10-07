@@ -347,6 +347,12 @@ public partial class MainViewModel
     // ---- the typing session -------------------------------------------------
 
     /// <summary>
+    /// The key this type session's click made on a hold, handed back if the
+    /// session ends with nothing typed (B236; Q197 is why it matters).
+    /// </summary>
+    private AutoKey _textKey;
+
+    /// <summary>
     /// Put a caret on the canvas — on the type already there, or on nothing.
     /// </summary>
     /// <remarks>
@@ -365,12 +371,20 @@ public partial class MainViewModel
     {
         if (ActiveTool != ToolId.Text || IsPlaying) return;
         if (TextSessionActive) CommitText();
-        if (!CanEdit(ActiveLayer, "type on it") || PaintTargetOrKey() is null) return;
+        if (!CanEdit(ActiveLayer, "type on it")) return;
+        // Ahead of the key, so a pending palette edit lands below it and the
+        // key stays the newest step a typed-nothing session can hand back.
         CommitSwatchEdit();
+        (x, y) = SnappedPoint(x, y);
+        // New type is a mark, so the hold setting decides what it lands on
+        // (Q197). A click on type the hold is showing is a retype — an edit of
+        // the held drawing — and keys a copy, or a blank page would have no
+        // type under the click to pick up.
+        var retypesHeldType = PaintTarget() is { } shown && TypeAt(shown, x, y) is not null;
+        if (PaintTargetOrKey(editsWhatTheHoldShows: retypesHeldType) is null) return;
+        _textKey = LastAutoKey;
 
         if (PaintTarget() is not { } target) return;
-
-        (x, y) = SnappedPoint(x, y);
 
         if (TypeAt(target, x, y) is { } existing)
         {
@@ -793,7 +807,12 @@ public partial class MainViewModel
 
         ClearTextSession();
 
-        if (!typed && replacing is null) return;
+        if (!typed && replacing is null)
+        {
+            // A click that typed nothing hands back the key it made on a hold.
+            TakeBackUnusedKey(_textKey);
+            return;
+        }
 
         var target = replacingFrameId is not null
             ? FrameById(_editor.Doc, replacingFrameId)
@@ -914,6 +933,7 @@ public partial class MainViewModel
     {
         if (_liveText is null) return;
         ClearTextSession();
+        TakeBackUnusedKey(_textKey);
         _publish.InvalidateWholeCanvas();
         PublishSnapshot();
     }

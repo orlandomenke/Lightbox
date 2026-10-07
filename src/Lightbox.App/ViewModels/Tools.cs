@@ -268,21 +268,51 @@ public enum SelectVariant
 /// What a mark on a held cel does.
 /// </summary>
 /// <remarks>
-/// The two honest readings of the same gesture, and which one an artist means
+/// <para>
+/// Three honest readings of the same gesture, and which one an artist means
 /// depends on how they work rather than on what the app prefers. Hence a
 /// setting, in Edit ▸ Configure ▸ Timeline.
+/// </para>
+/// <para>
+/// <b>It governs marks only</b> — brush, eraser, shape, gradient, pen, new
+/// type, filling a selection, a placed symbol. Anything that acts <em>on</em>
+/// what the hold shows always keys a copy whatever this says, because a blank
+/// drawing would leave it nothing to act on: moving or editing selected lines,
+/// a transform, deleting a boxed region, dragging a placement, retyping held
+/// type, the bucket (its boundaries are the held lines), blur and smudge, and
+/// painting on an alpha-locked layer (B206, B207, Q197).
+/// </para>
+/// <para>
+/// <b>Persisted by name</b> (<c>AppSettings.DrawingOnAHold</c>), so a value is
+/// never renamed without a migration. The retired name <c>StartANewDrawing</c>
+/// meant what <see cref="StartFromACopy"/> does now, and a stored copy of it is
+/// read as <see cref="StartABlankDrawing"/> — Q197 says why.
+/// </para>
 /// </remarks>
 public enum HoldDrawing
 {
     /// <summary>
-    /// Key the cel and draw on a new drawing. The default.
+    /// Key the cel with an empty drawing and put the mark on it. The default.
     /// </summary>
     /// <remarks>
-    /// What every animation tool does, and what the timeline then shows: a
-    /// drawing appears where you made one. The alternative silently edits the
-    /// frame being held, so the mark shows up on the earlier frame too.
+    /// Paper: the next drawing starts on a clean sheet, and the onion skin is
+    /// the light table showing the one before. Q197 — the owner's call, with
+    /// its cost accepted: with onion skin off, the held drawing disappears
+    /// from this frame under the first mark, because this frame no longer
+    /// holds it.
     /// </remarks>
-    StartANewDrawing,
+    StartABlankDrawing,
+
+    /// <summary>
+    /// Key the cel with a copy of the held drawing and put the mark on it.
+    /// </summary>
+    /// <remarks>
+    /// The default until Q197 (stored then as <c>StartANewDrawing</c>): the
+    /// picture does not change under the first touch, and the mark is the only
+    /// difference. Right for working by modifying the last drawing rather than
+    /// redrawing it.
+    /// </remarks>
+    StartFromACopy,
 
     /// <summary>
     /// Add the mark to the drawing being held, on every frame that holds it.
