@@ -189,6 +189,10 @@ public partial class MainViewModel
         _selectionManager.SelectionChanged += OnGuideSelectionChanged;
         _clock.Tick += OnPlaybackTick;
         Settings = AppSettings.Load();
+        // Through the normaliser on the way in: the file is input, and a
+        // hand-edited 0.1 must not produce a window nobody can read (Q200).
+        Settings.UiScale = UiScale.Normalise(Settings.UiScale);
+        UiScale.Current = Settings.UiScale;
         _snapTolerance = Settings.SnapTolerance;
         // Mirror it where the render thread can see it (B125): the draw op has no
         // route to the view model, and an environment variable still forces it on

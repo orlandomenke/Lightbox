@@ -200,6 +200,24 @@ What a bar offers depends on the work: an Illustration project is not going to
 be played, so it is not given a play button, and no document shows the camera
 toggle until it has a camera.
 
+### Making the interface bigger or smaller
+
+**Edit → Configure → Interface → Interface scale** draws every panel, toolbar,
+menu and canvas bar larger or smaller, from 75% to 200% in steps of 5%. Drag
+the slider and the window follows as you go; type a number in the field for an
+exact size; **100%** puts it back.
+
+The panels grow with their contents rather than cramming bigger text into the
+same space: a sidebar at 150% is half as wide again on screen, so a larger
+scale leaves less room for the canvas. A width you dragged a sidebar to is kept
+through the change, and a layout saved at one scale opens at the right
+proportions at another.
+
+**The canvas is never scaled** — that is what its zoom is for — and the setting
+changes nothing in your documents. It belongs to this machine, not to a
+workspace, so switching workspaces does not change how big the text is. The
+Configure window and other dialogs stay at their own size.
+
 ---
 
 ## Workspaces

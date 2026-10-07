@@ -2777,6 +2777,11 @@ Next for the board, deliberately not in the first cut (Q69, Q87):
 3. **Tier 3 future** — Emerging AI technologies; research-stage tooling (Sketch2PoseNet 2025)
 
 ---
+- [x] Interface scale: the chrome bigger or smaller, the canvas never `evidence: UiScale, ScaledChrome, IFollowsUiScale, UiScaleTests, TheCanvasIsInsideNoTransformAndOnWholePixels, ADockerTakesMoreRoomRatherThanCrampingItsContent, AMenuOpensAtTheScaleOfTheBarItDroppedFrom, TheInterfacePageDrivesTheScale, FollowingTheScaleDoesNotKeepAControlAlive`
+  - Asked for by the owner as a slider, with a worry that a slider would cost performance (Q200). It does not cost the drawing anything: each strip of chrome is its own `ScaledChrome` — a layout transform around content laid out at 100% — and the canvas is outside all of them, so a stroke costs what it did. Moving the slider costs one relayout of the chrome per 5% step.
+  - **Per region, not the window with the canvas exempted.** Scaling the root and counter-scaling the canvas is less wiring and puts the canvas origin between device pixels at 125%, which softens every mark. `TheCanvasIsInsideNoTransformAndOnWholePixels` is the line.
+  - **Sizes are stored at 100%.** A sidebar's extent and a floating panel's size are multiplied on the way to the screen and divided on the way back, so a layout saved at one scale opens right at another. A scale change rescales what is on screen by ratio rather than laying the workspace out again, because a dragged sidebar width is not written into the layout until a rebuild and a relayout would have undone it on every slider step.
+  - Popups follow their opener through `Popup.InheritsTransform`, set globally in `Density.axaml`, so a menu from a 150% menu bar opens at 150% and a context menu over the canvas stays at 100%. Dialogs are not scaled — Q200's answer, and each dialog's fixed size is the reason.
 
 ## How this file stays true
 

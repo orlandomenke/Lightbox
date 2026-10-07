@@ -20,6 +20,7 @@
       <ListBoxItem Content="Drawing" />
       <ListBoxItem Content="Export" />
       <ListBoxItem Content="Library" />
+      <ListBoxItem Content="Interface" />
       <ListBoxItem Content="AI" />
     </ListBox>
 
@@ -615,6 +616,40 @@
                      PlaceholderText="e.g. ../Game/Assets/Sprites"
                      LostFocus="OnAutoExportFolderChanged" />
           </DockPanel>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!--
+      Interface page (Q200). A slider and a field, because the right size is
+      found by feel and then read off: DESIGN.md's rule for a value explored by
+      feel. It applies while the slider moves — the canvas is outside every
+      scaled region, so the only cost of a step is one relayout of the chrome.
+    -->
+    <ScrollViewer x:Name="InterfacePage" Grid.Column="2" Margin="14" IsVisible="False"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="16">
+        <StackPanel Spacing="6">
+          <TextBlock Text="Interface scale" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7"
+                     Text="How big the panels, toolbars, menus and the bars over the canvas are drawn. The dockers grow with their contents, so a larger scale takes more room from the canvas. The canvas itself is never scaled — use its zoom — and nothing here changes a pixel of your work." />
+          <DockPanel>
+            <Button DockPanel.Dock="Right" x:Name="UiScaleResetButton" Classes="text" Content="100%"
+                    Margin="6,0,0,0" VerticalAlignment="Center" Click="OnUiScaleReset"
+                    ToolTip.Tip="Back to the size Lightbox was designed at" />
+            <!-- The sign outside the field: a FormatString suffix is printed
+                 and then fails to parse when the field is read back. -->
+            <TextBlock DockPanel.Dock="Right" Text="%" VerticalAlignment="Center" Margin="2,0,0,0" />
+            <NumericUpDown DockPanel.Dock="Right" x:Name="UiScaleBox" Classes="value" Margin="6,0,0,0" VerticalAlignment="Center"
+                           Minimum="75" Maximum="200" Increment="5" FormatString="0"
+                           ValueChanged="OnUiScaleBoxChanged" />
+            <Slider x:Name="UiScaleSlider" Minimum="75" Maximum="200"
+                    TickFrequency="5" IsSnapToTickEnabled="True" SmallChange="5" LargeChange="25"
+                    VerticalAlignment="Center"
+                    ValueChanged="OnUiScaleSliderChanged" />
+          </DockPanel>
+          <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.6"
+                     Text="Kept for this machine, whichever workspace is open. This window stays at its own size." />
         </StackPanel>
       </StackPanel>
     </ScrollViewer>

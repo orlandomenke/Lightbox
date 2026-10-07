@@ -1083,6 +1083,30 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// The interface scale as a percentage, 75–200 in steps of 5 (Q200).
+    /// Applies at once and persists at once.
+    /// </summary>
+    /// <remarks>
+    /// Percent rather than the factor because that is what the artist reads
+    /// and types; <see cref="Services.UiScale.Normalise"/> owns the clamping
+    /// and the step, so a value arriving from the field, the slider or a
+    /// hand-edited settings file all land on the same grid.
+    /// </remarks>
+    public double UiScalePercent
+    {
+        get => Math.Round(Settings.UiScale * 100);
+        set
+        {
+            var factor = Services.UiScale.Normalise(value / 100);
+            if (Settings.UiScale == factor && Services.UiScale.Current == factor) return;
+            Settings.UiScale = factor;
+            Services.UiScale.Current = factor;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
     /// Whether a console window opens at startup carrying the diagnostic traces.
     /// </summary>
     /// <remarks>

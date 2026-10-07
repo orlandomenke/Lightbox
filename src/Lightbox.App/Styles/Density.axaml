@@ -37,6 +37,18 @@
     <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, fonts:Inter#Inter, $Default" />
   </Style>
 
+  <!--
+    A popup is drawn at the scale of whatever opened it (Q200). Without this a
+    menu dropped from a 150% menu bar opened at 100% — Fluent's ComboBox
+    already sets it in its own template, and nothing else does. Inheriting
+    rather than reading the interface scale directly is also right for the
+    canvas: a context menu opened over the unscaled canvas stays at the
+    canvas's scale, which is the window's.
+  -->
+  <Style Selector="Popup">
+    <Setter Property="InheritsTransform" Value="True" />
+  </Style>
+
   <!-- Numeric fields: no spinner arrows anywhere.
 
        The up/down buttons cost ~20px of width and a couple of height, and no

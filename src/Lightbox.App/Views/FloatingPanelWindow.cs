@@ -18,6 +18,25 @@ public sealed class FloatingPanelWindow : Window
 {
     public DockPanelId PanelId { get; }
 
+    private readonly ScaledChrome _host;
+
+    /// <summary>The panel this window is showing, or null once it has been taken.</summary>
+    public Docker? Panel => _host.Child as Docker;
+
+    /// <summary>The window's size as a placement stores it: at 100%.</summary>
+    public (double Width, double Height) UnscaledSize =>
+        (Width / UiScale.Current, Height / UiScale.Current);
+
+    /// <summary>
+    /// Follow a change of interface scale, keeping the panel the same size
+    /// relative to its own content rather than squeezing it.
+    /// </summary>
+    public void Rescale(double old, double now)
+    {
+        Width = Width / old * now;
+        Height = Height / old * now;
+    }
+
     /// <summary>The window was closed by its own chrome: park the panel.</summary>
     public event Action<DockPanelId>? Dismissed;
 
@@ -28,9 +47,13 @@ public sealed class FloatingPanelWindow : Window
     {
         PanelId = panel.PanelId;
         Title = DockPanels.TitleOf(panel.PanelId);
-        Content = panel;
-        Width = placement.FloatWidth;
-        Height = placement.FloatHeight;
+        // The panel sits in its own scaled region, and the window is sized
+        // to hold it at the interface scale: a placement's size is stored at
+        // 100% so a layout saved at one scale opens right at another (Q200).
+        _host = new ScaledChrome { Child = panel };
+        Content = _host;
+        Width = placement.FloatWidth * UiScale.Current;
+        Height = placement.FloatHeight * UiScale.Current;
         Position = new Avalonia.PixelPoint((int)placement.FloatX, (int)placement.FloatY);
         ShowInTaskbar = false;
         Background = Avalonia.Media.Brushes.Transparent;
@@ -72,7 +95,7 @@ public sealed class FloatingPanelWindow : Window
     /// </para>
     /// </remarks>
     public ShortcutScope Scope =>
-        ShortcutScope.In((Content as Docker)?.PanelId ?? PanelId);
+        ShortcutScope.In(Panel?.PanelId ?? PanelId);
 
     /// <summary>
     /// Let go of the panel without closing it — used when the panel is being
@@ -97,8 +120,8 @@ public sealed class FloatingPanelWindow : Window
     /// </remarks>
     public Docker? Release()
     {
-        var panel = Content as Docker;
-        Content = null;
+        var panel = Panel;
+        _host.Child = null;
         Dismissed = null;
         Moved = null;
         return panel;
