@@ -61,7 +61,7 @@ public partial class CanvasControl
                 _txCageMesh = null;
             }
             _txCageDrag = null;
-            TransformGizmoChanged?.Invoke();
+            TxChanged();
             InvalidateVisual();
         }
     }
@@ -83,7 +83,7 @@ public partial class CanvasControl
             {
                 SeedCageFromBounds();
                 _txCageDrag = null;
-                TransformGizmoChanged?.Invoke();
+                TxChanged();
                 InvalidateVisual();
             }
         }
@@ -190,11 +190,15 @@ public partial class CanvasControl
         _txLattice = CageWarp.Drag(_txLattice, held, x, y);
         _txCageMesh = null;
         _txCageLines = null;
-        TransformGizmoChanged?.Invoke();
+        TxChanged();
         InvalidateVisual();
     }
 
-    private void TxCageRelease() => _txCageDrag = null;
+    private void TxCageRelease()
+    {
+        _txCageDrag = null;
+        TxSettle();
+    }
 
     /// <summary>Put every handle back where the grid had it.</summary>
     private void TxResetCage()
