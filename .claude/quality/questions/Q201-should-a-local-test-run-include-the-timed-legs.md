@@ -27,7 +27,7 @@ App's held 120 tests of which a handful measured anything (`PigmentModelTests`
 is one budget among 29 tests). Skipping that leg would have skipped every
 ordinary test sitting beside a budget — a skipped test reading as a passing one,
 which is B269 and B281's failure. `testplan.py` therefore now cuts the timed leg
-by **method** (`performance_tests`): 34 tests in App, 41 in Raster, and the
+by **method** (`performance_tests`): 34 test methods in App (37 tests counting theory rows), 41 in Raster (45), and the
 ordinary tests in those classes run in the parallel pool. That change is right
 whatever the answer here, because it also shortens the leg when it does run.
 
