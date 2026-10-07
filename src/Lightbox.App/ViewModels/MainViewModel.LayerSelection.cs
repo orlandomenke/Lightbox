@@ -182,14 +182,28 @@ public partial class MainViewModel
             {
                 _selectedLayerIds.Clear();
                 _selectedGroupIds.Clear();
+                var headers = new List<LayerGroup>();
                 for (var i = Math.Min(from, to); i <= Math.Max(from, to); i++)
                 {
                     if (items[i] is LayerRow r) _selectedLayerIds.Add(r.Layer.Id);
-                    // A header inside the run is picked with it, so it lights
-                    // and the verbs take the folder rather than its layers.
-                    if (items[i] is GroupRow g) _selectedGroupIds.Add(g.Group.Id);
+                    if (items[i] is GroupRow g) headers.Add(g.Group);
                 }
                 foreach (var m in members) _selectedLayerIds.Add(m.Id);
+                // A header inside the run is picked only when the run holds the
+                // whole folder — collapsed, its rows are behind the header, so
+                // the header is the folder. A run that crosses a header and
+                // stops part-way through its layers does not pick it: Delete
+                // takes a picked folder whole, and would take the layers the
+                // run left out (the adversarial review's first find).
+                foreach (var folder in headers)
+                {
+                    var inside = FolderTree.SubtreeLayers(Scene, folder);
+                    if (folder.Collapsed)
+                    {
+                        foreach (var m in inside) _selectedLayerIds.Add(m.Id);
+                    }
+                    if (inside.All(m => _selectedLayerIds.Contains(m.Id))) _selectedGroupIds.Add(folder.Id);
+                }
                 if (top is not null) ActivateWithinSelection(Scene.Layers.IndexOf(top));
                 RefreshLayerSelectionHighlights();
                 return;

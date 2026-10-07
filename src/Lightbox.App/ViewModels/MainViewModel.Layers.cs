@@ -647,8 +647,10 @@ public partial class MainViewModel
     private void DeleteGroup(GroupRow header)
     {
         var folder = header.Group;
-        // One of several picked: Delete means the pick, as on a layer row (B399).
-        if (_selectedGroupIds.Contains(folder.Id) && SelectedStackItems().Count > 1)
+        // One of several picked: Delete means the pick, as on a layer row (B399)
+        // — including when this one sits inside another picked folder.
+        if (_selectedGroupIds.Contains(folder.Id)
+            && SelectedStackItems() is var picked && !(picked.Count == 1 && picked[0].Id == folder.Id))
         {
             DeleteStackSelection();
             return;
@@ -732,9 +734,14 @@ public partial class MainViewModel
                 return;
             }
         }
-        var loose = items.Where(i => !i.IsFolder)
-            .Select(i => Scene.Layers.First(l => l.Id == i.Id))
-            .Where(l => CanEdit(l, "delete it")).Select(l => l.Id).ToHashSet();
+        var looseLayers = items.Where(i => !i.IsFolder).Select(i => Scene.Layers.First(l => l.Id == i.Id)).ToList();
+        // A lock anywhere refuses the whole delete, as it does inside a folder:
+        // half a pick deleted is not what the artist picked.
+        foreach (var layer in looseLayers)
+        {
+            if (!CanEdit(layer, "delete it")) return;
+        }
+        var loose = looseLayers.Select(l => l.Id).ToHashSet();
         var folderIds = folders.Select(f => f.Id).ToList();
         var count = loose.Count + folders.Sum(f => FolderTree.SubtreeLayers(Scene, f).Count);
         var at = folders.SelectMany(f => FolderTree.SubtreeLayers(Scene, f)).Select(l => Scene.Layers.IndexOf(l))
@@ -746,7 +753,10 @@ public partial class MainViewModel
                 {
                     if (FolderTree.Folder(scene, id) is { } f) FolderTree.DeleteWithContents(scene, f);
                 }
+                var wasPaper = scene.Layers.Any(l => loose.Contains(l.Id) && l.IsBackground);
                 scene.Layers.RemoveAll(l => loose.Contains(l.Id));
+                // As DeleteLayer: no paper means a transparent ground, not a white one.
+                if (wasPaper && !scene.Layers.Exists(l => l.IsBackground)) scene.TransparentBackground = true;
                 RegrowAPaintableLayer(scene);
                 return null;
             }, "Delete selection", frameContentUnchanged: false))
@@ -1419,10 +1429,21 @@ public partial class MainViewModel
     {
         // A folder picked on its header is what Delete means (Q204), even an
         // empty one — the active layer is only where the brush would land.
-        if (SelectedGroup is { } folder
-            && LayerPanelItems.OfType<GroupRow>().FirstOrDefault(h => h.Group.Id == folder.Id) is { } header)
+        if (_selectedGroupIds.Count > 0)
         {
-            DeleteGroup(header);
+            // One folder alone keeps DeleteGroup's own wording; anything more —
+            // several folders, layers beside them, a folder inside a folder —
+            // is the whole pick (B399).
+            var picked = SelectedStackItems();
+            if (picked is [{ IsFolder: true } only]
+                && LayerPanelItems.OfType<GroupRow>().FirstOrDefault(h => h.Group.Id == only.Id) is { } header)
+            {
+                DeleteGroup(header);
+            }
+            else
+            {
+                DeleteStackSelection();
+            }
             return;
         }
         DeleteLayer(ActiveLayer);

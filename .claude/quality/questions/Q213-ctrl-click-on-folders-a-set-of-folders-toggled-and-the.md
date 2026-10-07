@@ -41,8 +41,12 @@ ever carried the `selected` class.
   Ctrl+click on a layer *into* the pick keeps the picked folders. Any other
   click starts again.
 - **Delete with folders picked is one undo step** for every picked folder and
-  every picked layer outside them. A lock in or above any picked folder refuses
-  the whole delete, as it does for one folder.
+  every picked layer outside them. A lock anywhere in the pick (a picked layer,
+  or in or above a picked folder) refuses the whole delete and names it.
+- **A Shift range picks a folder header only when it holds the whole folder**
+  (or the folder is collapsed, when the header stands for it). A range that
+  crosses a header part-way through its layers selects those layers, not the
+  folder, because Delete takes a picked folder whole.
 - **A folder outside the pick is acted on alone**, as a layer row outside the
   selection is.
 

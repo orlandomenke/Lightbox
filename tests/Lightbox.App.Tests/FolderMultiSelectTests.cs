@@ -211,4 +211,60 @@ public sealed class FolderMultiSelectTests : BrushStateIsolated
         Assert.True(Header(vm, "Folder 1").Group.Visible);
         Assert.False(Header(vm, "Folder 2").Group.Visible);
     }
+
+    /// <summary>
+    /// The adversary's first find: a Shift range that crosses a folder's header
+    /// but not all of its layers must not pick the folder — Delete would take
+    /// the layers left out of the range with it.
+    /// </summary>
+    [AvaloniaFact]
+    public void AShiftRangeOverPartOfAFolderDoesNotPickThatFolder_SoDeleteKeepsWhatWasNotPicked()
+    {
+        var vm = Vm();
+        vm.SelectLayer(Row(vm, "b"), toggle: false, range: false);
+
+        vm.SelectGroup(Header(vm, "Folder 2"), toggle: false, range: true);
+
+        Assert.Equal("b c d", Picked(vm));
+        Assert.Equal("Folder 2", Lit(vm));
+
+        vm.DeleteActiveLayerCommand.Execute(null);
+
+        Assert.Contains(vm.Doc.Scene.Layers, l => l.Name == "a");
+        Assert.Contains(vm.Doc.Scene.LayerGroups, g => g.Name == "Folder 1");
+    }
+
+    /// <summary>The adversary's second: an outer and an inner folder picked, Delete takes the outer.</summary>
+    [AvaloniaFact]
+    public void DeleteWithAnOuterAndAnInnerFolderPickedDeletesTheOuter()
+    {
+        var vm = Vm();
+        vm.SelectGroup(Header(vm, "Folder 1"), toggle: false, range: false);
+        vm.SelectGroup(Header(vm, "Folder 2"), toggle: true, range: false);
+        vm.GroupLayersCommand.Execute(null); // both into Folder 3, which is picked
+        vm.SelectLayer(Row(vm, "a"), toggle: false, range: false);
+        vm.SelectGroup(Header(vm, "Folder 3"), toggle: false, range: true);
+        Assert.Contains("Folder 3", Lit(vm));
+
+        vm.DeleteActiveLayerCommand.Execute(null);
+
+        Assert.Empty(vm.Doc.Scene.LayerGroups);
+        Assert.Equal(new[] { "Background", "e" }, vm.Doc.Scene.Layers.Select(l => l.Name));
+    }
+
+    /// <summary>A lock anywhere in the pick refuses the whole delete and says which layer.</summary>
+    [AvaloniaFact]
+    public void ALockedLayerInThePickRefusesTheWholeDelete()
+    {
+        var vm = Vm();
+        Row(vm, "e").Layer.Locked = true;
+        vm.SelectLayer(Row(vm, "e"), toggle: false, range: false);
+        vm.SelectGroup(Header(vm, "Folder 1"), toggle: true, range: false);
+
+        vm.DeleteActiveLayerCommand.Execute(null);
+
+        Assert.Equal(2, vm.Doc.Scene.LayerGroups.Count);
+        Assert.Equal(6, vm.Doc.Scene.Layers.Count);
+        Assert.Contains("e", vm.AiStatus);
+    }
 }
