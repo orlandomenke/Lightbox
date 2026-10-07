@@ -71,6 +71,15 @@ public static class PerfLog
             .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
             .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion;
         Mark("start", build);
+        // The lab reads the same counter (QueryPerformanceCounter, which is
+        // what Stopwatch is on Windows), so its send times and these lines share
+        // one timeline: "input to on screen" includes the time an input waited
+        // behind a busy UI thread, which the app alone cannot see.
+        // ElapsedTicks is in the counter's own ticks, not TimeSpan's.
+        var origin = Stopwatch.GetTimestamp() - Clock.ElapsedTicks;
+        Mark("clock", string.Create(CultureInfo.InvariantCulture, $"{origin} {Stopwatch.Frequency}"));
+        // Every undoable edit, by its history label, in three parts (Q209).
+        Lightbox.Core.Timeline.DocumentEditor.Measure = (name, label) => Begin(name, label);
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Flush();
         new Thread(Heartbeat) { IsBackground = true, Name = "perf heartbeat" }.Start();
     }

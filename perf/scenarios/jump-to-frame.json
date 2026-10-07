@@ -1,0 +1,16 @@
+{
+  "name": "jump-to-frame",
+  "about": "The owner: clicking a cel to jump to its frame is slow, while scrubbing is fine. Click cels on one row in an order that never lands on a neighbour, so every click is a real jump.",
+  "fixture": "owner-shape",
+  "window": "maximised",
+  "panels": ["Xsheet"],
+  "repeat": 2,
+  "steps": [
+    {"do": "click", "target": {"xsheet": ["Layer 1", 15]}, "measure": "jump", "after_ms": 300},
+    {"do": "click", "target": {"xsheet": ["Layer 1", 2]}, "measure": "jump", "after_ms": 300},
+    {"do": "click", "target": {"xsheet": ["Layer 1", 19]}, "measure": "jump", "after_ms": 300},
+    {"do": "click", "target": {"xsheet": ["Layer 1", 8]}, "measure": "jump", "after_ms": 300},
+    {"do": "click", "target": {"xsheet": ["Layer 1", 0]}, "measure": "jump", "after_ms": 300},
+    {"do": "click", "target": {"xsheet": ["Layer 1", 12]}, "measure": "jump", "after_ms": 300}
+  ]
+}

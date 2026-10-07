@@ -36,6 +36,17 @@ DEFAULT_EXE = REPO / "src" / "Lightbox.App" / "bin" / "Release" / "net10.0" / "L
 
 # Never let a lab run carry the artist's AI configuration into the app it starts:
 # the profile is throwaway, but these come from the environment (the AI review's note).
+_kernel32 = ctypes.windll.kernel32
+
+
+def qpc() -> int:
+    """The high-resolution counter the app's Stopwatch reads: one timeline for both sides,
+    so 'input to on screen' can start when the lab sent the input, not when the app got it."""
+    v = ctypes.c_int64()
+    _kernel32.QueryPerformanceCounter(ctypes.byref(v))
+    return v.value
+
+
 def stripped(name: str) -> bool:
     """By rule, not by list: a hand-kept list had already missed OPENROUTER_API_KEY."""
     upper = name.upper()
@@ -383,6 +394,8 @@ def locate(pipe: Pipe, target: dict) -> tuple[float, float]:
         q = {"kind": "folder-row", "folder": target["folder"]}
     elif "menu" in target:
         q = {"kind": "menu-item", "text": target["menu"]}
+    elif "tip" in target:
+        q = {"kind": "tip", "text": target["tip"]}
     else:
         raise ValueError(f"unknown target {target}")
     r = pipe.ask("lab_locate", q)
@@ -450,6 +463,9 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
     pointer = Pointer()
     pipe = Pipe(proc.pid)
     checks: list[dict] = []
+    # What the scenario asked to be timed: a labelled step's send time, or the start of
+    # a phase — both on the counter the app's log is written against.
+    marks: list[dict] = []
     outcome = "ok"
     try:
         ready = log.wait_for("ready", timeout=float(scenario.get("open_timeout_s", 120)))
@@ -478,10 +494,15 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
                 checks.append({"expect": {k: v for k, v in step.items() if k != "do"},
                                "passed": passed, "seen": seen})
                 continue
+            if step["do"] == "phase":
+                marks.append({"phase": step["name"], "qpc": qpc()})
+                continue
             if step["do"] == "click" and "target" in step:
                 step = {**step, "_screen": locate(pipe, step["target"])}
             elif step["do"] == "hover" and "target" in step:
                 step = {**step, "_screen": locate(pipe, step["target"])}
+            if "measure" in step:
+                marks.append({"label": step["measure"], "qpc": qpc()})
             do_step(step, place, pointer, log, hwnd)
         log.settle(quiet=1.5, timeout=120, hwnd=hwnd)
     except Interrupted as stop:
@@ -496,7 +517,7 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
             pm.terminate()
         time.sleep(0.6)
         log.poll()
-    metrics = summarise(log.lines)
+    metrics = summarise(log.lines, marks)
     result = {"scenario": scenario["name"], "exe": str(exe), "build": build_of(log.lines),
               "outcome": outcome, "metrics": metrics, "checks": checks}
     (out / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
@@ -538,16 +559,24 @@ def build_of(lines: list[dict]) -> str | None:
 
 # ---- what a run says -----------------------------------------------------------------
 
-def summarise(lines: list[dict]) -> dict:
+MARKS = ("stall", "hang", "start", "ready", "document.opened", "playhead", "play.start",
+         "clock", "input", "shown")
+
+
+def summarise(lines: list[dict], marks: list[dict] | None = None) -> dict:
     """Per action: count, total, median, worst. Stalls: count, total, longest, and which
-    actions overlapped the stalls — the answer to 'what was it doing when it stopped'."""
+    actions overlapped the stalls — the answer to 'what was it doing when it stopped'.
+    Then what the scenario labelled: each step's input-to-on-screen, and each phase's
+    playback (frames shown, the longest gap between two, how long the first took)."""
     ready_t = next((l["t"] for l in lines if l["ev"] == "ready"), 0.0)
     after = [l for l in lines if l["t"] >= ready_t]  # opening is its own scenario
     by: dict[str, list[float]] = {}
     for l in after:
-        if l["ev"] in ("stall", "hang", "start", "ready", "document.opened", "playhead", "play.start"):
+        if l["ev"] in MARKS:
             continue
-        by.setdefault(l["ev"], []).append(l["ms"])
+        # An edit is named by its history label, so each X-sheet verb is its own row.
+        key = f'{l["ev"]}:{l.get("d", "")}' if l["ev"].startswith("edit") else l["ev"]
+        by.setdefault(key, []).append(l["ms"])
     actions = {k: {"n": len(v), "total_ms": round(sum(v), 1), "median_ms": round(statistics.median(v), 2),
                    "worst_ms": round(max(v), 1)} for k, v in sorted(by.items())}
 
@@ -563,8 +592,11 @@ def summarise(lines: list[dict]) -> dict:
                 blame[l["ev"]] = blame.get(l["ev"], 0.0) + overlap
     opening = next((l for l in lines if l["ev"] == "document.opened"), None)
     first_stall_before_ready = [l for l in lines if l["ev"] == "stall" and l["t"] < ready_t]
+    responses, phases = responses_and_phases(lines, marks or [])
     return {
         "actions": actions,
+        "responses": responses,
+        "phases": phases,
         "stalls": {
             "n": len(stalls),
             "total_ms": round(sum(s["ms"] for s in stalls), 1),
@@ -580,6 +612,59 @@ def summarise(lines: list[dict]) -> dict:
     }
 
 
+def responses_and_phases(lines: list[dict], marks: list[dict]) -> tuple[dict, dict]:
+    clock = next((l for l in lines if l["ev"] == "clock"), None)
+    if clock is None or not marks:
+        return {}, {}
+    origin, freq = (int(x) for x in clock["d"].split())
+    at = [((m["qpc"] - origin) * 1000.0 / freq, m) for m in marks]
+    inputs = sorted((l["t"], l["d"].split()[0]) for l in lines if l["ev"] == "input")
+    shown = {l["d"]: l["t"] for l in lines if l["ev"] == "shown"}
+    publishes = [l for l in lines if l["ev"] in ("publish", "publish.play")]
+    stalls = [l for l in lines if l["ev"] == "stall"]
+    end_of_log = max((l["t"] + l.get("ms", 0) for l in lines), default=0.0)
+
+    per_label: dict[str, dict[str, list[float]]] = {}
+    phases: dict[str, dict] = {}
+    for i, (t0, m) in enumerate(at):
+        # A step is answered before the next step is sent; a phase runs to the next phase.
+        later = [t for t, other in at[i + 1:] if "label" in m or "phase" in other]
+        t1 = later[0] if later else end_of_log
+        if "label" in m:
+            # Every input this step sent — a click is a press and a release — answered.
+            ids = [iid for t, iid in inputs if t0 - 1 <= t < t1]
+            answered = [shown[iid] for iid in ids if iid in shown]
+            row = per_label.setdefault(m["label"], {"response": [], "queued": [], "publish": []})
+            if not ids or len(answered) < len(ids):
+                row.setdefault("unanswered", []).append(1.0)
+                continue
+            row["response"].append(max(answered) - t0)
+            row["queued"].append(next(t for t, iid in inputs if iid == ids[0]) - t0)
+            first = next((p for p in publishes if t0 <= p["t"] < t1), None)
+            if first is not None:
+                row["publish"].append(first["t"] + first["ms"] - t0)
+        else:
+            frames = [p for p in publishes if p["ev"] == "publish.play" and t0 <= p["t"] < t1]
+            starts = [p["t"] for p in frames]
+            gaps = [b - a for a, b in zip(starts, starts[1:])]
+            inside = [st for st in stalls if t0 <= st["t"] < t1]
+            phases[m["phase"]] = {
+                "frames": len(frames),
+                "first_frame_ms": round(frames[0]["t"] + frames[0]["ms"] - t0, 1) if frames else None,
+                "longest_gap_ms": round(max(gaps), 1) if gaps else None,
+                "median_gap_ms": round(statistics.median(gaps), 1) if gaps else None,
+                "stalls": len(inside),
+                "longest_stall_ms": round(max((st["ms"] for st in inside), default=0.0), 1),
+            }
+
+    def stats(v: list[float]) -> dict:
+        return {"n": len(v), "median_ms": round(statistics.median(v), 1), "worst_ms": round(max(v), 1)} if v else {"n": 0}
+    responses = {k: {"response": stats(r["response"]), "queued": stats(r["queued"]),
+                     "first_publish": stats(r["publish"]), "unanswered": len(r.get("unanswered", []))}
+                 for k, r in per_label.items()}
+    return responses, phases
+
+
 def flat(metrics: dict) -> dict[str, float]:
     """The numbers a verdict compares, by name. 'worst' and 'longest' are judged on the
     minimum across runs (contention only ever adds to them); the rest on the median."""
@@ -590,6 +675,15 @@ def flat(metrics: dict) -> dict[str, float]:
     for name, a in metrics["actions"].items():
         out[f"{name}.median_ms"] = a["median_ms"]
         out[f"{name}.worst_ms"] = a["worst_ms"]
+    for label, r in metrics.get("responses", {}).items():
+        for part in ("response", "queued", "first_publish"):
+            if r[part]["n"]:
+                out[f"{label}.{part}.median_ms"] = r[part]["median_ms"]
+                out[f"{label}.{part}.worst_ms"] = r[part]["worst_ms"]
+    for phase, ph in metrics.get("phases", {}).items():
+        for k in ("frames", "first_frame_ms", "longest_gap_ms", "median_gap_ms", "longest_stall_ms"):
+            if ph.get(k) is not None:
+                out[f"{phase}.{k}"] = ph[k]
     return out
 
 
@@ -713,6 +807,9 @@ def print_report(summary: dict) -> None:
     for k, v in summary["aggregate"].items():
         print(f"  {k:44} {v:10.1f}")
     if good:
+        unanswered = {k: v["unanswered"] for k, v in good[-1]["metrics"].get("responses", {}).items() if v["unanswered"]}
+        if unanswered:
+            print("  steps with an input never answered, last run:", unanswered)
         blamed = good[-1]["metrics"]["stalls"]["blamed_ms"]
         if blamed:
             print("  stalls overlapped, last run:", ", ".join(f"{k} {v:.0f} ms" for k, v in blamed.items()))

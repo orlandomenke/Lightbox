@@ -1,0 +1,11 @@
+{
+  "name": "add-frame",
+  "about": "The owner: adding a frame is slow. Click the timeline's add-frame button six times, as an artist extending a shot does. There is no default shortcut for it, so the button is the gesture.",
+  "fixture": "owner-shape",
+  "window": "maximised",
+  "panels": ["Timeline"],
+  "repeat": 6,
+  "steps": [
+    {"do": "click", "target": {"tip": "Add empty frame after current"}, "measure": "frame.add", "after_ms": 300}
+  ]
+}
