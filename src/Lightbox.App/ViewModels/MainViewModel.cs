@@ -395,7 +395,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         if (!Scene.IsLayerEditable(layer))
         {
-            AiStatus = Scene.GroupOf(layer) is { Locked: true } folder
+            AiStatus = FolderTree.LockedFolderOf(Scene, layer) is { } folder
                 ? $"Folder \u201c{folder.Name}\u201d is locked \u2014 unlock it to {verb}."
                 : $"Layer \u201c{layer.Name}\u201d is locked \u2014 unlock it to {verb}.";
             return false;

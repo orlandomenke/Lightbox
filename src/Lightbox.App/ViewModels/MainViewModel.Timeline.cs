@@ -805,7 +805,7 @@ public partial class MainViewModel
         {
             return null;
         }
-        return layer.Locked ? layer.Name : Scene.GroupOf(layer)?.Name ?? layer.Name;
+        return layer.Locked ? layer.Name : FolderTree.LockedFolderOf(Scene, layer)?.Name ?? layer.Name;
     }
 
     /// <summary>

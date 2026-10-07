@@ -1128,7 +1128,7 @@ public partial class MainViewModel
     }
 
     /// <summary>A row needs this to dim itself without reaching into the scene.</summary>
-    internal bool IsLayerLockedByFolder(Layer layer) => Scene.GroupOf(layer) is { Locked: true };
+    internal bool IsLayerLockedByFolder(Layer layer) => FolderTree.LockedFolderOf(Scene, layer) is not null;
 
     /// <summary>Shown in the tool options so the restriction is never invisible.</summary>
     /// <remarks>

@@ -51,11 +51,24 @@ public sealed class Cel
 }
 
 /// <summary>
-/// A layer folder: layers referencing it render as a visual group in the
-/// docker, and its visibility gates every member. Members stay ordinary
-/// layers in Scene.Layers (contiguous, kept so by the group operations) —
-/// compositing order is unchanged.
+/// A layer folder: an item in the layer stack that holds layers and other
+/// folders, or nothing. Its visibility and lock gate everything inside it, at
+/// any depth. Members stay ordinary layers in Scene.Layers (contiguous, kept
+/// so by the folder operations) — compositing order is unchanged.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Where a folder sits (Q204).</b> A folder holding layers, at any depth,
+/// sits where those layers are — the same rule folders have always had, which
+/// is why a file from before nesting loads as it was. Only a folder with no
+/// layers anywhere inside it has no layers to place it, and that one records
+/// its slot in <see cref="Under"/>. <see cref="FolderTree"/> owns both rules.
+/// </para>
+/// <para>
+/// Both new fields are null in every document that has neither a nested nor
+/// an empty folder, so such a document writes no key it did not write before.
+/// </para>
+/// </remarks>
 public sealed class LayerGroup
 {
     public string Id { get; set; } = Ids.NewId("group");
@@ -72,6 +85,16 @@ public sealed class LayerGroup
 
     /// <summary>Docker-only view preference (not undoable).</summary>
     public bool Collapsed { get; set; }
+
+    /// <summary>The folder this one is inside, or null at the top level.</summary>
+    public string? ParentId { get; set; }
+
+    /// <summary>
+    /// For a folder with no layers anywhere inside it: the id of the layer
+    /// directly above its slot in <see cref="Scene.Layers"/>, or null for the
+    /// top of its parent. Ignored, and cleared, once the folder holds a layer.
+    /// </summary>
+    public string? Under { get; set; }
 
     /// <summary>A copy holding no reference in common with this one.</summary>
     public LayerGroup Clone() => (LayerGroup)MemberwiseClone();
