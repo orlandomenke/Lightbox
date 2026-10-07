@@ -6,7 +6,7 @@
         WindowStartupLocation="CenterOwner"
         Title="Skeleton sets">
 
-  <StackPanel Margin="16" Spacing="12">
+  <StackPanel Margin="16" Spacing="{StaticResource Space12}">
 
     <!--
       Same orientation sentence as the guide-set editor, because the feature
@@ -35,7 +35,7 @@
               ToolTip.Tip="Apply the name to the selected set" />
     </Grid>
 
-    <StackPanel Spacing="6">
+    <StackPanel Spacing="{StaticResource Space6}">
       <Button x:Name="SaveNewButton" Click="OnSaveNew" HorizontalAlignment="Stretch"
               Content="Save this drawing's skeleton as a new set" />
       <Button x:Name="OverwriteButton" Click="OnOverwrite" HorizontalAlignment="Stretch"
@@ -44,7 +44,7 @@
               Content="Delete the selected set (and its shares)" />
     </StackPanel>
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}">
       <Button Content="Close" Click="OnClose" IsCancel="True" Classes="tertiary" />
     </StackPanel>
   </StackPanel>

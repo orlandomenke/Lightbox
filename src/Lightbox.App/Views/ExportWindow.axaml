@@ -6,7 +6,7 @@
         Width="440" SizeToContent="Height" MaxHeight="700"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
-  <StackPanel Margin="14" Spacing="10">
+  <StackPanel Margin="14" Spacing="{StaticResource Space10}">
 
     <!-- The preset row first, because the whole point of this window is that an
          artist visits it once per project and presses Export after that. -->
@@ -54,16 +54,16 @@
       <ComboBox Grid.Row="4" Grid.Column="1" x:Name="BackgroundBox" HorizontalAlignment="Stretch" />
     </Grid>
 
-    <TextBlock x:Name="BackgroundHint" TextWrapping="Wrap" FontSize="10" Opacity="0.6" />
+    <TextBlock x:Name="BackgroundHint" TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6" />
 
-    <StackPanel x:Name="NormalPanel" Spacing="6">
+    <StackPanel x:Name="NormalPanel" Spacing="{StaticResource Space6}">
       <CheckBox x:Name="NormalMapBox" Content="Also write a normal map"
                 IsCheckedChanged="OnNormalMapChanged"
                 ToolTip.Tip="A tangent-space normal map beside the sheet, as &lt;name&gt;_normal.png, so an engine can light the sprite." />
       <Grid ColumnDefinitions="120,*" ColumnSpacing="8" RowSpacing="6"
             RowDefinitions="Auto,Auto,Auto" x:Name="NormalRows">
         <TextBlock Grid.Row="0" Grid.Column="0" Text="Bevel" VerticalAlignment="Center" />
-        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="6">
+        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Space6}">
           <TextBox x:Name="BevelBox" Width="70" />
           <TextBlock Text="px in from the edge" VerticalAlignment="Center" Opacity="0.7" />
         </StackPanel>
@@ -80,11 +80,11 @@
 
     <!-- Unity only. Absent rather than disabled: a control that does nothing
          teaches an artist that the controls lie. -->
-    <StackPanel x:Name="EnginePanel" Spacing="8" IsVisible="False">
+    <StackPanel x:Name="EnginePanel" Spacing="{StaticResource Space8}" IsVisible="False">
       <Separator />
       <Grid ColumnDefinitions="120,*" ColumnSpacing="8">
         <TextBlock Grid.Column="0" Text="Canvas height" VerticalAlignment="Center" />
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Space6}">
           <TextBox x:Name="WorldHeightBox" Width="70" />
           <!-- Metres, not "world units": Unity's unit is a metre and Unreal's is a
                centimetre, so the only unambiguous label is a real-world one. -->
@@ -94,13 +94,13 @@
       <CheckBox x:Name="WriteImporterBox"
                 Content="Write the Unity importer script beside the sheet"
                 ToolTip.Tip="Never overwritten once it is there — you may have adjusted it." />
-      <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
+      <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                  Text="Needs Unity's 2D Sprite package, which every 2D template has. Lightbox never writes a .meta file — Unity owns those." />
     </StackPanel>
 
     <Separator />
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}">
       <Button Content="Cancel" Click="OnCancel" />
       <Button Classes="primary" Content="Export…" Click="OnExport" IsDefault="True" />
     </StackPanel>

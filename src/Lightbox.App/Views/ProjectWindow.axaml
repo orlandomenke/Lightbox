@@ -19,22 +19,22 @@
   <Window.Styles>
     <Style Selector="TextBlock.dim">
       <Setter Property="Opacity" Value="0.55" />
-      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontSize" Value="{StaticResource TypeDense}" />
     </Style>
     <Style Selector="TextBlock.head">
       <Setter Property="Opacity" Value="0.6" />
-      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontSize" Value="{StaticResource TypeHint}" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="Border.chip">
       <Setter Property="CornerRadius" Value="3" />
       <Setter Property="Padding" Value="4,0" />
       <Setter Property="Margin" Value="0,0,3,0" />
-      <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+      <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
     </Style>
     <Style Selector="Border.bar">
       <Setter Property="Padding" Value="8,5" />
-      <Setter Property="Background" Value="{StaticResource BandTintBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BandTintBrush}" />
     </Style>
     <!--
       Where a drag would land: a line above the row it would be placed
@@ -49,10 +49,10 @@
       <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="Border.rowShell.dropAbove">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentCyanBrush}" />
     </Style>
     <Style Selector="Border.rowShell.dropInto">
-      <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+      <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
     </Style>
   </Window.Styles>
 
@@ -78,7 +78,7 @@
       board showing something else would be two projects on screen.
     -->
     <Border DockPanel.Dock="Top" Classes="bar">
-      <StackPanel Orientation="Horizontal" Spacing="6">
+      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
         <TextBlock Classes="head" VerticalAlignment="Center" Text="TAG" />
         <ComboBox MinWidth="140" ItemsSource="{Binding TagsInUse}"
                   SelectedItem="{Binding TagFilter}"
@@ -178,17 +178,17 @@
           <Border DockPanel.Dock="Right" Width="250" Classes="bar"
                   IsVisible="{Binding IsEditingFolder}">
             <ScrollViewer>
-              <StackPanel Spacing="8">
+              <StackPanel Spacing="{StaticResource Space8}">
                 <TextBlock Text="{Binding EditingFolderName}" FontWeight="SemiBold" />
 
-                <StackPanel Spacing="2">
+                <StackPanel Spacing="{StaticResource Space2}">
                   <TextBlock Classes="head" Text="NOTES" />
                   <TextBox Text="{Binding FolderNotes}" AcceptsReturn="True"
                            MinHeight="54" TextWrapping="Wrap"
                            Watermark="what this folder is, in your words" />
                 </StackPanel>
 
-                <StackPanel Spacing="2">
+                <StackPanel Spacing="{StaticResource Space2}">
                   <TextBlock Classes="head" Text="PIVOT" />
                   <CheckBox IsChecked="{Binding FolderHasPivot}"
                             Command="{Binding TogglePivotCommand}"
@@ -196,7 +196,7 @@
                             ToolTip.Tip="Without one, frames register on the canvas instead" />
                 </StackPanel>
 
-                <StackPanel Spacing="2">
+                <StackPanel Spacing="{StaticResource Space2}">
                   <TextBlock Classes="head" Text="READING" />
                   <TextBlock Classes="dim" TextWrapping="Wrap"
                              Text="{Binding FolderReadingLabel}"
@@ -213,7 +213,7 @@
                     facets behind a click this sentence is the only place an
                     artist is told, and it is told at the moment of the act.
                   -->
-                  <TextBlock Classes="dim" TextWrapping="Wrap" Foreground="{StaticResource StatusWarningBrush}"
+                  <TextBlock Classes="dim" TextWrapping="Wrap" Foreground="{DynamicResource StatusWarningBrush}"
                              Text="{Binding WhatClearingCosts}"
                              IsVisible="{Binding FolderHasReading}" />
                   <Button Content="Clear the reading" HorizontalAlignment="Left"
@@ -221,14 +221,14 @@
                           Command="{Binding ClearReadingCommand}" />
                 </StackPanel>
 
-                <StackPanel Spacing="2">
+                <StackPanel Spacing="{StaticResource Space2}">
                   <TextBlock Classes="head" Text="VARIANTS" />
                   <ItemsControl ItemsSource="{Binding FolderVariantRows}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="vm:VariantRow">
-                        <StackPanel Spacing="2">
+                        <StackPanel Spacing="{StaticResource Space2}">
                           <Grid ColumnDefinitions="*,auto" MinHeight="24">
-                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="11"
+                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="{StaticResource TypeDense}"
                                        VerticalAlignment="Center" />
                             <Button Grid.Column="1"
                                     Command="{Binding $parent[ItemsControl].((vm:ProjectWindowViewModel)DataContext).RemoveVariantCommand}"
@@ -246,9 +246,9 @@
                           <ItemsControl ItemsSource="{Binding Attachments}" Margin="10,0,0,0">
                             <ItemsControl.ItemTemplate>
                               <DataTemplate x:DataType="vm:AttachmentRow">
-                                <StackPanel Spacing="2" Margin="0,0,0,4">
+                                <StackPanel Spacing="{StaticResource Space2}" Margin="0,0,0,4">
                                   <Grid ColumnDefinitions="*,auto">
-                                    <TextBlock Grid.Column="0" Text="{Binding Summary}" FontSize="11"
+                                    <TextBlock Grid.Column="0" Text="{Binding Summary}" FontSize="{StaticResource TypeDense}"
                                                VerticalAlignment="Center" />
                                     <Button Grid.Column="1"
                                             Command="{Binding $parent[ItemsControl].((vm:VariantRow)DataContext).RemoveAttachmentCommand}"
@@ -263,7 +263,7 @@
                                        sideways there. Classes="value" takes the
                                        scale's numeric width; the coarse adjustment
                                        is the anchor itself, on the canvas. -->
-                                  <StackPanel Orientation="Horizontal" Spacing="4">
+                                  <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                                     <TextBlock Classes="dim" Text="offset" VerticalAlignment="Center" />
                                     <NumericUpDown Classes="value" Increment="1" FormatString="0.#"
                                                    Value="{Binding OffsetX, Mode=TwoWay}" />
@@ -276,7 +276,7 @@
                                     <NumericUpDown Classes="value" Increment="5" FormatString="0.#"
                                                    Value="{Binding AngleDeg, Mode=TwoWay}" />
                                   </StackPanel>
-                                  <CheckBox Content="Turn with the anchor" FontSize="11"
+                                  <CheckBox Content="Turn with the anchor" FontSize="{StaticResource TypeDense}"
                                             IsChecked="{Binding FollowAngle, Mode=TwoWay}"
                                             ToolTip.Tip="Follow the anchor's aim (drag its stalk in the rig overlay). Off for things that stay upright however the limb turns." />
                                 </StackPanel>
@@ -287,7 +287,7 @@
                                has to share the details panel's ~240px with the
                                button, and a symbol name that outgrows its box
                                is readable in the summary line above. -->
-                          <StackPanel Orientation="Horizontal" Spacing="4" Margin="10,0,0,4">
+                          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}" Margin="10,0,0,4">
                             <ComboBox Width="130" ItemsSource="{Binding Symbols}"
                                       SelectedItem="{Binding NewSymbol}"
                                       PlaceholderText="Symbol…">
@@ -306,7 +306,7 @@
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
-                  <StackPanel Orientation="Horizontal" Spacing="4">
+                  <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                     <TextBox Width="140" Text="{Binding NewVariantName}" Watermark="Winter Armour…" />
                     <Button Content="Add" Command="{Binding AddVariantCommand}" />
                   </StackPanel>
@@ -443,7 +443,7 @@
                                  Background="Transparent"
                                  DoubleTapped="OnTreeNameDoubleTapped"
                                  ToolTip.Tip="Double-click to rename" />
-                      <TextBox Text="{Binding Name, Mode=OneWay}" FontSize="11" MinWidth="140"
+                      <TextBox Text="{Binding Name, Mode=OneWay}" FontSize="{StaticResource TypeDense}" MinWidth="140"
                                IsVisible="{Binding IsRenaming}"
                                LostFocus="OnTreeNameLostFocus"
                                KeyDown="OnTreeNameKeyDown" />
@@ -453,7 +453,7 @@
                          the row it happens to sit in. -->
                     <Border Classes="chip" VerticalAlignment="Center"
                             IsVisible="{Binding HasDesignation}">
-                      <TextBlock Text="{Binding Designation}" FontSize="10" />
+                      <TextBlock Text="{Binding Designation}" FontSize="{StaticResource TypeHint}" />
                     </Border>
                   </StackPanel>
 
@@ -464,7 +464,7 @@
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="x:String">
                         <Border Classes="chip">
-                          <TextBlock Text="{Binding}" FontSize="10" />
+                          <TextBlock Text="{Binding}" FontSize="{StaticResource TypeHint}" />
                         </Border>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -473,7 +473,7 @@
                   <Border Grid.Column="2" Classes="chip" HorizontalAlignment="Left"
                           IsVisible="{Binding HasStatus}"
                           Background="{Binding StatusColor}">
-                    <TextBlock Text="{Binding StatusLabel}" FontSize="10" />
+                    <TextBlock Text="{Binding StatusLabel}" FontSize="{StaticResource TypeHint}" />
                   </Border>
 
                   <TextBlock Grid.Column="3" Classes="dim" Text="{Binding AssigneeName}"
@@ -483,7 +483,7 @@
                        in the board's own colour, and ✎ when the file moved on
                        past it. One tooltip carries the sentence; the history
                        itself is the row's right-click. -->
-                  <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="4"
+                  <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="{StaticResource Space4}"
                               IsVisible="{Binding HasVersions}"
                               ToolTip.Tip="{Binding VersionHint}">
                     <TextBlock Classes="dim" Text="{Binding VersionCountLabel}"
@@ -491,7 +491,7 @@
                     <Border Classes="chip" VerticalAlignment="Center"
                             IsVisible="{Binding HasMilestone}"
                             Background="{Binding MilestoneColor}">
-                      <TextBlock Text="{Binding MilestoneLabel}" FontSize="10" />
+                      <TextBlock Text="{Binding MilestoneLabel}" FontSize="{StaticResource TypeHint}" />
                     </Border>
                     <TextBlock Classes="dim" Text="✎" VerticalAlignment="Center"
                                IsVisible="{Binding ChangedSinceMilestone}" />
@@ -524,7 +524,7 @@
                   can check.
                 -->
                 <Border Width="190" Margin="3" Padding="6"
-                        Background="{StaticResource BandTintBrush}" CornerRadius="4"
+                        Background="{DynamicResource BandTintBrush}" CornerRadius="4"
                         DragDrop.AllowDrop="True"
                         DragDrop.DragOver="OnStatusDragOver"
                         DragDrop.Drop="OnStatusDrop">
@@ -536,17 +536,17 @@
                         <Border Width="8" Height="8" CornerRadius="4"
                                 VerticalAlignment="Center"
                                 Background="{Binding Color}" />
-                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="11" />
+                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" />
                       </StackPanel>
                     </DockPanel>
                     <ItemsControl ItemsSource="{Binding Rows}">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:BoardRow">
                           <Border Padding="5,3" Margin="0,0,0,3" CornerRadius="3"
-                                  Background="{StaticResource HoverTintBrush}"
+                                  Background="{DynamicResource HoverTintBrush}"
                                   PointerPressed="OnStatusCardPressed">
                             <StackPanel>
-                              <TextBlock Text="{Binding Name}" FontSize="11"
+                              <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}"
                                          TextTrimming="CharacterEllipsis" />
                               <TextBlock Classes="dim" Text="{Binding AssigneeName}"
                                          IsVisible="{Binding HasAssignee}" />
@@ -611,9 +611,9 @@
                         <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}"
                                    Margin="0,0,5,0" VerticalAlignment="Center" />
                         <Border DockPanel.Dock="Right" Classes="chip" VerticalAlignment="Center">
-                          <TextBlock Text="{Binding Designation}" FontSize="10" />
+                          <TextBlock Text="{Binding Designation}" FontSize="{StaticResource TypeHint}" />
                         </Border>
-                        <TextBlock Text="{Binding Name}" FontSize="11"
+                        <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis" />
                       </DockPanel>
@@ -624,7 +624,7 @@
             </DockPanel>
           </Border>
           <Border DockPanel.Dock="Bottom" Classes="bar" IsVisible="{Binding HasAssetScope}">
-            <StackPanel Orientation="Horizontal" Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
               <TextBlock Classes="head" VerticalAlignment="Center"
                          Text="{Binding AssetScopeLabel}" />
               <ComboBox MinWidth="260" ItemsSource="{Binding OfferChoices}"
@@ -697,9 +697,9 @@
                         DragDrop.Drop="OnScopeDrop">
                 <Grid ColumnDefinitions="260,*" MinHeight="22"
                       Background="Transparent">
-                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                  <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource Space4}">
                     <Border Width="{Binding Indent}" />
-                    <TextBlock Text="{Binding Name}" FontSize="11"
+                    <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}"
                                TextTrimming="CharacterEllipsis" />
                   </StackPanel>
                   <ItemsControl Grid.Column="1" ItemsSource="{Binding All}">
@@ -710,7 +710,7 @@
                       <DataTemplate x:DataType="vm:Declaration">
                         <Border Classes="chip">
                           <StackPanel Orientation="Horizontal" Spacing="3">
-                            <TextBlock FontSize="10">
+                            <TextBlock FontSize="{StaticResource TypeHint}">
                               <Run Text="{Binding Glyph}" />
                               <Run Text="{Binding Designation}" FontWeight="SemiBold" />
                               <Run Text="{Binding Name}" />
@@ -781,19 +781,19 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ProjectWindowViewModel+ExportRow">
                   <Border Padding="6" Margin="0,0,0,4" CornerRadius="3"
-                          Background="{StaticResource BandTintBrush}">
-                    <StackPanel Spacing="2">
+                          Background="{DynamicResource BandTintBrush}">
+                    <StackPanel Spacing="{StaticResource Space2}">
                       <DockPanel>
                         <TextBlock DockPanel.Dock="Right" Classes="dim" Text="{Binding Preset}" />
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                          <TextBlock Text="{Binding Scope}" FontWeight="SemiBold" FontSize="11" />
+                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
+                          <TextBlock Text="{Binding Scope}" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" />
                           <TextBlock Classes="dim" Text="{Binding Count}" />
-                          <TextBlock Classes="dim" Foreground="{StaticResource StatusWarningBrush}"
+                          <TextBlock Classes="dim" Foreground="{DynamicResource StatusWarningBrush}"
                                      Text="empty" IsVisible="{Binding IsEmpty}" />
                         </StackPanel>
                       </DockPanel>
                       <TextBlock Classes="dim" Text="{Binding Contents}" TextWrapping="Wrap" />
-                      <TextBlock Classes="dim" Foreground="{StaticResource StatusWarningBrush}"
+                      <TextBlock Classes="dim" Foreground="{DynamicResource StatusWarningBrush}"
                                  Text="{Binding Excluded}" IsVisible="{Binding HasExcluded}" />
                     </StackPanel>
                   </Border>
@@ -814,7 +814,7 @@
             about what it enforces.
           -->
           <Border DockPanel.Dock="Top" Classes="bar">
-            <StackPanel Orientation="Horizontal" Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
               <TextBox Width="200" Text="{Binding NewPersonName}" Watermark="name…" />
               <Button Content="Add" Command="{Binding AddPersonCommand}" />
               <TextBlock Classes="dim" VerticalAlignment="Center"

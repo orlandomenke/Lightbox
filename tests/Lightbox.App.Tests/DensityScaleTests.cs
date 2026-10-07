@@ -49,8 +49,18 @@ public class DensityScaleTests
         if (!block.Success) return null;
         var setter = Regex.Match(block.Groups[1].Value,
             $@"Property=""{property}""\s+Value=""([^""]+)""");
-        return setter.Success ? setter.Groups[1].Value : null;
+        if (!setter.Success) return null;
+        // A setter that names a token is read through it (docs/DESIGN-tokens.md):
+        // the scale's numbers live in Tokens.axaml now, and this test still has
+        // to compare the number that is applied against the one DESIGN.md states.
+        var token = Regex.Match(setter.Groups[1].Value, @"^\{StaticResource (\w+)\}$");
+        if (!token.Success) return setter.Groups[1].Value;
+        var value = Regex.Match(Tokens(), $@"x:Key=""{token.Groups[1].Value}"">([^<]+)<");
+        return value.Success ? value.Groups[1].Value : null;
     }
+
+    private static string Tokens() => File.ReadAllText(Path.Combine(
+        RepoRoot(), "src", "Lightbox.App", "Styles", "Tokens.axaml"));
 
     [Fact]
     public void TheScaleTheDocDescribesIsTheScaleTheCodeApplies()

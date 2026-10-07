@@ -1,0 +1,304 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Lightbox.App.Controls;assembly=Lightbox.App">
+  <!--
+    The lit treatments (Q203), loaded after the app's own styles so each one
+    here wins. Shared by Dark-lit and Studio grey: everything is named by role,
+    and the two palettes decide what the roles look like.
+
+    The rules, from the proposal:
+      1. Panels are islands — a surface and a top rim, not an outline.
+      2. Light comes from above — panels get a rim, sunken gets an inner shade.
+         Buttons are flat (owner, 2026-10-07): no rim, no shadow, on any rank
+         or state. Rank is fill against outline against text, not light.
+      3. The chrome is grey — "on" is value and light, never a hue.
+      4. One primary, plain — full contrast, no gradient.
+      8. Actions appear when you reach for them — a docker's float and close
+         show on hover.
+  -->
+
+  <!--
+    "On" is flat (owner, 2026-10-07, after trying the glow-rim-bar active
+    effect and rejecting it): the tool in hand, a toggle that is on, the layer
+    being drawn on, the menu item under the pointer, all take one quiet,
+    lighter flat fill — the same fill the canvas bar's active icon uses, so
+    "on" reads the same everywhere. No glow, no rim, no indicator.
+  -->
+  <!-- A tool at rest is its icon alone. -->
+  <Style Selector="ToggleButton.tool /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ToggleButton.tool:pointerover:not(:checked) /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+  </Style>
+  <Style Selector="ToggleButton:checked:not(.eye) /template/ ContentPresenter#PART_ContentPresenter, ToggleButton:checked:not(.eye):pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource LookBarActiveBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="BoxShadow" Value="none" />
+  </Style>
+  <Style Selector="Border.layerRow.active">
+    <Setter Property="Background" Value="{StaticResource LookBarActiveBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <!--
+    Hover and active, everywhere (owner, 2026-10-07): the SAME shape, hover at
+    half the active fill. A menu item under the pointer is hovered; one opened,
+    pressed or chosen by keyboard is active.
+  -->
+  <Style Selector="MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+  </Style>
+  <Style Selector="MenuItem:selected /template/ Border#PART_LayoutRoot, MenuItem:open /template/ Border#PART_LayoutRoot, MenuItem:pressed /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{StaticResource LookBarActiveBrush}" />
+  </Style>
+
+  <!-- 1 · Islands, edged with light (chrome in the dark, prism in the light) -->
+  <Style Selector="controls|Docker">
+    <Setter Property="Margin" Value="0,0,0,6" />
+    <!-- Every docker's content starts and ends on the same inset. -->
+    <Setter Property="Padding" Value="{StaticResource LookPanelPadding}" />
+  </Style>
+  <Style Selector="controls|Docker /template/ Border#PART_Header">
+    <Setter Property="Padding" Value="{StaticResource LookHeaderPadding}" />
+  </Style>
+  <Style Selector="controls|Docker /template/ Border#PART_Frame">
+    <!-- No edge light on dockers (owner, 2026-10-07: tried, not liked). The
+         island is its surface and its shadow; the light went to the controls. -->
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookContainerRadius}" />
+    <Setter Property="BoxShadow" Value="{StaticResource LookIslandShadow}" />
+    <!-- A clipped frame would clip its own shadow. -->
+    <Setter Property="ClipToBounds" Value="False" />
+  </Style>
+
+  <!-- 8 · A docker's own actions show when the pointer is in it. -->
+  <Style Selector="controls|Docker /template/ Border#PART_Header StackPanel > Button">
+    <Setter Property="Opacity" Value="0" />
+  </Style>
+  <Style Selector="controls|Docker:pointerover /template/ Border#PART_Header StackPanel > Button">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+
+  <!--
+    Docker tabs, the owner's "v.2" (2026-10-07): the header is a darker strip,
+    and the active tab is a piece of the panel itself rising into it — same
+    surface as the content, rounded on top, no line between them. A tab means
+    "this panel's content is showing", and v.2 draws exactly that. Chosen over
+    the pill bar ("v.3") because the pill is the segmented selector, and a tab
+    that looked like a selector would blur "switch view" with "pick a value".
+    Resting tabs are words on the strip; hover is a quiet pill.
+  -->
+  <Style Selector="controls|Docker /template/ Border#PART_Header">
+    <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem /template/ Border#PART_Tab">
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookTabRadius}" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem">
+    <Setter Property="Padding" Value="{StaticResource LookTabPadding}" />
+  </Style>
+  <!-- Hover takes the active tab's own shape, so the strip never shows a
+       differently rounded block with gaps round it. -->
+  <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ Border#PART_Tab">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookTabRadius}" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_Tab, ListBox.tabs > ListBoxItem:selected:pointerover /template/ Border#PART_Tab">
+    <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookTabRadius}" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem:selected">
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+  <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_TopLine">
+    <Setter Property="Opacity" Value="0" />
+  </Style>
+
+  <!--
+    Buttons are flat. Four ranks, told apart without light:
+      primary   full-contrast fill
+      default / secondary   a quiet fill, one step up from the panel
+      tertiary  a hairline outline, no fill
+      ghost     text alone
+    The secondary rank's RimLightBrush border (Controls.axaml) is exactly the
+    rim this removes.
+  -->
+  <Style Selector="Button, Button.secondary">
+    <Setter Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.tertiary">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="Button /template/ ContentPresenter#PART_ContentPresenter, ToggleButton /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BoxShadow" Value="none" />
+  </Style>
+  <Style Selector="Button.ghost, Button.caption">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="controls|Docker /template/ Border#PART_Header Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="controls|Docker /template/ Border#PART_Header Button /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BoxShadow" Value="none" />
+  </Style>
+
+  <!--
+    A faint edge of light on buttons and toggles (owner, 2026-10-07): chrome in
+    the dark, prism in the light, at about 40% — the docker frames gave theirs
+    up for this. Text buttons of every rank, text toggles and the switch's
+    track. Icon-only, ghost and canvas-bar buttons stay bare: an edge round a
+    lone glyph is louder than the glyph.
+  -->
+  <Style Selector="Button.text, ToggleButton.text">
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeSubtleBrush}" />
+  </Style>
+  <Style Selector="Button.text /template/ ContentPresenter#PART_ContentPresenter, Button.text:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.text:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.text /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.text:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.text:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeSubtleBrush}" />
+  </Style>
+  <Style Selector="Button.text.ghost">
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.text.ghost /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="ToggleSwitch /template/ Border#OuterBorder">
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeSubtleBrush}" />
+  </Style>
+  <Style Selector="ToggleSwitch /template/ Border#SwitchKnobBounds">
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeSubtleBrush}" />
+  </Style>
+  <!-- A switch takes only the room it draws; Fluent reserves 154 px for labels. -->
+  <Style Selector="ToggleSwitch">
+    <Setter Property="MinWidth" Value="0" />
+  </Style>
+
+  <!--
+    The active field (owner, 2026-10-07): a field being typed in, and a
+    dropdown that is open, take the edge light at FULL strength — chrome in
+    the dark, prism in the light. Stronger than the buttons' faint edge on
+    purpose: focus is a state that has to be found at a glance, and the faint
+    version reads as decoration. Thickness stays 1, so focusing moves nothing.
+    Covers number fields too: their typing surface is a TextBox.
+  -->
+  <Style Selector="TextBox:focus /template/ Border#PART_BorderElement, TextBox:focus:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="ComboBox:dropdownopen /template/ Border#Background">
+    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <!-- One icon line, from the token. -->
+  <Style Selector="Path.icon, Path.effectIcon">
+    <Setter Property="StrokeThickness" Value="{StaticResource LookIconStroke}" />
+  </Style>
+
+  <!-- 4 · One primary, plain. -->
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource LookPrimaryForegroundBrush}" />
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource LookPrimaryForegroundBrush}" />
+    <Setter Property="Opacity" Value="0.92" />
+  </Style>
+
+  <!-- 3 · "On" is a lighter neutral fill, flat like every other button. -->
+  <!-- An eye is a state glyph, not an on/off fill: open or shut is the whole
+       signal, so it never takes the "on" ground. -->
+  <Style Selector="ToggleButton.eye /template/ ContentPresenter, ToggleButton.eye:checked /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <!-- 2 · Fields are wells. -->
+  <Style Selector="TextBox /template/ Border#PART_BorderElement">
+    <Setter Property="BoxShadow" Value="{StaticResource LookInsetShadow}" />
+  </Style>
+  <!-- Every list row on the row height and the item padding — Fluent's default
+       ListBoxItem is a 34 px touch target, which turned a bone list into a
+       column of gaps. Selectors and tabs set their own and are excluded. -->
+  <Style Selector="ListBox:not(.segmented):not(.tabs):not(.sectiontabs) > ListBoxItem">
+    <Setter Property="MinHeight" Value="{StaticResource LookRowHeight}" />
+    <Setter Property="Padding" Value="{StaticResource LookItemPadding}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ListBox:not(.segmented):not(.tabs):not(.sectiontabs)">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="ListBox:not(.segmented):not(.tabs):not(.sectiontabs) > ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource LookBarActiveBrush}" />
+  </Style>
+  <Style Selector="ListBox:not(.segmented):not(.tabs):not(.sectiontabs) > ListBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+  </Style>
+
+  <!-- A dropdown is text at rest (see the palettes): no well, no border. -->
+  <Style Selector="ComboBox">
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Height" Value="{StaticResource LookRowHeight}" />
+  </Style>
+  <!-- Values end on one line: a fixed-width field, never one sized to its digits. -->
+  <Style Selector="NumericUpDown.value">
+    <Setter Property="Width" Value="{StaticResource LookFieldWidth}" />
+    <Setter Property="MinWidth" Value="{StaticResource LookFieldWidth}" />
+    <Setter Property="Height" Value="{StaticResource LookRowHeight}" />
+  </Style>
+  <!-- Containers that float: the same edge as a docker. -->
+  <Style Selector="FlyoutPresenter, MenuFlyoutPresenter, ContextMenu">
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeBrush}" />
+  </Style>
+
+  <!--
+    The canvas bar (owner, 2026-10-07): only icons are visible. A button in the
+    bar has no fill, no rim, no glow at rest; the one that is on gets a soft
+    flat fill that fits the bar exactly — full height, corners one padding
+    smaller than the bar's, so the two shapes are concentric. Deliberately not
+    the docker's active effect: this sits on the artwork, and a glow there
+    would be the brightest thing on the drawing.
+  -->
+  <!-- On the control, not only on its presenter: the presenter's background is
+       a template binding to this, and a template binding outranks a style. -->
+  <Style Selector="controls|CanvasOverlayBar Button, controls|CanvasOverlayBar ToggleButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="controls|CanvasOverlayBar Button /template/ ContentPresenter#PART_ContentPresenter, controls|CanvasOverlayBar ToggleButton /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="BoxShadow" Value="none" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookContainerInnerRadius}" />
+  </Style>
+  <Style Selector="controls|CanvasOverlayBar Button:pointerover /template/ ContentPresenter#PART_ContentPresenter, controls|CanvasOverlayBar ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+  </Style>
+  <Style Selector="controls|CanvasOverlayBar ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter, controls|CanvasOverlayBar ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource LookBarActiveBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="BoxShadow" Value="none" />
+  </Style>
+  <Style Selector="controls|CanvasOverlayBar ToggleButton:checked Path">
+    <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+
+  <!-- The bar over the canvas: a lit surface, its shadow from the effects switch. -->
+  <Style Selector="controls|CanvasOverlayBar /template/ Border#PART_Bar">
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{StaticResource LookEdgeBrush}" />
+    <Setter Property="BoxShadow" Value="{StaticResource LookRaisedShadow}" />
+  </Style>
+</Styles>
