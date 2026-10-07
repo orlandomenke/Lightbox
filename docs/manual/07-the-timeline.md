@@ -297,14 +297,23 @@ The keys answer only with the pointer over the X-sheet: over the canvas Delete
 still clears the selection, and over the Layers docker it still deletes a
 layer.
 
-Drag a cel along its row to move it. Shift-click for a range, then apply
-exposure changes to all of it at once.
+**Drag across the sheet to select a block of cels** — every frame you sweep
+on every row you sweep, as in a spreadsheet. **Shift+click** does the same from
+the last cel you clicked, so a block can be made in two clicks and resized with
+a third. A block stops at the end of the scene: there are no cels in the hatch.
+A plain click still moves the playhead and clears the selection.
+
+**Alt+drag a cel along its row to move it** (hold Ctrl as well to copy it).
+This used to be a plain drag; the plain drag selects now, because building a
+selection is what the deletes and the re-timing commands need, and it is done
+far more often than carrying a single drawing.
 
 **Ctrl+click picks cels one at a time**, including ones that are not next to
 each other and ones on other layers — every third cel of a cycle, or the same
 two cels across four layers. Ctrl+click a picked cel again to drop it. Shift
-still ranges from the last cel you clicked, and re-ranges rather than adding a
-second run, so it is the way to correct an overshoot.
+still ranges from the last cel you clicked, across rows as well as frames, and
+re-ranges rather than adding a second block, so it is the way to correct an
+overshoot.
 
 **Everything on the cel's right-click menu covers the selection** — insert a
 key, breakdown, inbetween or blank frame, extend and reduce exposure, Delete,
