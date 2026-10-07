@@ -522,6 +522,14 @@ the test needs relaxing.
     keyable until colour curves are worth keying.
 - [x] Blend modes `evidence: LayerBlendMode, BlendComposeTests`
 - [x] Layer folders `evidence: LayerGroup, LayerFolderTests`
+  - [x] Folders that nest and can be empty (Q204) `evidence: FolderTree, StackRef, FolderTreeTests, EmptyAndNestedFolderTests, AFolderInHandGoesIntoAnotherFolder_ButNeverIntoItself`
+    — a folder is an item in the stack: **New folder** makes an empty one above
+    what is picked, **Group layers** (Ctrl+G) wraps the selection, folders drop
+    into folders, and visibility and lock inherit through every level. Layers
+    stay one flat list; a folder records its parent and, only while empty, its
+    slot, so a file with neither writes nothing new. **Not yet:** copying and
+    pasting a whole folder, PSD import of nested groups as nested folders, and
+    folders on the MCP surface.
 - [x] Layer and alpha locking `evidence: LayerLockTests, AlphaLockTests`
 - [x] Non-destructive filters `evidence: EffectUse, EffectStack, EffectRegistry, EffectPasses, EffectRecordTests, EffectRegistryTests, EffectPassTests, EffectComposeCostTests, ASelfEffectFiltersOnlyItsOwnPass, AnUnknownKindIsPreservedNotDropped, AKeyedRadiusEvaluatesPerFrame, AFilteredLayerRefusesToFoldAndStillRenders, TheSceneStackDescribesALastPass`
   - **Built to `docs/DESIGN-effects.md`, steps 1–3 of its own build order**:

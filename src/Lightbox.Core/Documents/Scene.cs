@@ -465,7 +465,7 @@ public sealed class Scene
     public FrameGroup? GroupOf(string placementId) =>
         FrameGroups?.FirstOrDefault(g => g.PlacementIds.Contains(placementId));
 
-    /// <summary>Layer visibility including its folder's (what compositing must use).</summary>
+    /// <summary>Layer visibility including its folders' (what compositing must use).</summary>
     /// <remarks>
     /// A link carrying visibility hides its members together — hide the lines
     /// and the colour goes with them. Any member being hidden hides them all,
@@ -474,10 +474,14 @@ public sealed class Scene
     /// </remarks>
     public bool IsLayerVisible(Layer layer)
     {
-        if (!layer.Visible || GroupOf(layer) is { Visible: false }) return false;
+        if (!layer.Visible || !FoldersShow(layer)) return false;
         if (LinkOf(layer) is not { CarriesVisibility: true }) return true;
-        return LinkedWith(layer).All(l => l.Visible && GroupOf(l) is not { Visible: false });
+        return LinkedWith(layer).All(l => l.Visible && FoldersShow(l));
     }
+
+    /// <summary>Whether every folder a layer is inside, at any depth, is shown (Q204).</summary>
+    private bool FoldersShow(Layer layer) =>
+        layer.GroupId is null || FolderTree.FoldersOf(this, layer).All(f => f.Visible);
 
     /// <summary>
     /// Whether a layer accepts edits: not locked itself, and not inside a
@@ -485,8 +489,9 @@ public sealed class Scene
     /// this — the hidden-layer precedent only guarded three of them, which is
     /// how transform, cel edits and the external writers went unguarded.
     /// </summary>
+    /// <remarks>Any folder it is inside counts, at any depth (Q204).</remarks>
     public bool IsLayerEditable(Layer layer) =>
-        !layer.Locked && GroupOf(layer) is not { Locked: true };
+        !layer.Locked && (layer.GroupId is null || FolderTree.FoldersOf(this, layer).All(f => !f.Locked));
 
     /// <summary>A copy holding no reference in common with this one.</summary>
     /// <remarks>

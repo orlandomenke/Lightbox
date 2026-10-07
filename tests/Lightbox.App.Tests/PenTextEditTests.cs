@@ -198,7 +198,7 @@ public class PenTextEditTests(ITestOutputHelper output) : BrushStateIsolated
     public void APenDoubleClickOnAFolderNameStaysInTheRename()
     {
         var (window, vm) = Open();
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
         Dispatcher.UIThread.RunJobs();
         var header = vm.LayerPanelItems.OfType<GroupRow>().Single();
         var control = RowControl(window, header);

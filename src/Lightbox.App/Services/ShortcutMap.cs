@@ -458,6 +458,10 @@ public sealed class ShortcutMap
             // for from the canvas while colouring, not only from the docker.
             new("docker.clipToBelow", "Clip layer to the one below", "Dockers",
                 G(Key.G, KeyModifiers.Control | KeyModifiers.Alt)),
+            // Photoshop's and Krita's key for wrapping the selection in a
+            // folder, global like theirs (Q204).
+            new("docker.groupLayers", "Group layers into a folder", "Dockers", G(Key.G, KeyModifiers.Control)),
+            new("docker.newFolder", "New empty folder", "Dockers", null),
             // No default gesture: there is no convention to borrow, and
             // guessing one costs somebody their key. Bindable is the
             // requirement.

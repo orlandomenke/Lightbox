@@ -48,6 +48,14 @@ public sealed partial class GroupRow : ObservableObject
     [ObservableProperty]
     private bool _isSelected;
 
+    /// <summary>How many folders this one is inside (Q204); the docker indents by it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Indent))]
+    private int _depth;
+
+    /// <summary>The left margin <see cref="Depth"/> asks for.</summary>
+    public Avalonia.Thickness Indent => new(Depth * LayerRow.IndentStep, 0, 0, 0);
+
     [ObservableProperty]
     private string _name = "";
 
@@ -257,6 +265,17 @@ public sealed partial class LayerRow : ObservableObject
 
     /// <summary>Inside a layer folder (indented in the docker, eject button shown).</summary>
     public bool IsGrouped => Layer.GroupId is not null;
+
+    /// <summary>One level of folder nesting, in the docker's pixels.</summary>
+    public const double IndentStep = 14;
+
+    /// <summary>How many folders this layer is inside (Q204); the docker indents by it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Indent))]
+    private int _depth;
+
+    /// <summary>The left margin <see cref="Depth"/> asks for.</summary>
+    public Avalonia.Thickness Indent => new(Depth * IndentStep, 0, 0, 0);
 
     /// <summary>In a link — the docker marks it, or the artist cannot tell it is one drawing.</summary>
     public bool IsLinked => Layer.LinkId is not null;
