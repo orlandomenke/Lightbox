@@ -1173,6 +1173,12 @@ public partial class MainWindow : IFollowsUiScale
     private void OnLayerRowPressed(object? sender, PointerPressedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not LayerRow row) return;
+        if (Services.LayerSelectionTrace.On)
+        {
+            Services.LayerSelectionTrace.Note(
+                $"row press: row {row.SceneIndex}, source {e.Source?.GetType().Name}, mods {e.KeyModifiers}, "
+                + $"pointer {e.Pointer.Type}, handled {e.Handled}");
+        }
         if (Services.LayerLinkGestures.From(
                 e.KeyModifiers, e.GetCurrentPoint(this).Properties.IsRightButtonPressed) is { } gesture)
         {
@@ -1328,6 +1334,17 @@ public partial class MainWindow : IFollowsUiScale
             _layerDragPointer = null;
         }
         var mods = e.KeyModifiers;
+        if (Services.LayerSelectionTrace.On)
+        {
+            var path = new List<string>();
+            for (var c = e.Source as Control; c is not null && path.Count < 8; c = c.Parent as Control)
+            {
+                path.Add(c.Classes.Count > 0 ? $"{c.GetType().Name}.{string.Join(".", c.Classes)}" : c.GetType().Name);
+            }
+            Services.LayerSelectionTrace.Note(
+                $"list press (tunnel): mods {mods}, pointer {e.Pointer.Type}, "
+                + $"left {e.GetCurrentPoint(this).Properties.IsLeftButtonPressed}, path {string.Join(" > ", path)}");
+        }
         if (!mods.HasFlag(KeyModifiers.Control) && !mods.HasFlag(KeyModifiers.Shift)) return;
         if (mods.HasFlag(KeyModifiers.Alt) || mods.HasFlag(KeyModifiers.Meta)) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
