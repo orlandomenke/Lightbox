@@ -416,6 +416,32 @@ public class FolderTreeTests
         var before = Docker(scene);
         Assert.Null(FolderTree.Move(scene, [Ref("b")], Ref("F", true), StackDrop.Into));
         Assert.Equal(before, Docker(scene));
+    public void CopyingAFolderInALoopOrADeepChainPastesWithoutALoop_AndListsEveryRow()
+    {
+        var scene = Stack("paper", "a", "b");
+        Folder(scene, "x", parent: "y");
+        Folder(scene, "y", parent: "x");
+        L(scene, "a").GroupId = "x";
+        for (var i = 0; i <= 40; i++) Folder(scene, $"d{i}", parent: i == 0 ? null : $"d{i - 1}");
+        L(scene, "b").GroupId = "d40";
+
+        var clip = FolderCopy.Copy(scene, [Ref("x", true), Ref("d0", true)]);
+        var roots = FolderCopy.Paste(scene, clip, 1);
+
+        Assert.Equal(2, roots.Count);
+        // Every pasted folder (fresh ids) has a parent chain that ends: walking
+        // it raw, with no cap, never comes back to where it started.
+        foreach (var folder in scene.LayerGroups.Where(f => f.Id.StartsWith("group")))
+        {
+            var seen = new HashSet<string>();
+            for (var p = folder; p is not null; p = FolderTree.Folder(scene, p.ParentId))
+            {
+                Assert.True(seen.Add(p.Id), $"pasted folder {folder.Name} is in a loop");
+            }
+        }
+        var listed = FolderTree.Rows(scene).Select(r => r.Item).OfType<LayerGroup>().Count();
+        Assert.Equal(scene.LayerGroups.Count, listed);
+        Assert.Equal(scene.Layers.Count, FolderTree.Rows(scene).Count(r => r.Item is Layer));
     }
 
     [Fact]

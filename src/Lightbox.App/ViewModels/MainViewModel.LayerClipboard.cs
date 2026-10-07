@@ -103,6 +103,19 @@ public partial class MainViewModel
         }
 
         var place = NewLayerPlacement();
+        // Tried first on a skeleton, so a paste the move refuses — one that
+        // would nest past the depth limit — is refused whole, in words, rather
+        // than left at the top of the stack under a status that says "pasted".
+        if (place is { } tryAt)
+        {
+            var trial = FolderTree.Skeleton(Scene);
+            var trialRoots = FolderCopy.Paste(trial, FolderCopy.Skeleton(held.Clip), Scene.FrameCount);
+            if (FolderTree.Move(trial, trialRoots, tryAt.Target, tryAt.Where) is { Length: > 0 } why)
+            {
+                AiStatus = why;
+                return false;
+            }
+        }
         var roots = new List<StackRef>();
         var addedIds = new List<string>();
         _editor.Perform(doc =>

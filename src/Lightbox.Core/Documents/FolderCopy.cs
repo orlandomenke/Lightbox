@@ -70,6 +70,15 @@ public static class FolderCopy
     }
 
     /// <summary>
+    /// The clip without the drawings — ids, names and folders only — for trying a
+    /// paste on <see cref="FolderTree.Skeleton"/> before making it.
+    /// </summary>
+    public static StackClip Skeleton(StackClip clip) => clip with
+    {
+        Layers = clip.Layers.Select(l => new Layer { Id = l.Id, Name = l.Name, GroupId = l.GroupId }).ToList(),
+    };
+
+    /// <summary>
     /// Add a clip's contents to <paramref name="scene"/> under fresh ids — layers
     /// on top of the stack, folders at the top level — and return the new roots,
     /// topmost first, for the caller to move into place.

@@ -173,6 +173,33 @@ public sealed class EmptyAndNestedFolderTests : BrushStateIsolated
         Assert.Contains("[Folder 1 copy]", Docker(vm));
     }
 
+    /// <summary>
+    /// A paste the move would refuse — it would nest past the limit — is
+    /// refused whole: nothing added, no step, and the status says why.
+    /// </summary>
+    [AvaloniaFact]
+    public void APasteThatWouldNestTooDeepIsRefusedWhole()
+    {
+        var vm = Vm();
+        vm.GroupLayersCommand.Execute(null);
+        for (var i = 1; i < 17; i++)
+        {
+            vm.SelectLayer(Row(vm, "b"), toggle: false, range: false);
+            vm.GroupLayersCommand.Execute(null);
+        }
+        var outer = vm.LayerPanelItems.OfType<GroupRow>().First();
+        var inner = vm.LayerPanelItems.OfType<GroupRow>().Last();
+        vm.SelectGroup(outer, toggle: false, range: false);
+        Assert.True(vm.CopyLayers());
+        var before = FolderTree.Signature(vm.Doc.Scene);
+
+        vm.SelectGroup(inner, toggle: false, range: false);
+        Assert.False(vm.PasteLayers());
+
+        Assert.Equal(before, FolderTree.Signature(vm.Doc.Scene));
+        Assert.Contains("deep", vm.AiStatus);
+    }
+
     [AvaloniaFact]
     public void GroupLayersWrapsTheSelection_AndIsCtrlGInTheShortcutRegistry()
     {
