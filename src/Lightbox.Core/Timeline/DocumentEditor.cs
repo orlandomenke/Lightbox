@@ -180,12 +180,21 @@ public sealed class DocumentEditor
     /// can be read in one screen and seen to touch no <c>Frame</c>.
     /// </para>
     /// </param>
+    /// <param name="touchedFrames">
+    /// The drawings <paramref name="mutate"/> alters, when the caller knows.
+    /// Undoing the step then invalidates those and keeps every other drawing's
+    /// render and thumbnail — on an 11-layer document, undoing a transform
+    /// otherwise re-rendered all 64 drawings and every thumbnail for 10 s. A
+    /// promise, not a hint: a drawing changed and not named here keeps a stale
+    /// render. Null, the default, is "assume everything changed".
+    /// </param>
     public void Perform(
         Action<Doc> mutate, string? label = null, bool frameContentUnchanged = false,
+        IReadOnlyCollection<string>? touchedFrames = null,
         [CallerMemberName] string caller = "")
     {
         var before = Doc.Clone();
-        PushStep(new SnapshotStep(before, frameContentUnchanged), label ?? Humanize(caller));
+        PushStep(new SnapshotStep(before, frameContentUnchanged, touchedFrames), label ?? Humanize(caller));
         mutate(Doc);
         // Q204: an empty folder keeps its slot whatever the edit did to the
         // layers around it. The snapshot is already the "before" it needs.
@@ -278,11 +287,17 @@ public sealed class DocumentEditor
     /// several and there is no single number that describes the result, so it
     /// takes the rebuild rather than a restore that would be for the wrong one.
     /// </param>
+    /// <param name="FrameIds">
+    /// The drawings a whole-document step altered, when it could say which (a
+    /// transform commit moves a handful of drawings out of dozens). Null means
+    /// it could not, and the caller must assume every drawing changed.
+    /// </param>
     public readonly record struct EditScope(
         bool Any, string? FrameId, bool FrameContentUnchanged = false,
-        GeometryOps.BBox? RepaintBounds = null, long Revision = 0)
+        GeometryOps.BBox? RepaintBounds = null, long Revision = 0,
+        IReadOnlyCollection<string>? FrameIds = null)
     {
-        public bool DocumentWide => Any && FrameId is null && !FrameContentUnchanged;
+        public bool DocumentWide => Any && FrameId is null && FrameIds is null && !FrameContentUnchanged;
     }
 
     public void Undo() => UndoScoped();
@@ -298,7 +313,7 @@ public sealed class DocumentEditor
         Changed?.Invoke();
         return new EditScope(
             true, entry.Step.FrameId, entry.Step.FrameContentUnchanged, entry.Step.RepaintBounds,
-            entry.Revision);
+            entry.Revision, entry.Step.FrameIds);
     }
 
     public EditScope RedoScoped()
@@ -312,7 +327,7 @@ public sealed class DocumentEditor
         Changed?.Invoke();
         return new EditScope(
             true, entry.Step.FrameId, entry.Step.FrameContentUnchanged, entry.Step.RepaintBounds,
-            entry.Revision);
+            entry.Revision, entry.Step.FrameIds);
     }
 
     /// <summary>
@@ -450,6 +465,12 @@ public sealed class DocumentEditor
         /// </summary>
         GeometryOps.BBox? RepaintBounds => null;
 
+        /// <summary>
+        /// For a whole-document step, the drawings it altered, or null when it
+        /// cannot say — every drawing is then assumed changed.
+        /// </summary>
+        IReadOnlyCollection<string>? FrameIds => null;
+
         /// <summary>Take the document back to before this step; returns the doc to use.</summary>
         Doc Rollback(Doc doc);
 
@@ -471,13 +492,16 @@ public sealed class DocumentEditor
     /// nothing. Swapping rather than copying is what makes redo exact: the
     /// step always holds whichever document is not current.
     /// </remarks>
-    private sealed class SnapshotStep(Doc other, bool frameContentUnchanged) : IEditStep
+    private sealed class SnapshotStep(
+        Doc other, bool frameContentUnchanged, IReadOnlyCollection<string>? frameIds = null) : IEditStep
     {
         private Doc _other = other;
 
         public string? FrameId => null; // whole-document
 
         public bool FrameContentUnchanged => frameContentUnchanged;
+
+        public IReadOnlyCollection<string>? FrameIds => frameIds;
 
         public Doc Rollback(Doc doc) => Swap(doc);
 
