@@ -416,6 +416,9 @@ public class FolderTreeTests
         var before = Docker(scene);
         Assert.Null(FolderTree.Move(scene, [Ref("b")], Ref("F", true), StackDrop.Into));
         Assert.Equal(before, Docker(scene));
+    }
+
+    [Fact]
     public void CopyingAFolderInALoopOrADeepChainPastesWithoutALoop_AndListsEveryRow()
     {
         var scene = Stack("paper", "a", "b");
