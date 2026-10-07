@@ -680,96 +680,200 @@ public partial class MainViewModel
         if (CurrentCell() is { } cell) ReduceToStepAt(cell);
     }
 
-    /// <summary>Clear the drawing(s) at the cell — or the whole selected range when the cell is inside it.</summary>
+    // ---- Delete, Delete and pull, Insert blank frame (Q196) --------------------
+    //
+    // The X-sheet's three structural verbs. Each takes the whole cel selection —
+    // or the clicked cel alone when it is outside the selection — and each is one
+    // undo step however many layers it reaches. "Delete column" used to be a
+    // fourth, separate verb; it is now what Delete and pull does when the
+    // selection is a column (DocumentEditor.ColumnsOf), which is how the owner
+    // described it: "remove the column and pull all next frames one back".
+    //
+    // The method names predate the menu's words: ClearCelAt is *Delete*,
+    // DeleteCelAt is *Delete and pull*. Renaming them would touch every test
+    // that drives the timeline for no change in behaviour.
+
     /// <summary>
-    /// Delete the cel (or the selected range) and pull the rest of the row
-    /// back. "Clear cel" blanks a drawing and keeps its slot; this removes the
-    /// slot, which is the operation the timeline was missing entirely.
+    /// The real cels an operation started at <paramref name="cell"/> covers —
+    /// every layer's selected cels, or the cell alone — paired with their layer.
+    /// Cels past the end of the scene are dropped: there is nothing there.
     /// </summary>
-    public void DeleteCelAt(FrameCell cell)
+    private List<(Layer Layer, int Index)> OpPicks(FrameCell cell)
     {
-        var touched = false;
+        var picks = new List<(Layer, int)>();
         foreach (var layerIndex in OpLayersFor(cell))
         {
             if (LayerAt(layerIndex) is not { } layer) continue;
-            if (!CanEdit(layer, "delete a cel on it")) continue;
-            foreach (var (start, end) in RunsOf(OpCelsOn(cell, layerIndex)))
+            foreach (var i in OpCelsOn(cell, layerIndex))
             {
-                _editor.DeleteCels(layer.Id, start, end);
-                touched = true;
+                if (i >= 0 && i < Scene.FrameCount) picks.Add((layer, i));
             }
         }
-        if (!touched) return;
+        return picks;
+    }
+
+    /// <summary>The picks on layers that accept edits, saying which refused.</summary>
+    private List<(string LayerId, int Index)> EditablePicks(List<(Layer Layer, int Index)> picks, string verb)
+    {
+        var editable = new List<(string, int)>();
+        foreach (var group in picks.GroupBy(p => p.Layer))
+        {
+            if (!CanEdit(group.Key, verb)) continue;
+            editable.AddRange(group.Select(p => (p.Layer.Id, p.Index)));
+        }
+        return editable;
+    }
+
+    /// <summary>
+    /// <b>Delete and pull</b>: remove the selected cels and pull what follows
+    /// back. When the selection is a column — the same frames on every animated
+    /// layer — the frames leave the <em>scene</em> and it gets shorter; otherwise
+    /// each row is pulled back on its own and padded with holds, so the scene
+    /// keeps its length and the other rows do not move. One undo step.
+    /// </summary>
+    /// <remarks>
+    /// A document with one drawing layer (and paper) makes every selection a
+    /// column, so there Delete and pull always shortens the scene — which is
+    /// exactly "remove the frame and pull the rest back" when there is nothing
+    /// else on the sheet to keep in step with.
+    /// </remarks>
+    public void DeleteCelAt(FrameCell cell)
+    {
+        var picks = OpPicks(cell);
+        if (picks.Count == 0) return;
+        if (DocumentEditor.ColumnsOf(Scene, picks.Select(p => (p.Layer.Id, p.Index))) is { } columns)
+        {
+            DeleteColumns(columns);
+            return;
+        }
+        var editable = EditablePicks(picks, "delete a cel on it");
+        if (editable.Count == 0 || _editor.DeleteCelsAcross(editable) == 0) return;
         _allThumbsDirty = true;
         ClearCelRange(); // the indices it held have shifted out from under it
         RefreshThumbnails();
     }
 
     /// <summary>
-    /// Remove a whole frame from the scene — every layer's cel at that index —
-    /// and pull the rest of the sheet back. Q88.
+    /// Take whole frames out of the scene — every layer's cel at each — and pull
+    /// the rest of the sheet back. Q88's column delete, now reached through a
+    /// column selection rather than a verb of its own.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <b>The operation already existed and could not be found</b>, which is
-    /// why this is a route rather than a new edit: <c>DocumentEditor.DeleteFrame</c>
-    /// has always removed the column across every layer and rippled, and the
-    /// only way to reach it was one 🗑 button on the timeline bar that acted on
-    /// the playhead. The X-sheet's own right-click <em>Delete cel</em> is the
-    /// row-scoped one, so an artist looking for "take this frame out of the
-    /// scene" found the wrong verb first and concluded the right one was
-    /// missing.
-    /// </para>
-    /// <para>
-    /// Takes the frame from the cel that was clicked rather than from the
-    /// playhead: a right-click names a place, and acting somewhere else would
-    /// be the same near-miss B108 fixed in the project docker.
-    /// </para>
+    /// Every layer loses a cel, so a locked one is a refusal for the whole
+    /// operation rather than something to skip past: deleting the frame from
+    /// four layers and not the fifth would slide those four out of step with
+    /// it, which is worse than not deleting at all. The paper is the exception,
+    /// because it is locked from birth and the editor carries its drawing along
+    /// (<see cref="DocumentEditor.DeleteColumns"/>) — a lock check that counted
+    /// it would refuse every column delete in the ordinary case.
     /// </remarks>
-    public void DeleteColumnAt(int frameIndex)
+    private void DeleteColumns(IReadOnlyCollection<int> frames)
     {
-        if (Scene.FrameCount <= 1) return; // a scene is never zero frames long
-        if (frameIndex < 0 || frameIndex >= Scene.FrameCount) return;
-        // Every layer loses a cel, so a locked one is a refusal for the whole
-        // column rather than something to skip past: deleting the frame from
-        // four layers and not the fifth would slide those four out of step with
-        // it, which is worse than not deleting at all.
-        if (Scene.Layers.FirstOrDefault(l => l.Locked && !l.IsBackground) is { } locked)
+        if (Scene.FrameCount <= 1)
         {
-            AiStatus = $"“{locked.Name}” is locked — unlock it to remove this frame from the scene.";
+            AiStatus = "A scene is never shorter than one frame — there is no frame to pull back.";
             return;
         }
-        _editor.DeleteFrame(frameIndex);
+        if (ColumnLockReason() is { } lockedName)
+        {
+            AiStatus = $"“{lockedName}” is locked — unlock it to remove frames from the scene.";
+            return;
+        }
+        var removed = _editor.DeleteColumns(frames);
+        if (removed == 0) return;
+        if (removed < frames.Count)
+        {
+            AiStatus = "A scene is never shorter than one frame, so the first one stayed.";
+        }
         CurrentFrameIndex = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
         _allThumbsDirty = true;
         ClearCelRange(); // the indices it held have shifted out from under it
         RefreshThumbnails();
     }
 
+    /// <summary>
+    /// The name to blame when a column edit must refuse — a drawing layer that
+    /// is locked, or the locked folder it sits in — or null when every drawing
+    /// layer takes the edit.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Scene.IsLayerEditable"/> rather than <c>Layer.Locked</c>: a
+    /// row edit already refuses a layer inside a locked folder (it goes through
+    /// <c>CanEdit</c>), and a column edit that only read the layer's own flag
+    /// would push that layer along with the rest. The folder is the reason, so
+    /// the folder is what the message names. The paper is exempt for the
+    /// reason <see cref="DeleteColumns"/> gives.
+    /// </remarks>
+    private string? ColumnLockReason()
+    {
+        if (Scene.Layers.FirstOrDefault(l => !l.IsBackground && !Scene.IsLayerEditable(l)) is not { } layer)
+        {
+            return null;
+        }
+        return layer.Locked ? layer.Name : Scene.GroupOf(layer)?.Name ?? layer.Name;
+    }
+
+    /// <summary>
+    /// <b>Delete</b>: the drawings in the selected cels go and the cels become
+    /// holds; every slot stays, so nothing after them moves. One undo step.
+    /// </summary>
     public void ClearCelAt(FrameCell cell)
     {
-        var layers = OpLayersFor(cell);
+        var picks = OpPicks(cell);
         // One cel and no drawing on it is worth saying so; a selection with a
-        // hold or two in it is not, because clearing the rest still did something.
-        if (layers.Count == 1 && OpCelsOn(cell, layers[0]).Count == 1
-            && LayerAt(layers[0]) is { } only
-            && ExposureSheet.FrameAtExactIndex(only, cell.Index) is null)
+        // hold or two in it is not, because deleting the rest still did something.
+        if (picks.Count == 1 && ExposureSheet.FrameAtExactIndex(picks[0].Layer, picks[0].Index) is null)
         {
-            AiStatus = "That cel is a hold — there is no drawing to clear.";
+            AiStatus = "That cel is a hold — there is no drawing on it to delete.";
             return;
         }
-        var touched = false;
-        foreach (var layerIndex in layers)
+        var editable = EditablePicks(picks, "delete a cel on it");
+        if (editable.Count == 0) return;
+        if (_editor.ClearCelsAcross(editable) > 0) RefreshThumbnails();
+    }
+
+    /// <summary>
+    /// <b>Insert blank frame</b>: a hold goes in <em>at</em> the cel, so the new
+    /// cel shows the drawing before it and the cel and the rest of its row move
+    /// right. A run of n selected cels inserts n holds at its start. When the
+    /// selection is a column it is a column insert — every layer, the paper
+    /// holding, references rippled. One undo step.
+    /// </summary>
+    /// <remarks>
+    /// A row that runs past the end grows the scene, as Extend exposure does.
+    /// A column insert refuses on a locked layer for the column delete's reason:
+    /// pushing four rows and not the fifth slides them out of step.
+    /// </remarks>
+    public void InsertBlankFrameAt(FrameCell cell)
+    {
+        var picks = OpPicks(cell);
+        if (picks.Count == 0)
         {
-            if (LayerAt(layerIndex) is not { } layer) continue;
-            if (!CanEdit(layer, "clear a cel on it")) continue;
-            foreach (var (start, end) in RunsOf(OpCelsOn(cell, layerIndex)))
-            {
-                _editor.ClearCels(layer.Id, start, end);
-                touched = true;
-            }
+            AiStatus = "Past the end of the scene there is nothing to push along — draw there instead.";
+            return;
         }
-        if (touched) RefreshThumbnails();
+        int inserted;
+        if (DocumentEditor.ColumnsOf(Scene, picks.Select(p => (p.Layer.Id, p.Index))) is { } columns)
+        {
+            if (ColumnLockReason() is { } lockedName)
+            {
+                AiStatus = $"“{lockedName}” is locked — unlock it to insert frames into the scene.";
+                return;
+            }
+            inserted = _editor.InsertHoldColumns(columns);
+        }
+        else
+        {
+            var editable = EditablePicks(picks, "insert a blank frame on it");
+            if (editable.Count == 0) return;
+            inserted = _editor.InsertHolds(editable);
+        }
+        if (inserted == 0) return;
+        _allThumbsDirty = true;
+        ClearCelRange(); // the indices it held have shifted out from under it
+        ActiveLayerIndex = cell.LayerIndex;
+        CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
+        RefreshThumbnails();
     }
 
     /// <summary>App-internal cel clipboard: a cel sequence (null = hold) + its source layer kind.</summary>
@@ -914,14 +1018,56 @@ public partial class MainViewModel
         if (CurrentCell() is { } cell) ReduceExposureAt(cell);
     }
 
+    // Delete, Delete and pull and Insert blank frame are the Timeline docker's
+    // keys as well as menu items, and a key has no cel under a pointer. So these
+    // three take the selection when there is one — wherever the playhead is —
+    // and the playhead's cel only when nothing is selected. Ctrl+click picks
+    // cels without moving the playhead, so "the playhead's cel, unless it
+    // happens to be inside the selection" would make Delete ignore a selection
+    // the artist can see, depending on where they last clicked plainly.
+
     public void ClearCelAtPlayhead()
     {
-        if (CurrentCell() is { } cell) ClearCelAt(cell);
+        if (SelectionOrCurrentCell() is { } cell) ClearCelAt(cell);
     }
 
     public void DeleteCelAtPlayhead()
     {
-        if (CurrentCell() is { } cell) DeleteCelAt(cell);
+        if (SelectionOrCurrentCell() is { } cell) DeleteCelAt(cell);
+    }
+
+    public void InsertBlankFrameAtPlayhead()
+    {
+        if (SelectionOrCurrentCell() is { } cell) InsertBlankFrameAt(cell);
+    }
+
+    /// <summary>
+    /// A cel inside the selection (the playhead's, when it is one of them), or
+    /// the playhead's cel when nothing is selected — the anchor that makes an
+    /// operation cover the whole selection.
+    /// </summary>
+    private FrameCell? SelectionOrCurrentCell()
+    {
+        // Camera or pose keys picked on the Timeline, and no cel among them:
+        // the selection names no cel, so falling back to the playhead's would
+        // delete a drawing the artist did not pick — silently, since the keys
+        // they did pick stay where they are.
+        if (_keySelection.Count > 0 && !_keySelection.Any(k => k.IsCel))
+        {
+            AiStatus = "The selection has no cels in it — pick cels on the X-sheet, or clear the selection.";
+            return null;
+        }
+        if (CurrentCell() is { } current
+            && (_keySelection.Count == 0 || _keySelection.Contains(TimelineKey.Cel(current.LayerIndex, current.Index))))
+        {
+            return current;
+        }
+        foreach (var (layer, index) in _celSelection.OrderBy(c => c.Index))
+        {
+            var cell = LayerRows.FirstOrDefault(r => r.SceneIndex == layer)?.Cells.FirstOrDefault(c => c.Index == index);
+            if (cell is not null) return cell;
+        }
+        return CurrentCell();
     }
 
     public void SetPlaybackStartAtPlayhead() =>

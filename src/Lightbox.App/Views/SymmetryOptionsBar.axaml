@@ -44,5 +44,14 @@
                  Text="{Binding SymmetryCopyCount, StringFormat='×{0}'}"
                  ToolTip.Tip="How many marks the next stroke makes" />
     </StackPanel>
+    <!--
+      Seamless tiles (Q192), in the same section because it is the same
+      mechanism — one more kind of copy — and because the bar is on the
+      monolith ratchet. The tile is the page, so there is nothing to place.
+    -->
+    <ToggleButton x:Name="TileToggle" Content="Tile" VerticalAlignment="Center"
+                  MinHeight="0" Height="22"
+                  IsChecked="{Binding TileWrapEnabled, Mode=TwoWay}"
+                  ToolTip.Tip="Paint a seamless tile: a mark that leaves one edge of the page comes in on the opposite edge, with the same grain. The page's neighbours are shown around it, and you can paint in them. Shift+T." />
   </StackPanel>
 </UserControl>

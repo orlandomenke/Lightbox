@@ -263,6 +263,31 @@ public class ImageResizeTests
         Assert.Equal(270, restored.Symmetry.CenterY);
     }
 
+    /// <summary>
+    /// B380: the baked sample is shared between a stroke and its undo-snapshot
+    /// clone on purpose, so a resize must replace it rather than edit it, or
+    /// undo brings the old points back under resampled, re-placed pixels.
+    /// </summary>
+    [Fact]
+    public void UndoingAResizeRestoresABakedStrokesPixelsAndPlacement()
+    {
+        var doc = DocWithAStroke(out var stroke);
+        stroke.Baked = new BakedSample { PngBase64 = "ORIGINAL", X = 30, Y = 40 };
+        var editor = new DocumentEditor(doc);
+
+        editor.Perform(d => ImageResize.Apply(d, 1920, 1080, new FakeResampler()), "Resize image");
+        var scaled = editor.Doc.Scene.Layers[0].Cels[0].Frame!.Strokes[0].Baked!;
+        Assert.Equal("ORIGINAL@scaled", scaled.PngBase64);
+        Assert.Equal(60, scaled.X);
+        Assert.Equal(80, scaled.Y);
+
+        editor.Undo();
+        var restored = editor.Doc.Scene.Layers[0].Cels[0].Frame!.Strokes[0].Baked!;
+        Assert.Equal("ORIGINAL", restored.PngBase64);
+        Assert.Equal(30, restored.X);
+        Assert.Equal(40, restored.Y);
+    }
+
     [Fact]
     public void EveryCoordinateOnTheSceneIsAccountedFor()
     {

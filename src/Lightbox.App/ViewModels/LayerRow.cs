@@ -17,6 +17,21 @@ public sealed partial class GroupRow : ObservableObject
     {
         _owner = owner;
         Group = group;
+        SyncFromModel(group);
+    }
+
+    /// <summary>The folder this header mirrors.</summary>
+    /// <remarks>
+    /// Settable because the header outlives a panel rebuild: an undo can hand
+    /// back a scene whose folder is a different object with the same id, and
+    /// the header is kept — so its control is kept — rather than rebuilt.
+    /// </remarks>
+    public LayerGroup Group { get; private set; }
+
+    /// <summary>Re-read the folder after an edit, without writing anything back.</summary>
+    internal void SyncFromModel(LayerGroup group)
+    {
+        Group = group;
         _syncing = true;
         Name = group.Name;
         Visible = group.Visible;
@@ -26,7 +41,12 @@ public sealed partial class GroupRow : ObservableObject
         _syncing = false;
     }
 
-    public LayerGroup Group { get; }
+    /// <summary>
+    /// The folder itself is picked — clicked on its header — so a new layer
+    /// goes inside it, and its members are the docker's selection.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSelected;
 
     [ObservableProperty]
     private string _name = "";
@@ -70,7 +90,7 @@ public sealed partial class GroupRow : ObservableObject
 
     public bool DropAbove => DropHint == LayerDropHint.Above;
 
-    public bool DropBelow => DropHint == LayerDropHint.Below;
+    public bool DropBelow => DropHint is LayerDropHint.Below or LayerDropHint.BelowFolder;
 
     public bool DropInto => DropHint == LayerDropHint.Into;
 
@@ -144,7 +164,7 @@ public sealed partial class LayerRow : ObservableObject
 
     public bool DropAbove => DropHint == LayerDropHint.Above;
 
-    public bool DropBelow => DropHint == LayerDropHint.Below;
+    public bool DropBelow => DropHint is LayerDropHint.Below or LayerDropHint.BelowFolder;
 
     public bool DropInto => DropHint == LayerDropHint.Into;
 

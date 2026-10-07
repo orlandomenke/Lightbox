@@ -89,6 +89,17 @@ public sealed class AppSettings
     public bool ShowStartScreen { get; set; } = true;
 
     /// <summary>
+    /// How big the panels, bars and menus are drawn, as a factor (1.0 = 100%).
+    /// See <see cref="Services.UiScale"/> — the canvas is never scaled by it.
+    /// </summary>
+    /// <remarks>
+    /// About the person and their screen, never the artwork: it changes no
+    /// pixel of any document, so it lives here and not in a workspace —
+    /// switching workspaces must not change how big the text is.
+    /// </remarks>
+    public double UiScale { get; set; } = 1.0;
+
+    /// <summary>
     /// Whether to open a console window at startup for the diagnostic traces.
     /// </summary>
     /// <remarks>

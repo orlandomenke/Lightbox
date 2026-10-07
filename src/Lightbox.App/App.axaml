@@ -227,6 +227,10 @@
       <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
       <Setter Property="Template">
         <ControlTemplate>
+          <!-- Scaled inside the template, not around the bar: the bar's own
+               bounds stay in canvas coordinates, which is what its drag and
+               its edge placement are computed in (Q200). -->
+          <controls:ScaledChrome>
           <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="2"
                   BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
             <StackPanel Spacing="2"
@@ -263,6 +267,7 @@
               </Button>
             </StackPanel>
           </Border>
+          </controls:ScaledChrome>
         </ControlTemplate>
       </Setter>
     </Style>

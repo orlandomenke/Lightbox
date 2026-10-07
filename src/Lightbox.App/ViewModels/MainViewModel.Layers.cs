@@ -195,6 +195,7 @@ public partial class MainViewModel
         var target = targetRow.Layer;
         if (dragged.Id == target.Id) return;
         if (!CanReorderPastPaper(dragged, target, above)) return;
+        if (dragged.GroupId == target.GroupId && !ReorderChanges([dragged.Id], target.Id, above)) return;
         _editor.Perform(doc =>
         {
             var layers = doc.Scene.Layers;
@@ -246,6 +247,7 @@ public partial class MainViewModel
 
         var movingIds = moving.Select(l => l.Id).ToHashSet();
         var anchorId = above ? block[^1].Id : block[0].Id;
+        if (!ReorderChanges(movingIds, anchorId, above)) return;
         _editor.Perform(doc =>
         {
             var layers = doc.Scene.Layers;
@@ -263,6 +265,26 @@ public partial class MainViewModel
             layers.InsertRange(above ? at + 1 : at, run);
         }, label: "Move folder", frameContentUnchanged: true);
         ActiveLayerIndex = Scene.Layers.FindIndex(l => movingIds.Contains(l.Id));
+    }
+
+    /// <summary>
+    /// Whether lifting <paramref name="moving"/> out of the stack and putting
+    /// it back beside <paramref name="anchorId"/> would change the order.
+    /// </summary>
+    /// <remarks>
+    /// A drop beside a row's own neighbour, on the side it already sits, moves
+    /// nothing — and used to be an undo step, a dirty document and a panel
+    /// rebuild anyway. Measuring every row of the docker makes such a drop
+    /// easy to make, so it is now refused before it is recorded.
+    /// </remarks>
+    private bool ReorderChanges(IReadOnlyCollection<string> moving, string anchorId, bool above)
+    {
+        var before = Scene.Layers.Select(l => l.Id).ToList();
+        var rest = before.Where(id => !moving.Contains(id)).ToList();
+        var at = rest.IndexOf(anchorId);
+        if (at < 0) return false;
+        rest.InsertRange(above ? at + 1 : at, before.Where(moving.Contains));
+        return !rest.SequenceEqual(before);
     }
 
     /// <summary>
@@ -299,6 +321,7 @@ public partial class MainViewModel
         var anchor = above ? block[^1] : block[0];
         if (!CanReorderPastPaper(dragged, anchor, above)) return;
         var anchorId = anchor.Id;
+        if (dragged.GroupId is null && !ReorderChanges([dragged.Id], anchorId, above)) return;
         _editor.Perform(doc =>
         {
             var layers = doc.Scene.Layers;
@@ -317,6 +340,88 @@ public partial class MainViewModel
             layer.GroupId = null;
         }, label: "Move layer", frameContentUnchanged: true);
         ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == dragged.Id);
+    }
+
+    /// <summary>What kind of row a docker item is, as far as a drop cares.</summary>
+    internal LayerDropTarget LayerDropTargetOf(object item)
+    {
+        switch (item)
+        {
+            case GroupRow header:
+                return header.Group.Collapsed ? LayerDropTarget.CollapsedFolder : LayerDropTarget.OpenFolder;
+            case LayerRow { Layer.GroupId: { } groupId } row:
+                var at = LayerPanelItems.IndexOf(row);
+                var next = at >= 0 && at + 1 < LayerPanelItems.Count ? LayerPanelItems[at + 1] : null;
+                if (next is LayerRow { Layer.GroupId: { } nextGroup } && nextGroup == groupId)
+                {
+                    return LayerDropTarget.GroupedLayer;
+                }
+                return next is null ? LayerDropTarget.BottomGroupedLayer : LayerDropTarget.LastGroupedLayer;
+            default:
+                return LayerDropTarget.LooseLayer;
+        }
+    }
+
+    /// <summary>
+    /// What dropping <paramref name="carried"/> on <paramref name="target"/>,
+    /// <paramref name="fraction"/> of the way down it, would do — or None when
+    /// it would do nothing, so no line is drawn that the drop then declines.
+    /// </summary>
+    internal LayerDropHint LayerDropHintFor(object carried, object target, double fraction)
+    {
+        if (ReferenceEquals(carried, target)) return LayerDropHint.None;
+        var kind = LayerDropTargetOf(target);
+        switch (carried)
+        {
+            case GroupRow folder:
+                // On its own header or its own members: the move that means nothing.
+                if (target is GroupRow h && h.Group.Id == folder.Group.Id) return LayerDropHint.None;
+                if (target is LayerRow m && m.Layer.GroupId == folder.Group.Id) return LayerDropHint.None;
+                var forFolder = LayerDropPlan.Resolve(fraction, kind, draggingFolder: true);
+                if (forFolder == LayerDropHint.Below && target is LayerRow { Layer.IsBackground: true })
+                {
+                    return LayerDropHint.None;
+                }
+                return forFolder;
+            case LayerRow row:
+                if (row.Layer.IsBackground) return LayerDropHint.None; // the paper never moves
+                var hint = LayerDropPlan.Resolve(fraction, kind, draggingFolder: false);
+                if (hint == LayerDropHint.Below && target is LayerRow { Layer.IsBackground: true })
+                {
+                    return LayerDropHint.None; // nothing goes under the paper
+                }
+                return hint;
+            default:
+                return LayerDropHint.None;
+        }
+    }
+
+    /// <summary>
+    /// Carry out a drop in the layer docker. One undo step, or none when the
+    /// drop changes nothing.
+    /// </summary>
+    internal void DropOnLayerPanel(object carried, object target, LayerDropHint hint)
+    {
+        if (hint == LayerDropHint.None) return;
+        var above = hint == LayerDropHint.Above;
+        switch (carried, target)
+        {
+            case (GroupRow folder, _):
+                DropGroupBeside(folder.Group, target, above);
+                break;
+            case (LayerRow row, LayerRow { Layer.GroupId: { } groupId }) when hint == LayerDropHint.BelowFolder:
+                if (_groupRows.TryGetValue(groupId, out var home)) DropLayerBesideGroup(row, home, above: false);
+                break;
+            case (LayerRow row, LayerRow onto):
+                DropLayerOnRow(row, onto, above);
+                break;
+            case (LayerRow row, GroupRow header) when hint == LayerDropHint.Into:
+                MoveLayerIntoGroup(row.Layer, header.Group);
+                break;
+            case (LayerRow row, GroupRow header):
+                DropLayerBesideGroup(row, header, above);
+                break;
+        }
     }
 
     /// <summary>Clear every row's drop hint — called from every exit of a drag.</summary>
@@ -353,20 +458,94 @@ public partial class MainViewModel
     /// <summary>The docker's item list: folder headers followed by their (uncollapsed) member rows.</summary>
     public ObservableCollection<object> LayerPanelItems { get; } = [];
 
+    /// <summary>Folder headers by folder id, kept across rebuilds so their controls are too.</summary>
+    private readonly Dictionary<string, GroupRow> _groupRows = [];
+
+    /// <summary>
+    /// Bring the docker's list in line with the stack, touching only what changed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This used to clear the list and add everything back</b> on every
+    /// edit — a reorder, an eye toggle, a rename. Each row is a heavy template
+    /// (a context menu of thirty-odd items, three toggles, a thumbnail, chips),
+    /// so every one of those tore down and re-inflated the whole docker, and a
+    /// drag ended in a visible stall.
+    /// </para>
+    /// <para>
+    /// <see cref="LayerRows"/> are already reused by position — a reorder
+    /// re-points them rather than replacing them — so for a stack with no
+    /// folders a reorder now changes nothing in this list at all. Headers are
+    /// kept by folder id for the same reason.
+    /// </para>
+    /// </remarks>
     private void RebuildLayerPanel()
     {
-        LayerPanelItems.Clear();
+        var desired = new List<object>(LayerRows.Count + 4);
         var emitted = new HashSet<string>();
         foreach (var row in LayerRows) // topmost first
         {
             var group = Scene.GroupOf(row.Layer);
             if (group is null)
             {
-                LayerPanelItems.Add(row);
+                desired.Add(row);
                 continue;
             }
-            if (emitted.Add(group.Id)) LayerPanelItems.Add(new GroupRow(this, group));
-            if (!group.Collapsed) LayerPanelItems.Add(row);
+            if (emitted.Add(group.Id))
+            {
+                if (_groupRows.TryGetValue(group.Id, out var header)) header.SyncFromModel(group);
+                else _groupRows[group.Id] = header = new GroupRow(this, group);
+                desired.Add(header);
+            }
+            if (!group.Collapsed) desired.Add(row);
+        }
+        foreach (var gone in _groupRows.Keys.Where(id => !emitted.Contains(id)).ToList())
+        {
+            _groupRows.Remove(gone);
+        }
+
+        PatchInPlace(LayerPanelItems, desired);
+        RefreshGroupSelectionHighlights();
+    }
+
+    /// <summary>
+    /// Turn <paramref name="items"/> into <paramref name="desired"/> by removing
+    /// and inserting only what is not already in order.
+    /// </summary>
+    /// <remarks>
+    /// The items kept are a longest common subsequence of the two lists, so a
+    /// row dragged from the top to the bottom is one removal and one insertion
+    /// rather than every row it passed shuffling up by one. The list is a
+    /// docker's worth of rows; quadratic is nothing here.
+    /// </remarks>
+    internal static void PatchInPlace(IList<object> items, IReadOnlyList<object> desired)
+    {
+        var n = items.Count;
+        var m = desired.Count;
+        var lcs = new int[n + 1, m + 1];
+        for (var i = n - 1; i >= 0; i--)
+        {
+            for (var j = m - 1; j >= 0; j--)
+            {
+                lcs[i, j] = ReferenceEquals(items[i], desired[j])
+                    ? lcs[i + 1, j + 1] + 1
+                    : Math.Max(lcs[i + 1, j], lcs[i, j + 1]);
+            }
+        }
+        var keep = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        for (int i = 0, j = 0; i < n && j < m;)
+        {
+            if (ReferenceEquals(items[i], desired[j])) { keep.Add(items[i]); i++; j++; }
+            else if (lcs[i + 1, j] >= lcs[i, j + 1]) i++;
+            else j++;
+        }
+        for (var i = n - 1; i >= 0; i--)
+        {
+            if (!keep.Contains(items[i])) items.RemoveAt(i);
+        }
+        for (var j = 0; j < m; j++)
+        {
+            if (j >= items.Count || !ReferenceEquals(items[j], desired[j])) items.Insert(j, desired[j]);
         }
     }
 
@@ -392,9 +571,15 @@ public partial class MainViewModel
     /// folder stays contiguous. Shared by the header's ＋ button and dropping a
     /// dragged row on the header.
     /// </summary>
+    /// <remarks>
+    /// A layer already in the folder still moves to its top: dropping a member
+    /// back on its own header is how an artist says "first in this folder", and
+    /// a gesture that draws its hint and then does nothing reads as broken.
+    /// </remarks>
     internal void MoveLayerIntoGroup(Layer layer, LayerGroup group)
     {
-        if (layer.GroupId == group.Id) return;
+        if (layer.GroupId == group.Id
+            && Scene.Layers.LastOrDefault(l => l.GroupId == group.Id)?.Id == layer.Id) return;
         if (layer.IsBackground)
         {
             // Filing the paper into a folder moves it up the stack to join that
@@ -517,12 +702,21 @@ public partial class MainViewModel
         CurrentFrameIndex++;
     }
 
+    /// <summary>
+    /// The timeline bar's 🗑: take the playhead's frame out of the scene.
+    /// </summary>
+    /// <remarks>
+    /// A column verb, like the ➕ and ⧉ beside it — those two add a frame to
+    /// every layer, so this one removes it from every layer. It goes through
+    /// the same path as an X-sheet <em>Delete and pull</em> on a column
+    /// selection, so it refuses on a locked layer and keeps the paper, rather
+    /// than being the one route that did neither.
+    /// </remarks>
     [RelayCommand]
     private void DeleteFrame()
     {
         if (Scene.FrameCount <= 1) return;
-        _editor.DeleteFrame(CurrentFrameIndex);
-        CurrentFrameIndex = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
+        DeleteColumns([CurrentFrameIndex]);
     }
 
     /// <summary>Whether there is a step to take back — the Edit menu greys out on it.</summary>
@@ -1357,13 +1551,31 @@ public partial class MainViewModel
     }
 
     /// <remarks>
+    /// <para>
     /// <paramref name="kind"/> is still written, because <c>Layer.Kind</c> is kept
     /// as provenance — it records where a layer's content came from, and every
     /// layer created in the app comes from the same place. It no longer picks a
     /// frame class, because there is one.
+    /// </para>
+    /// <para>
+    /// <b>Where it lands</b> is where the artist is working, which is what every
+    /// painting app has taught them: directly above the active layer, and in
+    /// the active layer's folder; or, with a folder header picked, at the top of
+    /// that folder. It used to go on top of the whole stack whatever was picked,
+    /// so a new layer for a character in a folder arrived outside the folder,
+    /// above everything, and had to be dragged home.
+    /// </para>
     /// </remarks>
     private void AddLayer(LayerKind kind)
     {
+        var (anchorId, groupId) = NewLayerPlacement();
+        // A new layer filed into a collapsed folder would be active and have no
+        // row to show it. Opening the folder is a view preference, not an edit.
+        if (groupId is not null && Scene.LayerGroups.FirstOrDefault(g => g.Id == groupId) is { Collapsed: true } closed)
+        {
+            closed.Collapsed = false;
+        }
+        string? addedId = null;
         _editor.Perform(doc =>
         {
             var layer = new Layer
@@ -1371,11 +1583,38 @@ public partial class MainViewModel
                 Name = $"Paint {doc.Scene.Layers.Count + 1}",
                 Kind = kind,
                 Cels = [new Cel { Frame = new Frame() }],
+                GroupId = groupId,
             };
             while (layer.Cels.Count < doc.Scene.FrameCount) layer.Cels.Add(new Cel());
-            doc.Scene.Layers.Add(layer);
+            var layers = doc.Scene.Layers;
+            var at = anchorId is null ? -1 : layers.FindIndex(l => l.Id == anchorId);
+            if (at < 0) layers.Add(layer);
+            else layers.Insert(at + 1, layer);
+            addedId = layer.Id;
         }, frameContentUnchanged: true);
-        ActiveLayerIndex = Scene.Layers.Count - 1;
+        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == addedId);
+    }
+
+    /// <summary>
+    /// The layer a new one goes directly above, and the folder it joins.
+    /// </summary>
+    /// <returns>
+    /// A null anchor means the top of the stack — an empty document, or no
+    /// active layer to speak of.
+    /// </returns>
+    private (string? AnchorId, string? GroupId) NewLayerPlacement()
+    {
+        if (SelectedGroup is { } group)
+        {
+            var top = Scene.Layers.LastOrDefault(l => l.GroupId == group.Id);
+            if (top is not null) return (top.Id, group.Id);
+        }
+        if (ActiveLayerIndex >= 0 && ActiveLayerIndex < Scene.Layers.Count)
+        {
+            var active = Scene.Layers[ActiveLayerIndex];
+            return (active.Id, active.GroupId);
+        }
+        return (null, null);
     }
 
     [RelayCommand]
@@ -1392,6 +1631,11 @@ public partial class MainViewModel
     [RelayCommand]
     private void SelectFrame(FrameCell cell)
     {
+        // A cel click picks a layer, so a folder picked on its header stops
+        // being the pick — even when the layer it lands on was already active
+        // and no change notification will say so.
+        _selectedGroupId = null;
+        RefreshGroupSelectionHighlights();
         if (cell.LayerIndex >= 0 && cell.LayerIndex < Scene.Layers.Count)
             ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = cell.Index;

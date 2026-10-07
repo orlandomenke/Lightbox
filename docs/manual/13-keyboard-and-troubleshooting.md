@@ -325,6 +325,17 @@ Recording is off until you switch it on, and switching it on again starts a
 fresh recording — so a second attempt at catching something is never read
 through the first.
 
+### Renaming with a pen
+
+**Double-clicking a name with the pen opens it for typing and keeps it open**,
+the same as with a mouse — a layer, a folder, or any other name the app lets
+you double-click to change. It used to close again the instant it opened: a pen
+hands the keyboard over when it *lifts*, where a mouse does when it presses,
+and the lift was landing on the row behind the box that had just appeared.
+Tablets that send a mouse alongside the pen had a second way to do the same.
+Now a tap or lift that lands inside the box you are typing in stays in it; tap
+anywhere else, or press Enter or Esc, to finish.
+
 ### If the pointer flickers or hover panels collapse, record an input trace
 
 On some tablets — Huion's are the ones reported so far — the brush ring and the

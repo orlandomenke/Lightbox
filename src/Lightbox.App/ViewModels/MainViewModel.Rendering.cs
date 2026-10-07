@@ -894,6 +894,23 @@ public partial class MainViewModel
     /// </summary>
     private void AppendToFrameRender(Lightbox.Core.Documents.Frame target, Stroke stroke)
     {
+        if (_cache.Rig.IsPosed(target))
+        {
+            // B382. A posed drawing's cached pixels are a pose of the record,
+            // keyed by cel, and the stroke now holds rest geometry: stamping it
+            // onto that bitmap would put a rest-space mark inside a posed
+            // picture, and onto cel 0's entry whatever the playhead says. The
+            // record changed, so the render is rebuilt from it — the one route
+            // that is exact for a rig, and the one the undo of this same mark
+            // already takes (RepaintRegion refuses a posed frame). The cost is
+            // real and recorded under B382: a pen lift on a posed drawing
+            // re-renders that drawing from its record, where an unrigged one
+            // appends one stroke. Appending the posed stroke to the playhead's
+            // cel entry would be exact for THAT cel and leave every other cel
+            // of a held drawing stale, which is why it is not done.
+            InvalidateFrameRender(target.Id);
+            return;
+        }
         // Unconditionally, now that playback warms the tile cache on bounded
         // documents too: a no-op for a frame tiles do not hold, and a stroke
         // tiles cannot say evicts the frame's entry itself. Skipping this on
@@ -1370,6 +1387,7 @@ public partial class MainViewModel
             // `this` allocates a closure and a delegate on every publish, and a
             // publish happens per pointer event while drawing.
             _passTransformSplit ??= TransformSplitFor,
+            TransformMesh: _transform.CageMesh,
             MaskEditing: EditingLayerMask,
             TipScratch: BuildLiveTip(),
             TipBounds: _live.TipUsed,

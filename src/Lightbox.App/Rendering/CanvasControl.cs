@@ -1247,7 +1247,7 @@ public sealed partial class CanvasControl : Control
         set
         {
             if (_txPerspective == value) return;
-            if (value) { SeedQuadFromCorners(); TxDropBands(); }
+            if (value) { SeedQuadFromCorners(); TxDropGridModes(); }
             _txPerspective = value;
             InvalidateVisual();
         }
@@ -1261,7 +1261,7 @@ public sealed partial class CanvasControl : Control
         _txPivotY = (minY + maxY) / 2;
         _txScaleX = 1; _txScaleY = 1; _txAngle = 0; _txDx = 0; _txDy = 0;
         _txPerspective = false;
-        TxResetBands();
+        TxResetGridModes();
         _txDrag = TxDrag.None;
         SeedQuadFromCorners();
         InvalidateVisual();
@@ -1271,7 +1271,7 @@ public sealed partial class CanvasControl : Control
     {
         _txActive = false;
         _txDrag = TxDrag.None;
-        TxDropBands();
+        TxDropGridModes();
         InvalidateVisual();
     }
 
@@ -1303,7 +1303,7 @@ public sealed partial class CanvasControl : Control
     public void ResetTransformGizmo()
     {
         _txScaleX = 1; _txScaleY = 1; _txAngle = 0; _txDx = 0; _txDy = 0;
-        SeedQuadFromCorners();
+        TxReseedShapes();
         TransformGizmoChanged?.Invoke();
         InvalidateVisual();
     }
@@ -1360,7 +1360,7 @@ public sealed partial class CanvasControl : Control
 
     /// <summary>True when the gizmo is still identity (nothing to commit).</summary>
     /// <remarks>Band mode asks its own axes — see TxAffineIsIdentity.</remarks>
-    public bool TransformIsIdentity => _txBands ? TransformBandsAreIdentity : TxAffineIsIdentity;
+    public bool TransformIsIdentity => TxGridModeIdentity ?? TxAffineIsIdentity;
 
     private (double X, double Y) TxMap(double x, double y)
     {
@@ -1898,7 +1898,7 @@ public sealed partial class CanvasControl : Control
                 new SKPoint((float)c[2].X, (float)c[2].Y),
                 new SKPoint((float)c[3].X, (float)c[3].Y),
                 new SKPoint((float)pivot.X, (float)pivot.Y),
-                _txPerspective, TxBandOverlayNow());
+                _txPerspective, TxBandOverlayNow(), TxCageOverlayNow());
         }
 
         // Take the queued context work, if any, and hand it over exactly once.
@@ -1917,7 +1917,7 @@ public sealed partial class CanvasControl : Control
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
             BoneChromes, BonesArePosed, HeatPoints, _hoveredLines,
             FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints, MotionArc,
-            CropSurfaceRect(), Symmetry));
+            CropSurfaceRect(), Symmetry, TiledPreview));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -2408,7 +2408,7 @@ public sealed partial class CanvasControl : Control
 
             if (_txActive && ToolMode == CanvasToolMode.Transform)
             {
-                if (TxBandPressHandled(x, y, e)) return;
+                if (TxGridModePressHandled(x, y, e)) return;
                 (_txDrag, _txHandle) = TxHitTest(x, y);
                 _txDragStart = (x, y);
                 _txStart = (_txScaleX, _txScaleY, _txAngle, _txDx, _txDy);
@@ -3120,7 +3120,7 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
-            if (TxBandMoveHandled(e)) return;
+            if (TxGridModeMoveHandled(e)) return;
 
             if (_txActive && _txDrag != TxDrag.None)
             {
@@ -3409,7 +3409,7 @@ public sealed partial class CanvasControl : Control
             e.Handled = true;
             return;
         }
-        if (TxBandReleaseHandled(e)) return;
+        if (TxGridModeReleaseHandled(e)) return;
         if (_txActive && _txDrag != TxDrag.None)
         {
             _txDrag = TxDrag.None;
@@ -3838,7 +3838,7 @@ public sealed partial class CanvasControl : Control
     /// <summary>Transform gizmo, all in document space: the transformed quad, pivot, and mode.</summary>
     private readonly record struct TxGizmoData(
         SKPoint C0, SKPoint C1, SKPoint C2, SKPoint C3, SKPoint Pivot, bool Perspective,
-        TxBandOverlay? Bands = null);
+        TxBandOverlay? Bands = null, TxCageOverlay? Cage = null);
 
     /// <summary>
     /// Decomposed view transform for the render thread — primitive canvas ops
@@ -3927,7 +3927,7 @@ public sealed partial class CanvasControl : Control
         bool fillPreviewWand = false,
         SKColor fillPreviewColor = default,
         TrailOverlay? trail = null, Core.Timeline.MotionArcOverlay? motionArc = null,
-        SKRect? cropFrame = null, Core.Documents.SymmetryAxis? symmetry = null) : ICustomDrawOperation
+        SKRect? cropFrame = null, Core.Documents.SymmetryAxis? symmetry = null, bool tiled = false) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4055,7 +4055,7 @@ public sealed partial class CanvasControl : Control
                 ToPainterLines(guides),
                 draftGuide is { } d ? ToPainterLine(d) : null,
                 snapshot.DocViewport,
-                ChannelSoloFilters.For(solo));
+                ChannelSoloFilters.For(solo), tiled);
             DrawCameraFrame(canvas);
             DrawSymmetryAxis(canvas);
             DrawGradientAxis(canvas);
@@ -4678,7 +4678,7 @@ public sealed partial class CanvasControl : Control
                 }
             }
 
-            if (DrawBandsInstead(canvas, g, scale)) return;
+            if (DrawGridModeInstead(canvas, g, scale)) return;
 
             // Pivot: ring + crosshair, clearly grabbable.
             using var pivotPaint = new SKPaint

@@ -313,7 +313,49 @@ public partial class ConfigureWindow : Window
         LoadDrawingPage();
         LoadAiPage();
         LoadLibraryPage();
+        LoadInterfacePage();
     }
+
+    // ---- Interface page ----------------------------------------------------
+
+    /// <summary>
+    /// True until the page has been loaded, not just while it is: the slider
+    /// raises ValueChanged from inside InitializeComponent as its Minimum
+    /// coerces it to 75, and taking that as the artist's choice set every
+    /// interface to 75% the moment this window was opened.
+    /// </summary>
+    private bool _loadingInterface = true;
+
+    private void LoadInterfacePage()
+    {
+        if (_vm is null) return;
+        _loadingInterface = true;
+        UiScaleSlider.Value = _vm.UiScalePercent;
+        UiScaleBox.Value = (decimal)_vm.UiScalePercent;
+        _loadingInterface = false;
+    }
+
+    /// <summary>
+    /// Both controls write the view model and then read it back, so the one
+    /// not being touched shows the value that actually applied — the snapped,
+    /// clamped one, not the raw drag position or the half-typed number.
+    /// </summary>
+    private void SetUiScale(double percent)
+    {
+        if (_loadingInterface || _vm is null) return;
+        _vm.UiScalePercent = percent;
+        LoadInterfacePage();
+    }
+
+    private void OnUiScaleSliderChanged(object? sender, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e) =>
+        SetUiScale(e.NewValue);
+
+    private void OnUiScaleBoxChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (e.NewValue is { } value) SetUiScale((double)value);
+    }
+
+    private void OnUiScaleReset(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => SetUiScale(100);
 
     // ---- Library page ------------------------------------------------------
 
@@ -1320,7 +1362,7 @@ public partial class ConfigureWindow : Window
     {
         if (ShortcutsPage is null || PerformancePage is null || FeaturesPage is null
             || GuidesPage is null || TimelinePage is null || DrawingPage is null
-            || ExportPage is null || AiPage is null || LibraryPage is null)
+            || ExportPage is null || AiPage is null || LibraryPage is null || InterfacePage is null)
         {
             return;
         }
@@ -1332,11 +1374,12 @@ public partial class ConfigureWindow : Window
         TimelinePage.IsVisible = page == 4;
         DrawingPage.IsVisible = page == 5;
         ExportPage.IsVisible = page == 6;
-        // Library sits before AI: the AI page stays the last category,
+        // Library and Interface sit before AI: the AI page stays the last category,
         // which TheAiPageIsTheLastCategoryAndHiddenUntilChosen asserts on
         // purpose — appending here is how that test earns its keep.
         LibraryPage.IsVisible = page == 7;
-        AiPage.IsVisible = page == 8;
+        InterfacePage.IsVisible = page == 8;
+        AiPage.IsVisible = page == 9;
         if (page == 1) RefreshMeasured();
         if (page == 2) RefreshFeatures();
         // Rebuilt on the way in: a grid may have been placed since the window

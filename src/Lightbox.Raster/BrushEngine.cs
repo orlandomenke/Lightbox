@@ -946,11 +946,39 @@ public static class BrushEngine
     /// </remarks>
     public static SKMatrix?[] SymmetryCopies(Stroke stroke)
     {
-        if (stroke.Symmetry is not { IsIdentity: false } axis) return NoSymmetry;
+        var axis = stroke.Symmetry is { IsIdentity: false } a ? a : null;
+        var wrap = stroke.Wrap is { IsIdentity: false } w ? w : null;
+        if (axis is null && wrap is null) return NoSymmetry;
 
-        var placements = axis.Placements();
-        var copies = new SKMatrix?[placements.Length];
-        for (var i = 0; i < placements.Length; i++) copies[i] = SymmetryMatrix(axis, placements[i]);
+        // The symmetry copies alone — the identity first, as null.
+        SKMatrix?[] mirrored;
+        if (axis is null)
+        {
+            mirrored = NoSymmetry;
+        }
+        else
+        {
+            var placements = axis.Placements();
+            mirrored = new SKMatrix?[placements.Length];
+            for (var i = 0; i < placements.Length; i++) mirrored[i] = SymmetryMatrix(axis, placements[i]);
+        }
+        if (wrap is null) return mirrored;
+
+        // Wrap × symmetry (Q192): every symmetry copy, in the tile and in each
+        // of its eight neighbours. Translating the canvas keeps Hash01's input
+        // the authored coordinates, exactly as reflecting it does — so the
+        // copy that comes in on the far edge IS the mark, moved. The null
+        // identity stays first and stays null; a translated identity is a
+        // real matrix, so it goes through Skia's transform path like any copy.
+        var offsets = wrap.OffsetsFor(stroke.Points);
+        var copies = new SKMatrix?[mirrored.Length * (offsets.Length + 1)];
+        var n = 0;
+        foreach (var m in mirrored) copies[n++] = m;
+        foreach (var (dx, dy) in offsets)
+        {
+            var t = SKMatrix.CreateTranslation((float)dx, (float)dy);
+            foreach (var m in mirrored) copies[n++] = m is { } s ? t.PreConcat(s) : t;
+        }
         return copies;
     }
 

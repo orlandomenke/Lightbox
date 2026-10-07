@@ -422,6 +422,12 @@ public partial class MainWindow
                 ToggleTransformBands();
                 e.Handled = true;
                 break;
+            case "canvas.transformCage":
+                // Same shape as the bands: one press opens a session in cage mode.
+                if (!_vm.TransformActive) _vm.BeginTransform();
+                ToggleTransformCage();
+                e.Handled = true;
+                break;
             case "project.refresh":
                 // Harmless with no project — the command guards on it — so this
                 // does not need a HasProject check that could drift from the one
@@ -479,10 +485,19 @@ public partial class MainWindow
             case "timeline.insertKey":
                 _vm.InsertKeyframeAtPlayhead();
                 break;
-            case "timeline.deleteColumn":
-                // The playhead, because a shortcut has no cel under a pointer —
-                // the menu route passes the cel that was clicked.
-                _vm.DeleteColumnAt(_vm.CurrentFrameIndex);
+            // The selection, or the playhead's cel when nothing is selected,
+            // because a shortcut has no cel under a pointer — the menu route
+            // passes the cel that was clicked.
+            case "xsheet.delete":
+                _vm.ClearCelAtPlayhead();
+                e.Handled = true;
+                break;
+            case "xsheet.deleteAndPull":
+                _vm.DeleteCelAtPlayhead();
+                e.Handled = true;
+                break;
+            case "xsheet.insertBlankFrame":
+                _vm.InsertBlankFrameAtPlayhead();
                 e.Handled = true;
                 break;
             case "timeline.copyKeys":
@@ -543,13 +558,18 @@ public partial class MainWindow
             // a reason the artist cannot see. Copying a cel while a marquee is
             // up is Ctrl+D first, or the timeline's own right-click menu, which
             // is always the cel whatever is selected.
+            // A layer row or an X-sheet layer name having focus is the one case
+            // where the key can only mean a layer, so it is checked first — the
+            // focus is the artist's own statement of what they are working on.
             case "timeline.copyCel":
+                if (LayerSurfaceHasFocus() && _vm.CopyLayers()) break;
                 if (!_vm.CopySelectedLines()) _vm.CopyCurrentCel();
                 break;
             case "timeline.cutCel":
                 if (!_vm.CutSelectedLines()) _vm.CutCurrentCel();
                 break;
             case "timeline.pasteCel":
+                if (LayerSurfaceHasFocus() && _vm.HasLayerClipboard && _vm.PasteLayers()) break;
                 // Paste asks which clipboard is NEWER rather than which has
                 // content: both can hold something at once, and the artist
                 // means the last thing they copied.
@@ -557,6 +577,12 @@ public partial class MainWindow
                 {
                     _vm.PasteCurrentCel();
                 }
+                break;
+            case "edit.copyLayers":
+                _vm.CopyLayers();
+                break;
+            case "edit.pasteLayers":
+                _vm.PasteLayers();
                 break;
             case "edit.copyLines":
                 _vm.CopySelectedLines();
@@ -632,6 +658,9 @@ public partial class MainWindow
                 break;
             case "brush.symmetry":
                 _vm.SymmetryEnabled = !_vm.SymmetryEnabled;
+                break;
+            case "brush.tileWrap":
+                _vm.TileWrapEnabled = !_vm.TileWrapEnabled;
                 break;
             case "canvas.resetView":
                 Canvas.ResetView();

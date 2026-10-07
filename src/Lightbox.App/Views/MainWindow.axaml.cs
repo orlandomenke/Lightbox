@@ -271,6 +271,10 @@ public partial class MainWindow : Window
         ShapeToolButton.AddHandler(PointerPressedEvent, OnShapeToolPressed, RoutingStrategies.Tunnel);
         ShapeToolButton.AddHandler(PointerReleasedEvent, OnSelectToolReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
 
+        // Also installed by App at startup; here too so a window built directly
+        // (every headless test) has it. Idempotent, and process-wide once on.
+        Services.TextEditFocusGuard.Install();
+
         // Timeline cel interactions that need modifiers or drag (buttons eat
         // plain pointer events): Shift+click range select, drag-a-cel drop.
         AddHandler(PointerPressedEvent, OnTimelinePointerPressed, RoutingStrategies.Tunnel);
@@ -295,6 +299,7 @@ public partial class MainWindow : Window
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, OnFileDragOver);
         AddHandler(DragDrop.DropEvent, OnFileDrop);
+        WireLayerListPointer();
 
         // Two things move a panel in or out of a strip without the layout
         // changing: a project appearing (the project panel is absent until

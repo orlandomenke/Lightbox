@@ -666,6 +666,50 @@ public partial class MainViewModel
             ? "Scope is this drawing while lines are picked — a line lives on one drawing."
             : "";
 
+    /// <summary>
+    /// The drawings the session judges and previews by — a posed frame as
+    /// the canvas shows it at the playhead, every other frame as it is.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B381.</b> The record holds a rigged drawing at rest; what the artist
+    /// boxes, drags and reads the gizmo against is the posed picture. So the
+    /// marquee's classification, the box round the drawing, the moving/static
+    /// preview split and the crossing test all read this view, and the commit
+    /// writes back through <c>Skinning.PoseSpaceMover</c>. A frame that
+    /// renders at rest at this playhead — unrigged, or exposed somewhere the
+    /// pose does not reach — is handed back as itself, and that branch is the
+    /// one every ordinary document takes.
+    /// </para>
+    /// <para>
+    /// Built once per session and per frame: posing densifies the record, and
+    /// the drag asks for this on every pointer event. The view keeps the
+    /// record's stroke ids, which is what lets a filter built from it answer
+    /// for the record's own strokes.
+    /// </para>
+    /// </remarks>
+    private Frame PosedForTransform(Frame frame)
+    {
+        if (!_cache.Rig.IsPosed(frame)) return frame;
+        // The playhead can move while a gizmo session is open; a view posed
+        // for the old position would then disagree with the commit, which
+        // reads the pose at the position the artist is standing on.
+        if (_posedViewsAt != CurrentFrameIndex)
+        {
+            _posedViews.Clear();
+            _posedViewsAt = CurrentFrameIndex;
+        }
+        if (_posedViews.TryGetValue(frame.Id, out var view)) return view;
+        view = Skinning.PoseFrameForRender(Doc, frame, CurrentFrameIndex, _cache.Rig);
+        _posedViews[frame.Id] = view;
+        return view;
+    }
+
+    private List<Frame> PosedViews(List<Frame> frames) => frames.ConvertAll(PosedForTransform);
+
+    private readonly Dictionary<string, Frame> _posedViews = [];
+    private int _posedViewsAt = -1;
+
     /// <summary>Distinct drawings in scope (holds share Frame instances — dedupe by id).</summary>
     private List<Frame> CollectTransformFrames()
     {
@@ -749,6 +793,7 @@ public partial class MainViewModel
     {
         TransformActive = false;
         _previewSplit = null;
+        _posedViews.Clear();
         _transform.End();
         // Commit and cancel both land here, so the chrome's preview matrix
         // cannot outlive the session however it ends. On a commit the raise
@@ -808,6 +853,53 @@ public partial class MainViewModel
         {
             _publish.InvalidateWholeCanvas();
         }
+        PublishSnapshot();
+    }
+
+    /// <summary>
+    /// Show a cage drag (Q199): the moving pixels over the lattice's mesh.
+    /// Null clears it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A third entry point beside the matrix and the band passes, because a
+    /// lattice warp is neither: it is one triangle mesh, built by the gizmo
+    /// once per handle move and drawn as one pass.
+    /// </para>
+    /// <para>
+    /// <b>The dirty region is the box plus wherever the mesh lands, last time
+    /// and this time.</b> A cage may push pixels past the box — a handle on
+    /// the edge can be dragged outside it — so the band rule that the box
+    /// bounds the change does not hold; the mesh's own bounds do, and the
+    /// previous mesh's have to be repainted too or the pixels it put there
+    /// would stay behind.
+    /// </para>
+    /// </remarks>
+    public void PreviewTransformCage(Lightbox.Raster.PassMesh? mesh)
+    {
+        if (!TransformActive)
+        {
+            if (_transform.CageMesh is null) return;
+            mesh = null;
+        }
+        if (_transform.CageMesh is null && mesh is null) return;
+        _transform.CageMesh = mesh;
+        TransformPreviewChanged?.Invoke(null);
+        var dirty = _transform.CageDirty;
+        if (mesh is not null)
+        {
+            var now = SKRectI.Ceiling(mesh.Bounds);
+            if (_transform.MovingBounds is { } box) now.Union(SKRectI.Round(box));
+            now.Inflate(2, 2);
+            dirty = dirty is { } was ? SKRectI.Union(was, now) : now;
+            _transform.CageDirty = now;
+        }
+        else
+        {
+            _transform.CageDirty = null;
+        }
+        if (dirty is { } region) _publish.MarkDirty(region);
+        else _publish.InvalidateWholeCanvas();
         PublishSnapshot();
     }
 
@@ -925,13 +1017,18 @@ public partial class MainViewModel
             // than remembered: the cache owns and disposes these, and a
             // remembered one becomes a dangling pointer the moment anything
             // invalidates the frame.
-            return new TransformSession.Parts(_cache.Get(frame, Scene.Width, Scene.Height), null, Owned: false);
+            // At the playhead's cel, because a rigged drawing is a different
+            // picture at every position and the one under the gizmo is the
+            // posed one — B381's first symptom was the rest pose sliding
+            // around under a drag of the posed drawing.
+            return new TransformSession.Parts(
+                _cache.Get(frame, Scene.Width, Scene.Height, celIndex: CurrentFrameIndex), null, Owned: false);
         }
 
         if (_transform.Cached(frame.Id) is { } cached) return cached;
 
         TransformSession.Parts? parts;
-        if (frame is Frame painted && _transform.Filter is { } filter)
+        if (PosedForTransform(frame) is var painted && _transform.Filter is { } filter)
         {
             // B319. The preview is built from the same split the commit will
             // write, on clones, rather than from a rule of its own. Before
@@ -1126,6 +1223,12 @@ public partial class MainViewModel
         foreach (var frame in _transform.Frames)
         {
             if (frame is Frame { PngBase64.Length: > 0 }) baselines++;
+            // A posed drawing gets no divider vertices (B381): the dividers
+            // stand in pose space while the record's points are at rest, and
+            // a point inserted into a weighted stroke would have no weight —
+            // the inserted vertex would stay behind when the rig moved. The
+            // band map still applies to every point it has, pointwise.
+            if (!ReferenceEquals(PosedForTransform(frame), frame)) continue;
             foreach (var stroke in TransformOps.StrokesOf(frame))
             {
                 if (filter is not null && !filter(stroke)) continue;
@@ -1144,6 +1247,58 @@ public partial class MainViewModel
               + $"{baselines} drawing(s) carry imported pixels, which a band scale cannot resample; "
               + "those pixels stayed where they were."
             : $"Bands applied — {inserted} point(s) added on the dividers.";
+    }
+
+    /// <summary>
+    /// Commit a cage warp (Q199): points inserted so straight lines can bend,
+    /// the lattice's map applied, and a raster baseline resampled through the
+    /// same mesh the preview drew.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Brush size is left alone, as under a band scale: a cage has a different
+    /// factor at every point and along no single axis, so there is no number to
+    /// carry. A bent arm keeps the line weight it was drawn with.
+    /// </para>
+    /// <para>
+    /// A posed drawing gets no inserted points, for B381's reason — weights are
+    /// per point index and an inserted point would have none — and goes
+    /// through the pose-space mover like every other transform; the cage's map
+    /// applies to its posed picture pointwise.
+    /// </para>
+    /// </remarks>
+    public void CommitTransformCage(CageWarp.Lattice lattice)
+    {
+        if (!TransformActive) return;
+        if (!lattice.Moves)
+        {
+            CancelTransform();
+            return;
+        }
+
+        var filter = _transform.Filter;
+        var inserted = 0;
+        var baselines = 0;
+        foreach (var frame in _transform.Frames)
+        {
+            if (frame is Frame { PngBase64.Length: > 0 }) baselines++;
+            if (!ReferenceEquals(PosedForTransform(frame), frame)) continue;
+            foreach (var stroke in TransformOps.StrokesOf(frame))
+            {
+                if (filter is not null && !filter(stroke)) continue;
+                inserted += CageWarp.Insert(stroke, lattice);
+            }
+        }
+
+        var mesh = _transform.CageMesh ?? Rendering.CanvasControl.ToPassMesh(CageWarp.MeshOf(lattice));
+        var box = new SKRect((float)lattice.Left, (float)lattice.Top, (float)lattice.Right, (float)lattice.Bottom);
+        CommitTransformCore(
+            CageWarp.Map(lattice), 1, SKMatrix.Identity,
+            baselineResample: painted => ResampleBaselineThroughMesh(painted, mesh, box));
+
+        AiStatus = baselines > 0
+            ? $"Cage applied — {inserted} point(s) added along the bend; {baselines} drawing(s) of imported pixels resampled through the cage."
+            : $"Cage applied — {inserted} point(s) added along the bend.";
     }
 
     /// <summary>
@@ -1188,9 +1343,21 @@ public partial class MainViewModel
         return PaintTargetOrKey(editsWhatTheHoldShows: true);
     }
 
-    private void CommitTransformCore(TransformOps.PointMap map, double sizeScale, SKMatrix baselineMatrix)
+    /// <param name="baselineResample">
+    /// How a raster baseline follows a transform that is not one matrix — the
+    /// cage's mesh (Q199). Null means the matrix path: resample through
+    /// <paramref name="baselineMatrix"/>, or not at all when it is the identity.
+    /// </param>
+    private void CommitTransformCore(
+        TransformOps.PointMap map, double sizeScale, SKMatrix baselineMatrix,
+        Action<Frame>? baselineResample = null)
     {
         var frames = _transform.Frames.ToList();
+        // B381: how each drawing's strokes travel — through the pose for a
+        // frame the canvas shows posed, plainly for every other. Resolved from
+        // the frames as collected, before a held cel is keyed below: the keyed
+        // copy is not in the rig index yet, and it is the same drawing.
+        var movers = frames.ConvertAll(f => Skinning.PoseSpaceMover(Doc, f, CurrentFrameIndex, _cache.Rig, map));
         // The one point where a held cel becomes a drawing of its own. Before
         // this line the gesture has changed nothing — which is what lets Ctrl+T
         // followed by Escape leave the timeline as it was.
@@ -1221,25 +1388,27 @@ public partial class MainViewModel
         var split = RegionSplit(filter, travel);
         _editor.Perform(doc =>
         {
-            foreach (var frame in frames)
+            for (var i = 0; i < frames.Count; i++)
             {
+                var frame = frames[i];
+                var mover = movers[i];
                 // A region-limited commit goes through the erasure-aware path:
                 // a moved erasure leaves a stay copy where it was still holding
                 // rubbed-out ink down, so erased strokes outside the selection
                 // do not come back (the ghost the preview split also guards).
-                if (filter is null) TransformOps.TransformFrame(frame, map, sizeScale, null, travel.Carry);
+                if (filter is null) TransformOps.TransformFrame(frame, map, sizeScale, null, travel.Carry, mover);
                 else TransformErasures.TransformFrame(
-                    frame, map, sizeScale, filter, split?.For(frame), travel.Carry);
+                    frame, map, sizeScale, filter, split?.For(frame), travel.Carry, mover);
                 // Raster baselines resample once per commit; a region-limited
                 // transform moves strokes only (baseline pixels stay put).
                 // Identity means "there is no matrix for this transform" — a
                 // band scale, which cannot be one — so there is nothing to
                 // resample through and re-encoding the PNG would cost a commit
                 // for no change. CommitTransformBands says so in the status line.
-                if (filter is null && !baselineMatrix.IsIdentity
-                    && frame is Frame { PngBase64.Length: > 0 } painted)
+                if (filter is null && frame is Frame { PngBase64.Length: > 0 } painted)
                 {
-                    ResampleBaseline(painted, baselineMatrix);
+                    if (baselineResample is not null) baselineResample(painted);
+                    else if (!baselineMatrix.IsIdentity) ResampleBaseline(painted, baselineMatrix);
                 }
             }
             // After the frames, because the split only discovers which clips it
@@ -1307,10 +1476,25 @@ public partial class MainViewModel
         /// </remarks>
         public Func<Stroke, TransformErasures.RegionClips?> For(Frame frame)
         {
-            var reading = new TransformErasures.RegionReading(frame.Strokes, mask, width, height);
+            // Asked of the drawing as the artist sees it (B381): the mask was
+            // drawn over the posed picture, so a stroke is judged by where its
+            // posed ink is. The commit hands this the record's own strokes,
+            // which the view shares ids with — hence the lookup.
+            var view = vm.PosedForTransform(frame);
+            var reading = new TransformErasures.RegionReading(view.Strokes, mask, width, height);
+            Dictionary<string, Stroke>? seen = null;
+            if (!ReferenceEquals(view, frame))
+            {
+                // First wins on a duplicated id rather than throwing: this runs
+                // inside the editor's Perform, and a hand-edited file with two
+                // strokes sharing an id must not take the session down with it.
+                seen = new Dictionary<string, Stroke>(view.Strokes.Count);
+                foreach (var s in view.Strokes) seen.TryAdd(s.Id, s);
+            }
             return stroke =>
             {
-                if (!reading.Crosses(stroke)) return null;
+                var judged = seen is not null && seen.TryGetValue(stroke.Id, out var posed) ? posed : stroke;
+                if (!reading.Crosses(judged)) return null;
 
                 // An erasure is not divided — it is duplicated, and the
                 // original is left exactly as it was.
@@ -1471,6 +1655,52 @@ public partial class MainViewModel
             surface.Canvas.SetMatrix(matrix);
             using var image = SKImage.FromBitmap(src);
             surface.Canvas.DrawImage(image, 0, 0, SamplingFor(TransformSampling));
+            using var snap = surface.Snapshot();
+            using var data = snap.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            frame.PngBase64 = Convert.ToBase64String(data.ToArray());
+        }
+        catch (FormatException)
+        {
+            // Corrupt baseline: leave it untouched rather than destroy pixels.
+        }
+    }
+
+    /// <summary>
+    /// Re-render a frame's baseline pixels through the cage's mesh (Q199):
+    /// everything outside the box stays as it was, and the box's pixels are
+    /// stretched over the same triangles the preview drew — so what the artist
+    /// saw while dragging is what the commit keeps.
+    /// </summary>
+    /// <remarks>
+    /// The box is cleared before the mesh is drawn over it, or the undeformed
+    /// pixels would show through wherever the warp pulled away from them.
+    /// Pixels the mesh carries past the box land over whatever is there, which
+    /// is what a warp that may leave its box means.
+    /// </remarks>
+    private void ResampleBaselineThroughMesh(Frame frame, Lightbox.Raster.PassMesh mesh, SKRect box)
+    {
+        if (frame.PngBase64 is not { Length: > 0 } encoded) return;
+        try
+        {
+            var bytes = Convert.FromBase64String(encoded);
+            using var src = SKBitmap.Decode(bytes);
+            if (src is null) return;
+            var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using var surface = SKSurface.Create(info);
+            if (surface is null) return;
+            var canvas = surface.Canvas;
+            canvas.Clear(SKColors.Transparent);
+            canvas.Save();
+            canvas.ClipRect(box, SKClipOperation.Difference);
+            canvas.DrawBitmap(src, 0, 0);
+            canvas.Restore();
+            using var pixels = src.PeekPixels();
+            using var view = pixels is null ? null : SKImage.FromPixels(pixels);
+            using var shader = view is not null
+                ? view.ToShader(SKShaderTileMode.Clamp, SKShaderTileMode.Clamp)
+                : SKShader.CreateBitmap(src, SKShaderTileMode.Clamp, SKShaderTileMode.Clamp);
+            using var paint = new SKPaint { Shader = shader, IsAntialias = false };
+            canvas.DrawVertices(SKVertexMode.Triangles, mesh.Positions, mesh.Texs, null, mesh.Indices, paint);
             using var snap = surface.Snapshot();
             using var data = snap.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
             frame.PngBase64 = Convert.ToBase64String(data.ToArray());

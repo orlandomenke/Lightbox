@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4907
+budget: 4917
 
 ## Why it is here despite being XAML
 
@@ -309,3 +309,23 @@ leaves a number nobody can account for. So every reason above stays, and
   share menu shipped with nothing that could feed them, and the whole chain was
   reachable only from tests until somebody noticed. Sixteen lines is what it
   costs not to repeat that.
+
+- **4,907 → 4,912** (2026-10-07): **Copy layer / Paste layer** on the layer docker's
+  row menu and on the X-sheet's layer names. Seven lines over main (4,905): two
+  menu items on the row, and a three-line menu on the name button. Menu items
+  have nowhere else to live — this file's standing exception — and the feature
+  was asked for in exactly those two places. Everything else (the clipboard,
+  the focus routing for Ctrl+C/V, the refusal across documents) is in
+  `MainViewModel.LayerClipboard.cs` and `MainWindow.Workspace.cs`.
+- **→ 4,917** (2026-10-07, Q199), measured on the tree merged with the layer
+  clipboard above: the cage warp's two controls on the Transform options page —
+  the *Cage* toggle beside *Perspective* and *Bands*, and a *Grid* row (2–6 cells
+  a side) laid out like *Scope* and *Sampling*. +5 over main, which is the size
+  of the change: the first draft cost 12 lines, and each control went to one
+  line like its neighbours with the comment moved to Q199. Measured alone on its
+  branch it read +3, because the budget it started from had two lines of slack
+  the layer clipboard has since spent.
+  The gizmo half of the same change bought its room in `CanvasControl.cs` by
+  extraction instead (the grid-mode dispatch moved to
+  `CanvasControl.TransformCage.cs`), which is possible there and is not for a
+  button that has to sit on the page an artist finds it on.

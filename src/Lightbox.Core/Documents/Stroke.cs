@@ -70,6 +70,18 @@ public sealed class Stroke
     /// </remarks>
     public SymmetryAxis? Symmetry { get; set; }
 
+    /// <summary>
+    /// The tile this stroke wraps around, or null for an ordinary mark.
+    /// </summary>
+    /// <remarks>
+    /// One more kind of symmetry copy — a translation by the tile's width or
+    /// height — stamped through the same placement loop, so a mark that leaves
+    /// the tile on one edge comes in on the other with identical grain (Q192).
+    /// Composes with <see cref="Symmetry"/>: the copies are symmetry × wrap.
+    /// Absent unless used, like its neighbour. See <see cref="TileWrap"/>.
+    /// </remarks>
+    public TileWrap? Wrap { get; set; }
+
     /// <summary>Inner contours of a <see cref="ToolKind.Fill"/> stroke (even-odd holes); null otherwise.</summary>
     public List<List<StrokePoint>>? Holes { get; set; }
 
@@ -290,6 +302,7 @@ public sealed class Stroke
         // put the points back about an axis that stayed scaled. A duplicated
         // cel shared it too, and was scaled once per sharer.
         copy.Symmetry = Symmetry?.Clone();
+        copy.Wrap = Wrap?.Clone();
         return copy;
     }
 }

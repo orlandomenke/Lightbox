@@ -1757,6 +1757,14 @@ public partial class MainViewModel
         var reworksWhatIsThere = CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge
             || ActiveLayer is { AlphaLocked: true };
         if (PaintTargetOrKey(editsWhatTheHoldShows: reworksWhatIsThere) is not { } target) return;
+        // A press in a neighbour of the tiled preview is a press on the page,
+        // shifted by whole tiles — decided here, once, and applied to every
+        // point after (see _wrapShift). Before guides, which live on the page.
+        // A Shift+click joins from the last stroke's end, so the tile chosen
+        // is the one that keeps the click nearest that end: a click just
+        // across the seam is a short hop the copies draw, not a line back
+        // across the whole page (sensitivity-guardian, on landing).
+        (x, y) = EnterTile(x, y, joinFromLast ? _lastStrokeEnd : null);
         // A stroke's guide is chosen once, from a direction it has committed
         // to. The anchor is where that direction is measured from, so it is
         // the unsnapped start — snapping the anchor first would measure the
@@ -1801,6 +1809,9 @@ public partial class MainViewModel
         // A clone, so turning the axis afterwards never reaches this mark — and
         // only when it would do something, so an ordinary stroke grows no key.
         if (ActiveSymmetry is { IsIdentity: false } axis) _strokeBuilder.Current!.Symmetry = axis.Clone();
+        // The page as it is NOW, recorded on the stroke (Q192): a canvas
+        // resized later still renders this mark about the tile it wrapped.
+        if (WrapForNextStroke() is { } tile) _strokeBuilder.Current!.Wrap = tile;
         // Stamped onto the stroke, not read from the layer at render time, so
         // unlocking the layer later cannot repaint what is already down.
         // The layer's alpha lock guards its content, not its mask — coverage
@@ -1985,6 +1996,9 @@ public partial class MainViewModel
         if (clip is not null) stroke.ClipId = clip.Value.Id;
         FreezeSampledBackdrop(stroke);
         RememberDocumentBrush();
+        // B382: a shape drawn on a posed layer is carried back to rest like a
+        // brush stroke, so it stays where it was dragged out.
+        Skinning.UnposeDrawnStroke(stroke, Doc, target, CurrentFrameIndex, _cache.Rig);
         AppendToFrameRender(target, stroke);
 
         var frameId = target.Id;
@@ -2109,7 +2123,13 @@ public partial class MainViewModel
         NoteEventArrival();
         foreach (var s in samples)
         {
-            var (fx, fy) = _stabilizer.FilterLive(s.X, s.Y);
+            // Onto the page FIRST: the stabiliser was started on the shifted
+            // start point and the guides live on the page, so both must see
+            // the sample in the same frame — fed the raw pointer, an EMA
+            // filter would pull the mark a whole tile towards the hand
+            // (adversary, on landing).
+            var (sx, sy) = ShiftIntoTile(s.X, s.Y);
+            var (fx, fy) = _stabilizer.FilterLive(sx, sy);
             var (x, y) = Guided(fx, fy);
             _strokeBuilder.Add(x, y, s.Pressure, s.TiltX, s.TiltY, s.Speed);
         }
@@ -2161,6 +2181,7 @@ public partial class MainViewModel
             // reflections, and every copy but the drawn one would stay on
             // screen from the previous event.
             Symmetry = live.Symmetry,
+            Wrap = live.Wrap,
         };
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
 
@@ -2470,6 +2491,12 @@ public partial class MainViewModel
             // The drawn mark is copy 0 and is stamped by the caller, on the
             // path it took before symmetry existed.
             if (copy is not { } m) continue;
+            // A copy that misses the page costs a bounds pass and nothing
+            // else — the same test the commit path makes. Wrap offers eight
+            // neighbours for every stroke, and without this a mid-page stroke
+            // paid eight full dab walks per event for copies Skia then threw
+            // away (perf-warden, on landing).
+            if (BrushEngine.RangeBounds(dabs, from, to, live.Brush, info, m) is null) continue;
 
             _live.ScratchCanvas.Save();
             _live.ScratchCanvas.Concat(m);
@@ -2602,6 +2629,8 @@ public partial class MainViewModel
             foreach (var copy in BrushEngine.SymmetryCopies(live))
             {
                 if (copy is not { } m) continue;
+                // Off the page, nothing to accumulate — see StampSettledCopies.
+                if (BrushEngine.RangeBounds(dabs, coverageFrom, settledCut, live.Brush, info, m) is null) continue;
                 coverage.Save();
                 coverage.Concat(m);
                 BrushEngine.AccumulateCoverage(coverage, live.Brush, dabs, coverageFrom, settledCut);
@@ -3824,6 +3853,20 @@ public partial class MainViewModel
         FreezeSampledBackdrop(stroke);
         RememberDocumentBrush();
 
+        // B382: on a rigged layer the pen drew on the posed picture, and the
+        // record keeps rest geometry — carried back here, before the stroke
+        // enters the record, so the next render puts it where the pen was.
+        // After the freeze and the Shift+click anchor above on purpose: both
+        // describe where the mark is on screen, which is the pen's geometry.
+        // Every other layer takes the early return inside and gets null.
+        var drawnAt = Skinning.UnposeDrawnStroke(stroke, Doc, target, CurrentFrameIndex, _cache.Rig);
+        // Where the mark's pixels are ON SCREEN, for every repaint region
+        // below: the pen's own path when the stroke was carried back to rest,
+        // the stroke itself otherwise. A region taken from the rest geometry
+        // would repaint where the record says and leave the pixels under the
+        // pen as they were — paper, once the live scratch let go of them.
+        var shown = drawnAt is null ? stroke : OnScreen(stroke, drawnAt);
+
         // Commit the pixels incrementally: stamp the EXACT stroke onto the
         // cached frame bitmap instead of invalidating it — invalidation would
         // replay every stroke in the frame, which is why lifting the pen used
@@ -3835,7 +3878,14 @@ public partial class MainViewModel
         // before the stamp and read after it — see StrokeChangeProbe for why
         // this is exact rather than a geometry test, and why nothing but an
         // erasure pays for it.
-        var erasure = IsErasure(stroke)
+        // Not on a posed drawing (B382) — the SAME test AppendToFrameRender
+        // applies, which matters: a frame posed by per-stroke weights on an
+        // unrigged layer is not unposed here but IS invalidated there, and the
+        // invalidation disposes the very bitmap a probe would be holding. On a
+        // posed drawing the render is rebuilt from the record rather than
+        // appended to, so there is no before/after pair to measure across; an
+        // eraser there is recorded like any other mark.
+        var erasure = IsErasure(stroke) && !_cache.Rig.IsPosed(target)
             ? StrokeChangeProbe.Open(stroke, _cache.Get(target, Scene.Width, Scene.Height))
             : null;
 
@@ -3843,7 +3893,7 @@ public partial class MainViewModel
 
         if (erasure?.ChangedNothing() == true)
         {
-            DiscardErasureThatDidNothing(stroke);
+            DiscardErasureThatDidNothing(shown);
             return;
         }
 
@@ -3871,7 +3921,7 @@ public partial class MainViewModel
                 // B327. The revert takes one stroke back out, so the only pixels
                 // that can move are the ones that stroke could reach — which is
                 // the same rectangle the canvas dirty region below is built from.
-                repaintBounds: RepaintBoundsOf(stroke));
+                repaintBounds: RepaintBoundsOf(shown));
         }
         finally
         {
@@ -3881,10 +3931,22 @@ public partial class MainViewModel
         // Only the stroke's own neighbourhood changed: the layer gained the
         // committed pixels and the live scratch stopped contributing there.
         var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) _publish.MarkDirty(touched);
+        if (BrushEngine.CommitBounds(shown, commitInfo) is { } touched) _publish.MarkDirty(touched);
         else _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
+    }
+
+    /// <summary>
+    /// The stroke as it stands on screen: the record's stroke with the pen's
+    /// own points in place of the rest geometry B382 wrote back (brush, clip
+    /// and everything else shared, so a reach or a footprint reads the same).
+    /// </summary>
+    private static Stroke OnScreen(Stroke stroke, List<StrokePoint> drawnAt)
+    {
+        var copy = stroke.Clone(newId: false);
+        copy.Points = drawnAt;
+        return copy;
     }
 
     /// <summary>The two ways a stroke takes paint away rather than adding it.</summary>

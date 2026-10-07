@@ -50,6 +50,11 @@ scale is then describing controls that do not exist.
 | `--label` | 52 | Label column in a labelled-row layout, so rows align |
 | `--field` | 44 | Numeric field's floor — it grows with the value, never shrinks below "100%" |
 
+**Every number on this scale is at 100%, and stays written that way.** The
+artist's interface scale (Q200, 75–200%) is applied *around* the chrome by
+`ScaledChrome`, a layout transform, never by multiplying a size in a view or in
+this file. A new strip of chrome goes inside one; the canvas never does.
+
 **A strip is as tall as its tallest control plus 2 above and below.** The four
 strips above the canvas — menu, tool options, AI, document tabs — each wrapped
 their contents in 6 to 12 px of padding, which on a 30 px bar is a third again

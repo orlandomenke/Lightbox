@@ -71,12 +71,13 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
     [InlineData(1.0, LayerDropHint.Below)]
     public void ALayerRowSplitsInHalf(double fraction, LayerDropHint expected)
     {
-        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, targetIsFolder: false, draggingFolder: false));
-        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, targetIsFolder: false, draggingFolder: true));
+        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.LooseLayer, draggingFolder: false));
+        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.LooseLayer, draggingFolder: true));
+        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.GroupedLayer, draggingFolder: false));
     }
 
     /// <summary>
-    /// A folder header is three zones for a layer: beside, into, beside.
+    /// A collapsed folder header is three zones for a layer: beside, into, beside.
     /// </summary>
     /// <remarks>
     /// The middle half files into the folder because that is the common
@@ -92,7 +93,42 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
     [InlineData(0.76, LayerDropHint.Below)]
     [InlineData(0.95, LayerDropHint.Below)]
     public void AFolderHeaderOffersInsideAndBeside(double fraction, LayerDropHint expected) =>
-        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, targetIsFolder: true, draggingFolder: false));
+        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.CollapsedFolder, draggingFolder: false));
+
+    /// <summary>
+    /// Under an open header is the top of that folder, never "below the folder".
+    /// </summary>
+    /// <remarks>
+    /// The lower quarter used to say Below, drew its line between the header and
+    /// the folder's first member, and then dropped the layer under the folder's
+    /// last member — wherever that was. The line and the landing disagreed by
+    /// the height of the whole folder.
+    /// </remarks>
+    [Theory]
+    [InlineData(0.1, LayerDropHint.Above)]
+    [InlineData(0.5, LayerDropHint.Into)]
+    [InlineData(0.95, LayerDropHint.Into)]
+    public void BelowAnOpenFolderHeaderIsInsideIt(double fraction, LayerDropHint expected) =>
+        Assert.Equal(expected, LayerDropPlan.Resolve(fraction, LayerDropTarget.OpenFolder, draggingFolder: false));
+
+    /// <summary>
+    /// The gaps between rows and the indent in front of folder members belong
+    /// to the nearest row — they used to belong to nothing and refuse the drop.
+    /// </summary>
+    [Theory]
+    [InlineData(-30, 0, 0.0)]   // above the list: the first row's top
+    [InlineData(10, 0, 0.5)]
+    [InlineData(20.9, 0, 1.0)]  // in the gap, nearer the first row
+    [InlineData(21.1, 1, 0.0)]  // in the gap, nearer the second
+    [InlineData(32, 1, 0.5)]
+    [InlineData(500, 1, 1.0)]   // below the list: the last row's bottom
+    public void EveryHeightInTheListBelongsToARow(double y, int index, double fraction)
+    {
+        var spans = new List<(double, double)> { (0, 20), (22, 42) };
+        var (i, f) = LayerDropPlan.Locate(spans, y);
+        Assert.Equal(index, i);
+        Assert.Equal(fraction, f, 2);
+    }
 
     /// <summary>
     /// A folder in hand never sees an <c>Into</c>, because folders do not nest.
@@ -109,8 +145,12 @@ public sealed class FolderDragDropTests(ITestOutputHelper output) : BrushStateIs
     [InlineData(0.9)]
     public void AFolderInHandIsNeverOfferedAFolderToGoInside(double fraction)
     {
-        var hint = LayerDropPlan.Resolve(fraction, targetIsFolder: true, draggingFolder: true);
-        Assert.NotEqual(LayerDropHint.Into, hint);
+        foreach (var target in Enum.GetValues<LayerDropTarget>())
+        {
+            Assert.NotEqual(LayerDropHint.Into, LayerDropPlan.Resolve(fraction, target, draggingFolder: true));
+        }
+        // And never between two members of another folder, which would split it.
+        Assert.Equal(LayerDropHint.None, LayerDropPlan.Resolve(fraction, LayerDropTarget.GroupedLayer, draggingFolder: true));
     }
 
     // ---- moving the block ----------------------------------------------------
