@@ -1,0 +1,18 @@
+{
+  "name": "transform-undo",
+  "about": "The 2026-10-07 capture: select all on the active layer, transform, move the box, commit, undo. Each layer's first drawing is centred; the drag starts off-centre because the transform's pivot sits in the middle of the box, and a drag from there moves the pivot, not the box.",
+  "fixture": "owner-shape",
+  "repeat": 3,
+  "steps": [
+    {"do": "hover", "at": [0.5, 0.5]},
+    {"do": "key", "keys": "ctrl+a", "after_ms": 300},
+    {"do": "key", "keys": "ctrl+t", "after_ms": 300},
+    {"do": "settle", "quiet_s": 0.8},
+    {"do": "drag", "from": [0.53, 0.53], "by": [0.08, 0.04], "ms": 1500, "hz": 120},
+    {"do": "key", "keys": "enter"},
+    {"do": "settle", "quiet_s": 1.0},
+    {"do": "key", "keys": "ctrl+z"},
+    {"do": "settle", "quiet_s": 1.0},
+    {"do": "key", "keys": "ctrl+d", "after_ms": 300}
+  ]
+}

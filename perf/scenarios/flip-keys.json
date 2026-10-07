@@ -1,0 +1,20 @@
+{
+  "name": "flip-keys",
+  "about": "Flip forward through the keys with 2 (global) and back with 1, as an animator checks a pass. The owner reports click-to-jump is slow while scrubbing is fine; this is the key-to-key half.",
+  "fixture": "owner-shape",
+  "repeat": 2,
+  "steps": [
+    {"do": "hover", "at": [0.5, 0.5]},
+    {"do": "key", "keys": "2", "after_ms": 250},
+    {"do": "key", "keys": "2", "after_ms": 250},
+    {"do": "key", "keys": "2", "after_ms": 250},
+    {"do": "key", "keys": "2", "after_ms": 250},
+    {"do": "key", "keys": "2", "after_ms": 250},
+    {"do": "key", "keys": "1", "after_ms": 250},
+    {"do": "key", "keys": "1", "after_ms": 250},
+    {"do": "key", "keys": "1", "after_ms": 250},
+    {"do": "key", "keys": "1", "after_ms": 250},
+    {"do": "key", "keys": "1", "after_ms": 250},
+    {"do": "settle", "quiet_s": 1.0}
+  ]
+}

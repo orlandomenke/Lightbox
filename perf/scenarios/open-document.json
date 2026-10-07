@@ -1,0 +1,9 @@
+{
+  "name": "open-document",
+  "about": "Launch straight into the owner-shaped document and stop. Measures opening: time to ready, and the stalls on the way (the first live run froze for 15 s, 6 of them rebuilding thumbnails).",
+  "fixture": "owner-shape",
+  "repeat": 1,
+  "steps": [
+    {"do": "settle", "quiet_s": 1.5}
+  ]
+}

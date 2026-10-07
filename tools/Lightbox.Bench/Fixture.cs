@@ -68,8 +68,11 @@ public static class Fixture
                 Id = $"layer-{li:00}",
                 Name = $"Layer {li + 1}",
             };
+            // The first drawing on every layer is centred on the canvas, so a
+            // scripted gesture knows where the content is without being told:
+            // a drag from the middle lands on ink on whichever layer is active.
             var drawings = Enumerable.Range(0, Math.Max(1, perLayer[li]))
-                .Select(_ => Drawing(rng, s, drawingIndex++)).ToList();
+                .Select(d => Drawing(rng, s, drawingIndex++, centred: d == 0)).ToList();
             // Each drawing keyed once, spread evenly along the sheet and held
             // until the next — never the same drawing in two cels, which real
             // documents do not do. Keys land on the step (twos by default).
@@ -87,13 +90,19 @@ public static class Fixture
         return doc;
     }
 
-    private static Frame Drawing(Random rng, Shape s, int index)
+    private static Frame Drawing(Random rng, Shape s, int index, bool centred)
     {
         var frame = new Frame { Id = $"drawing-{index:000}" };
         // Each drawing sits in its own region, as a character's parts would, so
         // a transform has a real selection to move rather than the whole canvas.
+        // Drawn from the generator either way, so centring one changes no other.
         var cx = s.Width * (0.2 + 0.6 * rng.NextDouble());
         var cy = s.Height * (0.2 + 0.6 * rng.NextDouble());
+        if (centred)
+        {
+            cx = s.Width / 2.0;
+            cy = s.Height / 2.0;
+        }
         var reach = Math.Min(s.Width, s.Height) * 0.18;
         for (var k = 0; k < s.Strokes; k++)
         {
