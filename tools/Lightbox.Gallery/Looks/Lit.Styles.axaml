@@ -172,6 +172,25 @@
   <Style Selector="TextBox /template/ Border#PART_BorderElement">
     <Setter Property="BoxShadow" Value="{StaticResource LookInsetShadow}" />
   </Style>
+  <!-- Every list row on the row height and the item padding — Fluent's default
+       ListBoxItem is a 34 px touch target, which turned a bone list into a
+       column of gaps. Selectors and tabs set their own and are excluded. -->
+  <Style Selector="ListBox:not(.segmented):not(.tabs):not(.sectiontabs) > ListBoxItem">
+    <Setter Property="MinHeight" Value="{StaticResource LookRowHeight}" />
+    <Setter Property="Padding" Value="{StaticResource LookItemPadding}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ListBox:not(.segmented):not(.tabs):not(.sectiontabs)">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="ListBox:not(.segmented):not(.tabs):not(.sectiontabs) > ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource LookBarActiveBrush}" />
+  </Style>
+  <Style Selector="ListBox:not(.segmented):not(.tabs):not(.sectiontabs) > ListBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+  </Style>
+
   <!-- A dropdown is text at rest (see the palettes): no well, no border. -->
   <Style Selector="ComboBox">
     <Setter Property="BorderThickness" Value="0" />

@@ -15,10 +15,16 @@ namespace Lightbox.Gallery.Stories;
 /// one is the app's own control under the app's own styles, so a look judged
 /// here is a look the app would draw.
 /// </summary>
-public static class Catalog
+public static partial class Catalog
 {
     public static readonly IReadOnlyList<Story> All =
     [
+        BonesDocker(),
+        ColorDocker(),
+        PaletteDocker(),
+        GradientDocker(),
+        HistoryDocker(),
+        NavigatorDocker(),
         Borders(),
         Corners(),
         Light(),
@@ -321,8 +327,11 @@ public static class Catalog
 
     // On a panel, because that is where a selector lives: its well is the
     // ground colour, and on the ground it would vanish.
-    private static Control Segmented(string[] items, int selected) =>
-        OnPanel(With(new ListBox { ItemsSource = items, SelectedIndex = selected }, "segmented"));
+    private static Control Segmented(string[] items, int selected) => OnPanel(SegmentedBare(items, selected));
+
+    /// <summary>The selector itself, for use inside a docker (no card around it).</summary>
+    private static ListBox SegmentedBare(string[] items, int selected) =>
+        With(new ListBox { ItemsSource = items, SelectedIndex = selected }, "segmented");
 
     private static Control IconSegmented(string[] icons, int selected) =>
         OnPanel(With(new ListBox { ItemsSource = icons.Select(i => Icon(i, 14)).ToList(), SelectedIndex = selected }, "segmented", "icons"));
@@ -381,6 +390,9 @@ public static class Catalog
         control.VerticalAlignment = VerticalAlignment.Center;
         control.HorizontalAlignment = HorizontalAlignment.Stretch;
         control.Width = double.NaN;
+        // No value: the control takes the value column too, so it ends on the
+        // same line as every value field. The icon column is kept regardless.
+        if (value is null) Grid.SetColumnSpan(control, 3);
         grid.Children.Add(control);
         if (value is not null)
         {
