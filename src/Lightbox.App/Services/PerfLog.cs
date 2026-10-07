@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
-using System.Text.Json;
 using Avalonia.Threading;
 
 namespace Lightbox.App.Services;
@@ -52,7 +51,17 @@ public static class PerfLog
     public static void Start()
     {
         var path = Environment.GetEnvironmentVariable("LIGHTBOX_PERF_LOG");
-        if (string.IsNullOrWhiteSpace(path) || !Open(path)) return;
+        if (string.IsNullOrWhiteSpace(path)) return;
+        // Only a log file is appended to: a swapped argument that pointed this
+        // at a document would leave JSON lines on the end of a drawing that
+        // then will not open (the sensitivity review).
+        if (!IsLogPath(path))
+        {
+            Console.Error.WriteLine($"LIGHTBOX_PERF_LOG ignored: not a .jsonl or .log file: {path}");
+            return;
+        }
+        if (!Open(path)) return;
+        Console.Error.WriteLine($"Lightbox performance log on: {path}");
         var build = typeof(PerfLog).Assembly
             .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
             .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion;
@@ -75,6 +84,11 @@ public static class PerfLog
         On = true;
         return true;
     }
+
+    /// <summary>Whether a path is one the log may append to.</summary>
+    public static bool IsLogPath(string path) =>
+        path.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase)
+        || path.EndsWith(".log", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Record to <paramref name="path"/> with no heartbeat. Tests only.</summary>
     internal static void StartForTests(string path) => Open(path);
@@ -124,13 +138,37 @@ public static class PerfLog
 
     private static void Write(double t, string name, double ms, string? detail)
     {
+        // Hand-escaped rather than through the serializer: this runs per
+        // publish while the log is on, and a measuring tool should not tax
+        // what it measures (leak-hunter, Q209).
         var line = new StringBuilder(96)
             .Append("{\"t\":").Append(t.ToString("0.###", CultureInfo.InvariantCulture))
-            .Append(",\"ev\":").Append(JsonSerializer.Serialize(name))
-            .Append(",\"ms\":").Append(ms.ToString("0.###", CultureInfo.InvariantCulture));
-        if (detail is not null) line.Append(",\"d\":").Append(JsonSerializer.Serialize(detail));
+            .Append(",\"ev\":");
+        AppendJsonString(line, name);
+        line.Append(",\"ms\":").Append(ms.ToString("0.###", CultureInfo.InvariantCulture));
+        if (detail is not null)
+        {
+            line.Append(",\"d\":");
+            AppendJsonString(line, detail);
+        }
         line.Append('}');
         lock (Gate) _out?.WriteLine(line.ToString());
+    }
+
+    private static void AppendJsonString(StringBuilder line, string value)
+    {
+        line.Append('"');
+        foreach (var c in value)
+        {
+            switch (c)
+            {
+                case '"': line.Append("\\\""); break;
+                case '\\': line.Append("\\\\"); break;
+                case < ' ': line.Append("\\u").Append(((int)c).ToString("x4", CultureInfo.InvariantCulture)); break;
+                default: line.Append(c); break;
+            }
+        }
+        line.Append('"');
     }
 
     private static void Flush()
@@ -138,31 +176,38 @@ public static class PerfLog
         lock (Gate) _out?.Flush();
     }
 
+    /// <summary>Set by the UI thread when it gets round to the heartbeat's question.</summary>
+    /// <remarks>
+    /// One, reused: the heartbeat never asks again until the last question is
+    /// answered, so there is never a second callback that could set it early,
+    /// and nothing is allocated per beat.
+    /// </remarks>
+    private static readonly ManualResetEventSlim Answered = new();
+
+    private static readonly Action Answer = () => Answered.Set();
+
     private static void Heartbeat()
     {
         var lastFlush = Clock.Elapsed.TotalMilliseconds;
         while (true)
         {
             var asked = Clock.Elapsed.TotalMilliseconds;
-            // Not disposed: after a 5 s timeout the posted callback still holds
-            // it, and setting a disposed handle on the UI thread would throw
-            // there — a measuring tool must never be what crashes the app.
-            var answered = new ManualResetEventSlim();
+            Answered.Reset();
             try
             {
-                Dispatcher.UIThread.Post(answered.Set, DispatcherPriority.Send);
+                Dispatcher.UIThread.Post(Answer, DispatcherPriority.Send);
             }
             catch (InvalidOperationException)
             {
                 return; // the dispatcher is gone: the app is shutting down
             }
-            // Waited on here rather than measured inside the post, so a UI
-            // thread that never answers at all is still logged — as one long
-            // stall, every 5 s, rather than as silence.
-            if (!answered.Wait(5000))
+            // A UI thread that does not answer for seconds is noted every 5 s
+            // while it lasts — a hang shows up in the log before it ends — and
+            // the stall is written once, whole, when the answer finally comes.
+            while (!Answered.Wait(5000))
             {
-                Write(asked, "stall", Clock.Elapsed.TotalMilliseconds - asked, "no answer");
-                continue;
+                Write(asked, "hang", Clock.Elapsed.TotalMilliseconds - asked, "still waiting");
+                Flush();
             }
             var late = Clock.Elapsed.TotalMilliseconds - asked;
             if (late > StallMs) Write(asked, "stall", late, null);
@@ -173,7 +218,10 @@ public static class PerfLog
                 Flush();
                 lastFlush = now;
             }
-            Thread.Sleep(BeatMs);
+            // A beat every 20 ms from the start of the last, not 20 ms after it
+            // finished, so the cadence holds at 50 Hz.
+            var spent = Clock.Elapsed.TotalMilliseconds - asked;
+            if (spent < BeatMs) Thread.Sleep(TimeSpan.FromMilliseconds(BeatMs - spent));
         }
     }
 }
