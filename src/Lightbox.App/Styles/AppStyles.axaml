@@ -1,0 +1,285 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Lightbox.App.Controls"
+        xmlns:docking="using:Lightbox.App.Docking">
+  <!--
+    Every style the application loads, in order, moved out of App.axaml so
+    the component gallery (tools/Lightbox.Gallery, Q203) shows the same
+    pixels the app does. Order is load-bearing here exactly as it was there.
+  -->
+  <!--
+    Fluent, repointed at our palette.
+
+    **This is the half of the colour system that was missing.** Tokenising
+    the views only reaches surfaces somebody aimed at a token; every stock
+    control — toggle buttons, slider thumbs, checkboxes, radios, focus rings,
+    list selection — keeps painting from the theme's own palette, and the
+    theme's accent is Windows blue. The result was two colour systems in one
+    window, and one control wearing both: the opacity slider had our coral
+    track and Fluent's #0078D7 thumb.
+
+    Two properties fix the whole class of it, which is why they are worth
+    more than the fifty setters they replace:
+
+    * `Accent` — every "this is on" state. The DEEP violet, because these
+      are fills the size of a button, and full AccentViolet glows at that
+      size; the bright violet stays for marks. Violet rather than coral, so the
+      layer row that is selected, the toggle that is on and the tab that is
+      showing are one colour, and coral is left meaning "the primary action"
+      without competition.
+    * `RegionColor` — the window ground. Dialogs painted pure black because
+      nothing had told the theme otherwise; they now sit one surface above
+      the panels, which is the "anything raised goes one step up" rule the
+      four surfaces already encode.
+
+    Literal hexes rather than {StaticResource}: a ColorPaletteResources is
+    built before the merged dictionaries it would look into, so a reference
+    here cannot resolve. `PaletteTests.TheThemeAgreesWithThePalette` pins
+    them to the tokens instead, which is the check the reference would have
+    been.
+  -->
+  <FluentTheme>
+    <FluentTheme.Palettes>
+      <ColorPaletteResources x:Key="Dark" Accent="#5B48C8" RegionColor="#222634" />
+    </FluentTheme.Palettes>
+  </FluentTheme>
+  <!-- ColorSpectrum/ColorSlider templates live in a separate theme file;
+       without this include they render as nothing at all. -->
+  <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
+
+  <!-- The density scale. See .claude/quality/DESIGN.md for the reasoning;
+       the numbers live in one place so no view invents its own. -->
+  <StyleInclude Source="avares://Lightbox.App/Styles/Density.axaml" />
+
+  <!-- The control treatments: emphasis, badges, tabs. Sizes stay in
+       Density.axaml — the two are different axes and compose. -->
+  <StyleInclude Source="avares://Lightbox.App/Styles/Controls.axaml" />
+  <StyleInclude Source="avares://Lightbox.App/Styles/LayerRows.axaml" />
+
+  <!-- The colour picker's body and the flyout field that reuses it. -->
+  <StyleInclude Source="avares://Lightbox.App/Styles/ColorPicker.axaml" />
+
+  <!-- Docker: title strip, optional top/bottom option bars, content between. -->
+  <!--
+    The docker's frame, as a style rather than as attributes in the template:
+    a value written inline in a ControlTemplate outranks every style, so a look
+    tried in tools/Lightbox.Gallery (Q203) could not change it. Same values.
+  -->
+  <!-- The header's ground, a style for the same reason as the frame's. -->
+  <Style Selector="controls|Docker /template/ Border#PART_Header">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="controls|Docker /template/ Border#PART_Frame">
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+  <Style Selector="controls|Docker">
+    <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
+    <!-- A card, per the alternate reference: rounded, hairline edge, a
+         breath of space to the next panel. The gap is what makes a strip of
+         dockers read as instruments on a desk rather than as one wall. -->
+    <Setter Property="Margin" Value="0,0,0,3" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border x:Name="PART_Frame" Background="{TemplateBinding Background}">
+          <DockPanel>
+            <!--
+              The header is both the panel switcher and the drag grip.
+
+              Panels sharing a slot appear as tabs here, and a slot of one
+              renders as a plain title — so most dockers look exactly as they
+              always did. Blender's rule still holds underneath: no panel is
+              ever open twice, so "where is the palette" has one answer.
+
+              The switcher's negative margin is doing real work. It had no left
+              padding, so on hover — the only time its box is visible — the
+              title sat hard against the edge of the highlight and read as
+              clipped. Padding alone would have pushed the text 6 px right of
+              where a plain, unswitchable docker's title sits, so headers would
+              stop lining up with each other. Shifting the box left by the same
+              amount keeps the text where it was and puts the breathing room
+              inside the highlight instead.
+
+              Everything that is not a control in this strip is grip — press
+              and pull to move the panel. The threshold lives in Docker so a
+              click to focus is not a tear-out.
+            -->
+            <!-- Transparent, not a band: the card is one surface and the header is
+                 the top of it. Transparent (rather than no background) keeps it
+                 hit-testable, which it still needs to be — it is the drop TARGET
+                 (drop here to tab into this slot) and it carries the pointer
+                 handlers. It is no longer the drag grip: the tab is, and the rest
+                 of the header ignores a press. See Docker.LandedOnTheGrip. -->
+            <!-- No bottom padding: the active tab's ground has to run INTO the
+                 content below it — a 2px strip of header between them reads as
+                 a seam across what should be one element. -->
+            <Border x:Name="PART_Header" DockPanel.Dock="Top" Padding="8,3,8,0">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
+                  <ContentPresenter Content="{TemplateBinding TitleBarExtra}" VerticalAlignment="Center" />
+                  <!-- Float out / dock back. One button, two meanings; the
+                       glyph and tooltip follow IsFloating (styles below the
+                       template), and the host answers the click because only
+                       it knows where "back" is. -->
+                  <Button x:Name="PART_Float" FontSize="11" Padding="6,2"
+                          IsVisible="{TemplateBinding CanFloat}" />
+                  <Button Padding="6,2"
+                          Command="{TemplateBinding CloseCommand}"
+                          IsVisible="{TemplateBinding CloseCommand, Converter={x:Static ObjectConverters.IsNotNull}}"
+                          ToolTip.Tip="Close this panel (reopen via the View menu)">
+                    <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
+                  </Button>
+                </StackPanel>
+                <!--
+                  The tab strip, which is also the title.
+
+                  A slot holds one panel or several; with one, this renders as
+                  the plain title it always was, so an untabbed docker is
+                  unchanged. Tabs live in the header row rather than a row of
+                  their own because the whole point of tabbing is to spend less
+                  height, and a second row would hand most of it back.
+                -->
+                <!--
+                  SelectedValue rather than SelectedItem, because ActiveTab is
+                  a DockPanelId and the items are DockPanelInfo. Handing an
+                  enum to SelectedItem is not an error — nothing simply ever
+                  matches, so no tab is ever selected and the strip looks the
+                  same whichever panel is showing. That is what shipped, and
+                  B125 is the entry for it.
+                -->
+                <ListBox x:Name="PART_Tabs" DockPanel.Dock="Left"
+                         Classes="tabs"
+                         ItemsSource="{TemplateBinding Tabs}"
+                         SelectedValue="{TemplateBinding ActiveTab}"
+                         SelectedValueBinding="{Binding Id, DataType=docking:DockPanelInfo}"
+                         Background="Transparent" BorderThickness="0"
+                         Padding="0" Margin="-6,0,0,0"
+                         VerticalAlignment="Bottom">
+                  <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <!-- Flush: tabs are sheets in a stack, and sheets touch. -->
+                      <StackPanel Orientation="Horizontal" Spacing="0" />
+                    </ItemsPanelTemplate>
+                  </ListBox.ItemsPanel>
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="docking:DockPanelInfo">
+                      <TextBlock Text="{Binding Title}" FontSize="11" FontWeight="SemiBold"
+                                 VerticalAlignment="Center" />
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <!--
+                  The strip's rule, carried on past the last tab.
+
+                  Each tab draws its own bottom edge — that is how the line
+                  can break at the active one, which cannot cover anything
+                  because its gradient ends transparent. But the tabs only
+                  reach as far as their own words, and the reference runs the
+                  rule the full width of the header. This is the rest of it.
+
+                  Height bound to the strip so the two stay on one line
+                  whatever the density scale does; a constant here would be
+                  right until the first retune and then be a visible step in
+                  the middle of a straight line.
+                -->
+                <!-- Named because it is the drag grip when there is no tab
+                     strip to be one, and no type test separates it from any
+                     other TextBlock in the title bar. See Docker.LandedOnTheGrip. -->
+                <TextBlock x:Name="PART_Title" DockPanel.Dock="Left"
+                           Text="{TemplateBinding Title}" FontSize="11" FontWeight="SemiBold"
+                           Opacity="0.9" VerticalAlignment="Center"
+                           IsVisible="{TemplateBinding Tabs, Converter={x:Static ObjectConverters.IsNull}}" />
+                <Border Height="{Binding #PART_Tabs.Bounds.Height}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        VerticalAlignment="Center"
+                        IsVisible="{TemplateBinding Tabs, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </DockPanel>
+            </Border>
+            <ContentPresenter DockPanel.Dock="Top" Content="{TemplateBinding TopBar}" />
+            <ContentPresenter DockPanel.Dock="Bottom" Content="{TemplateBinding BottomBar}" />
+            <!-- The bars above and below are always visible; when the docker
+                 is squeezed it is the CONTENT that gives, scrolling inside
+                 its own panel. This is what lets a sidebar hold its dockers
+                 without ever scrolling as a whole. -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <!-- Padding passes through so one token can inset every
+                   docker's content (Q203); it is 0 unless a style sets it. -->
+              <ContentPresenter x:Name="PART_Content"
+                                Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                Padding="{TemplateBinding Padding}" />
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+
+  <!--
+    Canvas overlay bar: a grip, the controls, collapse and close. On a left
+    or right edge it stacks downwards instead of across, so its length runs
+    along the edge and every icon in it stays the right way up.
+  -->
+  <!-- The bar's outline as a style, for the reason the docker frame's is. -->
+  <Style Selector="controls|CanvasOverlayBar /template/ Border#PART_Bar">
+    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="4" />
+  </Style>
+  <Style Selector="controls|CanvasOverlayBar">
+    <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <!-- Scaled inside the template, not around the bar: the bar's own
+             bounds stay in canvas coordinates, which is what its drag and
+             its edge placement are computed in (Q200). -->
+        <controls:ScaledChrome>
+        <Border x:Name="PART_Bar" Background="{TemplateBinding Background}" Padding="2">
+          <StackPanel Spacing="2"
+                      Orientation="{Binding IsVertical, RelativeSource={RelativeSource TemplatedParent}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
+            <!-- Grip. Everything else in the bar is a button, so the grip
+                 has to be its own target or a drag would press one. -->
+            <!-- Not a colour: a very nearly transparent fill is what makes the
+                 grip a hit target at all. Left as a literal because naming it
+                 in the palette would imply it is something you could re-skin. -->
+            <Border x:Name="PART_Grip" Cursor="SizeAll" Background="#00000001"
+                    MinWidth="12" MinHeight="12"
+                    ToolTip.Tip="Drag to any edge of the canvas">
+              <Path Classes="icon" Width="12" Height="12" Opacity="0.55"
+                    Data="{StaticResource IconGrip}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                              IsVisible="{Binding !Collapsed, RelativeSource={RelativeSource TemplatedParent}}" />
+            <Button x:Name="PART_Collapse" Classes="icon"
+                    ToolTip.Tip="Roll the bar up to its grip">
+              <!-- The chevron carries the state: down while open, sideways
+                   while rolled up — the same pair every tree row uses. -->
+              <Panel>
+                <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconChevronDown}"
+                      IsVisible="{Binding !Collapsed, RelativeSource={RelativeSource TemplatedParent}}" />
+                <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconChevronRight}"
+                      IsVisible="{Binding Collapsed, RelativeSource={RelativeSource TemplatedParent}}" />
+              </Panel>
+            </Button>
+            <Button x:Name="PART_Close" Classes="icon" Padding="4,2"
+                    ToolTip.Tip="Hide this bar (bring it back from the View menu)">
+              <Path Classes="icon" Width="9" Height="9" Data="{StaticResource IconClose}" />
+            </Button>
+          </StackPanel>
+        </Border>
+        </controls:ScaledChrome>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+
+  <!-- Shared look for a docker's option bars. -->
+  <Style Selector="Border.dockerBar">
+    <Setter Property="Background" Value="{StaticResource BackgroundSecondaryBrush}" />
+    <Setter Property="Padding" Value="6,4" />
+  </Style>
+</Styles>

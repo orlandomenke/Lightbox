@@ -4,7 +4,7 @@
     The bridge between Fluent's own resource names and our palette.
 
     `DESIGN.md` says the colour system has two halves and the views are only
-    one of them. `App.axaml`'s `ColorPaletteResources` is most of the second —
+    one of them. `AppStyles.axaml`'s `ColorPaletteResources` is most of the second —
     two properties that repoint every accent and the window ground. This file
     is the rest: the keys Fluent does *not* derive from the accent, which it
     instead hard-codes as translucent black and white.

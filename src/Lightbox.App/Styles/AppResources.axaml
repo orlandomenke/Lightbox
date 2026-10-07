@@ -1,0 +1,24 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Every resource the application loads, in one place, so that anything
+    that hosts Lightbox's controls outside the app (tools/Lightbox.Gallery)
+    loads exactly the same set rather than a copy of the list that drifts.
+  -->
+  <ResourceDictionary.MergedDictionaries>
+    <!-- The colour system. First, so everything below can name a role
+         instead of a hex value. See docs/DESIGN-ui-system.md. -->
+    <ResourceInclude Source="avares://Lightbox.App/Styles/Palette.axaml" />
+    <!-- After the palette, because it names the palette's roles: the keys
+         Fluent hard-codes rather than deriving from the accent. -->
+    <ResourceInclude Source="avares://Lightbox.App/Styles/Theme.axaml" />
+    <!-- The monoline icon geometry, replacing emoji glyph by glyph. -->
+    <ResourceInclude Source="avares://Lightbox.App/Styles/Icons.axaml" />
+    <!-- The brand mark as vectors — its own file because the brand is
+         not the chrome; see the note inside. -->
+    <ResourceInclude Source="avares://Lightbox.App/Styles/Brand.axaml" />
+  </ResourceDictionary.MergedDictionaries>
+  <!-- The splash's colours moved to Brand.axaml when the designed
+       splash replaced the orange placeholder — they are brand surfaces
+       now, not a placeholder waiting to be swapped. -->
+</ResourceDictionary>
