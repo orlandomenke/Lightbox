@@ -100,6 +100,19 @@ public sealed class AppSettings
     public double UiScale { get; set; } = 1.0;
 
     /// <summary>
+    /// The theme: "Dark" (Dark-lit, the default) or "Light" (Studio grey) —
+    /// Avalonia's theme-variant names, because that is what selects the
+    /// palette's theme dictionary (Q203).
+    /// </summary>
+    /// <remarks>
+    /// About the person and the room they draw in, never the artwork: a theme
+    /// changes no pixel of a document, and a dark room and a bright one want
+    /// different chrome. Anything but "Light" reads as Dark, so a hand-edited
+    /// file can only ever land on a theme that exists.
+    /// </remarks>
+    public string Theme { get; set; } = "Dark";
+
+    /// <summary>
     /// Whether to open a console window at startup for the diagnostic traces.
     /// </summary>
     /// <remarks>

@@ -37,7 +37,7 @@
     <DockPanel Grid.Row="0" Grid.Column="2">
       <TextBlock DockPanel.Dock="Top" Text="Recent" FontSize="{StaticResource TypeDense}" Opacity="0.6" Margin="0,0,0,6" />
 
-      <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource Space6}" Margin="{StaticResource SectionGapWide}">
+      <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource Space6}" Margin="{StaticResource SectionGap}">
         <Button Content="Open file…" HorizontalAlignment="Stretch" Click="OnOpenFile" />
         <Button Content="Open project…" HorizontalAlignment="Stretch" Click="OnOpenProject" />
       </StackPanel>

@@ -135,12 +135,15 @@ public sealed class TimelineRuler : Control
         set => SetValue(PoseKeyedProperty, value);
     }
 
-    private static readonly IBrush BackgroundBrush = new SolidColorBrush(Color.Parse("#181818"));
+    // The chrome brushes are read from the theme (Q203) on the first render
+    // and again after a theme switch; the data colours below them are not
+    // chrome and stay fixed.
+    private IBrush BackgroundBrush = Brushes.Transparent;
     private static readonly IBrush PlayheadBrush = new SolidColorBrush(Color.Parse("#4a6ea9"));
-    private static readonly IBrush NumberBrush = new SolidColorBrush(Color.Parse("#c8c8c8"));
-    private static readonly IBrush DimNumberBrush = new SolidColorBrush(Color.Parse("#5a5a5a"));
-    private static readonly IBrush VirtualNumberBrush = new SolidColorBrush(Color.Parse("#454545"));
-    private static readonly IBrush TickBrush = new SolidColorBrush(Color.Parse("#3a3a3a"));
+    private IBrush NumberBrush = Brushes.Transparent;
+    private IBrush DimNumberBrush = Brushes.Transparent;
+    private IBrush VirtualNumberBrush = Brushes.Transparent;
+    private IBrush TickBrush = Brushes.Transparent;
     private static readonly IBrush RangeStartBrush = new SolidColorBrush(Color.Parse("#4caf50"));
     private static readonly IBrush RangeEndBrush = new SolidColorBrush(Color.Parse("#e05555"));
 
@@ -175,7 +178,21 @@ public sealed class TimelineRuler : Control
     /// <summary>How tall the handle grips are — a fixed strip, not the whole ruler.</summary>
     private const double HandleHeight = 9;
 
-    private static readonly IBrush HandleGhostBrush = new SolidColorBrush(Color.Parse("#6a6a6a"));
+    private IBrush HandleGhostBrush = Brushes.Transparent;
+
+    private void ReadChrome()
+    {
+        if (_chromeRead) return;
+        _chromeRead = true;
+        var secondary = ThemeColour.Of(this, "TextSecondaryBrush", Color.Parse("#9a9a97"));
+        IBrush Faded(byte alpha) => new SolidColorBrush(Color.FromArgb(alpha, secondary.R, secondary.G, secondary.B));
+        BackgroundBrush = new SolidColorBrush(ThemeColour.Of(this, "BackgroundSecondaryBrush", Color.Parse("#181818")));
+        NumberBrush = new SolidColorBrush(ThemeColour.Of(this, "TextPrimaryBrush", Color.Parse("#c8c8c8")));
+        DimNumberBrush = Faded(0x80);
+        VirtualNumberBrush = Faded(0x60);
+        HandleGhostBrush = Faded(0xB0);
+        TickBrush = new SolidColorBrush(ThemeColour.Hairline(this, 0x30));
+    }
     private static readonly IBrush LoopBarBrush = new SolidColorBrush(Color.Parse("#3d6b3f"));
 
     /// <summary>The effective range, with unset bounds resolved to the timeline's own.</summary>
@@ -213,8 +230,15 @@ public sealed class TimelineRuler : Control
     protected override Size MeasureOverride(Size availableSize) =>
         new(LeadingInset + Extent * CellWidth, 22);
 
+    // Chrome drawn in code reads the theme (ThemeColour). This renders on every
+    // playback frame, so it reads once and keeps it until the theme switches.
+    public TimelineRuler() => ThemeColour.RepaintOnThemeChange(this, () => _chromeRead = false);
+
+    private bool _chromeRead;
+
     public override void Render(DrawingContext context)
     {
+        ReadChrome();
         var h = Bounds.Height;
         context.FillRectangle(BackgroundBrush, new Rect(Bounds.Size));
 

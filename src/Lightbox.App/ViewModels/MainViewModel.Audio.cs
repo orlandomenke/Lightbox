@@ -40,7 +40,7 @@ public partial class MainViewModel
             track.Muted = value;
             TickAudio();   // muting mid-play stops the sound now, not next tick
             NotifyAudioSurface();
-            _autosave.MarkDirty();
+            MarkEditedOutsideTheRecord();
         }
     }
 
@@ -55,7 +55,7 @@ public partial class MainViewModel
             track.Volume = clamped;
             _audioPlayback.SetGain(clamped);   // live, so the slider is audible
             NotifyAudioSurface();
-            _autosave.MarkDirty();
+            MarkEditedOutsideTheRecord();
         }
     }
 
@@ -68,7 +68,7 @@ public partial class MainViewModel
             if (Scene.Audio is not { } track || track.OffsetFrames == value) return;
             track.OffsetFrames = value;
             NotifyAudioSurface();
-            _autosave.MarkDirty();
+            MarkEditedOutsideTheRecord();
         }
     }
 
@@ -158,7 +158,7 @@ public partial class MainViewModel
         if (total <= 0 || !track.SplitAt(CurrentFrameIndex, total)) return false;
         _audioSegmentsVersion++;
         NotifyAudioSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
         return true;
     }
 
@@ -185,7 +185,7 @@ public partial class MainViewModel
         }
         _audioSegmentsVersion++;
         NotifyAudioSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>
@@ -226,7 +226,7 @@ public partial class MainViewModel
         }
         _audioSegmentsVersion++;
         NotifyAudioSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>
@@ -263,7 +263,7 @@ public partial class MainViewModel
         }
         _audioSegmentsVersion++;
         NotifyAudioSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     private static List<AudioSegment> OrderedSegments(AudioTrack track)
@@ -347,7 +347,7 @@ public partial class MainViewModel
         _audioMono = clip.MonoMixdown();
         _audioPeaks = null;
         NotifyAudioSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
         return null;
     }
 
@@ -358,7 +358,7 @@ public partial class MainViewModel
         Scene.Audio = null;
         DropAudioCache();
         NotifyAudioSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>

@@ -139,14 +139,25 @@ public class ControlTreatmentTests
     }
 
     [AvaloniaFact]
-    public void ThePrimaryRankCarriesTheAccentGradient()
+    public void ThePrimaryRankIsAPlainFullContrastFill()
     {
-        // The one treatment the design is specific about, and the one that
-        // would quietly fall back to a flat colour if the resource were renamed.
-        Assert.True(
-            Application.Current!.TryFindResource("AccentGradientBrush", out var found));
-        var gradient = Assert.IsType<LinearGradientBrush>(found);
-        Assert.Equal(2, gradient.GradientStops.Count);
+        // Q203 retired the coral-to-magenta gradient from the primary button:
+        // on a working control it was the loudest thing on the screen. The
+        // primary is now a plain fill at full contrast with the ground, and its
+        // text reads on it — in both themes, which is the part a rename or a
+        // half-edited theme would quietly break.
+        foreach (var variant in new[] { Avalonia.Styling.ThemeVariant.Dark, Avalonia.Styling.ThemeVariant.Light })
+        {
+            Assert.True(Application.Current!.TryFindResource("PrimaryFillBrush", variant, out var fill));
+            Assert.True(Application.Current!.TryFindResource("PrimaryForegroundBrush", variant, out var text));
+            Assert.True(Application.Current!.TryFindResource("BackgroundPrimaryBrush", variant, out var ground));
+            var f = Assert.IsAssignableFrom<ISolidColorBrush>(fill).Color;
+            var t = Assert.IsAssignableFrom<ISolidColorBrush>(text).Color;
+            var g = Assert.IsAssignableFrom<ISolidColorBrush>(ground).Color;
+            static double L(Color c) => (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B) / 255;
+            Assert.True(Math.Abs(L(f) - L(g)) > 0.5, $"{variant}: the primary does not stand out from the ground");
+            Assert.True(Math.Abs(L(f) - L(t)) > 0.5, $"{variant}: the primary's text does not read on it");
+        }
     }
 
     [Fact]

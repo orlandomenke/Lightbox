@@ -651,6 +651,14 @@
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.6"
                      Text="Kept for this machine, whichever workspace is open. This window stays at its own size." />
         </StackPanel>
+
+        <!-- The theme (Q203): applies at once, everywhere, with no restart. -->
+        <StackPanel Spacing="{StaticResource Space6}">
+          <TextBlock Text="Theme" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
+                     Text="Dark-lit keeps the canvas the brightest thing on screen and suits a dim room. Studio grey is a mid-grey surround, the most neutral for judging a painting's values, and suits a bright one. Neither changes your work." />
+          <ComboBox x:Name="ThemeBox" Width="{StaticResource SizeSettingsCombo}" SelectionChanged="OnThemeChanged" />
+        </StackPanel>
       </StackPanel>
     </ScrollViewer>
 

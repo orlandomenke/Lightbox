@@ -60,7 +60,7 @@ public partial class MainViewModel
         Scene.Camera = new Camera { OutputWidth = Scene.Width, OutputHeight = Scene.Height };
         RefreshCamera();
         NotifyCameraSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>
@@ -74,7 +74,7 @@ public partial class MainViewModel
         Scene.Camera = null;
         RefreshCamera();
         NotifyCameraSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>Key the current framing at the playhead.</summary>
@@ -85,7 +85,7 @@ public partial class MainViewModel
         CameraOps.SetKey(camera, CurrentFrameIndex, FramingNow());
         RefreshCamera();
         NotifyCameraSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>
@@ -105,7 +105,7 @@ public partial class MainViewModel
         key.Frame = toFrame;
         RefreshCamera();
         NotifyCameraSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>
@@ -120,7 +120,7 @@ public partial class MainViewModel
         CameraOps.SetKey(camera, frame, CameraOps.At(camera, frame, Scene.Width, Scene.Height));
         RefreshCamera();
         NotifyCameraSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>Remove the key at the given frame — the graph's key menu.</summary>
@@ -130,7 +130,7 @@ public partial class MainViewModel
         if (!CameraOps.ClearKey(camera, frame)) return;
         RefreshCamera();
         NotifyCameraSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>The easing a key runs into its successor with, for the menu's check mark.</summary>
@@ -143,7 +143,7 @@ public partial class MainViewModel
         key.Ease = ease;
         RefreshCamera();
         NotifyCameraSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>Remove the key at the playhead, if there is one.</summary>
@@ -154,7 +154,7 @@ public partial class MainViewModel
         if (!CameraOps.ClearKey(camera, CurrentFrameIndex)) return;
         RefreshCamera();
         NotifyCameraSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>True when the playhead sits on an authored camera key.</summary>
@@ -184,7 +184,7 @@ public partial class MainViewModel
         camera.OutputHeight = height;
         RefreshCamera();
         NotifyCameraSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>
@@ -252,7 +252,7 @@ public partial class MainViewModel
         CameraOps.SetKey(camera, CurrentFrameIndex, framing);
         RefreshCamera();
         NotifyCameraSurface();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 
     /// <summary>

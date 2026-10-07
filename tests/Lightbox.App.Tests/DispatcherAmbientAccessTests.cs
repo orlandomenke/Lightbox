@@ -136,7 +136,10 @@ public class DispatcherAmbientAccessTests
                 .Select(_ => Path.GetRelativePath(root, f)))
             .ToList();
         Assert.True(
-            uses.Count <= 14,
+            // 15: PerfLog.Start reads it once, on the main thread before the app
+            // runs, so its heartbeat thread can post through the captured
+            // instance (Q209). Every other site is on the UI thread as before.
+            uses.Count <= 15,
             "A new Dispatcher.UIThread.<member> call site. Fine on the UI thread; a B93 "
             + "poisoning off it. Say which in review, then lower or raise this number "
             + $"deliberately. Now at {uses.Count}:\n  "

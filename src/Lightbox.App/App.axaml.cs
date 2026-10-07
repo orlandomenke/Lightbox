@@ -65,6 +65,22 @@ public sealed class App : Application
             // map and every panel in the docking pool. It blocks the UI thread
             // and cannot not — window construction is UI-thread-only — which is
             // why the splash is a still panel rather than anything animated.
+            // B394: this run's recovery folder, held before anything can be
+            // edited. Exit deletes it only if the window closed through the
+            // unsaved-work prompt; any other way out leaves it for the next
+            // launch to offer back.
+            try
+            {
+                Services.RecoverySession.Current = Services.RecoverySession.Start();
+                desktop.Exit += (_, _) => Services.RecoverySession.Current?.Exit();
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // No recovery copies this run rather than no application: the
+                // single shared copy autosave wrote before B394 takes over.
+                Services.DiagnosticLog.WriteNote("recovery", $"folder unavailable: {e.Message}");
+            }
+
             var window = new MainWindow
             {
                 LaunchFile = desktop.Args?.FirstOrDefault(a =>

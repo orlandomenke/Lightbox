@@ -6,8 +6,8 @@
     never the number. TokenRatchetTests counts what is still a literal and lets
     that count fall but never rise.
 
-    STEP 1 OF 3: every value below is TODAY'S value, so landing this changes no
-    pixel. Step 3 changes the values, not the names.
+    Step 3 (Q203) set these to the new look: Tight corners, one docker label
+    width, one gap scale, a 1.25 icon line. The names did not change.
 
     Sizes are read with StaticResource: they change through the interface
     scale (a layout transform), never by swapping a value. Colours stay in
@@ -53,11 +53,10 @@
   <x:Double x:Key="SizeFieldHeight">22</x:Double>
 
   <!-- ===== Docker content (step 2, area 1: the dockers) ===== -->
-  <!-- A setting row in a docker today: label · slider · value. Two label
-       widths are in use (90 and 100) and are kept apart so nothing moves; step
-       3 makes them one, which is easier to see with both named. -->
+  <!-- A setting row in a docker: label · slider · value. One label width
+       for every docker (Q203, step 3: one width per context; dialogs have
+       their own, SizeDialogLabel, because their labels are longer prose). -->
   <x:Double x:Key="SizeDockerLabel">90</x:Double>
-  <x:Double x:Key="SizeDockerLabelWide">100</x:Double>
   <!-- The one-letter channel column: H, S, V, R, G, B. -->
   <x:Double x:Key="SizeChannelLabel">16</x:Double>
   <!-- The gap either side of a row's slider, between label and value. -->
@@ -80,25 +79,22 @@
   <!-- A settings page's choice list. -->
   <x:Double x:Key="SizeSettingsCombo">260</x:Double>
   <!-- An information card on a page ("Measured now"): its corners and inset. -->
-  <CornerRadius x:Key="RadiusCard">4</CornerRadius>
+  <CornerRadius x:Key="RadiusCard">6</CornerRadius>
   <!-- An image preview's corners: a brush thumbnail, a tip, an effect preview.
        Not a control (UI review, windows step). Step 3 decides whether previews
        go square with the rest of the artwork. -->
-  <CornerRadius x:Key="RadiusPreview">3</CornerRadius>
+  <CornerRadius x:Key="RadiusPreview">2</CornerRadius>
   <Thickness x:Key="CardPadding">10</Thickness>
 
   <!-- ===== Dialogs and secondary windows (step 2, area 3) ===== -->
   <!-- A dialog's content inset. -->
   <Thickness x:Key="DialogPadding">16</Thickness>
+  <!-- A dialog with a paragraph and a list to read: the crash-recovery offer (B394). -->
+  <x:Double x:Key="SizeDialogWidth">480</x:Double>
   <!-- A dialog's label column, its small text field, its buttons' floor. -->
   <x:Double x:Key="SizeDialogLabel">110</x:Double>
   <x:Double x:Key="SizeDialogField">70</x:Double>
   <x:Double x:Key="SizeDialogButton">80</x:Double>
-  <!-- The wider gaps in use beside GapBefore/GapAfter (4) and SectionGap (8):
-       named so step 3 can see them, and collapse them onto the scale. -->
-  <Thickness x:Key="GapBeforeWide">6,0,0,0</Thickness>
-  <Thickness x:Key="GapAfterWide">0,0,6,0</Thickness>
-  <Thickness x:Key="SectionGapWide">0,10,0,0</Thickness>
 
   <!-- ===== Icon sizes ===== -->
   <!-- Every glyph size in use. Named by size: an icon's size is its box, and
@@ -111,14 +107,42 @@
   <x:Double x:Key="SizeIcon16">16</x:Double>
 
   <!-- ===== Radii, by role ===== -->
-  <!-- Today's values. Step 3 sets them to the Tight set: control and field 4,
-       container 6, inner 2. -->
+  <!-- The Tight corner set (Q203): controls and fields 4, containers and
+       cards 6, anything nested one step in 2. Previews follow the set at the
+       inner radius (owner's call, against squaring them). -->
   <CornerRadius x:Key="RadiusField">4</CornerRadius>
-  <CornerRadius x:Key="RadiusControl">3</CornerRadius>
+  <CornerRadius x:Key="RadiusControl">4</CornerRadius>
   <CornerRadius x:Key="RadiusContainer">6</CornerRadius>
   <CornerRadius x:Key="RadiusInner">2</CornerRadius>
+  <!-- Inside a container's 2 px padding: a canvas-bar icon, a menu item, a
+       dropdown's item. The container's radius less the padding, so the two
+       shapes are concentric rather than two unrelated roundings. -->
+  <CornerRadius x:Key="RadiusContainerInner">4</CornerRadius>
+  <!-- A docker header strip's top: the container's, square below where the
+       content meets it. -->
+  <CornerRadius x:Key="RadiusContainerTop">6,6,0,0</CornerRadius>
+  <!-- A docker tab: the control's radius on top, square where it joins its panel. -->
+  <CornerRadius x:Key="RadiusTab">4,4,0,0</CornerRadius>
+  <!-- Handles: a slider's thumb, a switch. Round in every corner set. -->
+  <CornerRadius x:Key="RadiusPill">999</CornerRadius>
+
+  <!-- ===== Panels (Q203, step 3) ===== -->
+  <!-- Inside a docker, round its content: every row starts and ends here. -->
+  <Thickness x:Key="PanelPadding">12,10,12,12</Thickness>
+  <!-- The override, for a docker whose content is panes that run to its
+       edges (Tool options: a section list beside the settings). Inset, a
+       300 px column left its sliders a few pixels wide. -->
+  <Thickness x:Key="PanelPaddingFlush">0</Thickness>
+  <!-- The docker's header strip: room above the tabs, none below; the active
+       tab has to touch the content it belongs to. -->
+  <Thickness x:Key="HeaderPadding">8,6,8,0</Thickness>
+  <Thickness x:Key="TabPadding">14,6</Thickness>
+  <!-- Text and icons inside a list row, from its own edge. -->
+  <Thickness x:Key="ItemPadding">8,0</Thickness>
+  <!-- Between one docker and the next in a column. -->
+  <Thickness x:Key="DockerGap">0,0,0,6</Thickness>
 
   <!-- ===== Icons ===== -->
-  <!-- The icon line. Step 3: 1.25 (owner, 2026-10-07). -->
-  <x:Double x:Key="IconStroke">1.5</x:Double>
+  <!-- The icon line (owner, 2026-10-07: slightly thinner than the old 1.5). -->
+  <x:Double x:Key="IconStroke">1.25</x:Double>
 </ResourceDictionary>

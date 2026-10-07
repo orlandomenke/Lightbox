@@ -242,7 +242,7 @@ failure was bad enough that the message could not be shown, the next start says
 so in the status strip instead.
 
 The file lives with your other Lightbox settings, in a `logs` folder inside your
-app data folder — the same place the autosave recovery copy goes. It holds the
+app data folder. (Autosave's crash-recovery copies are kept separately, in the local app data folder — see Saving and recovery.) It holds the
 time, the exact build, your operating system, and what failed. **Attaching it to
 a bug report is the single most useful thing you can do**, because it names the
 build: "the newest one" is several different programs a week.

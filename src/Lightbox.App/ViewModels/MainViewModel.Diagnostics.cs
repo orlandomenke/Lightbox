@@ -659,6 +659,6 @@ public partial class MainViewModel
         ClearFrameRenders();
         PublishSnapshot();
 
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
     }
 }

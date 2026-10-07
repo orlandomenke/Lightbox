@@ -51,7 +51,7 @@
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:EffectShelf">
             <StackPanel Margin="0,0,0,2">
-              <TextBlock Text="{Binding Name}" FontSize="9" Margin="0,1,0,1"
+              <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeHint}" Margin="0,1,0,1"
                          Foreground="{DynamicResource TextSecondaryBrush}" />
               <ItemsControl ItemsSource="{Binding Choices}">
                 <ItemsControl.ItemsPanel>
@@ -92,7 +92,7 @@
         <ItemsControl ItemsSource="{Binding Uses}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:EffectUseRow">
-              <Border Background="Transparent" CornerRadius="3" Padding="2,1"
+              <Border Background="Transparent" CornerRadius="{StaticResource RadiusControl}" Padding="2,1"
                       Classes.selectedFx="{Binding IsSelected}">
                 <DockPanel>
                   <CheckBox DockPanel.Dock="Left" IsChecked="{Binding Enabled}" MinWidth="0"
@@ -108,7 +108,7 @@
                           CommandParameter="{Binding}">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                       <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}" VerticalAlignment="Center" />
-                      <TextBlock Text="from a newer build" FontSize="9" VerticalAlignment="Center"
+                      <TextBlock Text="from a newer build" FontSize="{StaticResource TypeHint}" VerticalAlignment="Center"
                                  Foreground="{DynamicResource StatusWarningBrush}"
                                  IsVisible="{Binding !IsKnown}"
                                  ToolTip.Tip="This document carries an effect this build cannot render. It is kept exactly as saved and currently does nothing." />
@@ -128,7 +128,7 @@
               <Grid ColumnDefinitions="86,20,*" Margin="0,1" MinHeight="24">
                 <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="{StaticResource TypeDense}"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                <Border Grid.Column="1" Width="14" Height="14" CornerRadius="3"
+                <Border Grid.Column="1" Width="14" Height="14" CornerRadius="{StaticResource RadiusPreview}"
                         Background="{Binding Swatch}" VerticalAlignment="Center"
                         BorderBrush="{DynamicResource TextSecondaryBrush}" BorderThickness="1" />
                 <TextBox Grid.Column="2" Text="{Binding Value, Mode=TwoWay}"

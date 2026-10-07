@@ -130,7 +130,27 @@ public sealed partial class DocumentTab : ObservableObject
     internal List<DocumentTab> Views { get; } = [];
 
     /// <summary>Whether this tab's own editor has moved since it was saved.</summary>
-    private bool HasOwnChanges => _savedRevision != Editor.Revision;
+    private bool HasOwnChanges =>
+        _savedRevision != Editor.Revision || _editsOutsideTheRecord != _editsOutsideTheRecordAtSave;
+
+    private long _editsOutsideTheRecord;
+    private long _editsOutsideTheRecordAtSave;
+
+    /// <summary>
+    /// The document changed by a route that does not push an undo step — the
+    /// camera, audio, document features, a reference view's framing (B394).
+    /// </summary>
+    /// <remarks>
+    /// Those edits move nothing <see cref="Editor"/> can see, so without this a
+    /// document whose only change was a camera key was clean: no badge, no
+    /// prompt on close, and no crash-recovery copy. The adversarial pass on
+    /// B394 found it by asking which edits the recovery copy could miss.
+    /// </remarks>
+    internal void NoteEditOutsideTheRecord()
+    {
+        _editsOutsideTheRecord++;
+        RefreshDirty();
+    }
 
     /// <summary>
     /// Whether this document differs from what is on disk.
@@ -190,7 +210,54 @@ public sealed partial class DocumentTab : ObservableObject
     /// as B76's pending versus missing: worth knowing is not worth acting on.
     /// </remarks>
     public bool HasWorkToLose =>
-        (Editor.Revision > 0 || Views.Any(v => v.Editor.Revision > 0)) && IsDirty;
+        IsRecovered
+        || _editsOutsideTheRecord != _editsOutsideTheRecordAtSave
+        || ((Editor.Revision > 0 || Views.Any(v => v.Editor.Revision > 0)) && IsDirty);
+
+    /// <summary>
+    /// Names this tab's crash-recovery copy on disk (B394). Stable for the life
+    /// of the tab and nothing else: it is not the document's id, because two
+    /// tabs can hold copies of one document.
+    /// </summary>
+    internal string RecoveryKey { get; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>
+    /// Restored from a crash and not saved since (B394).
+    /// </summary>
+    /// <remarks>
+    /// Every stroke on it is unsaved work, though its editor starts at revision
+    /// zero — which is what <see cref="HasWorkToLose"/> would otherwise read as
+    /// "nothing drawn" and close without asking. Cleared by the first save.
+    /// </remarks>
+    internal bool IsRecovered { get; set; }
+
+    /// <summary>
+    /// The file a recovered document came from, if any — where Save As starts,
+    /// and never a place anything is written without the artist choosing it.
+    /// </summary>
+    internal string? RecoveredFrom { get; set; }
+
+    /// <summary>
+    /// A number that moves whenever this document does, its views included —
+    /// what the recovery copy compares to decide whether to write again.
+    /// </summary>
+    /// <remarks>
+    /// Combined in order rather than summed: a revision names a state on the
+    /// undo stack and goes backwards on undo, so a sum could read the same for
+    /// the document moving forward while a view moved back.
+    /// </remarks>
+    internal long RecoveryRevision
+    {
+        get
+        {
+            unchecked
+            {
+                var r = Editor.Revision * 1_000_003 + _editsOutsideTheRecord;
+                foreach (var view in Views) r = r * 1_000_003 + view.Editor.Revision;
+                return r;
+            }
+        }
+    }
 
     /// <summary>This document was written to disk as it currently stands.</summary>
     /// <remarks>
@@ -200,7 +267,13 @@ public sealed partial class DocumentTab : ObservableObject
     public void MarkSaved()
     {
         foreach (var view in Views) view.SetSavedRevision(view.Editor.Revision);
+        _editsOutsideTheRecordAtSave = _editsOutsideTheRecord;
         SetSavedRevision(Editor.Revision);
+        if (IsRecovered)
+        {
+            IsRecovered = false;
+            RefreshDirty();
+        }
     }
 
     /// <summary>

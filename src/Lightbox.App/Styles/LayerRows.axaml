@@ -28,11 +28,12 @@
   -->
   <Style Selector="Border.layerRow">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Padding" Value="2,0" />
   </Style>
+  <!-- The layer being drawn on is "on": the one flat fill every "on" takes (Q203). -->
   <Style Selector="Border.layerRow.active">
-    <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
+    <Setter Property="Background" Value="{DynamicResource ActiveFillBrush}" />
   </Style>
   <Style Selector="Border.layerRow.hiddenLayer">
     <Setter Property="Opacity" Value="0.35" />
@@ -50,7 +51,7 @@
   </Style>
   <Style Selector="Border.groupRow">
     <Setter Property="Background" Value="{DynamicResource GroupRowBrush}" />
-    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Padding" Value="2,0" />
   </Style>
   <!-- A folder picked on its header: a new layer goes inside it. The same

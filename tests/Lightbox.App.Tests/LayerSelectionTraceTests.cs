@@ -71,4 +71,33 @@ public sealed class LayerSelectionTraceTests : BrushStateIsolated, IDisposable
         vm.SelectLayer(vm.LayerRows.First(r => r.SceneIndex == 1), toggle: true, range: false);
         Assert.DoesNotContain("[layer-selection]", Log());
     }
+
+    /// <summary>
+    /// B395: the trace names its callers whether or not the JIT inlined the
+    /// method between them and the trace.
+    /// </summary>
+    /// <remarks>
+    /// The first version skipped a fixed two frames, assuming its immediate
+    /// caller was a frame of its own. Inlined, the second skip was the method
+    /// it meant to name, and ArmedItRecordsEverySelectionChangeAndWhoAskedForIt
+    /// failed on whichever run had warmed the JIT enough. Here the inlining is
+    /// forced rather than waited for: the caller is optimised from its first
+    /// call and the helper between asks to be inlined.
+    /// </remarks>
+    [Fact]
+    public void ACallerIsNamedEvenWhenTheMethodBetweenIsInlined()
+    {
+        var via = NamedCaller();
+        Assert.Contains(nameof(NamedCaller), via);
+        Assert.DoesNotContain("LayerSelectionTrace.Callers", via);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(
+        System.Runtime.CompilerServices.MethodImplOptions.NoInlining
+        | System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
+    private static string NamedCaller() => InlinedBetween();
+
+    [System.Runtime.CompilerServices.MethodImpl(
+        System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private static string InlinedBetween() => Services.LayerSelectionTrace.Callers();
 }

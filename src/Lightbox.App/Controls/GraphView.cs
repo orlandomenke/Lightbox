@@ -136,19 +136,26 @@ public class GraphView : Control
 
     // ---- painting -----------------------------------------------------------------
 
+    // Chrome drawn in code reads the theme (ThemeColour). This renders on every
+    // playback frame, so it reads once and keeps it until the theme switches.
+    public GraphView() => ThemeColour.RepaintOnThemeChange(this, () => _chrome = null);
+
+    private (IBrush Text, Pen Faint, Pen Grid)? _chrome;
+
     public override void Render(DrawingContext context)
     {
         var series = Series;
         if (series is null || series.Count == 0) return;
 
-        var text = new SolidColorBrush(Color.Parse("#A6ABB8"));
-        var faint = new Pen(new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF)), 1);
+        var (text, faint, grid) = _chrome ??= (
+            new SolidColorBrush(ThemeColour.Of(this, "TextSecondaryBrush", Color.Parse("#A6ABB8"))),
+            new Pen(new SolidColorBrush(ThemeColour.Hairline(this, 0x22)), 1),
+            new Pen(new SolidColorBrush(ThemeColour.Hairline(this, 0x12)), 1));
         var typeface = new Typeface(Avalonia.Media.FontFamily.Default);
 
         // The light grid: per-frame verticals when there is room for them, and
         // a few horizontal bands across the plot. Barely-there on purpose —
         // the grid is for judging a curve's shape, never a thing to look at.
-        var grid = new Pen(new SolidColorBrush(Color.FromArgb(0x12, 0xFF, 0xFF, 0xFF)), 1);
         if (FrameWidth >= 8)
         {
             for (var f = 0; f < FrameCount; f++)
@@ -251,9 +258,11 @@ public class GraphView : Control
             var chip = new FormattedText(
                 value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
                 System.Globalization.CultureInfo.InvariantCulture,
-                FlowDirection.LeftToRight, typeface, 10, Brushes.White);
+                FlowDirection.LeftToRight, typeface, 10,
+                new SolidColorBrush(ThemeColour.Of(this, "TextPrimaryBrush", Colors.White)));
             var box = new Rect(ghost.X + 8, ghost.Y - chip.Height / 2 - 3, chip.Width + 10, chip.Height + 6);
-            context.DrawRectangle(new SolidColorBrush(Color.Parse("#CC26292F")), null, new RoundedRect(box, 3));
+            var ground = ThemeColour.Of(this, "SurfaceElevatedBrush", Color.Parse("#26292F"));
+            context.DrawRectangle(new SolidColorBrush(Color.FromArgb(0xCC, ground.R, ground.G, ground.B)), null, new RoundedRect(box, 3));
             context.DrawText(chip, new Point(box.X + 5, box.Y + 3));
         }
 

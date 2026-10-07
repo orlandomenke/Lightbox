@@ -35,6 +35,15 @@ public static class ProfileFolder
     /// <summary>The profile folder: the override when honoured, otherwise <c>%APPDATA%\Lightbox</c>.</summary>
     public static string Root => Resolved.Value;
 
+    /// <summary>
+    /// Whether <see cref="Root"/> is an honoured override — a throwaway profile,
+    /// so anything else that would live beside the profile follows it there.
+    /// </summary>
+    public static bool Overridden => !string.Equals(Root, Standard, StringComparison.OrdinalIgnoreCase);
+
+    private static string Standard => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lightbox");
+
     /// <summary>Why an override was ignored, if one was. For the diagnostic log.</summary>
     public static string? IgnoredOverride { get; private set; }
 

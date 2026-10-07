@@ -101,9 +101,14 @@ public sealed class PerfLabHookTests : IDisposable
 
             // Fully qualified, so it is refused for being a network path and not
             // merely for being relative.
-            Environment.SetEnvironmentVariable("LIGHTBOX_PROFILE_DIR", @"\\server\share\profile");
-            Assert.True(Path.IsPathFullyQualified(@"\\server\share\profile"));
-            Assert.DoesNotContain("server", Lightbox.Core.ProfileFolder.Resolve());
+            // Windows only: on Linux (CI) a backslash is not a separator, so the
+            // string is merely relative — refused above, but not this rule's case.
+            if (OperatingSystem.IsWindows())
+            {
+                Environment.SetEnvironmentVariable("LIGHTBOX_PROFILE_DIR", @"\\server\share\profile");
+                Assert.True(Path.IsPathFullyQualified(@"\\server\share\profile"));
+                Assert.DoesNotContain("server", Lightbox.Core.ProfileFolder.Resolve());
+            }
         }
         finally
         {

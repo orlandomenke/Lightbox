@@ -61,6 +61,11 @@ public static class PerfLog
             return;
         }
         if (!Open(path)) return;
+        // Captured once, here, on the main thread before the app runs — the
+        // heartbeat posts through this instance from its own thread and never
+        // touches the ambient static there (B93: CurrentDispatcher off the UI
+        // thread constructs a second dispatcher; UIThread read here does not).
+        _ui = Dispatcher.UIThread;
         Console.Error.WriteLine($"Lightbox performance log on: {path}");
         var build = typeof(PerfLog).Assembly
             .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
@@ -186,6 +191,8 @@ public static class PerfLog
 
     private static readonly Action Answer = () => Answered.Set();
 
+    private static Dispatcher? _ui;
+
     private static void Heartbeat()
     {
         var lastFlush = Clock.Elapsed.TotalMilliseconds;
@@ -195,7 +202,7 @@ public static class PerfLog
             Answered.Reset();
             try
             {
-                Dispatcher.UIThread.Post(Answer, DispatcherPriority.Send);
+                _ui!.Post(Answer, DispatcherPriority.Send);
             }
             catch (InvalidOperationException)
             {
