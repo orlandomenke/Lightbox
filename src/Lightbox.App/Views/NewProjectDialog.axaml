@@ -7,11 +7,11 @@
         CanResize="False"
         WindowStartupLocation="CenterOwner">
 
-  <StackPanel Margin="16" Spacing="{StaticResource Space10}">
+  <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space10}">
     <views:NewProjectPanel x:Name="Fields" />
-    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space8}" HorizontalAlignment="Right" Margin="0,8,0,0">
-      <Button Classes="primary" Content="Create" IsDefault="True" Click="OnCreateClicked" MinWidth="80" />
-      <Button Classes="tertiary" Content="Cancel" IsCancel="True" Click="OnCancelClicked" MinWidth="80" />
+    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space8}" HorizontalAlignment="Right" Margin="{StaticResource SectionGap}">
+      <Button Classes="primary" Content="Create" IsDefault="True" Click="OnCreateClicked" MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="tertiary" Content="Cancel" IsCancel="True" Click="OnCancelClicked" MinWidth="{StaticResource SizeDialogButton}" />
     </StackPanel>
   </StackPanel>
 </Window>

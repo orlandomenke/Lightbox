@@ -8,7 +8,7 @@
         WindowStartupLocation="CenterOwner"
         Title="Resize">
 
-  <StackPanel Margin="16" Spacing="{StaticResource Space12}">
+  <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
 
     <!-- Pixel size. Both modes have it; only the labels around it differ. -->
     <Grid ColumnDefinitions="Auto,*,Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
@@ -56,7 +56,7 @@
       The preview, as a sentence. It names the one consequence an artist cannot
       see coming and cannot undo by eye: whether the marks are about to change.
     -->
-    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="4" Padding="10">
+    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}">
       <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
     </Border>
 

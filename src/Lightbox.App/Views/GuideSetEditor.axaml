@@ -6,7 +6,7 @@
         WindowStartupLocation="CenterOwner"
         Title="Guide sets">
 
-  <StackPanel Margin="16" Spacing="{StaticResource Space12}">
+  <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
 
     <!--
       One sentence of orientation, because the feature spans three surfaces:

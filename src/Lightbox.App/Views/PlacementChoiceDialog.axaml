@@ -6,7 +6,7 @@
         CanResize="False"
         WindowStartupLocation="CenterOwner">
 
-  <StackPanel Margin="16" Spacing="{StaticResource Space12}">
+  <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
     <TextBlock Text="This symbol has multiple frames. How do you want to place it?"
                TextWrapping="Wrap" />
 
@@ -22,11 +22,11 @@
                  TextWrapping="Wrap" Margin="24,0,0,0" Opacity="0.7" />
     </StackPanel>
 
-    <CheckBox x:Name="DontAskAgain" Content="Remember this choice" Margin="0,8,0,0" />
+    <CheckBox x:Name="DontAskAgain" Content="Remember this choice" Margin="{StaticResource SectionGap}" />
 
     <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space8}" HorizontalAlignment="Right" Margin="0,12,0,0">
-      <Button Classes="primary" Content="Place" IsDefault="True" Click="OnPlaceClicked" MinWidth="80" />
-      <Button Classes="tertiary" Content="Cancel" IsCancel="True" Click="OnCancelClicked" MinWidth="80" />
+      <Button Classes="primary" Content="Place" IsDefault="True" Click="OnPlaceClicked" MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="tertiary" Content="Cancel" IsCancel="True" Click="OnCancelClicked" MinWidth="{StaticResource SizeDialogButton}" />
     </StackPanel>
   </StackPanel>
 </Window>

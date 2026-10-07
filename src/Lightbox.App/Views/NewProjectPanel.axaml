@@ -6,7 +6,7 @@
   <StackPanel Spacing="{StaticResource Space10}">
 
     <DockPanel>
-      <TextBlock Text="Name" Width="110" VerticalAlignment="Center" />
+      <TextBlock Text="Name" Width="{StaticResource SizeDialogLabel}" VerticalAlignment="Center" />
       <TextBox x:Name="NameBox" Text="Project" />
     </DockPanel>
 
@@ -16,13 +16,13 @@
       never declares one writes no type key at all.
     -->
     <DockPanel>
-      <TextBlock Text="Type" Width="110" VerticalAlignment="Center" />
+      <TextBlock Text="Type" Width="{StaticResource SizeDialogLabel}" VerticalAlignment="Center" />
       <ComboBox x:Name="TypeBox" HorizontalAlignment="Stretch"
                 ToolTip.Tip="What this project is for. Tooling and export adapt to it; it can be left unset." />
     </DockPanel>
 
     <DockPanel>
-      <TextBlock Text="Panels" Width="110" VerticalAlignment="Center" />
+      <TextBlock Text="Panels" Width="{StaticResource SizeDialogLabel}" VerticalAlignment="Center" />
       <ComboBox x:Name="WorkspaceBox" HorizontalAlignment="Stretch"
                 ToolTip.Tip="Keep the arrangement you are working in, or take this type's defaults" />
     </DockPanel>

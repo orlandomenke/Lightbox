@@ -6,7 +6,7 @@
         WindowStartupLocation="CenterOwner"
         Title="Skeleton sets">
 
-  <StackPanel Margin="16" Spacing="{StaticResource Space12}">
+  <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
 
     <!--
       Same orientation sentence as the guide-set editor, because the feature

@@ -45,7 +45,7 @@
                 HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                 IsVisible="{Binding IsOverridden}" Click="OnRevertField"
                 ToolTip.Tip="Put this back to what the shared treatment says">
-          <Path Classes="icon" Data="{StaticResource IconUndo}" Width="11" Height="11" />
+          <Path Classes="icon" Data="{StaticResource IconUndo}" Width="{StaticResource SizeIcon11}" Height="{StaticResource SizeIcon11}" />
         </Button>
       </Grid>
     </DataTemplate>
@@ -101,7 +101,7 @@
                 ToolTip.Tip="Delete the effect and every element in it, drawings included" />
       </StackPanel>
 
-      <TextBlock Grid.Row="4" Text="Elements" FontSize="{StaticResource TypeDense}" Opacity="0.6" Margin="0,6,0,0"
+      <TextBlock Grid.Row="4" Text="Elements" FontSize="{StaticResource TypeDense}" Opacity="0.6" Margin="{StaticResource SubsectionGap}"
                  VerticalAlignment="Top" />
       <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="{StaticResource Space4}" HorizontalAlignment="Right"
                   VerticalAlignment="Top" Margin="0,-2,0,0">
@@ -133,7 +133,7 @@
         <Button Classes="text" Content="Delete" Click="OnDeleteElement" />
       </StackPanel>
 
-      <TextBlock Grid.Row="6" Text="Emitters" FontSize="{StaticResource TypeDense}" Opacity="0.6" Margin="0,6,0,0" />
+      <TextBlock Grid.Row="6" Text="Emitters" FontSize="{StaticResource TypeDense}" Opacity="0.6" Margin="{StaticResource SubsectionGap}" />
       <ListBox Grid.Row="7" ItemsSource="{Binding Emitters}"
                SelectedItem="{Binding SelectedEmitter, Mode=TwoWay}">
         <ListBox.ItemTemplate>
@@ -235,7 +235,7 @@
                        VerticalAlignment="Center"
                        ToolTip.Tip="The art style. These redraw from the solve already in hand, so they are cheap and preview as you move them." />
             <TextBlock Grid.Column="1" Text="{Binding PenSummary}" FontSize="{StaticResource TypeHint}" Opacity="0.5"
-                       VerticalAlignment="Center" Margin="0,0,6,0" />
+                       VerticalAlignment="Center" Margin="{StaticResource GapAfterWide}" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="{StaticResource Space4}">
               <Button Classes="text" Content="Take brush" Click="OnUseCurrentBrush"
                       ToolTip.Tip="Draw this element's outlines with the brush the toolbar is holding. Copied now, not read at bake time — so re-baking always draws the same line." />
@@ -250,7 +250,7 @@
 
     <!-- ── the preview, and the two buttons that cost something ─────────── -->
     <Grid Grid.Column="2" RowDefinitions="*,Auto,Auto,Auto,Auto" RowSpacing="6">
-      <Border Grid.Row="0" Background="{DynamicResource BackgroundPrimaryBrush}" CornerRadius="3" Padding="4">
+      <Border Grid.Row="0" Background="{DynamicResource BackgroundPrimaryBrush}" CornerRadius="{StaticResource RadiusPreview}" Padding="4">
         <Image x:Name="PreviewImage" Stretch="Uniform" />
       </Border>
 

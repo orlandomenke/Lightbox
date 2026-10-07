@@ -249,6 +249,13 @@ public partial class MainWindow
 
     private void OnMenuInsertBlankFrame(object? sender, RoutedEventArgs e) => _vm.InsertBlankFrameAtPlayhead();
 
+    private void OnMenuInsertBlankKeyframe(object? sender, RoutedEventArgs e) => _vm.InsertBlankKeyframeAtPlayhead();
+
+    private void OnInsertBlankKeyframe(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.InsertBlankKeyframeAt(cell);
+    }
+
     private void OnMenuSetStartFrame(object? sender, RoutedEventArgs e) => _vm.SetPlaybackStartAtPlayhead();
 
     private void OnMenuSetEndFrame(object? sender, RoutedEventArgs e) => _vm.SetPlaybackEndAtPlayhead();

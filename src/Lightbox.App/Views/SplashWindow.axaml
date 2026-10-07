@@ -64,7 +64,7 @@
       </TextBlock>
       <TextBlock Text="Built for Artists. Designed for Creativity."
                  FontSize="{StaticResource TypeDense}" Foreground="#9BA0AC"
-                 HorizontalAlignment="Center" Margin="0,6,0,0" />
+                 HorizontalAlignment="Center" Margin="{StaticResource SubsectionGap}" />
     </StackPanel>
 
     <TextBlock x:Name="Status" Text="Loading…" FontSize="{StaticResource TypeDense}" Foreground="#9BA0AC"

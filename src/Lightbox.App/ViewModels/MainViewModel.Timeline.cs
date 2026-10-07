@@ -833,7 +833,7 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// <b>Insert blank frame</b>: a hold goes in <em>at</em> the cel, so the new
+    /// <b>Insert empty cell</b> (Q196's <i>Insert blank frame</i>): a hold goes in <em>at</em> the cel, so the new
     /// cel shows the drawing before it and the cel and the rest of its row move
     /// right. A run of n selected cels inserts n holds at its start. When the
     /// selection is a column it is a column insert — every layer, the paper
@@ -873,6 +873,40 @@ public partial class MainViewModel
         ClearCelRange(); // the indices it held have shifted out from under it
         ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
+        RefreshThumbnails();
+    }
+
+    /// <summary>
+    /// <b>Insert blank keyframe</b>: every empty cel in the selection becomes a
+    /// keyframe with nothing drawn on it — a white cel, the sheet of paper before
+    /// the first mark. Drawn cels are left as they are. One undo step.
+    /// </summary>
+    /// <remarks>
+    /// Unlike the other three verbs this reaches past the end of the scene: a
+    /// key there is an edit that lands, the same as drawing there (Q103), so the
+    /// scene grows to it. Pushing frames along past the end has nothing to push,
+    /// which is why Insert empty cell refuses there and this does not.
+    /// </remarks>
+    public void InsertBlankKeyframeAt(FrameCell cell)
+    {
+        var picks = new List<(Layer Layer, int Index)>();
+        foreach (var layerIndex in OpLayersFor(cell))
+        {
+            if (LayerAt(layerIndex) is not { } layer) continue;
+            foreach (var i in OpCelsOn(cell, layerIndex))
+            {
+                if (i >= 0) picks.Add((layer, i));
+            }
+        }
+        var editable = EditablePicks(picks, "insert a blank keyframe on it");
+        if (editable.Count == 0) return;
+        if (_editor.KeyBlankCels(editable) == 0)
+        {
+            AiStatus = picks.Count == 1
+                ? "That cel already has a drawing — Delete it first to start it blank."
+                : "Every cel picked already has a drawing — a blank keyframe goes on an empty cel.";
+            return;
+        }
         RefreshThumbnails();
     }
 
@@ -1039,6 +1073,11 @@ public partial class MainViewModel
     public void InsertBlankFrameAtPlayhead()
     {
         if (SelectionOrCurrentCell() is { } cell) InsertBlankFrameAt(cell);
+    }
+
+    public void InsertBlankKeyframeAtPlayhead()
+    {
+        if (SelectionOrCurrentCell() is { } cell) InsertBlankKeyframeAt(cell);
     }
 
     /// <summary>
