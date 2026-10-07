@@ -96,6 +96,14 @@ public sealed class LayerGroup
     /// </summary>
     public string? Under { get; set; }
 
+    /// <summary>
+    /// Set by an edit that put this folder in its slot on purpose, so
+    /// <see cref="FolderTree.Settle"/> takes the slot as given rather than
+    /// keeping the old one. Never saved, and cleared by the settle that reads it.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal bool PlacedByEdit { get; set; }
+
     /// <summary>A copy holding no reference in common with this one.</summary>
     public LayerGroup Clone() => (LayerGroup)MemberwiseClone();
 }

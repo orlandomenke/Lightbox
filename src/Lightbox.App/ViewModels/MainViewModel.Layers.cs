@@ -163,6 +163,7 @@ public partial class MainViewModel
             if (why.Length > 0) AiStatus = why;
             return false;
         }
+        FolderTree.Settle(trial, Scene); // as Perform will, so the trial judges what the edit really does
         if (FolderTree.Signature(trial) == FolderTree.Signature(Scene)) return false;
         _editor.Perform(doc => edit(doc.Scene), label: label, frameContentUnchanged: frameContentUnchanged);
         return true;
@@ -292,6 +293,7 @@ public partial class MainViewModel
         if (DropSpec(target, hint) is not { } drop) return LayerDropHint.None;
         var trial = FolderTree.Skeleton(Scene);
         if (FolderTree.Move(trial, CarriedItems(carried), drop.Target, drop.Where) is not null) return LayerDropHint.None;
+        FolderTree.Settle(trial, Scene);
         return FolderTree.Signature(trial) == FolderTree.Signature(Scene) ? LayerDropHint.None : hint;
     }
 
@@ -479,6 +481,15 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>"Folder n" with the lowest n no folder in the document is using.</summary>
+    private string NextFolderName()
+    {
+        var taken = Scene.LayerGroups.Select(g => g.Name).ToHashSet();
+        var n = 1;
+        while (taken.Contains($"Folder {n}")) n++;
+        return $"Folder {n}";
+    }
+
     /// <summary>The item a new folder goes directly above: the picked folder, else the active layer.</summary>
     private StackRef? NewFolderAnchor() =>
         SelectedGroup is { } group ? StackRef.Of(group)
@@ -499,7 +510,7 @@ public partial class MainViewModel
     private void CreateLayerFolder()
     {
         var anchor = NewFolderAnchor();
-        var name = $"Folder {Scene.LayerGroups.Count + 1}";
+        var name = NextFolderName();
         var id = Ids.NewId("group");
         if (!StackEdit(scene =>
             {
@@ -526,7 +537,7 @@ public partial class MainViewModel
     {
         var items = SelectedStackItems();
         if (items.Count == 0 && ActiveLayer is { } active) items = [StackRef.Of(active)];
-        var name = $"Folder {Scene.LayerGroups.Count + 1}";
+        var name = NextFolderName();
         var id = Ids.NewId("group");
         if (!StackEdit(
                 scene => FolderTree.Group(scene, new LayerGroup { Id = id, Name = name }, items),
@@ -611,6 +622,14 @@ public partial class MainViewModel
     private void DeleteGroup(GroupRow header)
     {
         var folder = header.Group;
+        // A lock above it protects it as surely as one inside it does: the
+        // layers under a locked outer folder refuse a delete one at a time,
+        // and picking the inner folder must not be the way round that.
+        if (FolderTree.Ancestors(Scene, folder).FirstOrDefault(f => f.Locked) is { } lockedAbove)
+        {
+            AiStatus = $"\u201c{lockedAbove.Name}\u201d is locked \u2014 unlock it to delete a folder inside it.";
+            return;
+        }
         if (folder.Locked || FolderTree.SubtreeFolders(Scene, folder).Any(f => f.Locked))
         {
             AiStatus = $"“{folder.Name}” has a locked folder in it — unlock it to delete the folder.";
@@ -622,6 +641,8 @@ public partial class MainViewModel
             return;
         }
         var id = folder.Id;
+        var name = folder.Name;
+        var count = FolderTree.SubtreeLayers(Scene, folder).Count;
         var at = FolderTree.SubtreeLayers(Scene, folder).Select(l => Scene.Layers.IndexOf(l)).DefaultIfEmpty(-1).Min();
         if (!StackEdit(scene =>
             {
@@ -639,6 +660,13 @@ public partial class MainViewModel
             ActiveLayerIndex = Scene.Layers[next].IsBackground ? FirstPaintableLayer(Doc) : next;
         }
         RefreshLayerSelectionHighlights();
+        // Saying how much went is the receipt for a delete that takes contents.
+        AiStatus = count switch
+        {
+            0 => $"Deleted the folder \u201c{name}\u201d.",
+            1 => $"Deleted the folder \u201c{name}\u201d and the layer in it \u2014 Ctrl+Z brings it back.",
+            _ => $"Deleted the folder \u201c{name}\u201d and the {count} layers in it \u2014 Ctrl+Z brings them back.",
+        };
     }
 
     internal void CommitGroupRename(LayerGroup group, string name)

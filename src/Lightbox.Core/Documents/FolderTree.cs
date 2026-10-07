@@ -43,16 +43,47 @@ public readonly record struct StackRow(object Item, int Depth, bool Hidden, bool
 /// </remarks>
 public static class FolderTree
 {
-    /// <summary>A folder by id, or null.</summary>
-    public static LayerGroup? Folder(Scene scene, string? id) =>
-        id is null ? null : scene.LayerGroups.FirstOrDefault(g => g.Id == id);
+    /// <summary>
+    /// The deepest nesting the tree follows. A parent chain longer than this —
+    /// only a crafted or damaged file has one — is cut there, the way a parent
+    /// that does not exist is: what lies beyond shows at the top level.
+    /// </summary>
+    /// <remarks>
+    /// It bounds every walk up the tree, so a file cannot make opening it, a
+    /// composite or a docker refresh cost more than this many steps per layer
+    /// (sensitivity-guardian on Q204: a 10,000-deep chain hung the docker and
+    /// could overflow the stack).
+    /// </remarks>
+    public const int MaxDepth = 32;
 
-    /// <summary>The folders containing <paramref name="folder"/>, innermost first.</summary>
-    public static List<LayerGroup> Ancestors(Scene scene, LayerGroup folder)
+    private delegate LayerGroup? Lookup(string? id);
+
+    /// <summary>Find by scanning — for one question asked once.</summary>
+    private static Lookup Linear(Scene scene) =>
+        id => id is null ? null : scene.LayerGroups.FirstOrDefault(g => g.Id == id);
+
+    /// <summary>
+    /// Find by an index built once — for a pass over the whole stack. The first
+    /// of two folders sharing an id wins, as the scan's does.
+    /// </summary>
+    private static Lookup Indexed(Scene scene)
+    {
+        var byId = new Dictionary<string, LayerGroup>(scene.LayerGroups.Count);
+        foreach (var g in scene.LayerGroups) byId.TryAdd(g.Id, g);
+        return id => id is not null && byId.TryGetValue(id, out var g) ? g : null;
+    }
+
+    /// <summary>A folder by id, or null.</summary>
+    public static LayerGroup? Folder(Scene scene, string? id) => Linear(scene)(id);
+
+    /// <summary>The folders containing <paramref name="folder"/>, innermost first, at most <see cref="MaxDepth"/>.</summary>
+    public static List<LayerGroup> Ancestors(Scene scene, LayerGroup folder) => Ancestors(Linear(scene), folder);
+
+    private static List<LayerGroup> Ancestors(Lookup find, LayerGroup folder)
     {
         var chain = new List<LayerGroup>();
-        var seen = new HashSet<string> { folder.Id };
-        for (var p = Folder(scene, folder.ParentId); p is not null && seen.Add(p.Id); p = Folder(scene, p.ParentId))
+        var seen = new HashSet<LayerGroup>(ReferenceEqualityComparer.Instance) { folder };
+        for (var p = find(folder.ParentId); p is not null && chain.Count < MaxDepth && seen.Add(p); p = find(p.ParentId))
         {
             chain.Add(p);
         }
@@ -60,17 +91,20 @@ public static class FolderTree
     }
 
     /// <summary>The folder directly containing <paramref name="folder"/>, as the tree resolves it.</summary>
-    public static LayerGroup? ParentOf(Scene scene, LayerGroup folder) =>
-        Folder(scene, folder.ParentId) is { } p && p.Id != folder.Id && !Ancestors(scene, p).Contains(folder)
-            ? p
-            : null;
+    public static LayerGroup? ParentOf(Scene scene, LayerGroup folder) => ParentOf(Linear(scene), folder);
+
+    private static LayerGroup? ParentOf(Lookup find, LayerGroup folder) =>
+        find(folder.ParentId) is { } p && !ReferenceEquals(p, folder) ? p : null;
 
     /// <summary>The folders a layer is inside, innermost first; empty for a loose layer.</summary>
-    public static List<LayerGroup> FoldersOf(Scene scene, Layer layer)
+    public static List<LayerGroup> FoldersOf(Scene scene, Layer layer) => FoldersOf(Linear(scene), layer);
+
+    private static List<LayerGroup> FoldersOf(Lookup find, Layer layer)
     {
-        if (Folder(scene, layer.GroupId) is not { } own) return [];
+        if (find(layer.GroupId) is not { } own) return [];
         var chain = new List<LayerGroup> { own };
-        chain.AddRange(Ancestors(scene, own));
+        chain.AddRange(Ancestors(find, own));
+        if (chain.Count > MaxDepth) chain.RemoveRange(MaxDepth, chain.Count - MaxDepth);
         return chain;
     }
 
@@ -83,26 +117,38 @@ public static class FolderTree
         inner.Id == outer.Id || Ancestors(scene, inner).Any(a => a.Id == outer.Id);
 
     /// <summary>Whether a layer is inside <paramref name="folder"/> at any depth.</summary>
-    public static bool IsWithin(Scene scene, Layer layer, LayerGroup folder) =>
-        FoldersOf(scene, layer).Any(f => f.Id == folder.Id);
+    public static bool IsWithin(Scene scene, Layer layer, LayerGroup folder) => IsWithin(Linear(scene), layer, folder);
+
+    private static bool IsWithin(Lookup find, Layer layer, LayerGroup folder) =>
+        layer.GroupId is not null && FoldersOf(find, layer).Any(f => f.Id == folder.Id);
 
     /// <summary>Every layer inside <paramref name="folder"/> at any depth, bottom first.</summary>
-    public static List<Layer> SubtreeLayers(Scene scene, LayerGroup folder) =>
-        scene.Layers.Where(l => IsWithin(scene, l, folder)).ToList();
+    public static List<Layer> SubtreeLayers(Scene scene, LayerGroup folder)
+    {
+        var find = Indexed(scene);
+        return scene.Layers.Where(l => IsWithin(find, l, folder)).ToList();
+    }
 
     /// <summary>Every folder inside <paramref name="folder"/> at any depth, not counting itself.</summary>
-    public static List<LayerGroup> SubtreeFolders(Scene scene, LayerGroup folder) =>
-        scene.LayerGroups.Where(g => g.Id != folder.Id && IsWithin(scene, g, folder)).ToList();
+    public static List<LayerGroup> SubtreeFolders(Scene scene, LayerGroup folder)
+    {
+        var find = Indexed(scene);
+        return scene.LayerGroups
+            .Where(g => !ReferenceEquals(g, folder) && Ancestors(find, g).Any(a => a.Id == folder.Id))
+            .ToList();
+    }
 
     /// <summary>The ids of every folder holding at least one layer, at any depth.</summary>
-    public static HashSet<string> HoldingLayers(Scene scene)
+    public static HashSet<string> HoldingLayers(Scene scene) => HoldingLayers(scene, Indexed(scene));
+
+    private static HashSet<string> HoldingLayers(Scene scene, Lookup find)
     {
         var holding = new HashSet<string>();
         if (scene.LayerGroups.Count == 0) return holding;
         foreach (var layer in scene.Layers)
         {
             if (layer.GroupId is null) continue;
-            foreach (var f in FoldersOf(scene, layer)) holding.Add(f.Id);
+            foreach (var f in FoldersOf(find, layer)) holding.Add(f.Id);
         }
         return holding;
     }
@@ -112,13 +158,21 @@ public static class FolderTree
     /// <see cref="LayerGroup.Under"/> still names one inside the folder's
     /// parent — otherwise null, which is the top of the parent.
     /// </summary>
-    public static Layer? AnchorOf(Scene scene, LayerGroup folder)
+    public static Layer? AnchorOf(Scene scene, LayerGroup folder) => AnchorOf(scene, Linear(scene), folder);
+
+    private static Layer? AnchorOf(Scene scene, Lookup find, LayerGroup folder)
     {
         if (folder.Under is not { } id || scene.Layers.FirstOrDefault(l => l.Id == id) is not { } layer) return null;
-        return ParentOf(scene, folder) is { } parent && !IsWithin(scene, layer, parent) ? null : layer;
+        return ParentOf(find, folder) is { } parent && !IsWithin(find, layer, parent) ? null : layer;
     }
 
     /// <summary>The docker's rows, topmost first.</summary>
+    /// <remarks>
+    /// Every walk here runs on one index built for the call and is bounded by
+    /// <see cref="MaxDepth"/>, and folders are told apart by reference, so two
+    /// that share an id (a hand-edited file) are both listed rather than one
+    /// throwing.
+    /// </remarks>
     public static List<StackRow> Rows(Scene scene)
     {
         var layers = scene.Layers;
@@ -129,35 +183,41 @@ public static class FolderTree
             return rows;
         }
 
-        var holding = HoldingLayers(scene);
-        var order = scene.LayerGroups.Select((g, i) => (g.Id, i)).ToDictionary(p => p.Id, p => p.i);
-        // Empty folders, each with the parent and the anchor the tree resolves.
+        var find = Indexed(scene);
+        var holding = HoldingLayers(scene, find);
+        var refs = ReferenceEqualityComparer.Instance;
+        var order = new Dictionary<LayerGroup, int>(refs);
+        for (var i = 0; i < scene.LayerGroups.Count; i++) order.TryAdd(scene.LayerGroups[i], i);
+        // Empty folders, highest first within any slot, filed by where they go:
+        // inside which folder (the top level as its own key), and under which layer.
         var empties = scene.LayerGroups
             .Where(g => !holding.Contains(g.Id))
-            .Select(g => (Folder: g, Parent: ParentOf(scene, g), Anchor: AnchorOf(scene, g)))
+            .OrderByDescending(g => order[g])
+            .Select(g => (Folder: g, Parent: ParentOf(find, g), Anchor: AnchorOf(scene, find, g)))
             .ToList();
-        var emitted = new HashSet<string>();
+        var topLevel = new object();
+        var childrenOf = empties.ToLookup(e => (object?)e.Parent ?? topLevel, refs);
+        var underLayer = empties.Where(e => e.Anchor is not null).ToLookup(e => e.Anchor!.Id);
+        var emitted = new HashSet<LayerGroup>(refs);
         var open = new List<LayerGroup>(); // outermost first
 
         bool HiddenNow() => open.Any(f => f.Collapsed);
 
         void EmitEmpty(LayerGroup folder, int depth, bool hidden)
         {
-            if (!emitted.Add(folder.Id)) return;
+            if (!emitted.Add(folder)) return;
             rows.Add(new StackRow(folder, depth, hidden, false));
             // Inside an empty folder there is nothing to anchor to: every child
-            // is at its top, later in the list higher, as siblings are.
-            foreach (var child in empties.Where(e => e.Parent?.Id == folder.Id).OrderByDescending(e => order[e.Folder.Id]))
-            {
-                EmitEmpty(child.Folder, depth + 1, hidden || folder.Collapsed);
-            }
+            // is at its top, later in the list higher, as siblings are. Past
+            // MaxDepth the safety net below lists them instead, so a crafted
+            // chain cannot recurse the stack away.
+            if (depth >= MaxDepth) return;
+            foreach (var child in childrenOf[folder]) EmitEmpty(child.Folder, depth + 1, hidden || folder.Collapsed);
         }
 
         void EmitTopOf(LayerGroup? parent)
         {
-            foreach (var e in empties
-                         .Where(e => e.Parent?.Id == parent?.Id && e.Anchor is null)
-                         .OrderByDescending(e => order[e.Folder.Id]))
+            foreach (var e in childrenOf[(object?)parent ?? topLevel].Where(e => e.Anchor is null))
             {
                 EmitEmpty(e.Folder, open.Count, HiddenNow());
             }
@@ -165,7 +225,7 @@ public static class FolderTree
 
         void Open(LayerGroup folder)
         {
-            var again = !emitted.Add(folder.Id);
+            var again = !emitted.Add(folder);
             rows.Add(new StackRow(folder, open.Count, HiddenNow(), again));
             open.Add(folder);
             if (!again) EmitTopOf(folder);
@@ -180,13 +240,12 @@ public static class FolderTree
                 // Empty folders in the slot directly under the layer just
                 // emitted — the deepest parent first, so each closes only the
                 // folders it is outside of.
-                foreach (var e in empties
-                             .Where(e => e.Anchor?.Id == above.Id)
+                foreach (var e in underLayer[above.Id]
                              .OrderByDescending(e => e.Parent is null ? 0 : open.IndexOf(e.Parent) + 1)
-                             .ThenByDescending(e => order[e.Folder.Id]))
+                             .ThenByDescending(e => order[e.Folder]))
                 {
                     var depth = e.Parent is null ? 0 : open.IndexOf(e.Parent) + 1;
-                    if (depth < 0 || depth > open.Count) continue; // cannot happen for a resolved anchor
+                    if (depth == 0 && e.Parent is not null) continue; // its parent is not open here; the safety net lists it
                     open.RemoveRange(depth, open.Count - depth);
                     EmitEmpty(e.Folder, depth, HiddenNow());
                 }
@@ -194,10 +253,10 @@ public static class FolderTree
             if (i < 0) break;
 
             var layer = layers[i];
-            var path = FoldersOf(scene, layer);
+            var path = FoldersOf(find, layer);
             path.Reverse(); // outermost first
             var common = 0;
-            while (common < open.Count && common < path.Count && open[common].Id == path[common].Id) common++;
+            while (common < open.Count && common < path.Count && ReferenceEquals(open[common], path[common])) common++;
             open.RemoveRange(common, open.Count - common);
             for (var k = common; k < path.Count; k++) Open(path[k]);
             rows.Add(new StackRow(layer, open.Count, HiddenNow(), false));
@@ -205,7 +264,7 @@ public static class FolderTree
         }
 
         // The safety net: a folder no walk reached is still a folder.
-        foreach (var g in scene.LayerGroups.Where(g => !emitted.Contains(g.Id)).ToList())
+        foreach (var g in scene.LayerGroups.Where(g => !emitted.Contains(g)).ToList())
         {
             EmitEmpty(g, 0, false);
         }
@@ -235,20 +294,26 @@ public static class FolderTree
     public static void Settle(Scene after, Scene? before)
     {
         if (after.LayerGroups.Count == 0) return;
-        var holding = HoldingLayers(after);
-        var beforeHolding = before is null ? null : HoldingLayers(before);
+        var find = Indexed(after);
+        var findBefore = before is null ? find : Indexed(before);
+        var holding = HoldingLayers(after, find);
+        var beforeHolding = before is null ? null : HoldingLayers(before, findBefore);
         foreach (var folder in after.LayerGroups)
         {
             if (holding.Contains(folder.Id))
             {
                 folder.Under = null;
+                folder.PlacedByEdit = false;
                 continue;
             }
-            var old = before is null ? null : Folder(before, folder.Id);
-            if (old is null || old.ParentId != folder.ParentId || old.Under != folder.Under && !beforeHolding!.Contains(old.Id))
+            var old = before is null ? null : findBefore(folder.Id);
+            var placed = folder.PlacedByEdit;
+            folder.PlacedByEdit = false;
+            if (placed || old is null || old.ParentId != folder.ParentId
+                || old.Under != folder.Under && !beforeHolding!.Contains(old.Id))
             {
                 // New, or moved on purpose: take its slot as given.
-                folder.Under = AnchorOf(after, folder)?.Id;
+                folder.Under = AnchorOf(after, find, folder)?.Id;
                 continue;
             }
 
@@ -257,12 +322,12 @@ public static class FolderTree
             var was = before!.Layers;
             if (beforeHolding!.Contains(old.Id))
             {
-                var top = was.FindLastIndex(l => IsWithin(before, l, old));
-                var bottom = was.FindIndex(l => IsWithin(before, l, old));
+                var top = was.FindLastIndex(l => IsWithin(findBefore, l, old));
+                var bottom = was.FindIndex(l => IsWithin(findBefore, l, old));
                 aboveId = top + 1 < was.Count ? was[top + 1].Id : null;
                 belowId = bottom > 0 ? was[bottom - 1].Id : null;
             }
-            else if (AnchorOf(before, old) is { } anchor)
+            else if (AnchorOf(before, findBefore, old) is { } anchor)
             {
                 var at = was.IndexOf(anchor);
                 aboveId = anchor.Id;
@@ -277,21 +342,38 @@ public static class FolderTree
             var now = after.Layers;
             var aboveAt = aboveId is null ? -1 : now.FindIndex(l => l.Id == aboveId);
             var belowAt = belowId is null ? -1 : now.FindIndex(l => l.Id == belowId);
-            string? pin;
+            string? pin = null;
             if (aboveAt >= 0 && (belowId is null ? aboveAt == 0 : belowAt == aboveAt - 1))
             {
                 pin = aboveId; // its neighbours are still neighbours
             }
-            else if (belowAt >= 0)
-            {
-                pin = belowAt + 1 < now.Count ? now[belowAt + 1].Id : null; // stay on the layer it sat on
-            }
             else
             {
-                pin = aboveAt >= 0 ? aboveId : null;
+                // Stay on the nearest layer below it that is still there — or,
+                // with nothing left below, under the nearest one above. Both
+                // neighbours going in one edit (a multi-delete, a merge) must
+                // not send the folder to the top of the stack.
+                var from = belowId is null ? -1 : was.FindIndex(l => l.Id == belowId);
+                var found = false;
+                for (var k = from; k >= 0 && !found; k--)
+                {
+                    var at = now.FindIndex(l => l.Id == was[k].Id);
+                    if (at < 0) continue;
+                    pin = at + 1 < now.Count ? now[at + 1].Id : null;
+                    found = true;
+                }
+                var up = aboveId is null ? was.Count : was.FindIndex(l => l.Id == aboveId);
+                for (var k = up; k < was.Count && k >= 0 && !found; k++)
+                {
+                    if (now.Any(l => l.Id == was[k].Id))
+                    {
+                        pin = was[k].Id;
+                        found = true;
+                    }
+                }
             }
             folder.Under = pin;
-            folder.Under = AnchorOf(after, folder)?.Id; // still inside its parent, or the top of it
+            folder.Under = AnchorOf(after, find, folder)?.Id; // still inside its parent, or the top of it
         }
     }
 
@@ -387,14 +469,32 @@ public static class FolderTree
         }
 
         var parent = where == StackDrop.Into ? (LayerGroup)onto : ContainerOf(scene, onto);
+        // Beside an EMPTY folder the slot is read before anything is lifted:
+        // its anchor may be one of the moved layers, and then the slot would
+        // resolve to the top of its parent instead (the adversary's B, A, Z
+        // case). It is kept as "directly above the first layer below the
+        // folder that is staying".
+        var emptyTarget = where != StackDrop.Into && onto is LayerGroup e && Span(scene, e) is null ? e : null;
+        string? besideBelow = null;
+        if (emptyTarget is not null)
+        {
+            for (var k = OwnSlot(scene, emptyTarget) - 1; k >= 0; k--)
+            {
+                if (run.Contains(scene.Layers[k])) continue;
+                besideBelow = scene.Layers[k].Id;
+                break;
+            }
+        }
         foreach (var layer in run) scene.Layers.Remove(layer);
         var at = (where, onto) switch
         {
+            _ when emptyTarget is not null =>
+                besideBelow is null ? 0 : scene.Layers.FindIndex(l => l.Id == besideBelow) + 1,
             (StackDrop.Into, LayerGroup t) => TopSlot(scene, t),
             (StackDrop.Above, Layer t) => scene.Layers.IndexOf(t) + 1,
             (StackDrop.Below, Layer t) => scene.Layers.IndexOf(t),
-            (StackDrop.Above, LayerGroup t) => Span(scene, t) is { } s ? s.Top + 1 : OwnSlot(scene, t),
-            (_, LayerGroup t) => Span(scene, t) is { } s ? s.Bottom : OwnSlot(scene, t),
+            (StackDrop.Above, LayerGroup t) => Span(scene, t)!.Value.Top + 1,
+            (_, LayerGroup t) => Span(scene, t)!.Value.Bottom,
             _ => scene.Layers.Count,
         };
         // Nothing under the paper, whichever way the slot was reached.
@@ -409,12 +509,25 @@ public static class FolderTree
                 case LayerGroup f: f.ParentId = parent?.Id; break;
             }
         }
+        // And the empty folder itself ends up on the side of the run it was
+        // dropped against: under the run's bottom layer for "above it", over
+        // the run's top layer for "below it". Without this a layer could never
+        // be put above an empty folder sitting directly on it.
+        if (emptyTarget is not null && run.Count > 0)
+        {
+            emptyTarget.Under = where == StackDrop.Above
+                ? run[0].Id
+                : at + run.Count < scene.Layers.Count ? scene.Layers[at + run.Count].Id : null;
+            emptyTarget.Under = AnchorOf(scene, emptyTarget)?.Id;
+            emptyTarget.PlacedByEdit = true;
+        }
         // Empty folders among the moved items sit at the top of the run.
         var above = at + run.Count < scene.Layers.Count ? scene.Layers[at + run.Count].Id : null;
         foreach (var f in roots.OfType<LayerGroup>().Where(f => Span(scene, f) is null))
         {
             f.Under = above;
             f.Under = AnchorOf(scene, f)?.Id;
+            f.PlacedByEdit = true;
         }
         // Empty folders sharing a slot stack in list order, later higher, so
         // the list order is where a moved one lands among them: next to the

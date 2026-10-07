@@ -37,6 +37,14 @@ public partial class MainViewModel
     /// </summary>
     public bool CopyLayers(Layer? layer = null)
     {
+        // An empty folder picked on its own selects no layer; copying the
+        // active one behind it would copy something the docker does not show
+        // as picked.
+        if (layer is null && SelectedGroup is { } picked && SelectedLayerCount == 0)
+        {
+            AiStatus = $"\u201c{picked.Name}\u201d is empty \u2014 there is no layer in it to copy.";
+            return false;
+        }
         layer ??= ActiveLayer;
         if (layer is null)
         {

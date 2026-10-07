@@ -296,6 +296,89 @@ public class FolderTreeTests
         Assert.Equal(before, FolderTree.Signature(scene));
     }
 
+    // ---- the adversary's round -----------------------------------------------------
+
+    /// <summary>Run a move the way the docker does: as a snapshot edit, so the settle runs after it.</summary>
+    private static string Moved(string[] bottomFirst, Action<Scene> folders, StackRef[] items, StackRef target, StackDrop where)
+    {
+        var doc = new Doc { Scene = Stack(bottomFirst) };
+        folders(doc.Scene);
+        var editor = new DocumentEditor(doc);
+        string? why = "not run";
+        editor.Perform(d => why = FolderTree.Move(d.Scene, items, target, where));
+        Assert.Null(why);
+        return Docker(editor.Doc.Scene);
+    }
+
+    [Fact]
+    public void ALayerMovedBelowTheEmptyFolderUnderItLandsThere_NotOnTopOfTheStack()
+    {
+        // Z, A, [F], B — F sits on B, under A. A goes below F.
+        var docker = Moved(["B", "A", "Z"], s => Folder(s, "F", under: "A"), [Ref("A")], Ref("F", true), StackDrop.Below);
+        Assert.Equal("Z [F] A B", docker);
+    }
+
+    [Fact]
+    public void ALayerCanBeMovedAboveAnEmptyFolderSittingDirectlyOnIt()
+    {
+        // A, [F], B: B goes above F.
+        var docker = Moved(["B", "A"], s => Folder(s, "F", under: "A"), [Ref("B")], Ref("F", true), StackDrop.Above);
+        Assert.Equal("A B [F]", docker);
+
+        // And above one at the very top of the stack.
+        docker = Moved(["B", "A"], s => Folder(s, "F"), [Ref("A")], Ref("F", true), StackDrop.Above);
+        Assert.Equal("A [F] B", docker);
+    }
+
+    [Fact]
+    public void AnEmptyFolderWhoseNeighboursBothGoInOneEditStaysWhereTheyWere()
+    {
+        var doc = new Doc { Scene = Stack("Q", "B", "A", "P") };
+        Folder(doc.Scene, "F", under: "A");
+        var editor = new DocumentEditor(doc);
+        Assert.Equal("P A [F] B Q", Docker(editor.Doc.Scene));
+
+        editor.Perform(d => d.Scene.Layers.RemoveAll(l => l.Id is "A" or "B"));
+
+        Assert.Equal("P [F] Q", Docker(editor.Doc.Scene));
+    }
+
+    // ---- a hostile file ------------------------------------------------------------
+
+    [Fact]
+    public void TwoFoldersSharingAnIdAreBothListed_NotACrash()
+    {
+        var scene = Stack("paper", "a");
+        Folder(scene, "same");
+        scene.LayerGroups.Add(new LayerGroup { Id = "same", Name = "twin" });
+        L(scene, "a").GroupId = "same";
+
+        var rows = FolderTree.Rows(scene);
+        Assert.Equal(2, rows.Count(r => r.Item is LayerGroup));
+        FolderTree.Settle(scene, scene);
+    }
+
+    [Fact]
+    public void AChainTenThousandFoldersDeepOpensQuickly_AndCannotOverflowTheStack()
+    {
+        var scene = Stack("paper", "a");
+        const int depth = 10_000;
+        for (var i = 0; i < depth; i++) Folder(scene, $"f{i}", parent: i == 0 ? null : $"f{i - 1}");
+        L(scene, "a").GroupId = $"f{depth - 1}";
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var rows = FolderTree.Rows(scene);
+        var visible = scene.IsLayerVisible(L(scene, "a"));
+        FolderTree.Settle(scene, scene);
+        clock.Stop();
+
+        Assert.Equal(depth, rows.Count(r => r.Item is LayerGroup));
+        Assert.True(visible);
+        Assert.True(rows.Max(r => r.Depth) <= FolderTree.MaxDepth);
+        // Loose on purpose: it was cubic, so a regression is minutes, not milliseconds.
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(10), $"took {clock.Elapsed}");
+    }
+
     [Fact]
     public void UngroupLeavesTheContentsInTheFoldersPlace_DeleteTakesThemWithIt()
     {

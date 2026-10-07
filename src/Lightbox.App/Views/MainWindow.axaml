@@ -409,10 +409,8 @@
       <MenuItem Header="La_yer" Classes="top">
         <MenuItem Header="_New layer" Command="{Binding AddPaintedLayerCommand}"
                   ToolTip.Tip="A fresh drawing layer above the active one" />
-        <MenuItem Header="New _folder" Command="{Binding CreateLayerFolderCommand}"
-                  ToolTip.Tip="An empty folder above the active layer or folder, in the same folder" />
-        <MenuItem Header="_Group layers" Command="{Binding GroupLayersCommand}" InputGesture="Ctrl+G"
-                  ToolTip.Tip="Put the selected layers and folder in a new folder, where the topmost of them was" />
+        <MenuItem Header="New _folder" Command="{Binding CreateLayerFolderCommand}" ToolTip.Tip="An empty folder above the active layer or folder, in the same folder" />
+        <MenuItem Header="_Group layers" Command="{Binding GroupLayersCommand}" InputGesture="Ctrl+G" ToolTip.Tip="Put the selected layers and folder in a new folder, where the topmost of them was" />
         <Separator />
         <MenuItem Header="Move _up" Command="{Binding MoveActiveLayerUpCommand}"
                   ToolTip.Tip="Toward the viewer — or the whole selection, when this layer is in it" />
@@ -3370,8 +3368,7 @@
                       <!-- The header drags the whole folder, and shows where it
                            would land: a line above or below for "beside", the
                            whole row lit for "into". -->
-                      <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}"
-                              Margin="{Binding Indent}"
+                      <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}" Margin="{Binding Indent}"
                               Classes.lockedLayer="{Binding Locked}"
                               Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
                               Classes.dropInto="{Binding DropInto}" Classes.selected="{Binding IsSelected}"

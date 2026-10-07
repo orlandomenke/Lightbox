@@ -106,6 +106,33 @@ public sealed class EmptyAndNestedFolderTests : BrushStateIsolated
         Assert.Equal("[Folder 1] .Paint 4 b a Background", Docker(vm));
     }
 
+    /// <summary>
+    /// A lock on an outer folder protects what is inside it from a delete of an
+    /// inner folder too (sensitivity-guardian, W4) — and Copy with an empty
+    /// folder picked copies nothing rather than the layer behind it.
+    /// </summary>
+    [AvaloniaFact]
+    public void AnInnerFolderUnderALockedOneIsNotDeleted_AndAnEmptyPickCopiesNothing()
+    {
+        var vm = Vm();
+        vm.GroupLayersCommand.Execute(null);                 // Folder 1 holds "b"
+        vm.SelectLayer(Row(vm, "b"), toggle: false, range: false);
+        vm.GroupLayersCommand.Execute(null);                 // Folder 2 inside it, holding "b"
+        Assert.Equal("[Folder 1] .[Folder 2] ..b a Background", Docker(vm));
+        Header(vm, "Folder 1").Locked = true;
+
+        vm.SelectGroup(Header(vm, "Folder 2"), toggle: false, range: false);
+        vm.DeleteActiveLayerCommand.Execute(null);
+        Assert.Equal("[Folder 1] .[Folder 2] ..b a Background", Docker(vm));
+        Assert.Contains("Folder 1", vm.AiStatus);
+
+        Header(vm, "Folder 1").Locked = false;
+        vm.SelectLayer(Row(vm, "a"), toggle: false, range: false);
+        vm.CreateLayerFolderCommand.Execute(null);           // an empty "Folder 3", picked
+        Assert.False(vm.CopyLayers());
+        Assert.False(vm.HasLayerClipboard);
+    }
+
     [AvaloniaFact]
     public void GroupLayersWrapsTheSelection_AndIsCtrlGInTheShortcutRegistry()
     {

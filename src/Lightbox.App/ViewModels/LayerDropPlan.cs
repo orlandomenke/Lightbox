@@ -89,10 +89,9 @@ public enum LayerDropTarget
 /// what it now means.
 /// </para>
 /// <para>
-/// <b>A folder being dragged is never filed into anything</b>: <c>Layer.GroupId</c>
-/// is a single id, so folders do not nest. Over another folder it lands above
-/// or below that whole block, and over the middle of that folder it is refused
-/// rather than drawn between two of its members.
+/// <b>A folder being dragged files into another folder like a layer does</b>
+/// (Q204 — folders nest). Dropping one into itself, or into a folder inside
+/// it, is refused by the move, and the caller draws no hint for it.
 /// </para>
 /// </remarks>
 public static class LayerDropPlan
