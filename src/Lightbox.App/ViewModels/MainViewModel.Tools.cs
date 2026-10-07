@@ -35,6 +35,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(ActiveToolIcon))]
     [NotifyPropertyChangedFor(nameof(IsBrushTool))]
     [NotifyPropertyChangedFor(nameof(IsEraserTool))]
+    [NotifyPropertyChangedFor(nameof(EraserMode))]
     [NotifyPropertyChangedFor(nameof(IsPaintingTool))]
     [NotifyPropertyChangedFor(nameof(IsFillTool))]
     [NotifyPropertyChangedFor(nameof(IsSelectTool))]
@@ -502,6 +503,22 @@ public partial class MainViewModel
     public bool IsWidthTool => ActiveTool == ToolId.Width;
 
     public bool IsEraserTool => ActiveTool == ToolId.Eraser;
+
+    /// <summary>
+    /// The bar's eraser toggle (Q211): on puts the eraser in hand, off the
+    /// brush. Krita's erase switch, answered with the eraser this app already
+    /// has — it keeps its own brush, so "erase with this brush" is the Alt
+    /// stroke, not this.
+    /// </summary>
+    public bool EraserMode
+    {
+        get => IsEraserTool;
+        set
+        {
+            if (value == IsEraserTool) return;
+            SelectToolCommand.Execute(value ? ToolId.Eraser : ToolId.Brush);
+        }
+    }
 
     /// <summary>
     /// Brush or eraser — the two tools whose marks go through

@@ -51,6 +51,14 @@ public partial class MainWindow
 
     private void OnToolOptionsGear(object? sender, RoutedEventArgs e)
     {
+        // A paint tool's gear opens the brush itself (Q211). The Tool options
+        // panel no longer holds the brush, only how the tool behaves.
+        if (_vm.IsPaintTool && sender is Control at)
+        {
+            OpenBrushEditor(at);
+            return;
+        }
+
         // Already on screen: bring the panel forward rather than opening a
         // second way to look at it. The complaint the flyout answers — a change
         // you miss because it happened elsewhere — does not apply when the
@@ -122,5 +130,49 @@ public partial class MainWindow
             _toolOptionsFlyout = null;
         }
         _toolOptionsLent = false;
+    }
+
+    // ---- the brush editor (Q211) ---------------------------------------------------
+
+    /// <summary>One editor for the window's life, so its scratchpad and option survive a close.</summary>
+    private BrushEditor? _brushEditor;
+
+    private BrushEditor BrushEditorView()
+    {
+        if (_brushEditor is { } made) return made;
+        _brushEditor = new BrushEditor { DataContext = _vm };
+        _brushEditor.PresetsChanged += RefreshBrushPickerButton;
+        return _brushEditor;
+    }
+
+    /// <summary>Whether the brush editor is open. For tests.</summary>
+    internal bool BrushEditorOpen { get; private set; }
+
+    /// <summary>The editor, if it has been made. For tests.</summary>
+    internal BrushEditor? BrushEditorForTests => _brushEditor;
+
+    /// <summary>
+    /// Open the brush editor in a popup at <paramref name="at"/>. The gear, the
+    /// panel's "Edit brush…" and the shortcut all come here.
+    /// </summary>
+    internal void OpenBrushEditor(Control at)
+    {
+        if (BrushEditorOpen) return;
+        var editor = BrushEditorView();
+        var flyout = new Flyout { Content = editor, Placement = PlacementMode.BottomEdgeAlignedLeft };
+        flyout.Closed += (_, _) =>
+        {
+            // Let the editor go, so the next open can adopt it.
+            flyout.Content = null;
+            BrushEditorOpen = false;
+        };
+        BrushEditorOpen = true;
+        FlyoutBase.SetAttachedFlyout(at, flyout);
+        FlyoutBase.ShowAttachedFlyout(at);
+    }
+
+    private void OnEditBrushClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control at) OpenBrushEditor(at);
     }
 }
