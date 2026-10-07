@@ -1,0 +1,88 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Lightbox.App.Controls;assembly=Lightbox.App">
+  <!--
+    Light on the edge (owner's references, 2026-10-07): a border that catches
+    light like polished metal, with a thin chromatic split where it is
+    brightest. Two strengths, both prototypes:
+
+      chrome   white and grey around the edge, two narrow warm/blue flecks
+               at the hot spots — the subtle one
+      prism    the full spectrum round the edge, and a soft glow outside it
+               — the extreme one
+
+    Drawn with a ConicGradientBrush: colour by angle around the centre, which
+    is how light sweeps round a rounded edge. A static brush costs nothing to
+    draw. The prism's glow is an outer shadow — small, but keep it off anything
+    that sits over the canvas, because that repaints with every stroke.
+
+    Every stop is live: tune the angles (0–1 round the edge) and save.
+  -->
+  <Styles.Resources>
+    <ConicGradientBrush x:Key="LookChromeBrush" Center="50%,50%" Angle="-45">
+      <GradientStop Color="#FFFFFF" Offset="0.00" />
+      <GradientStop Color="#E4E4E4" Offset="0.05" />
+      <GradientStop Color="#FFC07A" Offset="0.085" />
+      <GradientStop Color="#86CCFF" Offset="0.105" />
+      <GradientStop Color="#CFCFCF" Offset="0.13" />
+      <GradientStop Color="#5E5E5E" Offset="0.28" />
+      <GradientStop Color="#8C8C8C" Offset="0.42" />
+      <GradientStop Color="#FFFFFF" Offset="0.50" />
+      <GradientStop Color="#C9A6FF" Offset="0.535" />
+      <GradientStop Color="#80E3FF" Offset="0.555" />
+      <GradientStop Color="#BEBEBE" Offset="0.58" />
+      <GradientStop Color="#4E4E4E" Offset="0.78" />
+      <GradientStop Color="#8A8A8A" Offset="0.92" />
+      <GradientStop Color="#FFFFFF" Offset="1.00" />
+    </ConicGradientBrush>
+
+    <ConicGradientBrush x:Key="LookPrismBrush" Center="50%,50%" Angle="-30">
+      <GradientStop Color="#FFFFFF" Offset="0.00" />
+      <GradientStop Color="#FFD77A" Offset="0.07" />
+      <GradientStop Color="#FF7A4D" Offset="0.15" />
+      <GradientStop Color="#FF4FC8" Offset="0.24" />
+      <GradientStop Color="#7A5CFF" Offset="0.33" />
+      <GradientStop Color="#2FA8FF" Offset="0.42" />
+      <GradientStop Color="#3CFFD0" Offset="0.50" />
+      <GradientStop Color="#FFFFFF" Offset="0.56" />
+      <GradientStop Color="#FFC46B" Offset="0.64" />
+      <GradientStop Color="#FF5F9E" Offset="0.73" />
+      <GradientStop Color="#6E7BFF" Offset="0.82" />
+      <GradientStop Color="#2FE6FF" Offset="0.91" />
+      <GradientStop Color="#FFFFFF" Offset="1.00" />
+    </ConicGradientBrush>
+
+    <!-- Warm-white light spilling past the prism edge. -->
+    <BoxShadows x:Key="LookPrismGlow">0 0 16 1 #66FFE2B8, 0 0 4 0 #4DFFFFFF</BoxShadows>
+  </Styles.Resources>
+
+  <!-- On any Border: the story's shapes, and a docker frame below. -->
+  <Style Selector="Border.chrome">
+    <Setter Property="BorderBrush" Value="{StaticResource LookChromeBrush}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+  </Style>
+  <Style Selector="Border.prism">
+    <Setter Property="BorderBrush" Value="{StaticResource LookPrismBrush}" />
+    <Setter Property="BorderThickness" Value="2" />
+    <Setter Property="BoxShadow" Value="{StaticResource LookPrismGlow}" />
+  </Style>
+
+  <!-- On real controls: a class turns the edge on. -->
+  <Style Selector="Button.chrome, ToggleButton.chrome:checked">
+    <Setter Property="BorderBrush" Value="{StaticResource LookChromeBrush}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+  </Style>
+  <Style Selector="Button.chrome /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.chrome:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderBrush" Value="{StaticResource LookChromeBrush}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+  </Style>
+  <Style Selector="Button.prism /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.prism:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderBrush" Value="{StaticResource LookPrismBrush}" />
+    <Setter Property="BorderThickness" Value="2" />
+    <Setter Property="BoxShadow" Value="{StaticResource LookPrismGlow}" />
+  </Style>
+  <Style Selector="controls|Docker.chrome /template/ Border#PART_Frame">
+    <Setter Property="BorderBrush" Value="{StaticResource LookChromeBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+</Styles>

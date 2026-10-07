@@ -36,6 +36,42 @@ The look files name the app's types as `clr-namespace:…;assembly=Lightbox.App`
 rather than `using:…`, because the runtime loader resolves only the
 assembly-qualified form.
 
+## The rules the looks follow (Q203)
+
+These were settled in the gallery, one decision at a time. Each one lives in a
+single place, and everything else names it.
+
+**Tokens, not numbers.** Spacing and sizes come from `Looks/Tokens.axaml`:
+panel padding, header padding, tab padding, row height, row gap, column gap,
+value-field width and icon slot. Radii come from the corner set's five roles
+(see `Corners.Styles.axaml`). An override is allowed, but it names the token it
+bends, in a comment at the site.
+
+**One edge for a docker's content.** A docker's padding insets everything in it:
+dropdown, sliders, rows. Nothing inside carries a margin of its own.
+
+**One layout for every setting row.** The control comes first, then a fixed
+value column, then an icon column. A row without a value or an icon still keeps
+those columns, so every row ends on the same line.
+
+**Flat.** Buttons have no rim and no shadow. "On" is a quiet lighter fill: the
+tool in hand, a toggle that is on, the layer being drawn on, the chosen
+segment, the canvas bar's active icon.
+
+**Hover is active at half strength, in the same shape.** This holds for tabs,
+menus, dropdowns, selectors and the canvas bar.
+
+**Text at rest.** Dropdowns, selectors and the canvas bar's buttons show no
+well and no border until you point at them.
+
+**Tabs are v.2.** The active tab is part of the panel, rising into a darker
+header strip.
+
+**Edges catch light.** Containers get chrome in the dark theme and prism in the
+light one. The brush is picked once, as `LookEdgeBrush`, so a container never
+asks which theme it's in. Docker frames have their own switch
+(`LookDockerEdgeBrush`), because their edge is still being judged.
+
 ## Snapshots
 
 ```bash

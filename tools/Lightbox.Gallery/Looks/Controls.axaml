@@ -23,6 +23,10 @@
     <StreamGeometry x:Key="LookIconOpacityFill">M8,1.5 A6.5,6.5 0 0 1 8,14.5 Z</StreamGeometry>
     <!-- A drop: how much paint each dab lays down. -->
     <StreamGeometry x:Key="LookIconFlow">M8,1.5 C8,1.5 3.5,7 3.5,10 A4.5,4.5 0 0 0 12.5,10 C12.5,7 8,1.5 8,1.5 Z</StreamGeometry>
+    <!-- A dab and its centre: the brush's size. -->
+    <StreamGeometry x:Key="LookIconSize">M8,2.5 A5.5,5.5 0 1 0 8,13.5 A5.5,5.5 0 1 0 8,2.5 Z M8,6.75 A1.25,1.25 0 1 0 8,9.25 A1.25,1.25 0 1 0 8,6.75 Z</StreamGeometry>
+    <!-- Two overlapping sheets: how a layer combines with what is under it. -->
+    <StreamGeometry x:Key="LookIconBlend">M2.5,2.5 H10.5 V10.5 H2.5 Z M5.5,5.5 H13.5 V13.5 H5.5 Z</StreamGeometry>
   </Styles.Resources>
 
   <!--
@@ -32,7 +36,7 @@
     under the effect for a value that is about seeing through.
   -->
   <Style Selector="Slider.effect">
-    <Setter Property="Height" Value="22" />
+    <Setter Property="Height" Value="{StaticResource LookRowHeight}" />
     <Setter Property="MinWidth" Value="120" />
     <Setter Property="Template">
       <ControlTemplate>
@@ -82,16 +86,14 @@
   </Style>
 
   <!--
-    Segmented selector: a well holding the choices, the chosen one a lighter
-    flat pill. For three to five choices that are all worth seeing at once —
-    DESIGN.md's "fewer than about six choices gets buttons", made into one
-    control rather than a row of toggles that each manage their own state.
+    Segmented selector: text at rest, like the canvas bar and the dropdowns
+    (owner, 2026-10-07) — no well. Hover gives a choice ground at half the
+    active fill; the chosen one takes the active fill. Same shape for both.
   -->
   <Style Selector="ListBox.segmented">
-    <Setter Property="Background" Value="{StaticResource FieldGroundBrush}" />
+    <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="Padding" Value="2" />
-    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+    <Setter Property="Padding" Value="0" />
     <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
     <Setter Property="ItemsPanel">
       <ItemsPanelTemplate>
@@ -100,25 +102,24 @@
     </Setter>
   </Style>
   <Style Selector="ListBox.segmented > ListBoxItem">
-    <Setter Property="MinHeight" Value="22" />
-    <Setter Property="Padding" Value="12,2" />
+    <Setter Property="Height" Value="{StaticResource LookRowHeight}" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="12,0" />
     <Setter Property="FontSize" Value="11" />
-    <Setter Property="CornerRadius" Value="{StaticResource LookControlInnerRadius}" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
     <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="ListBox.segmented > ListBoxItem /template/ ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
-    <!-- Inside the well's 2 px padding: one step in, so the chosen segment is
-         concentric with the well. -->
-    <Setter Property="CornerRadius" Value="{StaticResource LookControlInnerRadius}" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
   </Style>
   <Style Selector="ListBox.segmented > ListBoxItem:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
   </Style>
   <Style Selector="ListBox.segmented > ListBoxItem:selected /template/ ContentPresenter, ListBox.segmented > ListBoxItem:selected:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource SurfaceElevatedBrush}" />
+    <Setter Property="Background" Value="{StaticResource LookBarActiveBrush}" />
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
   </Style>
   <!-- Icon choices: square cells, the glyph is the label. -->

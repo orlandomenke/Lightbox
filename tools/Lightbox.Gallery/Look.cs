@@ -19,12 +19,17 @@ public enum LookCorners { Current, Square, Tight, Soft }
 /// (shadows, glows) are on. The three are independent on purpose (Q203): the
 /// owner asked to try corners and themes separately rather than as bundles.
 /// </summary>
-public sealed record Look(LookTheme Theme, LookCorners Corners, bool Effects)
+/// <param name="DockerEdges">
+/// Whether docker frames carry the edge light (chrome or prism). Separate
+/// because the owner doubted it for dockers in particular; the canvas bar and
+/// popups keep theirs either way.
+/// </param>
+public sealed record Look(LookTheme Theme, LookCorners Corners, bool Effects, bool DockerEdges = true)
 {
     public static readonly Look AsShipped = new(LookTheme.Current, LookCorners.Current, false);
 
     /// <summary>A file-name-safe name, used for snapshot paths.</summary>
-    public string Slug => $"{Theme}-{Corners}-{(Effects ? "fx" : "flat")}".ToLowerInvariant();
+    public string Slug => $"{Theme}-{Corners}-{(Effects ? "fx" : "flat")}{(DockerEdges ? "" : "-noedge")}".ToLowerInvariant();
 
     public override string ToString() => Slug;
 }
@@ -88,6 +93,10 @@ public static class Looks
                 resources.MergedDictionaries.Add(theme);
             }
         }
+        if (Resource("avares://Lightbox.Gallery/Looks/Tokens.axaml") is { } tokens)
+        {
+            resources.MergedDictionaries.Add(tokens);
+        }
         AddShape(resources, look);
         app.Resources = resources;
         // Studio grey is a light world: Fluent's stock controls draw dark text
@@ -100,6 +109,15 @@ public static class Looks
         if (look.Theme != LookTheme.Current) RepointFluent(appStyles, look.Theme);
         AddStyle(app, "Gallery.Styles.axaml");
         AddStyle(app, "Controls.axaml");
+        AddStyle(app, "Borders.axaml");
+        // The edge light follows the theme (owner, 2026-10-07): chrome in the
+        // dark, prism in the light. Picked here, once, so every container names
+        // one key and never asks which theme it is in.
+        if (app.TryFindResource(look.Theme == LookTheme.StudioGrey ? "LookPrismBrush" : "LookChromeBrush", out var edge))
+        {
+            resources["LookEdgeBrush"] = edge;
+            resources["LookDockerEdgeBrush"] = look.DockerEdges ? edge : Brushes.Transparent;
+        }
         if (look.Theme != LookTheme.Current) AddStyle(app, "Lit.Styles.axaml");
         if (look.Corners != LookCorners.Current) AddStyle(app, "Corners.Styles.axaml");
     }
@@ -137,6 +155,11 @@ public static class Looks
         resources["LookControlInnerRadius"] = new CornerRadius(Math.Max(0, control - 2));
         resources["LookContainerInnerRadius"] = new CornerRadius(Math.Max(0, container - 2));
         resources["LookTabRadius"] = new CornerRadius(control, control, 0, 0);
+        if (look.Theme == LookTheme.Current)
+        {
+            // The prototypes name the active fill; the shipped palette has none.
+            resources["LookBarActiveBrush"] = new SolidColorBrush(Colors.White, 0.13);
+        }
         if (look.Corners != LookCorners.Current)
         {
             // Fluent's stock templates read these two, so controls nobody styled
@@ -195,6 +218,8 @@ public static class Looks
         {
             yield return new Look(theme, corners, fx);
         }
+        yield return new Look(LookTheme.DarkLit, LookCorners.Soft, true, DockerEdges: false);
+        yield return new Look(LookTheme.StudioGrey, LookCorners.Soft, true, DockerEdges: false);
     }
 
     /// <summary>

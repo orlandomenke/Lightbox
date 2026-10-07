@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Lightbox.App.Controls;
 using Lightbox.App.Docking;
+using Avalonia.LogicalTree;
 using static Lightbox.Gallery.Stories.Kit;
 
 namespace Lightbox.Gallery.Stories;
@@ -18,6 +19,7 @@ public static class Catalog
 {
     public static readonly IReadOnlyList<Story> All =
     [
+        Borders(),
         Corners(),
         Light(),
         Buttons(),
@@ -34,6 +36,94 @@ public static class Catalog
         Badges(),
         IconSheet(),
     ];
+
+    /// <summary>
+    /// Light on the edge: the owner's two references (a chrome-rimmed pill
+    /// toggle, a prism-ringed icon) and the same edges on real controls.
+    /// </summary>
+    private static Story Borders() => new(
+        "Borders (prototype)",
+        "Light caught by an edge. Chrome: white and grey round the rim, a thin warm/blue split where it is brightest. "
+        + "Prism: the full spectrum and a glow. Both are a sweep gradient on the border — static, free to draw; the prism's glow is "
+        + "a small cost and stays off anything over the canvas. All stops are live in Looks/Borders.axaml.",
+        [
+            new("Chrome · pill", ChromePill),
+            new("Prism · icon", PrismIcon),
+            new("Chrome · on a docker", () => { var d = (Docker)Docker(hover: false); d.Classes.Add("chrome"); return d; }),
+            new("Chrome · button", () => OnPanel(Row(
+                With(new Button { Content = "Import…" }, "text", "chrome"),
+                With(new Button { Content = "Export" }, "text", "primary", "chrome")))),
+            new("Prism · button", () => OnPanel(Row(
+                With(new Button { Content = "Inbetween" }, "text", "prism"),
+                With(new Button { Content = "Cancel" }, "text")))),
+            new("Chrome · tool in hand", () =>
+            {
+                var rail = (Border)ToolRail();
+                foreach (var t in ((StackPanel)rail.Child!).Children.OfType<ToggleButton>()) t.Classes.Add("chrome");
+                return rail;
+            }),
+            new("Chrome · canvas bar", () =>
+            {
+                var host = (Border)OverlayBar(CanvasEdge.Top);
+                foreach (var t in host.GetLogicalDescendants().OfType<ToggleButton>()) t.Classes.Add("chrome");
+                return host;
+            }),
+        ],
+        Columns: 3);
+
+    private static Control ChromePill()
+    {
+        var arrow = new Avalonia.Controls.Shapes.Path
+        {
+            Data = Geometry.Parse("M3,8 H13 M9,4 L13,8 L9,12"),
+            Stroke = Brush("TextSecondaryBrush"),
+            StrokeThickness = 1.6,
+            StrokeLineCap = PenLineCap.Round,
+            StrokeJoin = PenLineJoin.Round,
+            Width = 22, Height = 22, Stretch = Stretch.Uniform,
+        };
+        var knob = new Border
+        {
+            Classes = { "chrome" },
+            Width = 96, Height = 46,
+            CornerRadius = Radius("LookPillRadius"),
+            Background = new SolidColorBrush(Color.Parse("#262628")),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Child = new Border { Child = arrow, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+        };
+        return new Border
+        {
+            Width = 190, Height = 58,
+            Padding = new Thickness(6),
+            CornerRadius = Radius("LookPillRadius"),
+            Background = new SolidColorBrush(Color.Parse("#050506")),
+            BoxShadow = BoxShadows.Parse("inset 0 1 2 0 #FF000000, 0 10 24 -8 #CC000000"),
+            BorderBrush = new SolidColorBrush(Color.Parse("#2A2A2D")),
+            BorderThickness = new Thickness(1),
+            Child = knob,
+        };
+    }
+
+    private static Control PrismIcon()
+    {
+        var ring = new Border
+        {
+            Classes = { "prism" },
+            Width = 52, Height = 52,
+            CornerRadius = Radius("LookPillRadius"),
+            Background = new SolidColorBrush(Color.Parse("#2C2C30")),
+            Child = new Border { Child = Icon("IconHome", 20), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+        };
+        return new Border
+        {
+            Padding = new Thickness(6, 6, 22, 6),
+            CornerRadius = Radius("LookPillRadius"),
+            Background = new SolidColorBrush(Color.Parse("#1D1D20")),
+            BorderBrush = new SolidColorBrush(Color.Parse("#2E2E33")),
+            BorderThickness = new Thickness(1),
+            Child = Row(ring, new TextBlock { Text = "Home", FontSize = 18, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) }),
+        };
+    }
 
     /// <summary>
     /// One of everything that is rounded, side by side, so a shape that does
@@ -199,38 +289,21 @@ public static class Catalog
 
     private static Control EffectRow(string icon, double value, bool checker, bool field)
     {
-        var slider = With(new Slider { Minimum = 0, Maximum = 100, Value = value, Width = 180 }, "effect");
-        if (checker) slider.Classes.Add("checker");
-        slider.Background = new LinearGradientBrush
-        {
-            StartPoint = new RelativePoint(0, 0.5, RelativeUnit.Relative),
-            EndPoint = new RelativePoint(1, 0.5, RelativeUnit.Relative),
-            GradientStops = { new GradientStop(Color.FromArgb(0, Paint.R, Paint.G, Paint.B), 0), new GradientStop(Paint, 1) },
-        };
-        var glyph = new Panel { Width = 16, Height = 16, VerticalAlignment = VerticalAlignment.Center };
-        glyph.Children.Add(new Avalonia.Controls.Shapes.Path { Classes = { "effectIcon" }, Data = (Geometry)Application.Current!.FindResource(icon)! });
-        if (icon == "LookIconOpacity")
-        {
-            glyph.Children.Add(new Avalonia.Controls.Shapes.Path { Classes = { "effectIconFill" }, Data = (Geometry)Application.Current!.FindResource("LookIconOpacityFill")! });
-        }
-        var row = Row(slider);
-        row.Spacing = 10;
-        if (field) row.Children.Add(With(new NumericUpDown { Minimum = 0, Maximum = 100, Value = (decimal)value, FormatString = "0" }, "value"));
-        row.Children.Add(glyph);
+        var row = SettingRow(EffectSlider(value, checker), field ? ValueField(value, 0, 100) : null, icon);
+        row.Width = 300;
         return row;
     }
 
     private static Control EffectDocker() => new Border
     {
         Background = Brush("SurfacePanelBrush"),
-        Padding = new Thickness(12),
+        Padding = Application.Current!.TryFindResource("LookPanelPadding", out var p) && p is Thickness t ? t : new Thickness(12),
         CornerRadius = Radius("LookContainerRadius"),
-        Child = Column(10,
-            Row(new TextBlock { Text = "Size", Width = 52, VerticalAlignment = VerticalAlignment.Center },
-                With(new Slider { Minimum = 1, Maximum = 500, Value = 24, VerticalAlignment = VerticalAlignment.Center }, "param"),
-                With(new NumericUpDown { Minimum = 1, Maximum = 500, Value = 24, FormatString = "0" }, "value")),
-            EffectRow("LookIconOpacity", 82, checker: true, field: true),
-            EffectRow("LookIconFlow", 12, checker: false, field: true)),
+        Width = 300,
+        Child = Rows(
+            SettingRow(With(new Slider { Minimum = 1, Maximum = 500, Value = 24 }, "param"), ValueField(24, 1, 500), "LookIconSize"),
+            SettingRow(EffectSlider(82, checker: true), ValueField(82, 0, 100), "LookIconOpacity"),
+            SettingRow(EffectSlider(12, checker: false), ValueField(12, 0, 100), "LookIconFlow")),
     };
 
     private static Story Selectors() => new(
@@ -282,6 +355,84 @@ public static class Catalog
         ],
         Columns: 3);
 
+    /// <summary>
+    /// One layout for every setting row (Q203): the control, then a fixed-width
+    /// value column, then an icon column — all from Tokens.axaml, so every row
+    /// in a panel starts and ends on the same lines whether or not it has a
+    /// value or an icon. An empty column still takes its width.
+    /// </summary>
+    private static Grid SettingRow(Control control, Control? value, string? icon)
+    {
+        double Token(string key, double fallback) =>
+            Application.Current!.TryFindResource(key, out var v) && v is double d ? d : fallback;
+        var gap = Token("LookColumnGap", 8);
+        var grid = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(gap, GridUnitType.Pixel),
+                new ColumnDefinition(Token("LookFieldWidth", 48), GridUnitType.Pixel),
+                new ColumnDefinition(gap, GridUnitType.Pixel),
+                new ColumnDefinition(Token("LookIconSlot", 16), GridUnitType.Pixel),
+            },
+            Height = Token("LookRowHeight", 24),
+        };
+        control.VerticalAlignment = VerticalAlignment.Center;
+        control.HorizontalAlignment = HorizontalAlignment.Stretch;
+        control.Width = double.NaN;
+        grid.Children.Add(control);
+        if (value is not null)
+        {
+            value.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(value, 2);
+            grid.Children.Add(value);
+        }
+        if (icon is not null)
+        {
+            var glyph = RowIcon(icon);
+            Grid.SetColumn(glyph, 4);
+            grid.Children.Add(glyph);
+        }
+        return grid;
+    }
+
+    private static Control RowIcon(string icon)
+    {
+        var glyph = new Panel { Width = 16, Height = 16, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+        glyph.Children.Add(new Avalonia.Controls.Shapes.Path { Classes = { "effectIcon" }, Data = (Geometry)Application.Current!.FindResource(icon)! });
+        if (icon == "LookIconOpacity")
+        {
+            glyph.Children.Add(new Avalonia.Controls.Shapes.Path { Classes = { "effectIconFill" }, Data = (Geometry)Application.Current!.FindResource("LookIconOpacityFill")! });
+        }
+        return glyph;
+    }
+
+    private static NumericUpDown ValueField(double value, double min, double max) =>
+        With(new NumericUpDown { Minimum = (decimal)min, Maximum = (decimal)max, Value = (decimal)value, FormatString = "0" }, "value");
+
+    private static Slider EffectSlider(double value, bool checker)
+    {
+        var slider = With(new Slider { Minimum = 0, Maximum = 100, Value = value }, "effect");
+        if (checker) slider.Classes.Add("checker");
+        slider.Background = new LinearGradientBrush
+        {
+            StartPoint = new RelativePoint(0, 0.5, RelativeUnit.Relative),
+            EndPoint = new RelativePoint(1, 0.5, RelativeUnit.Relative),
+            GradientStops = { new GradientStop(Color.FromArgb(0, Paint.R, Paint.G, Paint.B), 0), new GradientStop(Paint, 1) },
+        };
+        return slider;
+    }
+
+    /// <summary>The panel a docker's settings live in: rows on the token gap.</summary>
+    private static StackPanel Rows(params Control[] rows)
+    {
+        var gap = Application.Current!.TryFindResource("LookRowGap", out var g) && g is double d ? d : 8;
+        var panel = new StackPanel { Spacing = gap };
+        panel.Children.AddRange(rows);
+        return panel;
+    }
+
     private static Story Tabs() => new(
         "Tabs",
         "Docker tabs and section tabs.",
@@ -309,18 +460,23 @@ public static class Catalog
 
     private static Control Docker(bool hover)
     {
+        var layers = Rows(
+            LayerRow("Ink", false, stretch: true),
+            LayerRow("Colour flats", true, stretch: true),
+            LayerRow("Rough, on 2s", false, stretch: true));
+        layers.Spacing = 1;
         var docker = new Docker
         {
             PanelId = DockPanelId.Layers,
-            Width = 280,
-            Height = 220,
+            Width = 300,
+            Height = 240,
             CanFloat = true,
-            Content = Column(6,
-                Row(new ComboBox { Width = 120, ItemsSource = new[] { "Normal" }, SelectedIndex = 0 }),
-                Pair("Opacity", 82, 0, 100, "0"),
-                LayerRow("Ink", false),
-                LayerRow("Colour flats", true),
-                LayerRow("Rough, on 2s", false)),
+            // Padding comes from the look (LookPanelPadding); nothing here
+            // carries a margin of its own.
+            Content = Rows(
+                SettingRow(new ComboBox { ItemsSource = new[] { "Normal", "Multiply", "Screen" }, SelectedIndex = 0 }, null, "LookIconBlend"),
+                SettingRow(EffectSlider(82, checker: true), ValueField(82, 0, 100), "LookIconOpacity"),
+                layers),
         };
         docker.ShowTabs([DockPanels.Of(DockPanelId.Layers), DockPanels.Of(DockPanelId.Channels), DockPanels.Of(DockPanelId.History)], DockPanelId.Layers);
         return hover ? Force(docker, ":pointerover") : docker;
@@ -364,14 +520,14 @@ public static class Catalog
         ],
         Columns: 1);
 
-    private static Border LayerRow(string name, bool active)
+    private static Border LayerRow(string name, bool active, bool stretch = false)
     {
         var eye = With(new ToggleButton { IsChecked = true, Content = Icon("IconEyeOpen", 12) }, "eye", "icon");
         var thumb = new Border { Width = 26, Height = 18, Background = Painting() };
         var row = new Border
         {
             Classes = { "layerRow" },
-            Width = 260,
+            Width = stretch ? double.NaN : 260,
             Child = Row(eye, Icon("IconLockOpen", 11), thumb, new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center }),
         };
         if (active) row.Classes.Add("active");

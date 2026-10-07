@@ -37,7 +37,8 @@
   <SolidColorBrush x:Key="SelectionBrush" Color="#FFFFFF" Opacity="0.08" />
   <SolidColorBrush x:Key="SelectionWeakBrush" Color="#FFFFFF" Opacity="0.04" />
   <SolidColorBrush x:Key="PressTintBrush" Color="#FFFFFF" Opacity="0.06" />
-  <SolidColorBrush x:Key="HoverTintBrush" Color="#FFFFFF" Opacity="0.05" />
+  <!-- Hover is the active fill at half strength, in the same shape. -->
+  <SolidColorBrush x:Key="HoverTintBrush" Color="#FFFFFF" Opacity="0.065" />
   <SolidColorBrush x:Key="GroupRowBrush" Color="#222225" />
   <SolidColorBrush x:Key="CelBrush" Color="#2E2E32" />
   <SolidColorBrush x:Key="FieldGroundBrush" Color="#161618" />
@@ -56,7 +57,7 @@
   <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent" />
   <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#FFFFFF" Opacity="0.10" />
   <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#FFFFFF" Opacity="0.22" />
-  <StaticResource x:Key="ComboBoxBackground" ResourceKey="FieldGroundBrush" />
+  <SolidColorBrush x:Key="ComboBoxBackground" Color="Transparent" />
   <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="Transparent" />
   <SolidColorBrush x:Key="SliderTrackFill" Color="#161618" />
   <SolidColorBrush x:Key="SliderTrackValueFill" Color="#8E8E8B" />
@@ -71,8 +72,10 @@
   <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#1C1C1F" />
   <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#FFFFFF" Opacity="0.03" />
   <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="TextSecondaryBrush" />
-  <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#1C1C1F" />
-  <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#1C1C1F" />
+  <!-- A dropdown is text at rest, like the canvas bar: no well, no border;
+       hover gives it ground, open gives it the active fill. -->
+  <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#FFFFFF" Opacity="0.065" />
+  <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#FFFFFF" Opacity="0.13" />
   <StaticResource x:Key="ButtonBackground" ResourceKey="SurfaceElevatedBrush" />
   <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#37373C" />
   <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#28282B" />
@@ -85,4 +88,7 @@
   <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#2E2E32" />
   <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="#2E2E32" />
   <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#2E2E32" />
+  <!-- Menu items follow the same rule: hover half, active full, one shape. -->
+  <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#FFFFFF" Opacity="0.065" />
+  <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="#FFFFFF" Opacity="0.13" />
 </ResourceDictionary>

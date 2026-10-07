@@ -34,7 +34,8 @@
   <SolidColorBrush x:Key="SelectionBrush" Color="#FFFFFF" Opacity="0.35" />
   <SolidColorBrush x:Key="SelectionWeakBrush" Color="#FFFFFF" Opacity="0.18" />
   <SolidColorBrush x:Key="PressTintBrush" Color="#000000" Opacity="0.06" />
-  <SolidColorBrush x:Key="HoverTintBrush" Color="#FFFFFF" Opacity="0.22" />
+  <!-- Hover is the active fill at half strength, in the same shape. -->
+  <SolidColorBrush x:Key="HoverTintBrush" Color="#FFFFFF" Opacity="0.28" />
   <SolidColorBrush x:Key="GroupRowBrush" Color="#C2C2C0" />
   <SolidColorBrush x:Key="CelBrush" Color="#C9C9C7" />
   <SolidColorBrush x:Key="FieldGroundBrush" Color="#AEAEAC" />
@@ -50,7 +51,7 @@
   <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent" />
   <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#000000" Opacity="0.10" />
   <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#000000" Opacity="0.30" />
-  <StaticResource x:Key="ComboBoxBackground" ResourceKey="FieldGroundBrush" />
+  <SolidColorBrush x:Key="ComboBoxBackground" Color="Transparent" />
   <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="Transparent" />
   <SolidColorBrush x:Key="SliderTrackFill" Color="#A2A2A0" />
   <SolidColorBrush x:Key="SliderTrackValueFill" Color="#3A3A39" />
@@ -65,8 +66,8 @@
   <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#B3B3B1" />
   <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#000000" Opacity="0.04" />
   <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="TextSecondaryBrush" />
-  <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#B3B3B1" />
-  <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#B3B3B1" />
+  <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#FFFFFF" Opacity="0.28" />
+  <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#FFFFFF" Opacity="0.55" />
   <StaticResource x:Key="ButtonBackground" ResourceKey="SurfaceElevatedBrush" />
   <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#D4D4D2" />
   <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#BDBDBB" />
@@ -79,4 +80,6 @@
   <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#C9C9C7" />
   <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="#C9C9C7" />
   <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#C9C9C7" />
+  <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#FFFFFF" Opacity="0.28" />
+  <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="#FFFFFF" Opacity="0.55" />
 </ResourceDictionary>
