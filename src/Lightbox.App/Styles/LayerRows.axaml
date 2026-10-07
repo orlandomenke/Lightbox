@@ -32,7 +32,7 @@
     <Setter Property="Padding" Value="2,0" />
   </Style>
   <Style Selector="Border.layerRow.active">
-    <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
+    <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
   </Style>
   <Style Selector="Border.layerRow.hiddenLayer">
     <Setter Property="Opacity" Value="0.35" />
@@ -41,15 +41,15 @@
        a problem the app is reporting, and amber made every locked layer read
        as something going wrong. -->
   <Style Selector="Border.layerRow.lockedLayer">
-    <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentCyanBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
   <Style Selector="Border.groupRow.lockedLayer">
-    <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentCyanBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
   <Style Selector="Border.groupRow">
-    <Setter Property="Background" Value="{StaticResource GroupRowBrush}" />
+    <Setter Property="Background" Value="{DynamicResource GroupRowBrush}" />
     <Setter Property="CornerRadius" Value="3" />
     <Setter Property="Padding" Value="2,0" />
   </Style>
@@ -57,13 +57,10 @@
        brush as the active layer row, because it is the same statement —
        "this is where you are working". -->
   <Style Selector="Border.groupRow.selected">
-    <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
+    <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
   </Style>
   <Style Selector="Border.groupRow.hiddenLayer">
     <Setter Property="Opacity" Value="0.35" />
-  </Style>
-  <Style Selector="Border.layerRow.grouped">
-    <Setter Property="Margin" Value="14,0,0,0" />
   </Style>
   <!-- Where a dragged row or folder would land. A LINE on the edge it would
        land against, because that is the one reading with no ambiguity: a
@@ -71,18 +68,18 @@
        guess at. Accent rather than the selection brush, so it cannot be
        mistaken for the row already being selected. -->
   <Style Selector="Border.dropAbove">
-    <Setter Property="BorderBrush" Value="{StaticResource AccentCoralBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentCoralBrush}" />
     <Setter Property="BorderThickness" Value="0,2,0,0" />
   </Style>
   <Style Selector="Border.dropBelow">
-    <Setter Property="BorderBrush" Value="{StaticResource AccentCoralBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentCoralBrush}" />
     <Setter Property="BorderThickness" Value="0,0,0,2" />
   </Style>
   <!-- Into a folder is the one drop that is not an edge, so it is the one
        that lights the row instead of drawing a line beside it. -->
   <Style Selector="Border.groupRow.dropInto">
-    <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource AccentCoralBrush}" />
+    <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentCoralBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
 

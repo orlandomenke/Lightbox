@@ -8,77 +8,77 @@
     labels and sliders. A collaborator rather than 85 more lines of
     MainWindow.axaml, which is on the monolith ratchet.
   -->
-  <StackPanel Spacing="6" IsVisible="{Binding ReachesGuides}">
-    <TextBlock Text="{Binding SelectedGuideLabel}" FontSize="12" FontWeight="SemiBold" />
+  <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding ReachesGuides}">
+    <TextBlock Text="{Binding SelectedGuideLabel}" FontSize="{StaticResource TypeBody}" FontWeight="SemiBold" />
     <TextBlock Text="Click a guide on the canvas to adjust it. Every guide lights up faintly while the Move tool is in hand; the one under the pointer brighter, the selected one brightest."
-               FontSize="11" Opacity="0.55" TextWrapping="Wrap"
+               FontSize="{StaticResource TypeDense}" Opacity="0.55" TextWrapping="Wrap"
                IsVisible="{Binding !HasSelectedGuide}" />
-    <StackPanel Spacing="6" IsVisible="{Binding HasSelectedGuide}">
+    <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasSelectedGuide}">
       <DockPanel>
-        <TextBlock Text="X" Width="90" VerticalAlignment="Center" FontSize="12" />
+        <TextBlock Text="X" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
         <NumericUpDown Value="{Binding GuideX}" Minimum="-100000" Maximum="100000"
-                       Increment="1" FormatString="0.#" MinWidth="44"
+                       Increment="1" FormatString="0.#" MinWidth="{StaticResource SizeField}"
                        ToolTip.Tip="Where the guide sits across the canvas, in document pixels" />
       </DockPanel>
       <DockPanel>
-        <TextBlock Text="Y" Width="90" VerticalAlignment="Center" FontSize="12" />
+        <TextBlock Text="Y" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
         <NumericUpDown Value="{Binding GuideY}" Minimum="-100000" Maximum="100000"
-                       Increment="1" FormatString="0.#" MinWidth="44"
+                       Increment="1" FormatString="0.#" MinWidth="{StaticResource SizeField}"
                        ToolTip.Tip="Where the guide sits down the canvas, in document pixels" />
       </DockPanel>
       <DockPanel IsVisible="{Binding SelectedGuideHasAngle}">
-        <TextBlock Text="Angle" Width="90" VerticalAlignment="Center" FontSize="12" />
+        <TextBlock Text="Angle" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
         <NumericUpDown DockPanel.Dock="Right" Value="{Binding GuideAngle}" Minimum="-360" Maximum="360"
-                       Increment="1" FormatString="0.#" MinWidth="44"
+                       Increment="1" FormatString="0.#" MinWidth="{StaticResource SizeField}"
                        ToolTip.Tip="Degrees clockwise from horizontal" />
-        <Slider Value="{Binding GuideAngle}" Minimum="-180" Maximum="180" Margin="4,0" />
+        <Slider Value="{Binding GuideAngle}" Minimum="-180" Maximum="180" Margin="{StaticResource RowColumnGap}" />
       </DockPanel>
       <DockPanel IsVisible="{Binding SelectedGuideIsGrid}">
-        <TextBlock Text="Cell size" Width="90" VerticalAlignment="Center" FontSize="12" />
+        <TextBlock Text="Cell size" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
         <NumericUpDown DockPanel.Dock="Right" Value="{Binding GuideSpacing}" Minimum="1" Maximum="4096"
-                       Increment="1" FormatString="0.#" MinWidth="44"
+                       Increment="1" FormatString="0.#" MinWidth="{StaticResource SizeField}"
                        ToolTip.Tip="The pitch of this lattice, in document pixels" />
-        <Slider Value="{Binding GuideSpacing}" Minimum="1" Maximum="512" Margin="4,0" />
+        <Slider Value="{Binding GuideSpacing}" Minimum="1" Maximum="512" Margin="{StaticResource RowColumnGap}" />
       </DockPanel>
-      <StackPanel Spacing="6" IsVisible="{Binding SelectedGuideIsHeightScale}">
+      <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding SelectedGuideIsHeightScale}">
         <DockPanel>
-          <TextBlock Text="Head height" Width="90" VerticalAlignment="Center" FontSize="12" />
+          <TextBlock Text="Head height" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
           <NumericUpDown DockPanel.Dock="Right" Value="{Binding GuideSpacing}" Minimum="1" Maximum="4096"
-                         Increment="1" FormatString="0.#" MinWidth="44"
+                         Increment="1" FormatString="0.#" MinWidth="{StaticResource SizeField}"
                          ToolTip.Tip="One head's height, in document pixels. Dragging the top rung on the canvas does the same thing" />
-          <Slider Value="{Binding GuideSpacing}" Minimum="1" Maximum="512" Margin="4,0" />
+          <Slider Value="{Binding GuideSpacing}" Minimum="1" Maximum="512" Margin="{StaticResource RowColumnGap}" />
         </DockPanel>
         <DockPanel>
-          <TextBlock Text="Heads" Width="90" VerticalAlignment="Center" FontSize="12" />
+          <TextBlock Text="Heads" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
           <NumericUpDown DockPanel.Dock="Right" Value="{Binding GuideHeads}" Minimum="1" Maximum="32"
-                         Increment="1" FormatString="0" MinWidth="44"
+                         Increment="1" FormatString="0" MinWidth="{StaticResource SizeField}"
                          ToolTip.Tip="How many heads tall the character is" />
-          <Slider Value="{Binding GuideHeads}" Minimum="1" Maximum="16" Margin="4,0" />
+          <Slider Value="{Binding GuideHeads}" Minimum="1" Maximum="16" Margin="{StaticResource RowColumnGap}" />
         </DockPanel>
       </StackPanel>
       <DockPanel IsVisible="{Binding SelectedGuideIsVanishingPoint}">
-        <TextBlock Text="Rays" Width="90" VerticalAlignment="Center" FontSize="12" />
+        <TextBlock Text="Rays" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
         <NumericUpDown DockPanel.Dock="Right" Value="{Binding GuideRays}" Minimum="2" Maximum="180"
-                       Increment="2" FormatString="0" MinWidth="44"
+                       Increment="2" FormatString="0" MinWidth="{StaticResource SizeField}"
                        ToolTip.Tip="How many lines are drawn out of the point" />
-        <Slider Value="{Binding GuideRays}" Minimum="2" Maximum="72" Margin="4,0" />
+        <Slider Value="{Binding GuideRays}" Minimum="2" Maximum="72" Margin="{StaticResource RowColumnGap}" />
       </DockPanel>
       <TextBlock Text="The point constrains every direction through it — the ray count is what you see, not what you can snap to."
-                 FontSize="11" Opacity="0.55" TextWrapping="Wrap"
+                 FontSize="{StaticResource TypeDense}" Opacity="0.55" TextWrapping="Wrap"
                  IsVisible="{Binding SelectedGuideIsVanishingPoint}" />
-      <StackPanel Orientation="Horizontal" Spacing="10">
-        <CheckBox Content="Shown" FontSize="12" IsChecked="{Binding GuideVisible}"
+      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space10}">
+        <CheckBox Content="Shown" FontSize="{StaticResource TypeBody}" IsChecked="{Binding GuideVisible}"
                   ToolTip.Tip="Take it off the screen. A hidden guide still snaps" />
-        <CheckBox Content="Snaps" FontSize="12" IsChecked="{Binding GuideSnaps}"
+        <CheckBox Content="Snaps" FontSize="{StaticResource TypeBody}" IsChecked="{Binding GuideSnaps}"
                   ToolTip.Tip="Whether strokes are held to it" />
-        <CheckBox Content="Locked" FontSize="12" IsChecked="{Binding GuideLocked}"
+        <CheckBox Content="Locked" FontSize="{StaticResource TypeBody}" IsChecked="{Binding GuideLocked}"
                   ToolTip.Tip="Pin it, so neither a drag nor these fields can move it" />
       </StackPanel>
-      <StackPanel Orientation="Horizontal" Spacing="4">
-        <Button Content="Set as default" Command="{Binding SaveGuideDefaultsCommand}" FontSize="12"
+      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
+        <Button Content="Set as default" Command="{Binding SaveGuideDefaultsCommand}" FontSize="{StaticResource TypeBody}"
                 IsVisible="{Binding CanSaveGuideDefaults}"
                 ToolTip.Tip="{Binding GuideDefaultsHint}" />
-        <Button Content="Remove" Command="{Binding RemoveSelectedGuideCommand}" FontSize="12"
+        <Button Content="Remove" Command="{Binding RemoveSelectedGuideCommand}" FontSize="{StaticResource TypeBody}"
                 ToolTip.Tip="Delete this guide. Strokes already drawn against it do not move" />
       </StackPanel>
     </StackPanel>

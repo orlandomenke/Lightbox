@@ -59,6 +59,9 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 "extend_exposure" => ExtendExposure(request),
                 "reduce_exposure" => ReduceExposure(request),
                 "set_exposure_step" => SetExposureStep(request),
+                "create_folder" => CreateFolder(request),
+                "move_to_folder" => MoveToFolder(request),
+                "group_layers" => GroupLayers(request),
                 _ => IpcProtocol.Response.Fail($"Unknown op \"{request.Op}\"."),
             };
         }
@@ -140,8 +143,98 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 KeyedFrames = Enumerable.Range(0, s.FrameCount)
                     .Where(i => ExposureSheet.FrameAtExactIndex(l, i) is not null)
                     .ToList(),
+                // The folder a layer is directly in (Q204); absent when it is
+                // in none, so a document without folders reads as it always did.
+                FolderId = FolderTree.Folder(s, l.GroupId)?.Id,
             }),
+            Folders = FoldersForAgent(s),
         });
+    }
+
+    /// <summary>
+    /// The folders, topmost first as the docker lists them, or null — and so
+    /// absent from the reply — when the document has none.
+    /// </summary>
+    /// <remarks>
+    /// Each says where it sits (<c>parentId</c>, absent at the top level), what
+    /// it gates (<c>visible</c>, <c>locked</c>) and whether it holds anything,
+    /// because an empty folder is a place to put things and a full one is a
+    /// part of the drawing. Layers name their folder from their own side, so
+    /// the tree is in the reply without a nested shape an agent has to walk.
+    /// </remarks>
+    private static object? FoldersForAgent(Scene s)
+    {
+        if (s.LayerGroups.Count == 0) return null;
+        var holding = FolderTree.HoldingLayers(s);
+        return FolderTree.Rows(s)
+            .Where(r => r is { Item: LayerGroup, Continued: false })
+            .Select(r => (LayerGroup)r.Item)
+            .Select(g => new
+            {
+                g.Id,
+                g.Name,
+                ParentId = FolderTree.ParentOf(s, g)?.Id,
+                g.Visible,
+                g.Locked,
+                Empty = !holding.Contains(g.Id),
+            })
+            .ToList();
+    }
+
+    private sealed class CreateFolderRef
+    {
+        public string? Name { get; set; }
+        public string? InFolderId { get; set; }
+    }
+
+    private sealed class MoveToFolderRef
+    {
+        public string Id { get; set; } = "";
+        public string? FolderId { get; set; }
+        public bool Reorder { get; set; }
+    }
+
+    private sealed class GroupLayersRef
+    {
+        public List<string> Ids { get; set; } = [];
+        public string? Name { get; set; }
+        public bool Reorder { get; set; }
+    }
+
+    /// <summary><c>create_folder</c>: an empty folder at the top, or at the top inside another.</summary>
+    private IpcProtocol.Response CreateFolder(IpcProtocol.Request request)
+    {
+        var p = request.Payload is null ? new CreateFolderRef() : Payload<CreateFolderRef>(request);
+        var (id, refusal) = Vm.ExternalCreateFolder(p.Name, p.InFolderId);
+        if (id is null) return IpcProtocol.Response.Fail(refusal ?? "The folder could not be made.");
+        var folder = FolderTree.Folder(Vm.Doc.Scene, id)!;
+        return IpcProtocol.Response.Success(new { FolderId = id, folder.Name, ParentId = folder.ParentId });
+    }
+
+    /// <summary><c>move_to_folder</c>: into a folder at its top, or out of every folder.</summary>
+    private IpcProtocol.Response MoveToFolder(IpcProtocol.Request request)
+    {
+        var p = Payload<MoveToFolderRef>(request);
+        if (p.Id.Length == 0) return IpcProtocol.Response.Fail("Give the id of the layer or folder to move.");
+        if (Vm.ExternalMoveToFolder(p.Id, p.FolderId, p.Reorder, out var reordered) is { } refusal)
+            return IpcProtocol.Response.Fail(refusal);
+        var s = Vm.Doc.Scene;
+        var now = s.Layers.FirstOrDefault(l => l.Id == p.Id) is { } layer
+            ? FolderTree.Folder(s, layer.GroupId)?.Id
+            : FolderTree.Folder(s, p.Id) is { } moved ? FolderTree.ParentOf(s, moved)?.Id : null;
+        // Always said, because "did the picture change" is the question an
+        // agent cannot answer by looking at the reply's other fields.
+        return IpcProtocol.Response.Success(new { p.Id, FolderId = now, Reordered = reordered });
+    }
+
+    /// <summary><c>group_layers</c>: wrap layers and folders in a new folder.</summary>
+    private IpcProtocol.Response GroupLayers(IpcProtocol.Request request)
+    {
+        var p = Payload<GroupLayersRef>(request);
+        var (id, refusal) = Vm.ExternalGroup(p.Ids, p.Name, p.Reorder, out var reordered);
+        if (id is null) return IpcProtocol.Response.Fail(refusal ?? "Those could not be grouped.");
+        var folder = FolderTree.Folder(Vm.Doc.Scene, id)!;
+        return IpcProtocol.Response.Success(new { FolderId = id, folder.Name, ParentId = folder.ParentId, Reordered = reordered });
     }
 
     private class FrameRef

@@ -22,10 +22,10 @@
          off-scale on purpose to match the brush pages sharing this docker
          (BrushPageGeneral and siblings), so switching tools does not switch
          rhythms. Labels are the 52px column the transform rows use. -->
-    <StackPanel Spacing="8" Margin="0,0,4,0">
+    <StackPanel Spacing="{StaticResource Space8}" Margin="{StaticResource GapAfter}">
 
       <!-- Which third of the tool is in hand, said rather than remembered. -->
-      <StackPanel Orientation="Horizontal" Spacing="8">
+      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space8}">
         <RadioButton GroupName="BoneMode" Content="Bind" IsChecked="{Binding IsBindMode, Mode=TwoWay}"
                      ToolTip.Tip="Edit the skeleton against its rest pose: drag empty canvas to add a bone, a shaft to move it, a tip to re-aim it, Shift a tip to grow a child. (Shift+K switches)" />
         <RadioButton GroupName="BoneMode" Content="Pose" IsChecked="{Binding PosingMode, Mode=TwoWay}"
@@ -45,7 +45,7 @@
         already know — and the drawing itself says it, since the other
         skeletons draw dimmed.
       -->
-      <StackPanel Spacing="6" IsVisible="{Binding HasManyRigs}">
+      <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasManyRigs}">
         <TextBlock Text="Editing" Opacity="0.7" />
         <ListBox ItemsSource="{Binding RigRows}" MaxHeight="96"
                  SelectionChanged="OnRigChanged"
@@ -66,19 +66,19 @@
            each redraw by writing null into the very selection it was showing.
            That was the reported "no indication of what bone is selected" —
            the panel deselected the bone the moment it heard about it. -->
-      <StackPanel Spacing="4" IsVisible="{Binding HasArmature}">
+      <StackPanel Spacing="{StaticResource Space4}" IsVisible="{Binding HasArmature}">
         <!-- The header is the collapse toggle: a deep rig's list is context,
              not the work surface, and folding it away gives the docker back
              to the controls that are. -->
         <ToggleButton x:Name="BoneListToggle" Classes="ghost" IsChecked="True"
                       Padding="2,0" HorizontalAlignment="Left"
                       ToolTip.Tip="Show or hide the bone list.">
-          <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-            <Path Classes="icon" Width="8" Height="8" Data="{StaticResource IconChevronDown}"
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}" VerticalAlignment="Center">
+            <Path Classes="icon" Width="{StaticResource SizeIcon8}" Height="{StaticResource SizeIcon8}" Data="{StaticResource IconChevronDown}"
                   IsVisible="{Binding #BoneListToggle.IsChecked}" />
-            <Path Classes="icon" Width="8" Height="8" Data="{StaticResource IconChevronRight}"
+            <Path Classes="icon" Width="{StaticResource SizeIcon8}" Height="{StaticResource SizeIcon8}" Data="{StaticResource IconChevronRight}"
                   IsVisible="{Binding !#BoneListToggle.IsChecked}" />
-            <TextBlock Text="Bones" FontWeight="SemiBold" FontSize="12" />
+            <TextBlock Text="Bones" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
           </StackPanel>
         </ToggleButton>
         <!-- Capped at ~7 of the layer list's row heights so a deep rig
@@ -100,7 +100,7 @@
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:BoneRow">
               <TextBlock Text="{Binding Label}" FontFamily="{StaticResource MonoFontFamily}"
-                         FontSize="12" VerticalAlignment="Center" />
+                         FontSize="{StaticResource TypeBody}" VerticalAlignment="Center" />
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
@@ -108,19 +108,19 @@
 
       <!-- What can be done to the picked bone. Absent rather than greyed
            until one is picked. -->
-      <StackPanel Spacing="6" IsVisible="{Binding HasSelectedBone}">
+      <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasSelectedBone}">
         <DockPanel>
-          <TextBlock Text="Name" Width="52" VerticalAlignment="Center" FontSize="12" Opacity="0.7" />
+          <TextBlock Text="Name" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
           <TextBox Text="{Binding SelectedBoneName, Mode=TwoWay}"
                    ToolTip.Tip="Rename the bone. Ending a pair in .l and .r is what lets X-symmetry paint both sides at once." />
         </DockPanel>
         <DockPanel>
-          <TextBlock Text="Length" Width="52" VerticalAlignment="Center" FontSize="12" Opacity="0.7" />
+          <TextBlock Text="Length" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
           <NumericUpDown Value="{Binding SelectedBoneLength, Mode=TwoWay}" Minimum="4" Maximum="4000"
                          Increment="4" FormatString="0"
                          ToolTip.Tip="How long the bone is, in document pixels — the same thing dragging its tip changes." />
         </DockPanel>
-        <StackPanel Orientation="Horizontal" Spacing="6">
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
           <Button Content="Add child" Command="{Binding AddChildBoneCommand}"
                   ToolTip.Tip="Grow a bone from this one's tip, already joined to it. Shift-drag a tip on the canvas does the same and lets you aim it." />
           <Button x:Name="DeleteBoneButton" Content="Delete" Command="{Binding DeleteBoneCommand}"
@@ -130,15 +130,15 @@
              only exist while it does — absent, not disabled. -->
         <CheckBox Content="Jiggle" IsChecked="{Binding SelectedBoneJiggles, Mode=TwoWay}"
                   ToolTip.Tip="The bone lags and settles behind the motion driving it — tails, ears, antennae. Solved per frame from the pose track, so the same document always renders the same swing." />
-        <StackPanel Spacing="6" IsVisible="{Binding SelectedBoneJiggles}">
+        <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding SelectedBoneJiggles}">
           <DockPanel>
-            <TextBlock Text="Catch up" Width="52" VerticalAlignment="Center" FontSize="12" Opacity="0.7" />
+            <TextBlock Text="Catch up" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <NumericUpDown Value="{Binding SelectedBoneJiggleStiffness, Mode=TwoWay}" Minimum="0.01" Maximum="1"
                            Increment="0.05" FormatString="0.00"
                            ToolTip.Tip="How hard the bone is pulled toward where the pose wants it. Low is a whippy antenna, high follows almost immediately." />
           </DockPanel>
           <DockPanel>
-            <TextBlock Text="Settle" Width="52" VerticalAlignment="Center" FontSize="12" Opacity="0.7" />
+            <TextBlock Text="Settle" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <NumericUpDown Value="{Binding SelectedBoneJiggleDamping, Mode=TwoWay}" Minimum="0.02" Maximum="1"
                            Increment="0.05" FormatString="0.00"
                            ToolTip.Tip="How quickly the swing dies. Low keeps it bouncing; high is a heavy tail that settles at once." />
@@ -148,20 +148,20 @@
 
       <!-- IK. One button makes a working limb, and the rest only appears
            once there is a chain to talk about. -->
-      <StackPanel Spacing="6" IsVisible="{Binding HasSelectedBone}">
+      <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasSelectedBone}">
         <Button Content="Add IK" Command="{Binding AddIkChainCommand}"
                 IsVisible="{Binding !HasSelectedChain}"
                 ToolTip.Tip="Make this bone the end of an IK chain: a target handle is created at its tip, and dragging that in Pose reaches the whole limb after it." />
-        <StackPanel Spacing="6" IsVisible="{Binding HasSelectedChain}">
-          <TextBlock Text="IK" FontWeight="SemiBold" FontSize="12" />
+        <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasSelectedChain}">
+          <TextBlock Text="IK" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
           <DockPanel>
-            <TextBlock Text="Bones" Width="52" VerticalAlignment="Center" FontSize="12" Opacity="0.7" />
+            <TextBlock Text="Bones" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <NumericUpDown Value="{Binding SelectedChainBoneCount, Mode=TwoWay}" Minimum="1" Maximum="16"
                            Increment="1" FormatString="0"
                            ToolTip.Tip="How many bones up from the chain's end the solve may turn. Two is a limb; more is a tail." />
           </DockPanel>
           <DockPanel>
-            <TextBlock Text="Pole" Width="52" VerticalAlignment="Center" FontSize="12" Opacity="0.7" />
+            <TextBlock Text="Pole" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <ComboBox ItemsSource="{Binding PoleRows}" SelectedValue="{Binding SelectedChainPoleKey, Mode=TwoWay}"
                       SelectedValueBinding="{Binding Id}" HorizontalAlignment="Stretch"
                       ToolTip.Tip="A bone that says which way the knee or elbow bends. Without one the chain keeps whichever way it is already bent.">
@@ -178,14 +178,14 @@
       </StackPanel>
 
       <!-- Spline chains, the bendy-bone deformer. -->
-      <StackPanel Spacing="6" IsVisible="{Binding HasSelectedBone}">
+      <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasSelectedBone}">
         <Button Content="Add spline" Command="{Binding AddSplineChainCommand}"
                 IsVisible="{Binding !HasSelectedSpline}"
                 ToolTip.Tip="Lay this bone and the two above it along a curve, with three handles you drag in Pose. Tails, hair, capes." />
-        <StackPanel Spacing="6" IsVisible="{Binding HasSelectedSpline}">
-          <TextBlock Text="Spline" FontWeight="SemiBold" FontSize="12" />
+        <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasSelectedSpline}">
+          <TextBlock Text="Spline" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
           <DockPanel>
-            <TextBlock Text="Bones" Width="52" VerticalAlignment="Center" FontSize="12" Opacity="0.7" />
+            <TextBlock Text="Bones" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <NumericUpDown Value="{Binding SelectedSplineBoneCount, Mode=TwoWay}" Minimum="1" Maximum="32"
                            Increment="1" FormatString="0"
                            ToolTip.Tip="How many bones up from the end lie along the curve. Every one keeps its own length — the curve bends the run, it never stretches it." />
@@ -197,8 +197,8 @@
 
       <!-- Constraints. Picking a target IS the add; the editing controls
            only appear once there is something to edit. -->
-      <StackPanel Spacing="6" IsVisible="{Binding HasSelectedBone}">
-        <TextBlock Text="Constraints" FontWeight="SemiBold" FontSize="12" />
+      <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasSelectedBone}">
+        <TextBlock Text="Constraints" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
         <ComboBox ItemsSource="{Binding ConstraintTargetRows}" SelectedValue="{Binding ConstrainToKey, Mode=TwoWay}"
                   SelectedValueBinding="{Binding Id}" HorizontalAlignment="Stretch"
                   ToolTip.Tip="Make this bone follow another one. Picking a bone here creates an aim at it; change what kind of following it is afterwards.">
@@ -208,7 +208,7 @@
             </DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>
-        <StackPanel Spacing="6" IsVisible="{Binding HasSelectedConstraint}">
+        <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasSelectedConstraint}">
           <ComboBox ItemsSource="{Binding ConstraintRows}" SelectedValue="{Binding SelectedConstraintId, Mode=TwoWay}"
                     SelectedValueBinding="{Binding Id}" HorizontalAlignment="Stretch"
                     ToolTip.Tip="This bone's constraints. They resolve top to bottom, so a later one sees what an earlier one did.">
@@ -225,13 +225,13 @@
             <ComboBoxItem Content="Copy place of" />
           </ComboBox>
           <DockPanel>
-            <TextBlock Text="Offset" Width="52" VerticalAlignment="Center" FontSize="12" Opacity="0.7" />
+            <TextBlock Text="Offset" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <NumericUpDown Value="{Binding ConstraintOffsetDeg, Mode=TwoWay}" Minimum="-360" Maximum="360"
                            Increment="5" FormatString="0"
                            ToolTip.Tip="Degrees added after the constraint resolves — a head that should look slightly past what it aims at." />
           </DockPanel>
           <DockPanel>
-            <TextBlock Text="Strength" Width="52" VerticalAlignment="Center" FontSize="12" Opacity="0.7" />
+            <TextBlock Text="Strength" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
             <NumericUpDown Value="{Binding ConstraintInfluencePercent, Mode=TwoWay}" Minimum="0" Maximum="100"
                            Increment="5" FormatString="0"
                            ToolTip.Tip="How far toward the constrained result the bone goes. 0 leaves it exactly where it was." />
@@ -242,8 +242,8 @@
       </StackPanel>
 
       <!-- The weight brush and its settings, shown while the brush is armed. -->
-      <StackPanel Spacing="6" IsVisible="{Binding WeightPainting}">
-        <TextBlock Text="Weight brush" FontWeight="SemiBold" FontSize="12" />
+      <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding WeightPainting}">
+        <TextBlock Text="Weight brush" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
         <ComboBox SelectedIndex="{Binding WeightBrushModeIndex, Mode=TwoWay}" HorizontalAlignment="Stretch"
                   ToolTip.Tip="Add builds influence, Subtract takes it away, Smooth averages toward the neighbours — the armpit fixer.">
           <ComboBoxItem Content="Add" />
@@ -251,7 +251,7 @@
           <ComboBoxItem Content="Smooth" />
         </ComboBox>
         <DockPanel>
-          <TextBlock Text="Size" Width="52" VerticalAlignment="Center" FontSize="12" Opacity="0.7" />
+          <TextBlock Text="Size" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
           <NumericUpDown Value="{Binding WeightBrushRadius, Mode=TwoWay}" Minimum="2" Maximum="400"
                          Increment="2" FormatString="0"
                          ToolTip.Tip="Brush radius in document pixels. Pressure drives strength within it." />
@@ -261,9 +261,9 @@
       </StackPanel>
 
       <!-- Binding actions, which only mean anything with strokes picked. -->
-      <StackPanel Spacing="6" IsVisible="{Binding HasArmature}">
-        <TextBlock Text="Binding" FontWeight="SemiBold" FontSize="12" />
-        <StackPanel Orientation="Horizontal" Spacing="6">
+      <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasArmature}">
+        <TextBlock Text="Binding" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
           <Button Content="Assign" Command="{Binding AssignStrokesToBoneCommand}"
                   ToolTip.Tip="Bind the selected lines wholly to the selected bone — the cutout workflow." />
           <Button Content="Auto-bind" Command="{Binding AutoBindStrokesCommand}"
@@ -279,29 +279,29 @@
            drawing the right shape once; it eases in as the joint approaches
            that angle. The capture is a mode, so the panel says loudly that it
            is open and offers only the two ways out. -->
-      <StackPanel Spacing="6" IsVisible="{Binding HasArmature}">
-        <TextBlock Text="Joint fixes" FontWeight="SemiBold" FontSize="12" />
+      <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding HasArmature}">
+        <TextBlock Text="Joint fixes" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
         <Button Content="Draw a fix here" Command="{Binding BeginCorrectiveCommand}"
                 IsVisible="{Binding !CapturingCorrective}"
                 ToolTip.Tip="Bend the joint, then press this: the drawing is posed so you can correct it with the ordinary tools, and what you change is kept as the shape for this angle. Needs Pose mode and a selected bone." />
-        <StackPanel Spacing="6" IsVisible="{Binding CapturingCorrective}">
-          <TextBlock Text="{Binding CorrectiveStatus}" TextWrapping="Wrap" FontSize="12" Opacity="0.8" />
+        <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding CapturingCorrective}">
+          <TextBlock Text="{Binding CorrectiveStatus}" TextWrapping="Wrap" FontSize="{StaticResource TypeBody}" Opacity="0.8" />
           <TextBlock Text="Fix the drawing with any tool, then keep it."
-                     TextWrapping="Wrap" FontSize="12" Opacity="0.6" />
-          <StackPanel Orientation="Horizontal" Spacing="6">
+                     TextWrapping="Wrap" FontSize="{StaticResource TypeBody}" Opacity="0.6" />
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
             <Button Content="Keep the fix" Command="{Binding CaptureCorrectiveCommand}"
                     ToolTip.Tip="Store what you moved as this joint's shape at this angle, and put the drawing back." />
             <Button Content="Discard" Command="{Binding CancelCorrectiveCommand}"
                     ToolTip.Tip="Put the drawing back and keep nothing." />
           </StackPanel>
         </StackPanel>
-        <StackPanel Spacing="4" IsVisible="{Binding HasCorrectives}">
+        <StackPanel Spacing="{StaticResource Space4}" IsVisible="{Binding HasCorrectives}">
           <ListBox x:Name="CorrectiveList" MaxHeight="110"
                    ItemsSource="{Binding CorrectiveRows}"
                    ToolTip.Tip="The fixes on this drawing, and the angles each was drawn at.">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:BoneRow">
-                <TextBlock Text="{Binding Name}" FontSize="12" />
+                <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeBody}" />
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>

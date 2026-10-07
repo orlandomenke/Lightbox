@@ -625,6 +625,12 @@ public partial class MainWindow
             case "docker.clipToBelow":
                 _vm.ToggleActiveLayerClippedCommand.Execute(null);
                 break;
+            case "docker.groupLayers":
+                _vm.GroupLayersCommand.Execute(null);
+                break;
+            case "docker.newFolder":
+                _vm.CreateLayerFolderCommand.Execute(null);
+                break;
             case "docker.editMask":
                 _vm.ToggleActiveLayerMaskEditingCommand.Execute(null);
                 break;

@@ -17,15 +17,15 @@
     read as a fact about cameras rather than as a bug.
   -->
   <DockPanel Margin="6,4">
-    <TextBlock DockPanel.Dock="Top" FontSize="10" TextWrapping="Wrap"
-               Foreground="{StaticResource TextSecondaryBrush}"
+    <TextBlock DockPanel.Dock="Top" FontSize="{StaticResource TypeHint}" TextWrapping="Wrap"
+               Foreground="{DynamicResource TextSecondaryBrush}"
                Margin="0,0,0,6" IsVisible="{Binding !HasCamera}"
                Text="Parallax needs a camera. Depths are kept, but nothing moves until the document has one — add it from the X-sheet's 🎥 button." />
     <!--
       The path under the rows rather than over: the rows are edited, the path
       is read, and the thing you act on belongs where the pointer arrives first.
     -->
-    <controls:CameraPathPlot DockPanel.Dock="Bottom" Height="96" Margin="0,6,0,0"
+    <controls:CameraPathPlot DockPanel.Dock="Bottom" Height="96" Margin="{StaticResource SubsectionGap}"
                              IsVisible="{Binding HasCamera}"
                              DocumentSize="{Binding ScenePlotSize}"
                              PathPoints="{Binding CameraPathPoints}"
@@ -45,15 +45,15 @@
               <Canvas Grid.Column="1" Width="54" Height="10" VerticalAlignment="Center"
                       Margin="2,0">
                 <Border Canvas.Left="0" Canvas.Top="4" Width="54" Height="2"
-                        Background="{StaticResource BorderStrongBrush}" CornerRadius="1" />
+                        Background="{DynamicResource BorderStrongBrush}" CornerRadius="1" />
                 <!-- The camera's hue: the marker says where this plane stands
                      relative to the move the orange path below will make. -->
                 <Border Canvas.Left="{Binding MarkerX}" Canvas.Top="0" Width="4" Height="10"
-                        Background="{StaticResource CameraTrackBrush}" CornerRadius="1" />
+                        Background="{DynamicResource CameraTrackBrush}" CornerRadius="1" />
               </Canvas>
               <NumericUpDown Grid.Column="2" Value="{Binding Depth}" Increment="100"
                              Minimum="-750" Maximum="1000000" FormatString="0"
-                             FontSize="11" VerticalAlignment="Center"
+                             FontSize="{StaticResource TypeDense}" VerticalAlignment="Center"
                              ToolTip.Tip="Distance behind the picture plane, in canvas units. 0 sits on the canvas; 1000 shows half of a camera move; negative floats in front." />
             </Grid>
           </DataTemplate>

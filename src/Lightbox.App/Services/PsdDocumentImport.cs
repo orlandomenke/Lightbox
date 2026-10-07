@@ -67,6 +67,7 @@ public static class PsdDocumentImport
 
         var notes = new List<string>(psd.Notes);
         var scopes = new Stack<GroupScope>();
+        var emptySlots = new List<(LayerGroup Folder, int Slot)>();
 
         foreach (var entry in psd.Layers)
         {
@@ -76,26 +77,43 @@ public static class PsdDocumentImport
                 // arrives before its contents and the header that names it arrives
                 // last. So the divider opens a scope and the header closes it.
                 case PsdLayerRole.GroupEnd:
-                    scopes.Push(new GroupScope());
+                    // The folder exists from its divider on, so what arrives
+                    // inside it — layers and folders — can name it as theirs.
+                    scopes.Push(new GroupScope(new LayerGroup(), scene.Layers.Count));
                     break;
 
                 case PsdLayerRole.GroupOpen or PsdLayerRole.GroupClosed:
-                    CloseGroup(scene, scopes, entry);
+                    CloseGroup(scene, scopes, entry, emptySlots);
                     break;
 
                 default:
                     var layer = BuildLayer(entry, psd.Width, psd.Height);
                     if (layer is null) break;
                     scene.Layers.Add(layer);
-                    if (scopes.Count > 0) scopes.Peek().Members.Add(layer);
+                    if (scopes.Count > 0) layer.GroupId = scopes.Peek().Folder.Id;
                     break;
             }
         }
 
         // A folder whose header never arrived — a malformed or truncated stack.
-        // Its members stay in the scene, ungrouped, rather than disappearing.
+        // What was inside it stays in the scene, a level up, rather than
+        // disappearing or pointing at a folder that does not exist.
         if (scopes.Count > 0)
+        {
             notes.Add($"{scopes.Count} unterminated layer folder(s) were flattened.");
+            var unterminated = scopes.Select(s => s.Folder.Id).ToHashSet();
+            foreach (var layer in scene.Layers.Where(l => l.GroupId is { } g && unterminated.Contains(g))) layer.GroupId = null;
+            foreach (var folder in scene.LayerGroups.Where(f => f.ParentId is { } p && unterminated.Contains(p))) folder.ParentId = null;
+        }
+
+        // An empty Photoshop folder is an empty folder here too (Q204), in the
+        // slot its divider and header held: under the first layer that came
+        // after them. Settle checks each slot against the folder's parent.
+        foreach (var (folder, slot) in emptySlots)
+        {
+            folder.Under = slot < scene.Layers.Count ? scene.Layers[slot].Id : null;
+        }
+        FolderTree.Settle(scene, null);
 
         if (scene.Layers.Count == 0)
         {
@@ -114,39 +132,31 @@ public static class PsdDocumentImport
     }
 
     /// <summary>
-    /// Turn the innermost open scope into a folder named by its header.
+    /// Close the innermost open scope: the folder takes its header's name,
+    /// visibility and collapsed state, and sits inside the scope around it.
     /// </summary>
     /// <remarks>
-    /// Photoshop nests folders and a Lightbox <see cref="LayerGroup"/> is one
-    /// level deep, so nesting is flattened and the path is kept in the name
-    /// ("Characters / Head"). That loses no pixels: nesting is organisation, and
-    /// the only part of it that reaches the image — whether an enclosing folder is
-    /// hidden or locked — is folded into the flattened folder instead.
+    /// Photoshop nests folders and so does Lightbox now (Q204), so nesting comes
+    /// across as nesting. It used to be flattened, with the path kept in the
+    /// name ("Characters / Head") and an enclosing folder's hidden state folded
+    /// into each inner one; a folder's visibility now reaches everything inside
+    /// it at any depth, so neither fold is needed.
     /// </remarks>
-    private static void CloseGroup(Scene scene, Stack<GroupScope> scopes, PsdLayer header)
+    private static void CloseGroup(Scene scene, Stack<GroupScope> scopes, PsdLayer header, List<(LayerGroup, int)> emptySlots)
     {
         if (scopes.Count == 0) return;
         var scope = scopes.Pop();
-
-        var name = header.Name;
-        foreach (var outer in scopes) name = $"{outer.Name ?? "Folder"} / {name}";
-
-        var group = new LayerGroup
+        var folder = scope.Folder;
+        folder.Name = string.IsNullOrWhiteSpace(header.Name) ? "Folder" : header.Name;
+        folder.Visible = header.Visible;
+        folder.Collapsed = header.Role == PsdLayerRole.GroupClosed;
+        folder.ParentId = scopes.Count > 0 ? scopes.Peek().Folder.Id : null;
+        scene.LayerGroups.Add(folder);
+        if (!FolderTree.HoldingLayers(scene).Contains(folder.Id) && scene.Layers.Count == scope.FirstLayer)
         {
-            Name = name,
-            Visible = header.Visible && scopes.All(s => s.Visible),
-        };
-        scene.LayerGroups.Add(group);
-        foreach (var member in scope.Members) member.GroupId = group.Id;
-
-        // The enclosing folder still owns everything this one held, so its own
-        // header sees them when it closes.
-        if (scopes.Count > 0)
-        {
-            var parent = scopes.Peek();
-            parent.Name ??= header.Name;
-            parent.Members.AddRange(scope.Members);
-            if (!header.Visible) parent.Visible = false;
+            // Nothing arrived between its divider and its header: an empty
+            // folder, whose slot is the next layer to come (if any).
+            emptySlots.Add((folder, scope.FirstLayer));
         }
     }
 
@@ -257,10 +267,6 @@ public static class PsdDocumentImport
         };
     }
 
-    private sealed class GroupScope
-    {
-        public string? Name;
-        public bool Visible = true;
-        public List<Layer> Members { get; } = [];
-    }
+    /// <summary>An open folder, and where the stack stood when its divider arrived.</summary>
+    private sealed record GroupScope(LayerGroup Folder, int FirstLayer);
 }

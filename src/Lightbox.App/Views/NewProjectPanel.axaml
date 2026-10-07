@@ -3,7 +3,7 @@
              x:Class="Lightbox.App.Views.NewProjectPanel">
 
   <!-- The fields of File → New project, shared by the dialog and the start screen. -->
-  <StackPanel Spacing="10">
+  <StackPanel Spacing="{StaticResource Space10}">
 
     <DockPanel>
       <TextBlock Text="Name" Width="110" VerticalAlignment="Center" />
@@ -27,7 +27,7 @@
                 ToolTip.Tip="Keep the arrangement you are working in, or take this type's defaults" />
     </DockPanel>
 
-    <TextBlock FontSize="11" Opacity="0.6" Margin="110,0,0,0" TextWrapping="Wrap"
+    <TextBlock FontSize="{StaticResource TypeDense}" Opacity="0.6" Margin="110,0,0,0" TextWrapping="Wrap"
                Text="Workspaces are saved globally, not in the project — this only chooses which one to start in." />
 
   </StackPanel>

@@ -42,8 +42,9 @@ remembered layer is never the reason a stroke goes nowhere.
 
 **A new layer goes where you are working**: directly above the active layer,
 and into the active layer's folder if it is in one. Click a folder's header
-first and the new layer goes on top of that folder instead. (It used to land on
-top of the whole stack whatever was picked, outside every folder.)
+first and the new layer goes on top inside that folder instead — an empty
+folder too. (It used to land on top of the whole stack whatever was picked,
+outside every folder.)
 
 **The everyday layer verbs are on the Layer menu too**, addressed to the layer
 you are on: new layer, new folder, move up and down, merge down, the three
@@ -51,6 +52,39 @@ checkboxes (visible, locked, lock transparency), select contents, blank
 content and delete. The docker keeps the things a menu is wrong for — the
 blend mode and opacity controls, drag-reordering, and the right-click menu's
 row-targeted extras (linking, exports, the rig).
+
+### Folders
+
+A folder is an item in the stack in its own right. It can hold layers, other
+folders, or nothing at all, and it stays where you put it either way.
+
+- **New folder** (the folder button under the docker, or **Layer → New
+  folder**) makes an **empty** folder directly above what you are on: above the
+  active layer, inside that layer's folder if it is in one, or above the folder
+  you have picked. With nothing to go above, it goes on top of the stack. The
+  folder you are in is never touched.
+- **Group layers** (**Ctrl+G**, **Layer → Group layers**, or **Group into a new
+  folder** on a row's right-click menu) puts the selected layers — and a picked
+  folder — into a new folder where the topmost of them was. Layers that were
+  apart are gathered together, which changes the stacking; undo puts them back.
+  This is Photoshop's *Group from Layers* and Krita's *Quick Group*; New folder
+  is their *New Group*.
+- **Folders go inside folders**, as deep as you like. Each level is indented one
+  step, and hiding or locking a folder hides or locks everything in it, at
+  every depth.
+- **Click a folder's header to pick it on its own** — an empty one included.
+  With a folder picked, a new layer or folder goes inside it, and **Delete**
+  deletes the folder.
+- **Deleting a folder deletes everything in it**: its layers and the folders
+  inside it, as one undo step. To keep what is inside, use **Ungroup** on the
+  header's right-click menu or its ✕ button instead: the folder goes and its
+  contents stay where they were, one level up. A folder with a locked layer or
+  locked folder inside it is not deleted until that is unlocked.
+
+A file made before folders could nest opens exactly as it was. If a file has a
+folder whose layers are not next to each other — something older versions could
+leave behind — its header simply appears again above the second part, rather
+than the layers being reordered on opening.
 
 ### Working on several layers at once
 
@@ -68,9 +102,10 @@ which still selects the layer's pixels.
 **The X-sheet picks layers the same way.** Ctrl+click or Shift+click a layer's name on the X-sheet to add it or take the range. It is the same selection the docker keeps, so a set picked in one place is still picked in the other, and a plain click on either goes back to one layer.
 
 **Clicking a folder's header picks the folder**: its header lights up, every
-layer in it is selected, and its top layer becomes the active one. Ctrl+click a
-header to add a folder's layers to what is already selected; Shift+click one to
-range up to it.
+layer in it (at any depth) is selected, and its top layer becomes the active
+one. An empty folder is picked all the same, with no layer selected. Ctrl+click
+a header to add a folder's layers to what is already selected; Shift+click one
+to range up to it.
 
 The selected rows are tinted, and one of them — the last you clicked — is
 tinted more strongly. That one is the **active** layer, and it is where the next
@@ -85,12 +120,12 @@ undo step**:
   the top or bottom of the stack
 - the eye, the lock and the alpha lock
 - **In exports** — never, always, or leave it to the export
-- **New folder from layer**, which puts the whole selection in one folder
+- **Group into a new folder** (Ctrl+G), which puts the whole selection in one folder
 
 Anything you do to a row that is *not* in the selection is done to that row
 alone. Right-clicking a layer you have not selected is not a trap.
 
-### Copying a layer
+### Copying a layer or a folder
 
 **Copy layer** and **Paste layer** are on the row's right-click menu in the
 docker and on a layer's name on the X-sheet, and **Ctrl+C / Ctrl+V** do the same
@@ -103,6 +138,14 @@ above the active layer, in that layer's folder, named *Ink copy* (*Ink copy 2*
 and so on if that is taken). Several layers paste together in their original
 order, the pasted layers become the selection, and the whole paste is **one undo
 step**. Pasting twice gives two independent layers.
+
+**A folder copies whole.** Pick a folder by its header and press **Ctrl+C**, or
+use **Copy folder** on the header's right-click menu: the folder comes with
+everything in it — its layers, the folders inside it, and any empty folder in
+its place. **Ctrl+V** pastes it as a new folder, named *Hero copy*, wherever a
+new layer would go; **Paste into folder** on a header pastes at the top inside
+that folder. Everything inside keeps its arrangement, the pasted folder is
+picked, and the paste is one undo step. An empty folder copies too.
 
 What a copy does not keep is what tied the original to other layers: it does not
 join the original's link or fluid group, and it is never the paper.
@@ -130,13 +173,13 @@ row. Letting go outside the docker cancels the drag. A pen has to travel a
 little further than a mouse before a press becomes a drag, so a tap that wobbles
 stays a tap.
 
-**A folder header drags too, and takes the whole folder with it.** The block
-keeps its own order and lands above or below wherever you drop it. Folders do
-not go inside other folders, so a folder in your hand always lands *beside*
-another folder, never in it — over the middle of another folder nothing is
-offered at all.
+**A folder header drags too, and takes the whole folder with it** — every
+layer and folder inside it, in their own order. It lands above or below
+wherever you drop it, or inside another folder, exactly as a layer does. An
+empty folder drags the same way. The one drop a folder refuses is into itself
+or into a folder inside it; nothing is offered there.
 
-**Dropping a layer on a folder header files it into the folder**, at the top.
+**Dropping a layer or a folder on a folder header files it into the folder**, at the top.
 The top quarter of the header puts it just *above* the folder instead. On an
 open folder the rest of the header is "inside", because directly under the
 header is the top of the folder. On a collapsed folder, whose layers are hidden,
@@ -709,10 +752,29 @@ from the keyboard as always.
 **While a transform is up, the canvas belongs to it** — every press on the
 drawing goes to the handles, whatever the toolbar says. **Picking a tool ends
 the session and discards the drag**, on the grounds that reaching for the brush
-means you are done transforming. Nothing is written to the drawing that way:
-only Enter applies, so an accidental tool press costs you the drag and never
-the artwork. Holding **Ctrl** for the eyedropper is a borrow rather than a
-choice and leaves the transform alone.
+means you are done transforming. Nothing is written to the drawing that way, so
+an accidental tool press costs you the drag and never the artwork. Holding
+**Ctrl** for the eyedropper is a borrow rather than a choice and leaves the
+transform alone.
+
+**Ctrl+Z steps back through the transform, not through the drawing.** Each
+drag of a handle, each mirror, each Reset and each switch between box,
+perspective, bands and cage is one step: Ctrl+Z takes the last one back and
+Ctrl+Y puts it back again. With every step taken back the box is as it opened,
+and Ctrl+Z goes no further — nothing you drew before the transform can be
+undone from inside it. Esc is the way out. The Edit menu says *Undo transform
+step* while this is so.
+
+**Applying makes the whole transform one undo step**, however many tweaks it
+took, so Ctrl+Z straight afterwards puts the drawing back exactly as it was
+before you pressed Ctrl+T.
+
+**Moving to another frame, layer or document applies the transform**, as Enter
+would, and ends the session. It is applied to the drawing it was on, not the
+one you moved to, and it leaves the same single undo step. A box you never
+moved applies nothing and leaves no step. Picking a row in the **History**
+docker cancels the transform instead — a row is a different state of the
+document, and the box was drawn round this one.
 
 **Scope** decides what moves: this cel, all layers at this frame, a marked cel
 range, or the whole animation.

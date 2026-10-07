@@ -184,8 +184,12 @@ public sealed class DocumentEditor
         Action<Doc> mutate, string? label = null, bool frameContentUnchanged = false,
         [CallerMemberName] string caller = "")
     {
-        PushStep(new SnapshotStep(Doc.Clone(), frameContentUnchanged), label ?? Humanize(caller));
+        var before = Doc.Clone();
+        PushStep(new SnapshotStep(before, frameContentUnchanged), label ?? Humanize(caller));
         mutate(Doc);
+        // Q204: an empty folder keeps its slot whatever the edit did to the
+        // layers around it. The snapshot is already the "before" it needs.
+        FolderTree.Settle(Doc.Scene, before.Scene);
         Changed?.Invoke();
     }
 

@@ -1,0 +1,94 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    The design tokens (Q203, docs/DESIGN-tokens.md). Every size, gap and type
+    size the chrome uses is named here once; styles and views name the token,
+    never the number. TokenRatchetTests counts what is still a literal and lets
+    that count fall but never rise.
+
+    STEP 1 OF 3: every value below is TODAY'S value, so landing this changes no
+    pixel. Step 3 changes the values, not the names.
+
+    Sizes are read with StaticResource: they change through the interface
+    scale (a layout transform), never by swapping a value. Colours stay in
+    Palette.axaml and are read with DynamicResource, because a theme swaps them
+    while the app runs.
+  -->
+
+  <!-- ===== Type ===== -->
+  <!-- DESIGN.md: 12 in docker content, 11 in dense rows and option bars, 10 for
+       status and hints, nothing smaller for text. -->
+  <x:Double x:Key="TypeDisplay">18</x:Double>
+  <x:Double x:Key="TypeTitle">15</x:Double>
+  <x:Double x:Key="TypeBody">12</x:Double>
+  <x:Double x:Key="TypeDense">11</x:Double>
+  <x:Double x:Key="TypeHint">10</x:Double>
+
+  <!-- ===== Spacing scale ===== -->
+  <!-- Named by size. Roles (panel inset, row gap…) are step 2's decisions and
+       will be named for what they do, built from these. -->
+  <x:Double x:Key="Space2">2</x:Double>
+  <x:Double x:Key="Space4">4</x:Double>
+  <x:Double x:Key="Space6">6</x:Double>
+  <x:Double x:Key="Space8">8</x:Double>
+  <x:Double x:Key="Space10">10</x:Double>
+  <x:Double x:Key="Space12">12</x:Double>
+  <x:Double x:Key="Space14">14</x:Double>
+  <x:Double x:Key="Space16">16</x:Double>
+
+  <!-- ===== Density (DESIGN.md's size table; DensityScaleTests reads these) ===== -->
+  <!-- DESIGN.md row: field, combo, small button, list row. -->
+  <x:Double x:Key="SizeRow">24</x:Double>
+  <!-- DESIGN.md tile: icon button, overlay-bar tile. -->
+  <x:Double x:Key="SizeTile">26</x:Double>
+  <!-- DESIGN.md tool: tool palette buttons. -->
+  <x:Double x:Key="SizeTool">26</x:Double>
+  <!-- DESIGN.md bar: the tool options bar's fixed row. -->
+  <x:Double x:Key="SizeBar">30</x:Double>
+  <!-- DESIGN.md label: label column in a labelled-row layout. -->
+  <x:Double x:Key="SizeLabel">52</x:Double>
+  <!-- DESIGN.md field: a numeric field's floor; it grows with the value. -->
+  <x:Double x:Key="SizeField">44</x:Double>
+  <!-- A numeric field's own height, two under the row. -->
+  <x:Double x:Key="SizeFieldHeight">22</x:Double>
+
+  <!-- ===== Docker content (step 2, area 1: the dockers) ===== -->
+  <!-- A setting row in a docker today: label · slider · value. Two label
+       widths are in use (90 and 100) and are kept apart so nothing moves; step
+       3 makes them one, which is easier to see with both named. -->
+  <x:Double x:Key="SizeDockerLabel">90</x:Double>
+  <x:Double x:Key="SizeDockerLabelWide">100</x:Double>
+  <!-- The one-letter channel column: H, S, V, R, G, B. -->
+  <x:Double x:Key="SizeChannelLabel">16</x:Double>
+  <!-- The gap either side of a row's slider, between label and value. -->
+  <Thickness x:Key="RowColumnGap">4,0</Thickness>
+  <!-- Before and after a control in a row. -->
+  <Thickness x:Key="GapBefore">4,0,0,0</Thickness>
+  <Thickness x:Key="GapAfter">0,0,4,0</Thickness>
+  <!-- Above a section, a sub-section and a following line. -->
+  <Thickness x:Key="SectionGap">0,8,0,0</Thickness>
+  <Thickness x:Key="SubsectionGap">0,6,0,0</Thickness>
+  <Thickness x:Key="LineGap">0,4,0,0</Thickness>
+
+  <!-- ===== Icon sizes ===== -->
+  <!-- Every glyph size in use. Named by size: an icon's size is its box, and
+       step 3 is where they get collapsed onto fewer steps. -->
+  <x:Double x:Key="SizeIcon8">8</x:Double>
+  <x:Double x:Key="SizeIcon9">9</x:Double>
+  <x:Double x:Key="SizeIcon10">10</x:Double>
+  <x:Double x:Key="SizeIcon11">11</x:Double>
+  <x:Double x:Key="SizeIcon12">12</x:Double>
+  <x:Double x:Key="SizeIcon16">16</x:Double>
+
+  <!-- ===== Radii, by role ===== -->
+  <!-- Today's values. Step 3 sets them to the Tight set: control and field 4,
+       container 6, inner 2. -->
+  <CornerRadius x:Key="RadiusField">4</CornerRadius>
+  <CornerRadius x:Key="RadiusControl">3</CornerRadius>
+  <CornerRadius x:Key="RadiusContainer">6</CornerRadius>
+  <CornerRadius x:Key="RadiusInner">2</CornerRadius>
+
+  <!-- ===== Icons ===== -->
+  <!-- The icon line. Step 3: 1.25 (owner, 2026-10-07). -->
+  <x:Double x:Key="IconStroke">1.5</x:Double>
+</ResourceDictionary>

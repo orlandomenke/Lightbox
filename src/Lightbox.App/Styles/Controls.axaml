@@ -49,14 +49,14 @@
     of them has told the artist nothing.
   -->
   <Style Selector="Button.primary">
-    <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
-    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
   <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />
-    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
   </Style>
 
   <!-- The ordinary button, and what most things are. -->
@@ -68,17 +68,17 @@
     pale box and a row of them a wall.
   -->
   <Style Selector="Button.secondary">
-    <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource RimLightBrush}" />
+    <Setter Property="Background" Value="{DynamicResource SurfacePanelBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource RimLightBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
 
   <!-- Outlined: present, clearly not the answer. -->
   <Style Selector="Button.tertiary">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
 
@@ -89,12 +89,12 @@
   -->
   <Style Selector="Button.ghost">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="BorderThickness" Value="0" />
   </Style>
   <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
 
   <!-- ===== Badges ==================================================== -->
@@ -113,36 +113,36 @@
     <Setter Property="BorderThickness" Value="1" />
   </Style>
   <Style Selector="Border.badge > TextBlock">
-    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontSize" Value="{StaticResource TypeDense}" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
   <Style Selector="Border.badge.info">
-    <Setter Property="BorderBrush" Value="{StaticResource StatusInfoBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource StatusInfoBrush}" />
   </Style>
   <Style Selector="Border.badge.info > TextBlock">
-    <Setter Property="Foreground" Value="{StaticResource StatusInfoBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource StatusInfoBrush}" />
   </Style>
 
   <Style Selector="Border.badge.warning">
-    <Setter Property="BorderBrush" Value="{StaticResource StatusWarningBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource StatusWarningBrush}" />
   </Style>
   <Style Selector="Border.badge.warning > TextBlock">
-    <Setter Property="Foreground" Value="{StaticResource StatusWarningBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource StatusWarningBrush}" />
   </Style>
 
   <Style Selector="Border.badge.error">
-    <Setter Property="BorderBrush" Value="{StaticResource StatusErrorBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource StatusErrorBrush}" />
   </Style>
   <Style Selector="Border.badge.error > TextBlock">
-    <Setter Property="Foreground" Value="{StaticResource StatusErrorBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource StatusErrorBrush}" />
   </Style>
 
   <Style Selector="Border.badge.success">
-    <Setter Property="BorderBrush" Value="{StaticResource StatusSuccessBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource StatusSuccessBrush}" />
   </Style>
   <Style Selector="Border.badge.success > TextBlock">
-    <Setter Property="Foreground" Value="{StaticResource StatusSuccessBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource StatusSuccessBrush}" />
   </Style>
 
   <!-- ===== Tabs ====================================================== -->
@@ -194,14 +194,14 @@
   -->
   <Style Selector="ListBox.tabs > ListBoxItem /template/ Border#PART_Tab">
     <Setter Property="CornerRadius" Value="4,4,0,0" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     <Setter Property="BorderThickness" Value="0,0,0,1" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Padding" Value="13,4" />
     <Setter Property="MinHeight" Value="24" />
-    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="Template">
       <ControlTemplate>
         <!--
@@ -257,7 +257,7 @@
     no-mark version had, moved along by one.
   -->
   <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ Border#PART_Tab">
-    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
   </Style>
   <!--
     After the hover rules, not before. Avalonia takes the last matching style,
@@ -266,17 +266,17 @@
     looks like a click that failed.
   -->
   <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_Tab">
-    <Setter Property="Background" Value="{StaticResource TabActiveGroundBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="Background" Value="{DynamicResource TabActiveGroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
     <Setter Property="BorderThickness" Value="1,1,1,0" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem:selected:pointerover /template/ Border#PART_Tab">
-    <Setter Property="Background" Value="{StaticResource TabActiveGroundBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="Background" Value="{DynamicResource TabActiveGroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
     <Setter Property="BorderThickness" Value="1,1,1,0" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_TopLine">
-    <Setter Property="Background" Value="{StaticResource TabActiveLineBrush}" />
+    <Setter Property="Background" Value="{DynamicResource TabActiveLineBrush}" />
   </Style>
   <!--
     Both halves, and the second is the one that does the work: the theme sets a
@@ -288,10 +288,10 @@
   -->
   <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem:selected">
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
   <!--
     No hover tint on the presenter. The tab outline is the hover affordance now,
@@ -325,23 +325,23 @@
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="ToggleButton.glyph:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
   </Style>
   <Style Selector="ToggleButton.glyph:checked /template/ ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="ToggleButton.glyph:checked:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
   </Style>
   <Style Selector="ToggleButton.glyph:pressed /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource PressTintBrush}" />
+    <Setter Property="Background" Value="{DynamicResource PressTintBrush}" />
   </Style>
   <Style Selector="ToggleButton.glyph:checked:pressed /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource PressTintBrush}" />
+    <Setter Property="Background" Value="{DynamicResource PressTintBrush}" />
   </Style>
 
   <Style Selector="ToggleButton.glyph Path">
-    <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="StrokeThickness" Value="1.5" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
@@ -353,7 +353,7 @@
   <!-- Off is dimmer AND a different drawing; either alone is squintable. -->
   <Style Selector="ToggleButton.glyph:not(:checked) Path">
     <Setter Property="Opacity" Value="0.45" />
-    <Setter Property="Stroke" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="Stroke" Value="{DynamicResource TextSecondaryBrush}" />
   </Style>
 
   <Style Selector="ToggleButton.eye Path">
@@ -387,7 +387,7 @@
     rest of the scale.
   -->
   <Style Selector="Path.icon">
-    <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="StrokeThickness" Value="1.5" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
@@ -410,7 +410,7 @@
     whose ground carries the colour; a tile carries its own.
   -->
   <Style Selector="controls|CanvasOverlayBar ToggleButton Path">
-    <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="StrokeThickness" Value="1.5" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
@@ -422,7 +422,7 @@
   <!-- The bars' plain buttons (zoom, rotate, play) wear the same 15px drawing
        as the tiles beside them, so the grid keeps one weight throughout. -->
   <Style Selector="controls|CanvasOverlayBar Button Path">
-    <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="StrokeThickness" Value="1.5" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
@@ -442,7 +442,7 @@
          it reads as part of the button rather than a sticker on it. Violet:
          it is an affordance, and affordances wear the accent. -->
     <Setter Property="Data" Value="M8,0 L8,4 A4,4 0 0 1 4,8 L0,8 Z" />
-    <Setter Property="Fill" Value="{StaticResource AccentVioletBrush}" />
+    <Setter Property="Fill" Value="{DynamicResource AccentVioletBrush}" />
     <Setter Property="Stroke" Value="{x:Null}" />
     <Setter Property="Width" Value="7" />
     <Setter Property="Height" Value="7" />
@@ -459,7 +459,7 @@
 
   <!-- The tool rail's glyphs: quiet at rest, full-strength on the active tool. -->
   <Style Selector="ToggleButton.tool Path:not(.variantmark)">
-    <Setter Property="Stroke" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="Stroke" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="StrokeThickness" Value="1.5" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
@@ -469,10 +469,10 @@
     <Setter Property="Height" Value="12" />
   </Style>
   <Style Selector="ToggleButton.tool:checked Path:not(.variantmark)">
-    <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
   <Style Selector="ToggleButton.tool:checked Path.variantmark">
-    <Setter Property="Fill" Value="{StaticResource TextOnAccentBrush}" />
+    <Setter Property="Fill" Value="{DynamicResource TextOnAccentBrush}" />
   </Style>
 
   <!--
@@ -489,7 +489,7 @@
     <Setter Property="IsHitTestVisible" Value="False" />
   </Style>
   <Style Selector="Border.docTab.active Border.tabline">
-    <Setter Property="Background" Value="{StaticResource TabActiveLineBrush}" />
+    <Setter Property="Background" Value="{DynamicResource TabActiveLineBrush}" />
   </Style>
 
   <!-- ===== Floating chrome =========================================== -->
@@ -524,8 +524,8 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Padding" Value="12,3" />
     <Setter Property="MinHeight" Value="24" />
-    <Setter Property="FontSize" Value="11" />
-    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="FontSize" Value="{StaticResource TypeDense}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="Template">
       <ControlTemplate>
         <Panel Background="{TemplateBinding Background}">
@@ -549,7 +549,7 @@
     this treatment exists to not have.
   -->
   <Style Selector="ListBox.sectiontabs > ListBoxItem:selected">
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="ListBox.sectiontabs > ListBoxItem:selected:pointerover">
@@ -559,7 +559,7 @@
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="ListBox.sectiontabs > ListBoxItem:selected /template/ ContentPresenter">
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     <!-- Fluent paints its selection colour straight onto any presenter named
          PART_ContentPresenter, template ownership notwithstanding — the same
          way the docker tabs learned it. -->
@@ -572,10 +572,10 @@
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="ListBox.sectiontabs > ListBoxItem:selected /template/ Border#PART_Underline">
-    <Setter Property="Background" Value="{StaticResource AccentVioletBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AccentVioletBrush}" />
   </Style>
   <Style Selector="ListBox.sectiontabs > ListBoxItem:pointerover /template/ Border#PART_Underline">
-    <Setter Property="Background" Value="{StaticResource BorderStrongBrush}" />
+    <Setter Property="Background" Value="{DynamicResource BorderStrongBrush}" />
   </Style>
 
   <!-- ===== Sliders =================================================== -->
@@ -599,7 +599,7 @@
     missing half of the palette rather than a polish item.
   -->
   <Style Selector="Slider">
-    <Setter Property="Foreground" Value="{StaticResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AccentGradientBrush}" />
   </Style>
 
   <!-- ===== Toggles and checks ======================================== -->
@@ -629,11 +629,11 @@
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="Button.caption:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+    <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
   </Style>
   <Style Selector="Button.caption.close:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource CaptionCloseHoverBrush}" />
-    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource CaptionCloseHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
   </Style>
 
   <!-- The docker's float button: a window-with-arrow floats a docked panel,
@@ -671,7 +671,7 @@
     first, which is exactly the kind of ordering nobody re-checks.
   -->
   <Style Selector="Border.layerRow.selected">
-    <Setter Property="Background" Value="{StaticResource SelectionWeakBrush}" />
+    <Setter Property="Background" Value="{DynamicResource SelectionWeakBrush}" />
   </Style>
 
   <!--
@@ -687,24 +687,24 @@
     application-wide.
   -->
   <Style Selector="Border.maskChip">
-    <Setter Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Background" Value="{StaticResource FieldGroundHoverBrush}" />
+    <Setter Property="Background" Value="{DynamicResource FieldGroundHoverBrush}" />
     <Setter Property="Cursor" Value="Hand" />
   </Style>
   <Style Selector="Border.maskChip.disabledMask">
     <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="Border.maskChip.editing">
-    <Setter Property="BorderBrush" Value="{StaticResource AccentCyanBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentCyanBrush}" />
     <Setter Property="BorderThickness" Value="2" />
   </Style>
   <!-- The fx chip: the mask chip's pattern for the effect stack — filled
        while the stack runs, hollow while its master switch is off (Q158). -->
   <Style Selector="Border.fxChip">
-    <Setter Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Background" Value="{StaticResource FieldGroundHoverBrush}" />
+    <Setter Property="Background" Value="{DynamicResource FieldGroundHoverBrush}" />
     <Setter Property="Cursor" Value="Hand" />
   </Style>
   <Style Selector="Border.fxChip.disabledFx">
@@ -724,11 +724,11 @@
        showing. The weak selection tint, like a docker row that is selected
        but not active. -->
   <Style Selector="Border.selectedFx">
-    <Setter Property="Background" Value="{StaticResource SelectionWeakBrush}" />
+    <Setter Property="Background" Value="{DynamicResource SelectionWeakBrush}" />
   </Style>
 
   <Style Selector="ToggleSwitch">
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
 
   <!--

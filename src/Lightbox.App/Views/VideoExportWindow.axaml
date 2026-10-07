@@ -6,7 +6,7 @@
         Width="480" SizeToContent="Height" MaxHeight="720"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
-  <StackPanel Margin="14" Spacing="10">
+  <StackPanel Margin="14" Spacing="{StaticResource Space10}">
 
     <!-- FFmpeg first, and loudly. The encoder being absent is the one thing
          that stops every setting below from mattering, and the version of
@@ -14,7 +14,7 @@
          why an export looked like it did nothing at all (B146). -->
     <Border x:Name="EncoderBanner" CornerRadius="3" Padding="8,6" IsVisible="False"
             Background="{DynamicResource SurfacePanelBrush}">
-      <TextBlock x:Name="EncoderText" TextWrapping="Wrap" FontSize="11" />
+      <TextBlock x:Name="EncoderText" TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" />
     </Border>
 
     <!-- 120 label column and 10px stack spacing to match the other
@@ -32,14 +32,14 @@
                 SelectionChanged="OnSettingChanged" />
 
       <TextBlock Grid.Row="2" Grid.Column="0" Text="Size" VerticalAlignment="Center" />
-      <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+      <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Space8}">
         <ComboBox x:Name="ScaleBox" SelectionChanged="OnSettingChanged"
                   ToolTip.Tip="The surface is rendered at this size — the drawing is not resampled, so a 200% render is a sharper mark rather than a bigger pixel." />
-        <TextBlock x:Name="SizeText" VerticalAlignment="Center" Opacity="0.7" FontSize="11" />
+        <TextBlock x:Name="SizeText" VerticalAlignment="Center" Opacity="0.7" FontSize="{StaticResource TypeDense}" />
       </StackPanel>
 
       <TextBlock Grid.Row="3" Grid.Column="0" Text="Frames" VerticalAlignment="Center" />
-      <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+      <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Space8}">
         <CheckBox x:Name="WholeTimelineBox" Content="All" IsChecked="True"
                   IsCheckedChanged="OnWholeTimelineChanged" />
         <TextBox x:Name="FromBox" Width="70" TextChanged="OnSettingChanged" />
@@ -48,9 +48,9 @@
       </StackPanel>
 
       <TextBlock Grid.Row="4" Grid.Column="0" Text="Frame rate" VerticalAlignment="Center" />
-      <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+      <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Space8}">
         <TextBox x:Name="FpsBox" Width="70" TextChanged="OnSettingChanged" />
-        <TextBlock x:Name="DurationText" VerticalAlignment="Center" Opacity="0.7" FontSize="11" />
+        <TextBlock x:Name="DurationText" VerticalAlignment="Center" Opacity="0.7" FontSize="{StaticResource TypeDense}" />
       </StackPanel>
 
       <TextBlock Grid.Row="5" Grid.Column="0" Text="Sound" VerticalAlignment="Center" />
@@ -72,9 +72,9 @@
          than something to hit, and a full-height bar in a settings dialog
          reads as another control. -->
     <ProgressBar x:Name="Progress" Height="6" Minimum="0" Maximum="1" IsVisible="False" />
-    <TextBlock x:Name="StatusText" TextWrapping="Wrap" FontSize="11" Opacity="0.85" />
+    <TextBlock x:Name="StatusText" TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.85" />
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}">
       <Button Content="Close" Click="OnClose" x:Name="CloseButton" />
       <Button Classes="primary" Content="Export" Click="OnExport" x:Name="ExportButton" IsDefault="True" />
     </StackPanel>

@@ -522,6 +522,20 @@ the test needs relaxing.
     keyable until colour curves are worth keying.
 - [x] Blend modes `evidence: LayerBlendMode, BlendComposeTests`
 - [x] Layer folders `evidence: LayerGroup, LayerFolderTests`
+  - [x] Folders that nest and can be empty (Q204) `evidence: FolderTree, StackRef, FolderTreeTests, EmptyAndNestedFolderTests, AFolderInHandGoesIntoAnotherFolder_ButNeverIntoItself`
+    — a folder is an item in the stack: **New folder** makes an empty one above
+    what is picked, **Group layers** (Ctrl+G) wraps the selection, folders drop
+    into folders, and visibility and lock inherit through every level. Layers
+    stay one flat list; a folder records its parent and, only while empty, its
+    slot, so a file with neither writes nothing new. PSD import brings nested
+    and empty groups across as nested and empty folders
+    (`AnEmptyFolderComesAcrossInItsPlace_AndACollapsedOneStaysCollapsed`).
+    An agent reads folders in `get_scene` and makes, files and groups them
+    over MCP — never deletes, never changes the stacking unless it says
+    `reorder` (Q205) — `evidence: ExternalCreateFolder, ExternalMoveToFolder, ExternalGroup, IpcFolderTests`.
+  - [x] A folder copies and pastes whole `evidence: FolderCopy, StackClip, AFolderCopiesWholeAndPastesAsANewFolder`
+    — Ctrl+C on a picked folder takes everything inside it; a paste is a new
+    folder with fresh ids, its contents arranged as they were.
 - [x] Layer and alpha locking `evidence: LayerLockTests, AlphaLockTests`
 - [x] Non-destructive filters `evidence: EffectUse, EffectStack, EffectRegistry, EffectPasses, EffectRecordTests, EffectRegistryTests, EffectPassTests, EffectComposeCostTests, ASelfEffectFiltersOnlyItsOwnPass, AnUnknownKindIsPreservedNotDropped, AKeyedRadiusEvaluatesPerFrame, AFilteredLayerRefusesToFoldAndStillRenders, TheSceneStackDescribesALastPass`
   - **Built to `docs/DESIGN-effects.md`, steps 1–3 of its own build order**:
@@ -654,7 +668,8 @@ it is re-rendered rather than recorded. What is missing is only presentation.
 
 - [~] PSD import/export `evidence: PsdReader, PsdDocumentImport, PsdBlendMap, PsdReadTests, PsdImportTests, PsdFixture, ChannelsBecomeRgbaAtTheLayersOwnOffset, EveryCompressionSchemeDecodesToTheSamePixels, EveryReasonIsCollectedBeforeRefusing_NotJustTheFirst, ALayersPixelsLandOnTheBaselineAtTheirCanvasPosition, APhotoshopFolderBecomesALayerFolder, PsdWriter, APsdRoundTripsThroughPhotoshopWithItsLayers`
   - **Built: import.** RGB and greyscale, 8 and 16 bits, PSD and PSB, raw / RLE /
-    ZIP channels, folders, and layer name, visibility, opacity, blend mode and
+    ZIP channels, folders — nested and empty ones as they were (Q204,
+    `NestedFoldersStayNested`) — and layer name, visibility, opacity, blend mode and
     locking. `.psd` and `.psb` open through **File ▸ Open…** rather than a
     separate Import item, because "open this drawing" is the same intent whoever
     made the file.

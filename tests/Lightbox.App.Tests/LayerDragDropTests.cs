@@ -73,7 +73,7 @@ public class LayerDragDropTests
 
         // Fold the middle layer into a folder.
         vm.ActiveLayerIndex = vm.Doc.Scene.Layers.FindIndex(l => l.Id == b);
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
         var group = vm.Doc.Scene.LayerGroups.Single();
 
         vm.DropLayerOnRow(Row(vm, c), Row(vm, b), above: true);
@@ -115,7 +115,7 @@ public class LayerDragDropTests
     {
         var vm = VmLayers.PaperVm();
         vm.AddPaintedLayerCommand.Execute(null);
-        vm.CreateLayerFolderCommand.Execute(null); // folder round the active paint layer
+        vm.GroupLayersCommand.Execute(null); // folder round the active paint layer
         var group = vm.Doc.Scene.LayerGroups.Single();
         var paper = vm.Doc.Scene.Layers.First(l => l.IsBackground);
 
@@ -131,7 +131,7 @@ public class LayerDragDropTests
         var (vm, _, b, c) = ThreeLayers();
 
         vm.ActiveLayerIndex = vm.Doc.Scene.Layers.FindIndex(l => l.Id == b);
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
         var group = vm.Doc.Scene.LayerGroups.Single();
 
         vm.MoveLayerIntoGroup(vm.Doc.Scene.Layers.First(l => l.Id == c), group);

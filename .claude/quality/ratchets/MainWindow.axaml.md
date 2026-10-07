@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4894
+budget: 4886
 
 ## Why it is here despite being XAML
 

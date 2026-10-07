@@ -162,7 +162,7 @@ public class LayerFolderTests
     public void CreateFolder_GroupsTheActiveLayer_AndShowsAHeaderRow()
     {
         var vm = VmWithTwoLayers();
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
 
         var group = Assert.Single(vm.Doc.Scene.LayerGroups);
         Assert.Equal(group.Id, vm.Doc.Scene.Layers[1].GroupId);
@@ -177,7 +177,7 @@ public class LayerFolderTests
     public void FolderVisibility_GatesItsMembers_InCompositingAndPainting()
     {
         var vm = VmWithTwoLayers();
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
         var header = vm.LayerPanelItems.OfType<GroupRow>().Single();
 
         header.Visible = false;
@@ -196,7 +196,7 @@ public class LayerFolderTests
     public void Collapse_HidesMemberRows_FromTheDockerPanelOnly()
     {
         var vm = VmWithTwoLayers();
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
         Assert.Equal(3, vm.LayerPanelItems.Count); // header + grouped layer + ungrouped layer
 
         var header = vm.LayerPanelItems.OfType<GroupRow>().Single();
@@ -209,7 +209,7 @@ public class LayerFolderTests
     public void AddAndRemove_KeepTheFolderContiguous()
     {
         var vm = VmWithTwoLayers();
-        vm.CreateLayerFolderCommand.Execute(null);   // top layer grouped
+        vm.GroupLayersCommand.Execute(null);   // top layer grouped
         var header = vm.LayerPanelItems.OfType<GroupRow>().Single();
 
         vm.ActiveLayerIndex = 0;                     // the bottom, ungrouped layer
@@ -226,7 +226,7 @@ public class LayerFolderTests
     public void FolderColor_IsUndoable_AndSerializes()
     {
         var vm = VmWithTwoLayers();
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
         var header = vm.LayerPanelItems.OfType<GroupRow>().Single();
 
         header.Color = "#c25050";
@@ -244,7 +244,7 @@ public class LayerFolderTests
     public void Dissolve_UngroupsEverything_AndFoldersSerialize()
     {
         var vm = VmWithTwoLayers();
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
         var group = vm.Doc.Scene.LayerGroups[0];
         group.Name = "Character";
 

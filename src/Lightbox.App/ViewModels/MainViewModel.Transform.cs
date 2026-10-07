@@ -774,6 +774,101 @@ public partial class MainViewModel
         return frames;
     }
 
+    // ---- the session's own undo, and leaving it --------------------------------
+
+    /// <summary>
+    /// Step the open session back one gesture; false when it is as it opened.
+    /// Set by the window, which owns the gizmo the history lives in.
+    /// </summary>
+    internal Func<bool>? TransformUndo { get; set; }
+
+    /// <summary>Put back the step <see cref="TransformUndo"/> last took.</summary>
+    internal Func<bool>? TransformRedo { get; set; }
+
+    /// <summary>
+    /// Apply the open session from the gizmo — what Enter does. Set by the
+    /// window for the same reason as <see cref="TransformUndo"/>.
+    /// </summary>
+    internal Action? ConfirmTransform { get; set; }
+
+    private bool _confirmingTransform;
+
+    /// <summary>The layer stack the session opened on, by reference.</summary>
+    private Layer[] _transformLayers = [];
+
+    /// <summary>
+    /// Undo or redo while a transform is open: the session's step, never the
+    /// document's.
+    /// </summary>
+    /// <remarks>
+    /// The document is not reachable from here on purpose, even with the
+    /// session's history empty. The preview is composited over the record, and
+    /// an undo underneath it would change the drawing the box is round while the
+    /// box stayed where it was. Escape is the way out of a session, and the
+    /// status line says so rather than the key doing nothing visible.
+    /// </remarks>
+    private void StepTransformSession(bool undo)
+    {
+        var stepped = (undo ? TransformUndo : TransformRedo)?.Invoke() ?? false;
+        if (!stepped)
+        {
+            AiStatus = undo
+                ? "Nothing to undo in this transform — Escape cancels it, Enter applies it."
+                : "Nothing to redo in this transform.";
+        }
+    }
+
+    /// <summary>
+    /// Moving off the drawing or layer a session is on applies it, as Enter would.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The owner's call. The alternative of carrying the box to the new
+    /// position meant a session whose preview, pose and held-cel keying all
+    /// had to be re-asked of somewhere the artist had not boxed anything;
+    /// cancelling would throw away work on a scrub. Applying keeps what was
+    /// done and leaves one undo step for it, so Ctrl+Z on the new frame puts
+    /// the drawing back as it was before the transform.
+    /// </para>
+    /// <para>
+    /// Called from the <em>Changing</em> half of the property, so the commit
+    /// still reads the playhead and layer the session was opened on — the pose
+    /// a rigged drawing is moved through, and whether a held cel needs keying,
+    /// are both answered against where the artist is standing.
+    /// </para>
+    /// </remarks>
+    private void ConfirmTransformBeforeLeaving()
+    {
+        if (!TransformActive || _confirmingTransform || _switchingTabs) return;
+        // A layer added, deleted, merged or reordered since the session opened
+        // moves the index as a consequence, not as a choice — and by then the
+        // frames the session holds may be gone, or the index may name another
+        // layer. Applying there would write to the wrong drawing; the box was
+        // drawn round a stack that no longer exists, so it is dropped.
+        if (!Scene.Layers.SequenceEqual(_transformLayers))
+        {
+            CancelTransform();
+            return;
+        }
+        if (ConfirmTransform is not { } confirm) return;
+        _confirmingTransform = true;
+        try
+        {
+            confirm();
+        }
+        finally
+        {
+            _confirmingTransform = false;
+        }
+    }
+
+    /// <summary>The Edit menu's two entries say which history they step.</summary>
+    partial void OnTransformActiveChanged(bool value) => RefreshUndoRedo();
+
+    partial void OnCurrentFrameIndexChanging(int value) => ConfirmTransformBeforeLeaving();
+
+    partial void OnActiveLayerIndexChanging(int value) => ConfirmTransformBeforeLeaving();
+
     public void CancelTransform()
     {
         if (!TransformActive) return;
@@ -1386,42 +1481,53 @@ public partial class MainViewModel
         // clip and a boundary the marquee cuts is carried once.
         var travel = new ClipTravel(map);
         var split = RegionSplit(filter, travel);
-        _editor.Perform(doc =>
+        // The session is still open for the length of the edit, and the
+        // refresh it raises may clamp the playhead; that must not read as
+        // leaving the session and apply it a second time.
+        _confirmingTransform = true;
+        try
         {
-            for (var i = 0; i < frames.Count; i++)
+            _editor.Perform(doc =>
             {
-                var frame = frames[i];
-                var mover = movers[i];
-                // A region-limited commit goes through the erasure-aware path:
-                // a moved erasure leaves a stay copy where it was still holding
-                // rubbed-out ink down, so erased strokes outside the selection
-                // do not come back (the ghost the preview split also guards).
-                if (filter is null) TransformOps.TransformFrame(frame, map, sizeScale, null, travel.Carry, mover);
-                else TransformErasures.TransformFrame(
-                    frame, map, sizeScale, filter, split?.For(frame), travel.Carry, mover);
-                // Raster baselines resample once per commit; a region-limited
-                // transform moves strokes only (baseline pixels stay put).
-                // Identity means "there is no matrix for this transform" — a
-                // band scale, which cannot be one — so there is nothing to
-                // resample through and re-encoding the PNG would cost a commit
-                // for no change. CommitTransformBands says so in the status line.
-                if (filter is null && frame is Frame { PngBase64.Length: > 0 } painted)
+                for (var i = 0; i < frames.Count; i++)
                 {
-                    if (baselineResample is not null) baselineResample(painted);
-                    else if (!baselineMatrix.IsIdentity) ResampleBaseline(painted, baselineMatrix);
+                    var frame = frames[i];
+                    var mover = movers[i];
+                    // A region-limited commit goes through the erasure-aware path:
+                    // a moved erasure leaves a stay copy where it was still holding
+                    // rubbed-out ink down, so erased strokes outside the selection
+                    // do not come back (the ghost the preview split also guards).
+                    if (filter is null) TransformOps.TransformFrame(frame, map, sizeScale, null, travel.Carry, mover);
+                    else TransformErasures.TransformFrame(
+                        frame, map, sizeScale, filter, split?.For(frame), travel.Carry, mover);
+                    // Raster baselines resample once per commit; a region-limited
+                    // transform moves strokes only (baseline pixels stay put).
+                    // Identity means "there is no matrix for this transform" — a
+                    // band scale, which cannot be one — so there is nothing to
+                    // resample through and re-encoding the PNG would cost a commit
+                    // for no change. CommitTransformBands says so in the status line.
+                    if (filter is null && frame is Frame { PngBase64.Length: > 0 } painted)
+                    {
+                        if (baselineResample is not null) baselineResample(painted);
+                        else if (!baselineMatrix.IsIdentity) ResampleBaseline(painted, baselineMatrix);
+                    }
                 }
-            }
-            // After the frames, because the split only discovers which clips it
-            // needs while it is walking them. A clip is part of the record
-            // (invariant 3), so one the strokes now reference and the document
-            // does not would reload as an unclipped stroke — the whole line
-            // back, at both positions.
-            if (split is not null)
-            {
-                foreach (var (id, region) in split.Used) doc.ClipRegions.TryAdd(id, region);
-            }
-            foreach (var (id, region) in travel.Used) doc.ClipRegions.TryAdd(id, region);
-        });
+                // After the frames, because the split only discovers which clips it
+                // needs while it is walking them. A clip is part of the record
+                // (invariant 3), so one the strokes now reference and the document
+                // does not would reload as an unclipped stroke — the whole line
+                // back, at both positions.
+                if (split is not null)
+                {
+                    foreach (var (id, region) in split.Used) doc.ClipRegions.TryAdd(id, region);
+                }
+                foreach (var (id, region) in travel.Used) doc.ClipRegions.TryAdd(id, region);
+            });
+        }
+        finally
+        {
+            _confirmingTransform = false;
+        }
         // The selection outline rides along so a follow-up transform lines up.
         if (HasSelection)
         {

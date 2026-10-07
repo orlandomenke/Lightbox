@@ -260,7 +260,10 @@ public partial class MainWindow
 
     private void OnMenuSetEndFrame(object? sender, RoutedEventArgs e) => _vm.SetPlaybackEndAtPlayhead();
 
-    // ---- multi-cel selection (Ctrl+click, Shift+click) --------------------------
+    // ---- multi-cel selection (Ctrl+click, Shift+click, drag) --------------------
+
+    /// <summary>A plain drag across the sheet selects a block (Q207); Alt+drag moves a cel.</summary>
+    private readonly Input.CelBlockSelectGesture _celSelect = new();
 
     private static FrameCell? CellUnder(object? source) =>
         (source as Control)?.FindAncestorOfType<Button>(includeSelf: true)?.DataContext as FrameCell;
@@ -283,9 +286,14 @@ public partial class MainWindow
             e.Handled = true;
             return;
         }
-        // Remember the press so a later move can turn it into a cel drag.
-        _celDrag.Press(cell, e.GetPosition(this), leftButton: true, keyed: cell.IsKeyed && !cell.IsVirtual);
+        // Remember the press so a later move can turn it into a drag: Alt
+        // carries the drawing along its row, a plain drag selects a block (Q207).
+        // Exactly one of the two is armed, so they cannot both claim the press.
+        var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+        _celDrag.Press(cell, e.GetPosition(this), leftButton: true, keyed: alt && cell.IsKeyed && !cell.IsVirtual);
         _celDragPress = _celDrag.Candidate is null ? null : e;
+        if (alt) _celSelect.Cancel();
+        else _celSelect.Press(cell, e.GetPosition(this), leftButton: true);
     }
 
     /// <summary>
@@ -303,6 +311,7 @@ public partial class MainWindow
     {
         _celDrag.Cancel();
         _celDragPress = null;
+        _celSelect.Cancel();
     }
 
     /// <summary>
@@ -318,6 +327,7 @@ public partial class MainWindow
     {
         _celDrag.Cancel();
         _celDragPress = null;
+        _celSelect.Cancel();
     }
 
     // ---- drag a cel along its row ------------------------------------------------
@@ -328,8 +338,23 @@ public partial class MainWindow
 
     private async void OnCellPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_celDragPress is not { } press) return;
         if (sender is not Button button || button.DataContext is not FrameCell cell) return;
+        if (_celSelect.From is { } from)
+        {
+            var at = e.GetCurrentPoint(this);
+            if (_celSelect.Moved(at.Position, at.Properties.IsLeftButtonPressed, out var started))
+            {
+                // The pressed cel holds the pointer, so every move would report
+                // it. Letting go of the capture sends moves to whichever cel is
+                // under the pointer — and means the release is no longer a click
+                // on the first cel, which would move the playhead and clear the
+                // block just made.
+                if (started) e.Pointer.Capture(null);
+                if (_celSelect.CornerMovedTo(cell)) _vm.DragSelectTo(from, cell);
+            }
+            return;
+        }
+        if (_celDragPress is not { } press) return;
         var point = e.GetCurrentPoint(this);
         if (!_celDrag.ShouldStart(cell, point.Position, point.Properties.IsLeftButtonPressed))
         {
