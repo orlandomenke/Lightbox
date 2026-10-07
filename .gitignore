@@ -64,3 +64,6 @@ artifacts/
 # scripts/testcount.py can compare what a run reported against what discovery
 # finds (B269). One timestamped file per run, never a source of anything.
 tests/*/TestResults/
+
+# Lightbox.Gallery --snapshot output with no folder given (Q203)
+gallery-snapshots/

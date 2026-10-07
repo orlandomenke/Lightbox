@@ -1,0 +1,36 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Lightbox.App.Controls;assembly=Lightbox.App">
+  <!--
+    A corner set by role (Q203): controls, containers, and pills. The owner
+    asked to see square, tight and soft side by side, so the three radii are
+    resources the look supplies and these styles only say who gets which.
+    Artwork — thumbnails, swatches — stays square in every set.
+  -->
+  <Style Selector="Button, ToggleButton, TextBox, ComboBox, NumericUpDown">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+  </Style>
+  <Style Selector="NumericUpDown /template/ TextBox">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+  </Style>
+  <Style Selector="NumericUpDown /template/ TextBox /template/ Border#PART_BorderElement">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+  </Style>
+  <Style Selector="Button /template/ ContentPresenter, ToggleButton /template/ ContentPresenter">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+  </Style>
+  <Style Selector="controls|Docker /template/ Border#PART_Frame">
+    <Setter Property="CornerRadius" Value="{StaticResource LookContainerRadius}" />
+  </Style>
+  <!-- The canvas bar is a container like any panel: the global radius (owner,
+       2026-10-07), never a pill of its own. -->
+  <Style Selector="controls|CanvasOverlayBar /template/ Border#PART_Bar">
+    <Setter Property="CornerRadius" Value="{StaticResource LookContainerRadius}" />
+  </Style>
+  <Style Selector="Border.badge">
+    <Setter Property="CornerRadius" Value="{StaticResource LookPillRadius}" />
+  </Style>
+  <Style Selector="ToggleSwitch /template/ Border#OuterBorder, ToggleSwitch /template/ Border#SwitchKnobBounds">
+    <Setter Property="CornerRadius" Value="{StaticResource LookPillRadius}" />
+  </Style>
+</Styles>

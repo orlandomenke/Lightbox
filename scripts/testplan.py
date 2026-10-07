@@ -146,6 +146,8 @@ REPO_RULES: list[tuple[str, object, str]] = [
     # there has to run it. Found by `audit`, not by reading.
     ("src/Lightbox.App/Program.cs", {"Lightbox.Core.Tests"},
      "WindowsSubsystemTests asserts the console is opened from Main"),
+    ("tools/Lightbox.Gallery/Look.cs", {"Lightbox.App.Tests"},
+     "SharedStylesTests asserts the gallery loads the app's own style files"),
     ("src/Lightbox.App/Services/DiagnosticsConsole.cs", {"Lightbox.Core.Tests"},
      "WindowsSubsystemTests asserts what that console does on Windows"),
     ("src/Lightbox.App/Lightbox.App.csproj", {"Lightbox.Core.Tests"},

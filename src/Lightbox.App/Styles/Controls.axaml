@@ -184,6 +184,19 @@
     otherwise, and the template is the smallest thing that works: one border
     and a presenter.
   -->
+  <!--
+    The tab's shape and its bottom rule, as a style rather than as attributes in
+    the template below: a template value outranks a plain style, so a look tried
+    in tools/Lightbox.Gallery (Q203) could not change a resting tab. Same values.
+    The :selected styles further down were always able to override them — a
+    style with a state in its selector outranks the template — which is why the
+    active tab already behaved and the resting ones did not.
+  -->
+  <Style Selector="ListBox.tabs > ListBoxItem /template/ Border#PART_Tab">
+    <Setter Property="CornerRadius" Value="4,4,0,0" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  </Style>
   <Style Selector="ListBox.tabs > ListBoxItem">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Padding" Value="13,4" />
@@ -211,10 +224,7 @@
           opaque enough to hide a line would be a seam.
         -->
         <Border Name="PART_Tab"
-                CornerRadius="4,4,0,0"
-                Background="{TemplateBinding Background}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,0,0,1">
+                Background="{TemplateBinding Background}">
           <Panel>
             <ContentPresenter Name="PART_ContentPresenter"
                               Content="{TemplateBinding Content}"
