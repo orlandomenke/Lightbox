@@ -1726,7 +1726,7 @@
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Brush}"
                             ToolTip.Tip="Brush (B)">
                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
-                  <Path Data="{DynamicResource IconBrush}" />
+                  <Path Data="{StaticResource IconBrush}" />
                   <TextBlock Text="Brush" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>

@@ -98,8 +98,15 @@ public static class Program
     private static int SnapshotApp(string dir)
     {
         var scratch = Path.Combine(Path.GetTempPath(), $"lightbox-gallery-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(scratch);
         Lightbox.App.Docking.WorkspaceStore.Path = "";
         Lightbox.App.Services.AppSettings.Path = Path.Combine(scratch, "settings.json");
+        // Autosave off: its path is the artist's own recovery copy, and is not
+        // redirectable, so the timer must never run in here.
+        File.WriteAllText(Lightbox.App.Services.AppSettings.Path, """{ "AutosaveMinutes": 0 }""");
+        // A pipe of its own, so an agent talking to the live Lightbox can never
+        // be answered by this throwaway window.
+        Lightbox.App.Services.IpcServer.PipeNameOverride = $"lightbox-gallery-{Guid.NewGuid():N}";
         Lightbox.App.Services.DiagnosticLog.DirectoryOverride = Path.Combine(scratch, "logs");
         Lightbox.App.ViewModels.MainViewModel.BrushStorePath = Path.Combine(scratch, "brushes.json");
         Lightbox.Ai.AiSettings.PathOverride = Path.Combine(scratch, "ai.json");
@@ -142,6 +149,7 @@ public static class Program
             Shoot(config, $"configure-{i:00}");
         }
         Console.WriteLine($"app snapshots in {Path.GetFullPath(dir)}");
+        try { Directory.Delete(scratch, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         return 0;
     }
 

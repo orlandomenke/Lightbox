@@ -28,9 +28,23 @@ public sealed class TokenRatchetTests(ITestOutputHelper output)
     /// <summary>How far a budget may sit above its file before it stops guarding it.</summary>
     private const int MaxSlack = 0;
 
+    private const string Props =
+        "FontSize|Spacing|Margin|Padding|CornerRadius|Width|Height|MinWidth|MinHeight|MaxWidth|MaxHeight";
+
+    /// <summary>
+    /// A number written for one of the properties, in any of the spellings XAML
+    /// accepts — either quote, spaces round the equals, and a Setter with its
+    /// Value before or after its Property. The adversary review found each of
+    /// those slipping past the first version. scripts/literals.py carries the
+    /// same pattern; the two must count the same thing.
+    /// </summary>
     private static readonly Regex Literal = new(
-        @"(?<![\w.:])(FontSize|Spacing|Margin|Padding|CornerRadius|Width|Height|MinWidth|MinHeight|MaxWidth|MaxHeight)=""-?[0-9][0-9,.\-]*""" +
-        @"|Property=""(FontSize|Spacing|Margin|Padding|CornerRadius|Width|Height|MinWidth|MinHeight|MaxWidth|MaxHeight)""\s+Value=""-?[0-9][0-9,.\-]*""");
+        $@"(?<![\w.:])(?:{Props})\s*=\s*[""']-?[0-9][0-9,.\-]*[""']" +
+        $@"|Property\s*=\s*[""'](?:{Props})[""']\s+Value\s*=\s*[""']-?[0-9][0-9,.\-]*[""']" +
+        $@"|Value\s*=\s*[""']-?[0-9][0-9,.\-]*[""']\s+Property\s*=\s*[""'](?:{Props})[""']");
+
+    /// <summary>The token file itself is where numbers belong: exempt by exact path.</summary>
+    private const string TokenFile = "src/Lightbox.App/Styles/Tokens.axaml";
 
     private static string Root()
     {
@@ -49,7 +63,7 @@ public sealed class TokenRatchetTests(ITestOutputHelper output)
             .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
                         && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
             .Select(f => Path.GetRelativePath(root, f).Replace('\\', '/'))
-            .Where(f => !f.EndsWith("/Tokens.axaml"))
+            .Where(f => f != TokenFile)
             .OrderBy(f => f, StringComparer.Ordinal);
     }
 
@@ -96,9 +110,13 @@ public sealed class TokenRatchetTests(ITestOutputHelper output)
     public void AValueOnTheScaleIsAlwaysItsToken(string property, string scale)
     {
         // The mechanical half of step 1: these values have exactly one token
-        // each, so a literal of one of them is never a judgement call.
+        // each, so a literal of one of them is never a judgement call. Any
+        // spelling counts — "12", '12', 12.0, a Setter either way round.
+        var value = $@"[""'](?:{scale})(?:\.0+)?[""']";
         var pattern = new Regex(
-            $@"(?<![\w.:]){property}=""({scale})""|Property=""{property}""\s+Value=""({scale})""");
+            $@"(?<![\w.:]){property}\s*=\s*{value}" +
+            $@"|Property\s*=\s*[""']{property}[""']\s+Value\s*=\s*{value}" +
+            $@"|Value\s*=\s*{value}\s+Property\s*=\s*[""']{property}[""']");
         var offenders = Files()
             .SelectMany(f => pattern.Matches(File.ReadAllText(Path.Combine(Root(), f))).Select(m => $"{f}: {m.Value}"))
             .ToList();
@@ -116,7 +134,10 @@ public sealed class TokenRatchetTests(ITestOutputHelper output)
         string[] definers = ["Palette.axaml", "Theme.axaml", "Brand.axaml", "Icons.axaml", "AppResources.axaml"];
         var offenders = Files()
             .Where(f => !definers.Contains(Path.GetFileName(f)))
-            .SelectMany(f => Regex.Matches(File.ReadAllText(Path.Combine(Root(), f)), @"\{StaticResource \w+Brush\}")
+            // Icon geometries are named for what they draw (IconBrush is the brush
+            // TOOL), not brushes: a static reference is right for them, and the
+            // first conversion swept one up — the adversary review caught it.
+            .SelectMany(f => Regex.Matches(File.ReadAllText(Path.Combine(Root(), f)), @"\{StaticResource (?!Icon)\w+Brush\}")
                 .Select(m => $"{f}: {m.Value}"))
             .ToList();
         Assert.True(offenders.Count == 0,
