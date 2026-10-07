@@ -68,9 +68,6 @@ public sealed class GalleryWindow : Window
         var fx = new CheckBox { Content = "Light effects", IsChecked = look.Effects, VerticalAlignment = VerticalAlignment.Center };
         fx.IsCheckedChanged += (_, _) => Use(look with { Effects = fx.IsChecked == true });
         bar.Children.Add(fx);
-        var edges = new CheckBox { Content = "Edge light on dockers", IsChecked = look.DockerEdges, VerticalAlignment = VerticalAlignment.Center };
-        edges.IsCheckedChanged += (_, _) => Use(look with { DockerEdges = edges.IsChecked == true });
-        bar.Children.Add(edges);
         var scale = new Slider { Minimum = 75, Maximum = 200, TickFrequency = 5, IsSnapToTickEnabled = true, Width = 140, Value = UiScale.Current * 100, VerticalAlignment = VerticalAlignment.Center };
         scale.ValueChanged += (_, e) => UiScale.Current = e.NewValue / 100;
         bar.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { new TextBlock { Text = "UI scale", VerticalAlignment = VerticalAlignment.Center }, scale } });

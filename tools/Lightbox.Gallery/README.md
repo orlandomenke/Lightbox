@@ -67,10 +67,11 @@ well and no border until you point at them.
 **Tabs are v.2.** The active tab is part of the panel, rising into a darker
 header strip.
 
-**Edges catch light.** Containers get chrome in the dark theme and prism in the
-light one. The brush is picked once, as `LookEdgeBrush`, so a container never
-asks which theme it's in. Docker frames have their own switch
-(`LookDockerEdgeBrush`), because their edge is still being judged.
+**Edges catch light, on controls only.** Text buttons, text toggles and
+switches get a faint edge (`LookEdgeSubtleBrush`, about 40%): chrome in the dark
+theme, prism in the light one. The canvas bar and popups carry the full edge
+(`LookEdgeBrush`). Docker frames carry none; the owner tried it and turned it
+down.
 
 ## Snapshots
 

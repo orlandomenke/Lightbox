@@ -19,17 +19,12 @@ public enum LookCorners { Current, Square, Tight, Soft }
 /// (shadows, glows) are on. The three are independent on purpose (Q203): the
 /// owner asked to try corners and themes separately rather than as bundles.
 /// </summary>
-/// <param name="DockerEdges">
-/// Whether docker frames carry the edge light (chrome or prism). Separate
-/// because the owner doubted it for dockers in particular; the canvas bar and
-/// popups keep theirs either way.
-/// </param>
-public sealed record Look(LookTheme Theme, LookCorners Corners, bool Effects, bool DockerEdges = true)
+public sealed record Look(LookTheme Theme, LookCorners Corners, bool Effects)
 {
     public static readonly Look AsShipped = new(LookTheme.Current, LookCorners.Current, false);
 
     /// <summary>A file-name-safe name, used for snapshot paths.</summary>
-    public string Slug => $"{Theme}-{Corners}-{(Effects ? "fx" : "flat")}{(DockerEdges ? "" : "-noedge")}".ToLowerInvariant();
+    public string Slug => $"{Theme}-{Corners}-{(Effects ? "fx" : "flat")}".ToLowerInvariant();
 
     public override string ToString() => Slug;
 }
@@ -113,10 +108,16 @@ public static class Looks
         // The edge light follows the theme (owner, 2026-10-07): chrome in the
         // dark, prism in the light. Picked here, once, so every container names
         // one key and never asks which theme it is in.
-        if (app.TryFindResource(look.Theme == LookTheme.StudioGrey ? "LookPrismBrush" : "LookChromeBrush", out var edge))
+        if (app.TryFindResource(look.Theme == LookTheme.StudioGrey ? "LookPrismBrush" : "LookChromeBrush", out var edge)
+            && edge is ConicGradientBrush conic)
         {
-            resources["LookEdgeBrush"] = edge;
-            resources["LookDockerEdgeBrush"] = look.DockerEdges ? edge : Brushes.Transparent;
+            resources["LookEdgeBrush"] = conic;
+            // The same light, faint, for buttons and toggles (owner,
+            // 2026-10-07): the docker frames lost theirs; the controls gained a
+            // subtle one. One brush, so a control never asks which theme it is in.
+            var subtle = new ConicGradientBrush { Center = conic.Center, Angle = conic.Angle, Opacity = 0.42 };
+            foreach (var stop in conic.GradientStops) subtle.GradientStops.Add(new GradientStop(stop.Color, stop.Offset));
+            resources["LookEdgeSubtleBrush"] = subtle;
         }
         if (look.Theme != LookTheme.Current) AddStyle(app, "Lit.Styles.axaml");
         if (look.Corners != LookCorners.Current) AddStyle(app, "Corners.Styles.axaml");
@@ -218,8 +219,6 @@ public static class Looks
         {
             yield return new Look(theme, corners, fx);
         }
-        yield return new Look(LookTheme.DarkLit, LookCorners.Soft, true, DockerEdges: false);
-        yield return new Look(LookTheme.StudioGrey, LookCorners.Soft, true, DockerEdges: false);
     }
 
     /// <summary>

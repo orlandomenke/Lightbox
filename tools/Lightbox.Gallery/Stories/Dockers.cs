@@ -83,7 +83,7 @@ public static partial class Catalog
             Section("Selected bone"),
             SettingRow(new TextBox { Text = "head" }, null, null),
             SettingRow(Label("Length"), ValueField(48, 4, 4000), null),
-            SettingRow(Label("Jiggle"), null, null).Let2(g => g.Children.Add(Right(new ToggleSwitch { IsChecked = true, OnContent = null, OffContent = null }, 2))),
+            SwitchRow("Jiggle", true),
             SettingRow(Label("Catch up"), ValueField(35, 1, 100), null),
             SettingRow(Label("Settle"), ValueField(60, 2, 100), null),
             Actions(("Add child", false), ("Delete", false)),
@@ -104,7 +104,7 @@ public static partial class Catalog
             new("Recreated", () => Panel("Color", Rows(
                 SegmentedBare(["Wheel", "HSV", "RGB", "CMYK"], 0),
                 ColorBody(),
-                SettingRow(Row(new ColorField { Hex = "#C04A3B" }, new TextBlock { Text = "#C04A3B", VerticalAlignment = VerticalAlignment.Center, Foreground = Brush("TextSecondaryBrush") }), null, null)), 300, 360, asBuilt: false)),
+                SettingRow(Row(new ColorField { Hex = "#C04A3B" }, new TextBlock { Text = "#C04A3B", VerticalAlignment = VerticalAlignment.Center, Foreground = Brush("TextSecondaryBrush") }), null, null)), 300, double.NaN, asBuilt: false)),
         ],
         Columns: 2);
 
@@ -136,10 +136,11 @@ public static partial class Catalog
                     Row(With(new Button { Content = "＋ Swatch" }, "text"), IconButton("IconMinus", 11), With(new Button { Content = "Duplicate" }, "text"), With(new Button { Content = "Import…" }, "text")))),
                 bottom: Bar(Column(4, new CheckBox { Content = "Edit selected swatch" })))),
             new("Recreated", () => Panel("Palette", Rows(
-                SettingRow(new ComboBox { ItemsSource = new[] { "Hero skin", "Hero costume", "Forest", "Default" }, SelectedIndex = 0 }, null, "IconFolder"),
+                PaletteTree(),
+                Section("Hero skin"),
                 Swatches(square: true),
-                SettingRow(new ColorField { Hex = "#C04A3B" }, null, null),
-                Actions(("Add swatch", false), ("Duplicate", false), ("Import…", false))), 300, 360, asBuilt: false)),
+                SettingRow(Row(new ColorField { Hex = "#C04A3B" }, new TextBox { Text = "Shadow red", Width = 150 }), null, null),
+                Actions(("Add swatch", false), ("Duplicate", false), ("Import…", false))), 300, double.NaN, asBuilt: false)),
         ],
         Columns: 2);
 
@@ -156,6 +157,75 @@ public static partial class Catalog
             },
         };
         return Column(0, tree, new Border { Height = 4 }, new Border { Margin = new Thickness(4), Child = Swatches(square: false) });
+    }
+
+    /// <summary>
+    /// The palettes' hierarchy, kept (owner, 2026-10-07): folders with a
+    /// chevron and a folder icon, palettes indented under them with a strip of
+    /// their first colours — so a palette is recognisable by its colours before
+    /// its name. The open palette takes the flat "on" fill.
+    /// </summary>
+    private static Control PaletteTree()
+    {
+        var rows = new StackPanel { Spacing = 1 };
+        rows.Children.Add(TreeRow(0, "Characters", folder: true, expanded: true));
+        rows.Children.Add(TreeRow(1, "Hero skin", strip: ["#F2E3D5", "#D9A27F", "#8F5236", "#C04A3B"], active: true));
+        rows.Children.Add(TreeRow(1, "Hero costume", strip: ["#3A5A8C", "#6A4C9C", "#B7B2C8", "#1A1A1A"]));
+        rows.Children.Add(TreeRow(0, "Backgrounds", folder: true, expanded: false));
+        rows.Children.Add(TreeRow(0, "Default", strip: ["#FFFFFF", "#808080", "#1A1A1A", "#C04A3B"]));
+        return rows;
+    }
+
+    private static Control TreeRow(int depth, string name, bool folder = false, bool expanded = false, string[]? strip = null, bool active = false)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        // Indent by the chevron's own width, so a child's icon sits under its
+        // parent's name — the hierarchy reads as one column per level.
+        content.Children.Add(new Border { Width = depth * 18 });
+        content.Children.Add(folder
+            ? Icon(expanded ? "IconChevronDown" : "IconChevronRight", 9)
+            : new Border { Width = 9 });
+        if (folder)
+        {
+            content.Children.Add(Icon("IconFolder", 12));
+        }
+        else if (strip is not null)
+        {
+            var chips = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            foreach (var hex in strip) chips.Children.Add(new Border { Width = 4, Height = 12, Background = new SolidColorBrush(Color.Parse(hex)) });
+            content.Children.Add(chips);
+        }
+        content.Children.Add(new TextBlock
+        {
+            Text = name,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = folder ? Brush("TextSecondaryBrush") : Brush("TextPrimaryBrush"),
+        });
+        var row = new Border
+        {
+            Classes = { "layerRow" },
+            Height = Application.Current!.TryFindResource("LookRowHeight", out var h) && h is double rh ? rh : 24,
+            Padding = new Thickness(6, 0),
+            Child = content,
+        };
+        if (active) row.Classes.Add("active");
+        return row;
+    }
+
+    /// <summary>
+    /// A label and a switch. The switch spans the value and icon columns,
+    /// right-aligned, so its right edge meets the same line as every value
+    /// field — a 48 px value column cut it off.
+    /// </summary>
+    private static Control SwitchRow(string label, bool on)
+    {
+        var row = SettingRow(Label(label), null, null);
+        Grid.SetColumnSpan(row.Children[0], 1);
+        var toggle = new ToggleSwitch { IsChecked = on, OnContent = null, OffContent = null, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(toggle, 2);
+        Grid.SetColumnSpan(toggle, 3);
+        row.Children.Add(toggle);
+        return row;
     }
 
     private static readonly string[] SwatchColours =
