@@ -86,10 +86,18 @@ public static class LayerShapes
     /// unclipped rather than vanishing, so dragging a layer to the bottom of
     /// the stack degrades visibly instead of silently.
     /// </summary>
+    /// <remarks>
+    /// <b>The search stops at the folder (Q215).</b> Only a layer in the same
+    /// folder can be the base: a clipped layer at the bottom of a folder has
+    /// nothing to clip to, and a layer directly above a folder does not reach
+    /// into it. A folder in the docker reads as a boundary, so it is one.
+    /// </remarks>
     public static Layer? BaseOf(IReadOnlyList<Layer> layers, int layerIndex)
     {
+        var folder = layers[layerIndex].GroupId;
         for (var i = layerIndex - 1; i >= 0; i--)
         {
+            if (layers[i].GroupId != folder) return null;
             if (!layers[i].IsClipped) return layers[i];
         }
         return null;

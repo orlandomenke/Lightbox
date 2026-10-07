@@ -368,6 +368,11 @@ leaving its silhouette. A clipped layer's row shows an accent bar, and
 several clipped layers in a row all clip to the first unclipped layer
 beneath them, so lines / colour / shading stacks work as they do elsewhere.
 
+**A clip stays inside its folder.** The base is always a layer in the same
+folder, so a clipped layer at the bottom of a folder shows unclipped rather
+than clipping to something outside it, and a layer just above a folder does
+not clip into it.
+
 Because the base layer is an ordinary layer, **an animated matte is just a
 clipping mask over an animated base**: animate the base's cels and everything
 clipped to it follows, with holds and exposure exactly as the sheet says. If
