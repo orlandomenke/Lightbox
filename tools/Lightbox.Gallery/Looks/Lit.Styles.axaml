@@ -78,16 +78,16 @@
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem /template/ Border#PART_Tab">
     <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="CornerRadius" Value="7,7,0,0" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookTabRadius}" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ Border#PART_Tab">
     <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem:selected /template/ Border#PART_Tab, ListBox.tabs > ListBoxItem:selected:pointerover /template/ Border#PART_Tab">
     <Setter Property="Background" Value="{StaticResource SurfacePanelBrush}" />
     <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="CornerRadius" Value="7,7,0,0" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookTabRadius}" />
   </Style>
   <Style Selector="ListBox.tabs > ListBoxItem:selected">
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
@@ -173,7 +173,7 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="BoxShadow" Value="none" />
-    <Setter Property="CornerRadius" Value="{StaticResource LookInnerRadius}" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookContainerInnerRadius}" />
   </Style>
   <Style Selector="controls|CanvasOverlayBar Button:pointerover /template/ ContentPresenter#PART_ContentPresenter, controls|CanvasOverlayBar ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />

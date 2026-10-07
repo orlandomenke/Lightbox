@@ -37,9 +37,11 @@
     <Setter Property="Template">
       <ControlTemplate>
         <Panel>
-          <Border CornerRadius="11" Background="{StaticResource FieldGroundBrush}" />
-          <Border x:Name="PART_Checker" CornerRadius="11" Background="{StaticResource LookCheckerBrush}" IsVisible="False" />
-          <Border CornerRadius="11" Background="{TemplateBinding Background}" />
+          <!-- The track is a control, so it takes the control radius; the
+               thumb is a handle, so it takes the pill. -->
+          <Border CornerRadius="{StaticResource LookControlRadius}" Background="{StaticResource FieldGroundBrush}" />
+          <Border x:Name="PART_Checker" CornerRadius="{StaticResource LookControlRadius}" Background="{StaticResource LookCheckerBrush}" IsVisible="False" />
+          <Border CornerRadius="{StaticResource LookControlRadius}" Background="{TemplateBinding Background}" />
           <Track x:Name="PART_Track" Orientation="Horizontal" Margin="3,0"
                  Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
                  Value="{TemplateBinding Value, Mode=TwoWay}">
@@ -47,7 +49,8 @@
               <Thumb Width="16" Height="16" Cursor="Hand">
                 <Thumb.Template>
                   <ControlTemplate>
-                    <Ellipse Stroke="White" StrokeThickness="2" Fill="#26FFFFFF" />
+                    <Border BorderBrush="White" BorderThickness="2" Background="#26FFFFFF"
+                            CornerRadius="{StaticResource LookPillRadius}" />
                   </ControlTemplate>
                 </Thumb.Template>
               </Thumb>
@@ -100,14 +103,16 @@
     <Setter Property="MinHeight" Value="22" />
     <Setter Property="Padding" Value="12,2" />
     <Setter Property="FontSize" Value="11" />
-    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlInnerRadius}" />
     <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="ListBox.segmented > ListBoxItem /template/ ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+    <!-- Inside the well's 2 px padding: one step in, so the chosen segment is
+         concentric with the well. -->
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlInnerRadius}" />
   </Style>
   <Style Selector="ListBox.segmented > ListBoxItem:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />

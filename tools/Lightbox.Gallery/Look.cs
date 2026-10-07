@@ -122,13 +122,28 @@ public static class Looks
             LookCorners.Soft => (8.0, 14.0, 999.0),
             _ => (3.0, 6.0, 3.0),
         };
+        // Five roles, and every rounded thing in a look names one of them
+        // (Corners.Styles.axaml is the list of who gets which):
+        //   container          docker, canvas bar, menus, popups, tooltips
+        //   control            button, field, combo, selector well, slider track, rows, tabs
+        //   control inner      inside a control's 2 px padding: selected segment, checkbox
+        //   container inner    inside a container's 2 px padding: canvas-bar icon, menu item
+        //   pill               switches, badges, thumbs — round, or square in Square
+        // An inner radius is its parent's minus the padding, so nested shapes
+        // are concentric instead of two unrelated roundings.
         resources["LookControlRadius"] = new CornerRadius(control);
         resources["LookContainerRadius"] = new CornerRadius(container);
         resources["LookPillRadius"] = new CornerRadius(pill);
-        // Anything sitting inside a container's 2 px padding: one radius
-        // smaller, so the inner shape is concentric with its container
-        // rather than a second, unrelated rounding.
-        resources["LookInnerRadius"] = new CornerRadius(Math.Max(0, container - 2));
+        resources["LookControlInnerRadius"] = new CornerRadius(Math.Max(0, control - 2));
+        resources["LookContainerInnerRadius"] = new CornerRadius(Math.Max(0, container - 2));
+        resources["LookTabRadius"] = new CornerRadius(control, control, 0, 0);
+        if (look.Corners != LookCorners.Current)
+        {
+            // Fluent's stock templates read these two, so controls nobody styled
+            // by hand — checkboxes, combo drop-downs, list items — follow too.
+            resources["ControlCornerRadius"] = new CornerRadius(control);
+            resources["OverlayCornerRadius"] = new CornerRadius(container);
+        }
 
         // The rim is an inset shadow one pixel tall, not a top border: Avalonia
         // draws no box shadow on a border whose thickness is not uniform, so a

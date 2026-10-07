@@ -18,6 +18,7 @@ public static class Catalog
 {
     public static readonly IReadOnlyList<Story> All =
     [
+        Corners(),
         Light(),
         Buttons(),
         IconButtons(),
@@ -35,6 +36,38 @@ public static class Catalog
     ];
 
     /// <summary>
+    /// One of everything that is rounded, side by side, so a shape that does
+    /// not follow the corner set is visible at a glance rather than found by
+    /// opening ten stories.
+    /// </summary>
+    private static Story Corners() => new(
+        "Corners",
+        "Every rounded element at once, by role: containers, controls, the things inside them, pills. Switch Corners above; nothing here may keep its own radius.",
+        [
+            new("Container · docker", () => Docker(hover: false)),
+            new("Container · canvas bar", () => OverlayBar(CanvasEdge.Top)),
+            new("Container · menu", () => OnPanel(Column(0,
+                new MenuItem { Header = "New document…" },
+                Force(new MenuItem { Header = "Open…" }, ":selected"),
+                new MenuItem { Header = "Save" }))),
+            new("Controls", () => OnPanel(Column(8,
+                Row(With(new Button { Content = "Import…" }, "text"), With(new Button { Content = "Export" }, "text", "primary"), With(new Button { Content = "Tertiary" }, "text", "tertiary")),
+                Row(new TextBox { Width = 120, Text = "Colour flats" }, With(new NumericUpDown { Value = 24, FormatString = "0" }, "value")),
+                Row(new ComboBox { Width = 120, ItemsSource = new[] { "Normal" }, SelectedIndex = 0 }, With(new ToggleButton { Content = "On 2s", IsChecked = true }, "text"))))),
+            new("Selector · effect slider", () => OnPanel(Column(8,
+                Segmented(["None", "Rope", "Average"], 1),
+                EffectRow("LookIconOpacity", 82, checker: true, field: true)))),
+            new("Rows · tabs", () => OnPanel(Column(6,
+                TabList("tabs", "Layers", "Channels", "History"),
+                LayerRow("Ink", false),
+                LayerRow("Colour flats", true)))),
+            new("Inside · pills", () => OnPanel(Column(8,
+                Row(new CheckBox { Content = "Pressure", IsChecked = true }, new ToggleSwitch { IsChecked = true, OnContent = null, OffContent = null }),
+                Row(Badge("info", "Info"), Badge("warning", "Warning"))))),
+        ],
+        Columns: 3);
+
+    /// <summary>
     /// The look's light, bare: an island, a raised control and a well, plus a
     /// hard-coded shadow as the control sample — if that one shows and the
     /// look's do not, the look's resources are wrong, not the renderer.
@@ -48,7 +81,7 @@ public static class Catalog
             new("Well", () => Surface("BackgroundPrimaryBrush", "LookInsetShadow", rim: false, 80, 26)),
             new("Control: fixed shadow", () => new Border
             {
-                Width = 120, Height = 72, CornerRadius = new CornerRadius(6),
+                Width = 120, Height = 72, CornerRadius = Radius("LookContainerRadius"),
                 Background = Brush("SurfacePanelBrush"),
                 BoxShadow = BoxShadows.Parse("0 10 28 -12 #8C000000, 0 2 6 -2 #66000000"),
             }),
@@ -62,7 +95,7 @@ public static class Catalog
             Width = w,
             Height = h,
             Background = Brush(brush),
-            CornerRadius = app.TryFindResource("LookContainerRadius", out var r) && r is CornerRadius cr ? cr : new CornerRadius(6),
+            CornerRadius = Radius(shadow == "LookIslandShadow" ? "LookContainerRadius" : "LookControlRadius"),
         };
         if (app.TryFindResource(shadow, out var s) && s is BoxShadows shadows) border.BoxShadow = shadows;
         return border;
@@ -111,7 +144,7 @@ public static class Catalog
         {
             col.Children.Add(With(new ToggleButton { Content = Icon(tools[i], 16), IsChecked = i == 0 }, "tool"));
         }
-        return new Border { Classes = { "railSample" }, Padding = new Thickness(4), Child = col, Background = Brush("SurfacePanelBrush") };
+        return new Border { Classes = { "railSample" }, Padding = new Thickness(4), Child = col, Background = Brush("SurfacePanelBrush"), CornerRadius = Radius("LookContainerRadius") };
     }
 
     private static Story Fields() => new(
@@ -191,7 +224,7 @@ public static class Catalog
     {
         Background = Brush("SurfacePanelBrush"),
         Padding = new Thickness(12),
-        CornerRadius = Application.Current!.TryFindResource("LookContainerRadius", out var r) && r is CornerRadius cr ? cr : new CornerRadius(6),
+        CornerRadius = Radius("LookContainerRadius"),
         Child = Column(10,
             Row(new TextBlock { Text = "Size", Width = 52, VerticalAlignment = VerticalAlignment.Center },
                 With(new Slider { Minimum = 1, Maximum = 500, Value = 24, VerticalAlignment = VerticalAlignment.Center }, "param"),
@@ -225,7 +258,7 @@ public static class Catalog
     {
         Background = Brush("SurfacePanelBrush"),
         Padding = new Thickness(10),
-        CornerRadius = Application.Current!.TryFindResource("LookContainerRadius", out var r) && r is CornerRadius cr ? cr : new CornerRadius(6),
+        CornerRadius = Radius("LookContainerRadius"),
         Child = child,
     };
 
@@ -404,6 +437,10 @@ public static class Catalog
     }
 
     private static IBrush Brush(string key) => (IBrush)Application.Current!.FindResource(key)!;
+
+    /// <summary>A role's radius from the look; a story never writes a radius as a number.</summary>
+    private static CornerRadius Radius(string role) =>
+        Application.Current!.TryFindResource(role, out var r) && r is CornerRadius cr ? cr : default;
 
     /// <summary>A stand-in painting: dusk, so chrome over it can be judged against something warm and busy.</summary>
     private static IBrush Painting() => new LinearGradientBrush
