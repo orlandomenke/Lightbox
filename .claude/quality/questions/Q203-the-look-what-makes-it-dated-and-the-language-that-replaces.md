@@ -60,6 +60,35 @@ canvas is one box among many:
    built before one is chosen. They are resource dictionaries, so the cost is
    values, not templates.
 
+## Settled in the gallery, 2026-10-07
+
+Tried live in `tools/Lightbox.Gallery` and chosen by the owner, one at a time.
+Its README carries the rules that came out of these.
+
+- **Buttons and "on" are flat.** No rim and no shadow. "On" is one quiet,
+  lighter fill. A glow-rim-bar active effect was tried and rejected.
+- **Hover is the active fill at half strength, in the same shape**, everywhere.
+- **Tabs are v.2**: the active tab is part of its panel.
+- **Dropdowns, selectors and the canvas bar are text or icons at rest.**
+- **Corners: Tight**, meaning 4 for controls and 6 for containers, with nested
+  shapes one step in and badges following the set.
+- **Edge light (chrome in dark, prism in light)** sits on text buttons, toggles
+  and switches (faint) and on the active field (full). Not on docker frames.
+- **Icons use a 1.25 line.**
+- **Spacing and alignment are tokens.** Every setting row shares one grid.
+
+## Building it in the app, answered 2026-10-07
+
+- **The default theme is Dark-lit.** Studio grey is a preference.
+- **The theme switches live.** Colour tokens become `DynamicResource` as part of
+  tokenizing, so Configure → Interface → Theme applies at once. Cost: converting
+  352 `StaticResource` references, which tokenizing touches anyway.
+- **Tokens land first, with no visual change.** The first PR moves literals to
+  tokens holding today's values, guarded so that no new literal can appear. A
+  second, small PR switches the values to the new look. The owner: *"the most
+  important part of actually building it, is tokenizing."*
+- **The gallery PR goes first.** The token work stacks on its shared-style split.
+
 ## What is not a question
 
 - The layout stays: rail, canvas, right column, bottom sheet. This is a
