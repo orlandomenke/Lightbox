@@ -997,6 +997,7 @@ public partial class MainViewModel
 
     public bool BeginTransform(bool gizmo = true, Func<Stroke, bool>? filter = null)
     {
+        using var perf = PerfLog.Begin("transform.begin");
         if (!CanEdit(ActiveLayer, "transform it")) return false;
         var frames = CollectTransformFrames();
         // B381: judged and boxed as the canvas shows them — posed, where the

@@ -323,8 +323,35 @@ public partial class MainWindow
 
     public async Task OfferStartScreenAsync()
     {
+        // A document named on the command line answers "what to open" — Explorer's
+        // Open with, and the performance lab, which launches straight into its
+        // fixture (Q209).
+        if (LaunchFile is { } path && OpenLaunchFile(path)) return;
         if (!_vm.Settings.ShowStartScreen) return;
         await AskWhatToOpenAsync();
+    }
+
+    /// <summary>The document passed on the command line, if one was.</summary>
+    public string? LaunchFile { get; set; }
+
+    private bool OpenLaunchFile(string path)
+    {
+        try
+        {
+            _vm.OpenDocumentTab(DocJson.Load(path), path);
+        }
+        catch (Exception e) when (e is IOException or InvalidDataException
+                                      or System.Text.Json.JsonException or UnauthorizedAccessException)
+        {
+            _vm.AiStatus = $"Could not open {System.IO.Path.GetFileName(path)}: {e.Message}";
+            return false;
+        }
+        Services.PerfLog.Mark("document.opened");
+        // After the first frame has had its chance to render: the lab starts
+        // its gesture on this line rather than on a guessed delay.
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () => Services.PerfLog.Mark("ready"), Avalonia.Threading.DispatcherPriority.Background);
+        return true;
     }
 
     /// <summary>Show the start screen and act on the answer, gate or no gate.</summary>

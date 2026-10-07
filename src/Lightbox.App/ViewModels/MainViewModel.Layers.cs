@@ -714,6 +714,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void AddFrame()
     {
+        using var perf = PerfLog.Begin("frame.add");
         _editor.AddFrameAfter(CurrentFrameIndex);
         CurrentFrameIndex++;
     }
@@ -798,6 +799,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void Undo()
     {
+        using var perf = PerfLog.Begin("undo");
         if (TransformActive)
         {
             StepTransformSession(undo: true);
@@ -816,6 +818,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void Redo()
     {
+        using var perf = PerfLog.Begin("redo");
         if (TransformActive)
         {
             StepTransformSession(undo: false);
@@ -1782,6 +1785,7 @@ public partial class MainViewModel
     /// </summary>
     private void RefreshThumbnails()
     {
+        using var perf = PerfLog.Begin("thumbnails");
         foreach (var row in LayerRows)
         {
             foreach (var cell in row.Cells)

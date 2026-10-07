@@ -460,8 +460,7 @@ public sealed class AppSettings
     public AutoExportSettings AutoExport { get; set; } = new();
 
     public static string Path { get; set; } = System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Lightbox", "settings.json");
+        Lightbox.Core.ProfileFolder.Root, "settings.json");
 
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 

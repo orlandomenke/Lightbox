@@ -65,7 +65,11 @@ public sealed class App : Application
             // map and every panel in the docking pool. It blocks the UI thread
             // and cannot not — window construction is UI-thread-only — which is
             // why the splash is a still panel rather than anything animated.
-            var window = new MainWindow();
+            var window = new MainWindow
+            {
+                LaunchFile = desktop.Args?.FirstOrDefault(a =>
+                    a.EndsWith(".lightbox.json", StringComparison.OrdinalIgnoreCase) && File.Exists(a)),
+            };
 
             // If the last run ended badly, say so once. The crash-time dialog is
             // the first attempt and the better one; this is the fallback for when

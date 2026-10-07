@@ -22,10 +22,7 @@ namespace Lightbox.App.Services;
 public sealed class AutosaveService
 {
     public static string AutosavePath =>
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Lightbox",
-            "autosave.lightbox.json");
+        Path.Combine(Lightbox.Core.ProfileFolder.Root, "autosave.lightbox.json");
 
     private readonly DispatcherTimer _timer;
     private readonly Func<Doc> _docProvider;
