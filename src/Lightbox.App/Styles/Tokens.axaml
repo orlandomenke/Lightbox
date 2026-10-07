@@ -70,6 +70,19 @@
   <Thickness x:Key="SubsectionGap">0,6,0,0</Thickness>
   <Thickness x:Key="LineGap">0,4,0,0</Thickness>
 
+  <!-- ===== Settings pages (step 2, area 2: the Configure window) ===== -->
+  <!-- A settings page's inset inside the window. -->
+  <Thickness x:Key="PagePadding">14</Thickness>
+  <!-- A settings page's fixed field widths. Two today (120 and 110): kept
+       apart so nothing moves; step 3 decides whether they are one. -->
+  <x:Double x:Key="SizeSettingsField">120</x:Double>
+  <x:Double x:Key="SizeSettingsFieldNarrow">110</x:Double>
+  <!-- A settings page's choice list. -->
+  <x:Double x:Key="SizeSettingsCombo">260</x:Double>
+  <!-- An information card on a page ("Measured now"): its corners and inset. -->
+  <CornerRadius x:Key="RadiusCard">4</CornerRadius>
+  <Thickness x:Key="CardPadding">10</Thickness>
+
   <!-- ===== Icon sizes ===== -->
   <!-- Every glyph size in use. Named by size: an icon's size is its box, and
        step 3 is where they get collapsed onto fewer steps. -->

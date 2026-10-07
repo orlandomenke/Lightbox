@@ -7,7 +7,7 @@
   "src/Lightbox.App/Views/BoneOptionsBar.axaml": 6,
   "src/Lightbox.App/Views/BrushLibraryWindow.axaml": 20,
   "src/Lightbox.App/Views/BrushTipsWindow.axaml": 37,
-  "src/Lightbox.App/Views/ConfigureWindow.axaml": 70,
+  "src/Lightbox.App/Views/ConfigureWindow.axaml": 24,
   "src/Lightbox.App/Views/EffectsPanel.axaml": 25,
   "src/Lightbox.App/Views/ExportWindow.axaml": 7,
   "src/Lightbox.App/Views/FluidEffectsWindow.axaml": 32,
