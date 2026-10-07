@@ -140,6 +140,22 @@ public static class Program
         // window's literals.
         vm.NewDocument(new Lightbox.App.ViewModels.NewDocumentSettings("Snapshot", 1280, 720, 12, 72, "#ffffff", false));
         Shoot(main, "main-window-document");
+
+        // Every docker, one at a time at the front of its slot, and every
+        // tool's options page — the default layout shows only a few of them,
+        // and the dockers hold most of the window's literals.
+        foreach (var id in Enum.GetValues<Lightbox.App.Docking.DockPanelId>())
+        {
+            vm.Workspace.SetVisible(id, true);
+            vm.Workspace.Activate(id);
+            Shoot(main, $"docker-{id}");
+        }
+        foreach (var tool in Enum.GetValues<Lightbox.App.ViewModels.ToolId>())
+        {
+            vm.ActiveTool = tool;
+            vm.OpenToolOptionsCommand.Execute(null);
+            Shoot(main, $"tool-{tool}");
+        }
         var config = new Lightbox.App.Views.ConfigureWindow(new Lightbox.App.Services.ShortcutMap(), vm);
         config.Show();
         var list = config.FindControl<ListBox>("CategoryList")!;
