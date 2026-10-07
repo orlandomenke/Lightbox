@@ -9,6 +9,10 @@ using Lightbox.Bench;
 //
 // Writes .claude/quality/PERFORMANCE.md.
 
+// The performance lab's fixtures (Q209): generate a document and stop, before
+// any calibration or sweep. `dotnet run --project tools/Lightbox.Bench -c Release -- fixture --out x.lightbox.json`
+if (args.Length > 0 && args[0] == "fixture") return Fixture.Run(args);
+
 var filter = Args("--filter");
 var outPath = Args("--out") ?? FindReportPath();
 

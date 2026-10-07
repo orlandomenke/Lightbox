@@ -67,9 +67,17 @@ public sealed class RecoverySession : IDisposable
     /// unsaved work, often under NDA, and a roaming profile would sync every one
     /// to the organisation's server at logoff. A recovery copy belongs to the
     /// machine that crashed.
+    /// <para>
+    /// Inside the profile when the profile has been moved (<c>LIGHTBOX_PROFILE_DIR</c>,
+    /// the performance lab): the lab ends a run by killing the app, which leaves
+    /// copies exactly as a crash does, and those must never be offered to the
+    /// artist's next real launch as their own unsaved work.
+    /// </para>
     /// </remarks>
-    public static string DefaultRoot { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lightbox", "recovery");
+    public static string DefaultRoot { get; set; } = Lightbox.Core.ProfileFolder.Overridden
+        ? Path.Combine(Lightbox.Core.ProfileFolder.Root, "recovery")
+        : Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lightbox", "recovery");
 
     /// <summary>
     /// Whether a path is inside the recovery folders — somewhere no document

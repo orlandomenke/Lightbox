@@ -17,10 +17,7 @@ namespace Lightbox.Ai;
 public static class ApiKeyProvider
 {
     public static string SettingsPath =>
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Lightbox",
-            "settings.json");
+        Path.Combine(Lightbox.Core.ProfileFolder.Root, "settings.json");
 
     public static string? GetApiKey()
     {

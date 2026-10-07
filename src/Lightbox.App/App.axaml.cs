@@ -81,7 +81,11 @@ public sealed class App : Application
                 Services.DiagnosticLog.WriteNote("recovery", $"folder unavailable: {e.Message}");
             }
 
-            var window = new MainWindow();
+            var window = new MainWindow
+            {
+                LaunchFile = desktop.Args?.FirstOrDefault(a =>
+                    a.EndsWith(".lightbox.json", StringComparison.OrdinalIgnoreCase) && File.Exists(a)),
+            };
 
             // If the last run ended badly, say so once. The crash-time dialog is
             // the first attempt and the better one; this is the fallback for when

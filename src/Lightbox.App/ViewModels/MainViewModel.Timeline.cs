@@ -124,6 +124,9 @@ public partial class MainViewModel
 
     partial void OnCurrentFrameIndexChanged(int value)
     {
+        // A mark, not a span: the cost of arriving at a frame lands in the
+        // publish that follows, and during playback this fires every tick.
+        if (PerfLog.On && !IsPlaying) PerfLog.Mark("playhead", value.ToString(System.Globalization.CultureInfo.InvariantCulture));
         _lastStrokeEnd = null;   // and it stops being true on another drawing
 
         // Only while playing: the same path serves scrubbing, and blending a
@@ -275,6 +278,7 @@ public partial class MainViewModel
 
     private void StartPlayback(int direction)
     {
+        PerfLog.Mark("play.start");
         _playDirection = direction;
         if (IsPlaying) return;
         // A stroke cut off by playback records nothing, so a key its press

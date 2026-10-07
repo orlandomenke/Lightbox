@@ -20,6 +20,10 @@ it — you are on the empty workspace, and the same choices are waiting on it an
 under **File**. *Edit → Ask what to open on start-up* turns the screen off and
 back on; the empty workspace's buttons are not affected by it.
 
+**Opening a file directly.** Lightbox opens a `.lightbox.json` named when it is
+started — *Open with → Lightbox* in Explorer, or `Lightbox.App.exe drawing.lightbox.json`
+from a terminal — straight into that document, without the start screen.
+
 Closing the last tab returns you to the same place: the workspace empties and
 the same what-to-open question is asked once, rather than a fresh untitled
 document being invented for you. Closing an untouched blank never argues about

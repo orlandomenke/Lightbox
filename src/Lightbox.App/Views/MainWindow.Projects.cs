@@ -326,8 +326,59 @@ public partial class MainWindow
         // B394: work a crashed session left comes first. Restoring it answers
         // "what to open", so the start screen does not ask a second time.
         if (await OfferRecoveryAsync() > 0) return;
+        // Then a document named on the command line — Explorer's Open with,
+        // and the performance lab's fixture (Q209). After the recovery offer,
+        // never before it: opening a file after a crash must not skip the
+        // copies of the work the crash interrupted.
+        if (LaunchFile is { } path && OpenLaunchFile(path)) return;
         if (!_vm.Settings.ShowStartScreen) return;
         await AskWhatToOpenAsync();
+    }
+
+    /// <summary>The document passed on the command line, if one was.</summary>
+    public string? LaunchFile { get; set; }
+
+    private bool OpenLaunchFile(string path)
+    {
+        try
+        {
+            _vm.OpenDocumentTab(DocJson.Load(path), path);
+        }
+        catch (Exception e) when (e is IOException or InvalidDataException
+                                      or System.Text.Json.JsonException or UnauthorizedAccessException)
+        {
+            _vm.AiStatus = $"Could not open {System.IO.Path.GetFileName(path)}: {e.Message}";
+            return false;
+        }
+        Services.PerfLog.Mark("document.opened");
+        // After the first frame has had its chance to render: the lab starts
+        // its gesture on this line rather than on a guessed delay.
+        // The window's own dispatcher, not the ambient static (B93's ratchet).
+        Dispatcher.Post(
+            () => Services.PerfLog.Mark("ready", CanvasPlacement()), Avalonia.Threading.DispatcherPriority.Background);
+        return true;
+    }
+
+    /// <summary>
+    /// Where three corners of the document land on screen, in physical pixels —
+    /// what the performance lab maps a document point to a pointer position with.
+    /// </summary>
+    /// <remarks>
+    /// Three corners rather than a zoom and an offset, so the mapping survives
+    /// display scaling, pan and a rotated view without the lab knowing about
+    /// any of them: it solves the affine from the three points it is given.
+    /// </remarks>
+    private string? CanvasPlacement()
+    {
+        if (!Services.PerfLog.On || _vm.ActiveTab?.Doc.Scene is not { } scene) return null;
+        string Corner(double x, double y)
+        {
+            var (vx, vy) = Canvas.DocToView(x, y);
+            var p = Canvas.PointToScreen(new Avalonia.Point(vx, vy));
+            return $"[{p.X},{p.Y}]";
+        }
+        return $"{{\"w\":{scene.Width},\"h\":{scene.Height},\"origin\":{Corner(0, 0)}," +
+               $"\"right\":{Corner(scene.Width, 0)},\"down\":{Corner(0, scene.Height)}}}";
     }
 
     /// <summary>

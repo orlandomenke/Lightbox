@@ -11,6 +11,15 @@ internal static class Program
     {
         // First, so a failure anywhere after this point leaves a file behind.
         CrashReporter.Install();
+        // The performance lab's action log (Q209); nothing unless asked for.
+        PerfLog.Start();
+        // An override that was not honoured is said out loud, not silently replaced.
+        if (Lightbox.Core.ProfileFolder.Root is not null
+            && Lightbox.Core.ProfileFolder.IgnoredOverride is { } ignored)
+        {
+            Console.Error.WriteLine(ignored);
+            DiagnosticLog.WriteNote("profile", ignored);
+        }
         OpenConsoleIfAsked();
         // So a trace can say which kind of popup produced its numbers, rather
         // than leaving a stall count to be read against an unknown setting.
