@@ -70,24 +70,29 @@ public partial class MainViewModel
             return false;
         }
 
-        var (anchorId, groupId) = NewLayerPlacement();
-        if (groupId is not null && Scene.LayerGroups.FirstOrDefault(g => g.Id == groupId) is { Collapsed: true } closed)
-        {
-            closed.Collapsed = false;
-        }
-
+        var place = NewLayerPlacement();
         var addedIds = new List<string>();
         _editor.Perform(doc =>
         {
             var layers = doc.Scene.Layers;
-            var at = anchorId is null ? -1 : layers.FindIndex(l => l.Id == anchorId);
             foreach (var source in clip.Layers)
             {
                 var name = LayerCopy.CopyName(source.Name, layers.Select(l => l.Name));
-                var copy = LayerCopy.Duplicate(source, name, doc.Scene.FrameCount, groupId);
-                if (at < 0) layers.Add(copy);
-                else layers.Insert(++at, copy);
+                var copy = LayerCopy.Duplicate(source, name, doc.Scene.FrameCount, groupId: null);
+                layers.Add(copy);
                 addedIds.Add(copy.Id);
+            }
+            // Wherever a new layer would go — into a picked folder at any depth,
+            // or above the active layer in its folder — as one run (Q204).
+            if (place is { } p)
+            {
+                FolderTree.Move(doc.Scene, addedIds.Select(id => new StackRef(id, false)).ToList(), p.Target, p.Where);
+            }
+            foreach (var folder in addedIds
+                         .Select(id => layers.First(l => l.Id == id))
+                         .SelectMany(l => FolderTree.FoldersOf(doc.Scene, l)))
+            {
+                folder.Collapsed = false;
             }
         }, frameContentUnchanged: false);
 

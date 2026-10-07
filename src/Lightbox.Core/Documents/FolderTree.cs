@@ -416,14 +416,23 @@ public static class FolderTree
             f.Under = above;
             f.Under = AnchorOf(scene, f)?.Id;
         }
-        // Beside another folder in the same slot, the list order is the stack
-        // order (later is higher), so a moved folder goes next to it there too.
-        if (onto is LayerGroup sibling && where != StackDrop.Into)
+        // Empty folders sharing a slot stack in list order, later higher, so
+        // the list order is where a moved one lands among them: next to the
+        // folder it was dropped beside; lowest in the slot when dropped on top
+        // of a layer, since it then sits directly on that layer; highest when
+        // dropped under a layer or into a folder's top.
+        var moved = roots.OfType<LayerGroup>().ToList();
+        if (moved.Count > 0)
         {
-            var moved = roots.OfType<LayerGroup>().ToList();
             foreach (var f in moved) scene.LayerGroups.Remove(f);
-            var i = scene.LayerGroups.IndexOf(sibling);
-            scene.LayerGroups.InsertRange(where == StackDrop.Above ? i + 1 : i, moved);
+            var i = (onto, where) switch
+            {
+                (LayerGroup sibling, StackDrop.Above) => scene.LayerGroups.IndexOf(sibling) + 1,
+                (LayerGroup sibling, StackDrop.Below) => scene.LayerGroups.IndexOf(sibling),
+                (Layer, StackDrop.Above) => 0,
+                _ => scene.LayerGroups.Count,
+            };
+            scene.LayerGroups.InsertRange(i, moved);
         }
         return null;
     }
@@ -514,6 +523,24 @@ public static class FolderTree
         scene.LayerGroups.RemoveAll(folders.Contains);
         return layers;
     }
+
+    /// <summary>
+    /// The stack without the drawings: each layer's id, name, folder and
+    /// whether it is the paper, and a copy of every folder — enough to run any
+    /// operation here and read its <see cref="Signature"/>.
+    /// </summary>
+    /// <remarks>
+    /// What a drag asks on every pointer move ("would this drop change
+    /// anything?"). <see cref="Scene.Clone"/> would copy every stroke on every
+    /// frame to answer it.
+    /// </remarks>
+    public static Scene Skeleton(Scene scene) => new()
+    {
+        Layers = scene.Layers
+            .Select(l => new Layer { Id = l.Id, Name = l.Name, GroupId = l.GroupId, IsBackground = l.IsBackground })
+            .ToList(),
+        LayerGroups = scene.LayerGroups.Select(g => g.Clone()).ToList(),
+    };
 
     /// <summary>What a stack edit is judged by: the layer order, who is in what, and where empty folders sit.</summary>
     public static string Signature(Scene scene) =>

@@ -133,25 +133,26 @@ public static class LayerDropPlan
     /// <summary>What dropping here would do.</summary>
     /// <param name="fraction">How far down the row the pointer is; clamped to 0..1.</param>
     /// <param name="target">What the row under the pointer is.</param>
-    /// <param name="draggingFolder">What is being carried is a folder, not a layer.</param>
-    public static LayerDropHint Resolve(double fraction, LayerDropTarget target, bool draggingFolder)
+    /// <remarks>
+    /// <para>
+    /// One table for a carried layer and a carried folder (Q204): folders nest,
+    /// so a folder dropped on a header goes into it like a layer does. A drop
+    /// that is impossible — a folder into itself, anything under the paper —
+    /// is not this table's business: the caller tries the move and draws no
+    /// hint for one that would be refused or change nothing.
+    /// </para>
+    /// <para>
+    /// A header's top quarter is above the folder, outside it; the rest is into
+    /// it, except that a closed or empty folder, with no members on screen to
+    /// aim below, gives its bottom quarter to "below it". The last row of a
+    /// folder at the bottom of the docker gives its bottom quarter to "below the
+    /// folder", which is otherwise the one place nothing can be aimed at.
+    /// </para>
+    /// </remarks>
+    public static LayerDropHint Resolve(double fraction, LayerDropTarget target)
     {
         var y = Math.Clamp(fraction, 0, 1);
         var upper = y < 0.5;
-        if (draggingFolder)
-        {
-            return target switch
-            {
-                LayerDropTarget.LooseLayer => upper ? LayerDropHint.Above : LayerDropHint.Below,
-                LayerDropTarget.CollapsedFolder => upper ? LayerDropHint.Above : LayerDropHint.Below,
-                // An open header's lower half is inside that folder: refused,
-                // rather than a line between the header and its own members.
-                LayerDropTarget.OpenFolder => upper ? LayerDropHint.Above : LayerDropHint.None,
-                LayerDropTarget.LastGroupedLayer or LayerDropTarget.BottomGroupedLayer =>
-                    upper ? LayerDropHint.None : LayerDropHint.Below,
-                _ => LayerDropHint.None,
-            };
-        }
         return target switch
         {
             LayerDropTarget.BottomGroupedLayer =>

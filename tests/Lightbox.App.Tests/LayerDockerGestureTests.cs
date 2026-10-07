@@ -56,7 +56,7 @@ public class LayerDockerGestureTests(ITestOutputHelper output) : BrushStateIsola
         var layers = vm.Doc.Scene.Layers;
         vm.SelectLayer(RowOf(vm, "b"), toggle: false, range: false);
         vm.SelectLayer(RowOf(vm, "c"), toggle: true, range: false);
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
         Pump();
         return (window, vm);
     }
@@ -374,7 +374,7 @@ public class LayerDockerGestureTests(ITestOutputHelper output) : BrushStateIsola
         var bottom = layers[0];
         var top = layers[^1];
         vm.ActiveLayerIndex = 0;
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
         var bottomRow = vm.LayerPanelItems.OfType<LayerRow>().Single(r => r.Layer.Id == bottom.Id);
         var topRow = vm.LayerPanelItems.OfType<LayerRow>().Single(r => r.Layer.Id == top.Id);
 
@@ -387,7 +387,7 @@ public class LayerDockerGestureTests(ITestOutputHelper output) : BrushStateIsola
         Assert.Equal(top.Id, vm.Doc.Scene.Layers[0].Id);
         Assert.Null(vm.Doc.Scene.Layers[0].GroupId);
         // The upper three quarters still mean inside, beside that row.
-        Assert.Equal(LayerDropHint.Below, LayerDropPlan.Resolve(0.6, LayerDropTarget.BottomGroupedLayer, false));
+        Assert.Equal(LayerDropHint.Below, LayerDropPlan.Resolve(0.6, LayerDropTarget.BottomGroupedLayer));
     }
 
     /// <summary>Pressing the right button mid-drag does not drop.</summary>

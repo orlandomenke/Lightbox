@@ -246,7 +246,7 @@ public class DockerMultiSelectTests
         vm.SelectLayer(Row(vm, 0), toggle: false, range: false);
         vm.SelectLayer(Row(vm, 1), toggle: false, range: true);
 
-        vm.CreateLayerFolderCommand.Execute(null);
+        vm.GroupLayersCommand.Execute(null);
 
         var group = Assert.Single(vm.Doc.Scene.LayerGroups);
         Assert.Equal(2, vm.Doc.Scene.Layers.Count(l => l.GroupId == group.Id));

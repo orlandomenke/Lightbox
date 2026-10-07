@@ -409,8 +409,10 @@
       <MenuItem Header="La_yer" Classes="top">
         <MenuItem Header="_New layer" Command="{Binding AddPaintedLayerCommand}"
                   ToolTip.Tip="A fresh drawing layer above the active one" />
-        <MenuItem Header="New _folder with this layer" Command="{Binding CreateLayerFolderCommand}"
-                  ToolTip.Tip="Wrap the active layer in a folder, ready for company" />
+        <MenuItem Header="New _folder" Command="{Binding CreateLayerFolderCommand}"
+                  ToolTip.Tip="An empty folder above the active layer or folder, in the same folder" />
+        <MenuItem Header="_Group layers" Command="{Binding GroupLayersCommand}" InputGesture="Ctrl+G"
+                  ToolTip.Tip="Put the selected layers and folder in a new folder, where the topmost of them was" />
         <Separator />
         <MenuItem Header="Move _up" Command="{Binding MoveActiveLayerUpCommand}"
                   ToolTip.Tip="Toward the viewer — or the whole selection, when this layer is in it" />
@@ -3340,7 +3342,7 @@
                         <Path Classes="icon" Data="{StaticResource IconPlus}" />
                       </Button>
                       <Button Classes="icon" Command="{Binding CreateLayerFolderCommand}"
-                              ToolTip.Tip="New folder containing the active layer">
+                              ToolTip.Tip="New empty folder above the active layer (Ctrl+G groups the selection instead)">
                         <Path Classes="icon" Data="{StaticResource IconFolder}" />
                       </Button>
                       <Button Classes="icon" Command="{Binding DeleteActiveLayerCommand}"
@@ -3369,6 +3371,7 @@
                            would land: a line above or below for "beside", the
                            whole row lit for "into". -->
                       <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}"
+                              Margin="{Binding Indent}"
                               Classes.lockedLayer="{Binding Locked}"
                               Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
                               Classes.dropInto="{Binding DropInto}" Classes.selected="{Binding IsSelected}"
@@ -3401,7 +3404,8 @@
                             <MenuItem Header="Collapse / expand" Click="OnGroupMenuCollapse" />
                             <Separator />
                             <MenuItem Header="Add active layer to folder" Click="OnGroupMenuAddActive" />
-                            <MenuItem Header="Dissolve folder (keep layers)" Click="OnGroupMenuDissolve" />
+                            <MenuItem Header="Ungroup (keep what is inside)" Click="OnGroupMenuDissolve" />
+                            <MenuItem Header="Delete folder and everything in it" Click="OnGroupMenuDelete" />
                           </ContextMenu>
                         </Border.ContextMenu>
                         <DockPanel>
@@ -3421,7 +3425,7 @@
                                         ToolTip.Tip="Lock the folder — every layer inside refuses edits, but still renders"><Path /></ToggleButton>
                           <Button Classes="icon" DockPanel.Dock="Right" Background="Transparent"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DissolveGroupCommand}"
-                                  CommandParameter="{Binding}" ToolTip.Tip="Dissolve the folder (layers stay)">
+                                  CommandParameter="{Binding}" ToolTip.Tip="Ungroup — the folder goes, what is inside it stays">
                             <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
                           </Button>
                           <Button Classes="icon" DockPanel.Dock="Right" Background="Transparent"
@@ -3441,7 +3445,7 @@
                       </Border>
                     </DataTemplate>
                     <DataTemplate x:DataType="vm:LayerRow">
-                      <Border Classes="layerRow" Classes.active="{Binding IsActive}" Classes.grouped="{Binding IsGrouped}"
+                      <Border Classes="layerRow" Classes.active="{Binding IsActive}" Margin="{Binding Indent}"
                               Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}" Classes.selected="{Binding IsSelected}"
                               Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
                               Focusable="True"
@@ -3457,7 +3461,7 @@
                             <MenuItem Header="Merge down" Click="OnLayerMenuMergeDown"
                                       ToolTip.Tip="Merge this layer into the one below it (Ctrl+E). Drawings keep their strokes wherever the merge can be exact; blends, opacity and erasers are flattened to pixels." />
                             <Separator />
-                            <MenuItem Header="New folder from layer" Click="OnLayerMenuNewFolder" />
+                            <MenuItem Header="Group into a new folder" InputGesture="Ctrl+G" Click="OnLayerMenuNewFolder" />
                             <MenuItem Header="Remove from folder" IsVisible="{Binding IsGrouped}"
                                       Click="OnLayerMenuRemoveFromFolder" />
                             <Separator />

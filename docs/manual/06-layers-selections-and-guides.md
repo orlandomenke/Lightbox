@@ -42,8 +42,9 @@ remembered layer is never the reason a stroke goes nowhere.
 
 **A new layer goes where you are working**: directly above the active layer,
 and into the active layer's folder if it is in one. Click a folder's header
-first and the new layer goes on top of that folder instead. (It used to land on
-top of the whole stack whatever was picked, outside every folder.)
+first and the new layer goes on top inside that folder instead — an empty
+folder too. (It used to land on top of the whole stack whatever was picked,
+outside every folder.)
 
 **The everyday layer verbs are on the Layer menu too**, addressed to the layer
 you are on: new layer, new folder, move up and down, merge down, the three
@@ -51,6 +52,39 @@ checkboxes (visible, locked, lock transparency), select contents, blank
 content and delete. The docker keeps the things a menu is wrong for — the
 blend mode and opacity controls, drag-reordering, and the right-click menu's
 row-targeted extras (linking, exports, the rig).
+
+### Folders
+
+A folder is an item in the stack in its own right. It can hold layers, other
+folders, or nothing at all, and it stays where you put it either way.
+
+- **New folder** (the folder button under the docker, or **Layer → New
+  folder**) makes an **empty** folder directly above what you are on: above the
+  active layer, inside that layer's folder if it is in one, or above the folder
+  you have picked. With nothing to go above, it goes on top of the stack. The
+  folder you are in is never touched.
+- **Group layers** (**Ctrl+G**, **Layer → Group layers**, or **Group into a new
+  folder** on a row's right-click menu) puts the selected layers — and a picked
+  folder — into a new folder where the topmost of them was. Layers that were
+  apart are gathered together, which changes the stacking; undo puts them back.
+  This is Photoshop's *Group from Layers* and Krita's *Quick Group*; New folder
+  is their *New Group*.
+- **Folders go inside folders**, as deep as you like. Each level is indented one
+  step, and hiding or locking a folder hides or locks everything in it, at
+  every depth.
+- **Click a folder's header to pick it on its own** — an empty one included.
+  With a folder picked, a new layer or folder goes inside it, and **Delete**
+  deletes the folder.
+- **Deleting a folder deletes everything in it**: its layers and the folders
+  inside it, as one undo step. To keep what is inside, use **Ungroup** on the
+  header's right-click menu or its ✕ button instead: the folder goes and its
+  contents stay where they were, one level up. A folder with a locked layer or
+  locked folder inside it is not deleted until that is unlocked.
+
+A file made before folders could nest opens exactly as it was. If a file has a
+folder whose layers are not next to each other — something older versions could
+leave behind — its header simply appears again above the second part, rather
+than the layers being reordered on opening.
 
 ### Working on several layers at once
 
@@ -68,9 +102,10 @@ which still selects the layer's pixels.
 **The X-sheet picks layers the same way.** Ctrl+click or Shift+click a layer's name on the X-sheet to add it or take the range. It is the same selection the docker keeps, so a set picked in one place is still picked in the other, and a plain click on either goes back to one layer.
 
 **Clicking a folder's header picks the folder**: its header lights up, every
-layer in it is selected, and its top layer becomes the active one. Ctrl+click a
-header to add a folder's layers to what is already selected; Shift+click one to
-range up to it.
+layer in it (at any depth) is selected, and its top layer becomes the active
+one. An empty folder is picked all the same, with no layer selected. Ctrl+click
+a header to add a folder's layers to what is already selected; Shift+click one
+to range up to it.
 
 The selected rows are tinted, and one of them — the last you clicked — is
 tinted more strongly. That one is the **active** layer, and it is where the next
@@ -85,7 +120,7 @@ undo step**:
   the top or bottom of the stack
 - the eye, the lock and the alpha lock
 - **In exports** — never, always, or leave it to the export
-- **New folder from layer**, which puts the whole selection in one folder
+- **Group into a new folder** (Ctrl+G), which puts the whole selection in one folder
 
 Anything you do to a row that is *not* in the selection is done to that row
 alone. Right-clicking a layer you have not selected is not a trap.
@@ -130,13 +165,13 @@ row. Letting go outside the docker cancels the drag. A pen has to travel a
 little further than a mouse before a press becomes a drag, so a tap that wobbles
 stays a tap.
 
-**A folder header drags too, and takes the whole folder with it.** The block
-keeps its own order and lands above or below wherever you drop it. Folders do
-not go inside other folders, so a folder in your hand always lands *beside*
-another folder, never in it — over the middle of another folder nothing is
-offered at all.
+**A folder header drags too, and takes the whole folder with it** — every
+layer and folder inside it, in their own order. It lands above or below
+wherever you drop it, or inside another folder, exactly as a layer does. An
+empty folder drags the same way. The one drop a folder refuses is into itself
+or into a folder inside it; nothing is offered there.
 
-**Dropping a layer on a folder header files it into the folder**, at the top.
+**Dropping a layer or a folder on a folder header files it into the folder**, at the top.
 The top quarter of the header puts it just *above* the folder instead. On an
 open folder the rest of the header is "inside", because directly under the
 header is the top of the folder. On a collapsed folder, whose layers are hidden,

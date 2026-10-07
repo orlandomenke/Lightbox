@@ -62,9 +62,6 @@
   <Style Selector="Border.groupRow.hiddenLayer">
     <Setter Property="Opacity" Value="0.35" />
   </Style>
-  <Style Selector="Border.layerRow.grouped">
-    <Setter Property="Margin" Value="14,0,0,0" />
-  </Style>
   <!-- Where a dragged row or folder would land. A LINE on the edge it would
        land against, because that is the one reading with no ambiguity: a
        highlighted row says "this row is involved" and leaves which side to

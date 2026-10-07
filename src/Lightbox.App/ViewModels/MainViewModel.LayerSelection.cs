@@ -150,9 +150,10 @@ public partial class MainViewModel
     /// </remarks>
     public void SelectGroup(GroupRow header, bool toggle, bool range)
     {
-        var members = Scene.Layers.Where(l => l.GroupId == header.Group.Id).ToList();
-        if (members.Count == 0) return;
-        var top = members[^1];
+        // Everything inside it, at any depth — and an empty folder is picked
+        // all the same (Q204): it is something to add to, move or delete.
+        var members = FolderTree.SubtreeLayers(Scene, header.Group);
+        var top = members.Count > 0 ? members[^1] : null;
 
         if (range && _layerAnchorId is { } anchorId)
         {
@@ -168,7 +169,7 @@ public partial class MainViewModel
                 }
                 foreach (var m in members) _selectedLayerIds.Add(m.Id);
                 _selectedGroupId = null;
-                ActivateWithinSelection(Scene.Layers.IndexOf(top));
+                if (top is not null) ActivateWithinSelection(Scene.Layers.IndexOf(top));
                 RefreshLayerSelectionHighlights();
                 return;
             }
@@ -177,8 +178,11 @@ public partial class MainViewModel
         if (!toggle) _selectedLayerIds.Clear();
         foreach (var m in members) _selectedLayerIds.Add(m.Id);
         _selectedGroupId = toggle ? null : header.Group.Id;
-        _layerAnchorId = top.Id;
-        ActivateWithinSelection(Scene.Layers.IndexOf(top));
+        if (top is not null)
+        {
+            _layerAnchorId = top.Id;
+            ActivateWithinSelection(Scene.Layers.IndexOf(top));
+        }
         RefreshLayerSelectionHighlights();
     }
 
@@ -230,7 +234,9 @@ public partial class MainViewModel
     internal void RefreshLayerSelectionHighlights()
     {
         _selectedLayerIds.RemoveWhere(id => !Scene.Layers.Any(l => l.Id == id));
-        if (_selectedLayerIds.Count == 0 && Scene.Layers.Count > 0)
+        // An empty folder picked on its own selects no layer, and that is the
+        // selection — not a gap for the active layer to fill.
+        if (_selectedLayerIds.Count == 0 && Scene.Layers.Count > 0 && SelectedGroup is null)
         {
             var active = Math.Clamp(ActiveLayerIndex, 0, Scene.Layers.Count - 1);
             _selectedLayerIds.Add(Scene.Layers[active].Id);
