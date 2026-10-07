@@ -713,20 +713,8 @@
     <Setter Property="ToolTip.Tip" Value="Dock this panel back where it came from" />
   </Style>
 
-  <!--
-    A layer-docker row that is part of a Ctrl/Shift multi-selection but is not
-    the active one.
-
-    Here rather than beside `Border.layerRow.active` in MainWindow.axaml, and
-    the split is load-bearing rather than tidy: application styles are matched
-    before a window's own, so `.active` is always the later setter and a row
-    that is both selected and active reads as active. Putting the two next to
-    each other would make that precedence depend on which one was written
-    first, which is exactly the kind of ordering nobody re-checks.
-  -->
-  <Style Selector="Border.layerRow.selected">
-    <Setter Property="Background" Value="{DynamicResource SelectionWeakBrush}" />
-  </Style>
+  <!-- A layer row in a multi-selection is styled in LayerRows.axaml, beside
+       the row's base and active styles: B400 records why it cannot live here. -->
 
   <!--
     The layer row's mask chip: a small pane beside the thumbnail. Solid while
