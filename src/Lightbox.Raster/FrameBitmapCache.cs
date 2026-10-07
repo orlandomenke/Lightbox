@@ -290,6 +290,12 @@ public sealed class FrameBitmapCache : IDisposable
     /// <inheritdoc cref="Hits"/>
     public long Misses { get; private set; }
 
+    /// <summary>
+    /// Times each miss's render for the performance lab (Q209), by frame id —
+    /// the app installs it only while its perf log is on; null costs one check.
+    /// </summary>
+    public static Func<string, string, IDisposable?>? Measure { get; set; }
+
     private readonly List<(string FrameId, int Width, int Height, double Scale, int Cel, string Why)>
         _recentMisses = [];
 
@@ -441,6 +447,7 @@ public sealed class FrameBitmapCache : IDisposable
         }
 
         Misses++;
+        using var timed = Measure?.Invoke("raster.miss", frame.Id);
         // **B332: a miss is 797 ms of whole-frame render on this thread, so the
         // report has to be able to say WHICH lookup paid it.** The counters said
         // five misses in a session and nothing about what they were for; the

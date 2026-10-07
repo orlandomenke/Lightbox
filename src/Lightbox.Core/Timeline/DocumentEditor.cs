@@ -193,14 +193,32 @@ public sealed class DocumentEditor
         IReadOnlyCollection<string>? touchedFrames = null,
         [CallerMemberName] string caller = "")
     {
-        var before = Doc.Clone();
-        PushStep(new SnapshotStep(before, frameContentUnchanged, touchedFrames), label ?? Humanize(caller));
-        mutate(Doc);
-        // Q204: an empty folder keeps its slot whatever the edit did to the
-        // layers around it. The snapshot is already the "before" it needs.
-        FolderTree.Settle(Doc.Scene, before.Scene);
-        Changed?.Invoke();
+        var name = label ?? Humanize(caller);
+        using var whole = Measure?.Invoke("edit", name);
+        Doc before;
+        using (Measure?.Invoke("edit.snapshot", name)) before = Doc.Clone();
+        PushStep(new SnapshotStep(before, frameContentUnchanged, touchedFrames), name);
+        using (Measure?.Invoke("edit.apply", name))
+        {
+            mutate(Doc);
+            // Q204: an empty folder keeps its slot whatever the edit did to the
+            // layers around it. The snapshot is already the "before" it needs.
+            FolderTree.Settle(Doc.Scene, before.Scene);
+        }
+        // Everything listening — invalidation, the sheet, thumbnails, the canvas.
+        using (Measure?.Invoke("edit.changed", name)) Changed?.Invoke();
     }
+
+    /// <summary>
+    /// Times the parts of an edit for the performance lab (Q209): a span name
+    /// and the edit's label in, something to dispose at the end out. Null — the
+    /// default, and always outside a lab run — costs one null check.
+    /// </summary>
+    /// <remarks>
+    /// A hook rather than a call to the app's log because Core has no log and
+    /// must not grow one: the app installs this when its own log is on.
+    /// </remarks>
+    public static Func<string, string, IDisposable?>? Measure { get; set; }
 
     /// <summary>
     /// Run a mutation as one undoable step WITHOUT snapshotting the document —
@@ -228,11 +246,11 @@ public sealed class DocumentEditor
         string? label = null, GeometryOps.BBox? repaintBounds = null,
         [CallerMemberName] string caller = "")
     {
-        PushStep(
-            new DeltaStep(apply, revert, affectedFrameId, repaintBounds),
-            label ?? Humanize(caller));
-        apply(Doc);
-        Changed?.Invoke();
+        var name = label ?? Humanize(caller);
+        using var whole = Measure?.Invoke("edit", name);
+        PushStep(new DeltaStep(apply, revert, affectedFrameId, repaintBounds), name);
+        using (Measure?.Invoke("edit.apply", name)) apply(Doc);
+        using (Measure?.Invoke("edit.changed", name)) Changed?.Invoke();
     }
 
     /// <summary>

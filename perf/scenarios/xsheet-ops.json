@@ -1,0 +1,160 @@
+{
+  "name": "xsheet-ops",
+  "about": "The owner: many X-sheet operations have annoying delays. The everyday verbs on one row, each undone so every repeat starts from the same sheet: insert a blank keyframe, insert an empty cell, extend an exposure, copy and paste a cel, delete, delete and pull. Each verb is timed from the click or key to the first frame drawn after the app has finished with it; the log also times each edit by its history label, in snapshot, apply and listeners.",
+  "fixture": "owner-shape",
+  "window": "maximised",
+  "panels": [
+    "Xsheet"
+  ],
+  "repeat": 2,
+  "steps": [
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Layer 10",
+          4
+        ]
+      },
+      "measure": "cel.click",
+      "after_ms": 300
+    },
+    {
+      "do": "key",
+      "keys": "i",
+      "measure": "insert blank keyframe",
+      "after_ms": 300
+    },
+    {
+      "do": "key",
+      "keys": "ctrl+z",
+      "measure": "undo",
+      "after_ms": 300
+    },
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Layer 10",
+          5
+        ]
+      },
+      "button": "right",
+      "after_ms": 400
+    },
+    {
+      "do": "click",
+      "target": {
+        "menu": "Insert empty cell"
+      },
+      "measure": "insert empty cell",
+      "after_ms": 300
+    },
+    {
+      "do": "key",
+      "keys": "ctrl+z",
+      "measure": "undo",
+      "after_ms": 300
+    },
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Layer 10",
+          6
+        ]
+      },
+      "button": "right",
+      "after_ms": 400
+    },
+    {
+      "do": "click",
+      "target": {
+        "menu": "Extend exposure (+1 hold)"
+      },
+      "measure": "extend exposure",
+      "after_ms": 300
+    },
+    {
+      "do": "key",
+      "keys": "ctrl+z",
+      "measure": "undo",
+      "after_ms": 300
+    },
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Layer 10",
+          2
+        ]
+      },
+      "measure": "cel.click",
+      "after_ms": 300
+    },
+    {
+      "do": "key",
+      "keys": "ctrl+c",
+      "measure": "copy cel",
+      "after_ms": 300
+    },
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Layer 10",
+          9
+        ]
+      },
+      "measure": "cel.click",
+      "after_ms": 300
+    },
+    {
+      "do": "key",
+      "keys": "ctrl+v",
+      "measure": "paste cel",
+      "after_ms": 300
+    },
+    {
+      "do": "key",
+      "keys": "ctrl+z",
+      "measure": "undo",
+      "after_ms": 300
+    },
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Layer 10",
+          10
+        ]
+      },
+      "measure": "cel.click",
+      "after_ms": 300
+    },
+    {
+      "do": "key",
+      "keys": "delete",
+      "measure": "delete",
+      "after_ms": 300
+    },
+    {
+      "do": "key",
+      "keys": "ctrl+z",
+      "measure": "undo",
+      "after_ms": 300
+    },
+    {
+      "do": "key",
+      "keys": "shift+delete",
+      "measure": "delete and pull",
+      "after_ms": 300
+    },
+    {
+      "do": "key",
+      "keys": "ctrl+z",
+      "measure": "undo",
+      "after_ms": 300
+    }
+  ]
+}

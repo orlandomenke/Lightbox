@@ -158,6 +158,9 @@ public partial class MainViewModel
         MarkDocumentEdited();
         _publish.InvalidateWholeCanvas(); // a document-wide change can move any pixel
         _composeRing.InvalidateAll();
+        // The structural listener in named parts for the lab (Q209): every
+        // X-sheet verb measured 215-465 ms here and 1 ms in the edit itself.
+        var panels = PerfLog.Begin("changed.panels");
         // The effects docker mirrors the record it edits, so an undo — or any
         // structural edit — re-reads it. After the scoped-edit return: a
         // stroke commit cannot move an effect.
@@ -171,11 +174,13 @@ public partial class MainViewModel
         RegisterResources();
         PaletteDocker.Load(Doc);
         GradientDocker.Load(Doc);
-        RefreshDocumentStats();
+        panels.Dispose();
+        using (PerfLog.Begin("changed.stats")) RefreshDocumentStats();
         OnPropertyChanged(nameof(ReferenceSheetsView));
         SyncLayerChoices();
         ClampCurrentFrame(publishIfUnchanged: !_applyingEditScope);
-        SyncLayerRows();
+        using (PerfLog.Begin("changed.rows")) SyncLayerRows();
+        var notify = PerfLog.Begin("changed.notify");
         OnPropertyChanged(nameof(FrameLabel));
         OnPropertyChanged(nameof(PlayheadPastTheEnd));
         OnPropertyChanged(nameof(TimelineExtent));
@@ -194,6 +199,7 @@ public partial class MainViewModel
         NotifyOffSheetKeys();
         RefreshCelSelectionHighlights();
         ScheduleVolumeCheck();
+        notify.Dispose();
         // Undo/redo publishes from ApplyEditScope instead, once the stale
         // frame bitmaps have been dropped.
         if (_applyingEditScope) return;
