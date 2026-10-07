@@ -138,6 +138,49 @@ The swap must not change a pixel, so phase 3's gate is a test that the two route
 draw the same frame identically. If they are not identical today, that is a
 finding to fix before the swap, not a tolerance to add.
 
+## Phase 1: measured (2026-10-08)
+
+`dotnet run --project tools/Lightbox.Bench -c Release -- tiles` (and `-- tiles --scaling`,
+or `-- tiles --doc <path>` for an artist's own file; it prints counts and sizes only).
+Owner-shaped fixture, a 16-core, 32 GB machine.
+
+| | 1080p | 4K |
+|---|---|---|
+| tiles, level 0, whole scene | 157 MB | 411 MB |
+| plus level 1 (playback zoomed out) | 227 MB | 565 MB |
+| share of the tile budget here (1002 MB) | 16–23% | 41–56% |
+| share on the 8 GB minimum spec (256 MB) | 61–89% | **1.6–2.2× over** |
+| render, one core | 33 s (median 473 ms a drawing) | 140 s (median 2.1 s) |
+| render, 15 workers | 20 s, **1.6×** | 97 s, **1.4×** |
+
+**Memory decides the shape of idle warming, and the answer depends on the machine.**
+- The whole range fits at 1080p everywhere, and at 4K on this machine.
+- At 4K on the minimum spec it does not, so idle warming fills a window around the
+  playhead sized from `MemoryBudget.TileCache()`, and buffering covers the rest.
+- `TileFrameCache` counts only level 0 against its budget. Level 1 is another
+  +30–45% that the budget does not see, which phase 2 has to account for.
+
+**Rendering does not scale with cores, and that overturns the plan's premise.**
+- Q214 chose "all cores but one" expecting a cold scene in a few seconds. At 1.6×
+  on 15 workers it is not.
+- `--scaling` finds the cause. The speed-up peaks at **2.5× around 4 workers and
+  then falls**, while total GC pause grows from 5.9 s (1 worker) to 34.8 s
+  (15 workers).
+- One drawing render allocates **24.3 MB on the managed heap**. Sampled by type,
+  most of it is a new `SKPaint`, `SKShader`, `SKColor[]` and `Dab[]` per stroke
+  render, plus SkiaSharp's per-object handle bookkeeping (`WeakReference`,
+  `IntPtr`). The renders are collecting garbage, not drawing.
+- Behind that: `TiledRasterizer.RasterizeByTile` calls `BrushEngine.StampStroke`
+  **once per tile a stroke reaches**, rebuilding the whole stroke each time and
+  letting the tile clip discard the rest. On the fixture that is **3.0×** (1261
+  strokes stamped 3789 times, 256-px tiles, a bounding-box estimate), and more at 4K,
+  where the same stroke crosses more tiles.
+
+So phase 2 splits. **2a makes one cold render cheap; 2b only then spreads renders
+over cores.** 2a is also general. The allocation churn is in `StampStroke`, which
+every render goes through: the paused canvas, thumbnails, commits and export. The
+3× repeat is particular to the tile route that playback and warming use.
+
 ## Phases, and how each is known to work
 
 The lab measures every phase: `first-playback`, plus a new `play-after-edit`
@@ -147,7 +190,8 @@ before it with `perf/lab.py ab`.
 | Phase | What | Done when |
 |---|---|---|
 | 1 | **Measure memory**: tile bytes per drawing on the owner-shaped document; whether the whole range fits `MemoryBudget.TileCache()` at 1080p and 4K | Numbers in this note; decides whether idle mode warms the range or a window around the playhead |
-| 2 | **Idle warming**, pool of N−1, restarts on edit, drains at Background | `first-playback`: first frame **< 100 ms** after a 10 s idle; `play-after-edit` reported against idle time; UI stall from the warmer **0** (it never runs on the UI thread) |
+| 2a | **One cold render, cheaper**: stamp each stroke once per drawing on the tile route, not once per tile; stop rebuilding paints, shaders and dab lists per stroke render. Bit-identical: `RuntimeDeterminismTests` and the brush pixel tests unchanged | `tiles`: one-core render down by about the repeat factor (≥ 2.5× at 1080p); managed allocation per drawing a small fraction of 24 MB |
+| 2b | **Idle warming**, a pool sized by `--scaling` after 2a (not assumed N−1), restarts on edit, drains at Background, window-sized on small machines | `first-playback`: first frame **< 100 ms** after a 10 s idle; `play-after-edit` reported against idle time; UI stall from the warmer **0** (it never runs on the UI thread) |
 | 3 | **Stop stays on tiles**, bitmaps warmed behind | Stop → frame on screen **< 50 ms**; the two routes pixel-identical (test) |
 | 4 | **Buffering** state and the timeline indicator | Pressing play cold: no frame shown out of time; UI responsive throughout (no stall over 50 ms while buffering) |
 | 5 | **One cache**: the paused canvas composes from tiles | Folded into B125/B167; not started before they settle |

@@ -32,3 +32,13 @@ below is in the design note.
 - **Staying on tiles at stop:** none visible. Both routes render the same
   record with the same seeded dynamics. It keeps two caches alive until the
   merge phase.
+
+## Correction, 2026-10-08 (phase 1)
+
+The cost of answer 2 was understated. "All cores but one" was offered on the
+assumption that renders scale with cores ("3–4 s" for the test document; one core
+"about 10× slower"). Phase 1 measured **1.6×** on 15 workers: the renders spend
+their time allocating and collecting garbage (24 MB per drawing) and re-stamping
+each stroke once per tile (3×). The answer stands; what it costs is now known. It
+needs phase 2a (cheaper renders) before it can deliver, and the worker count will
+be set from measurement rather than from the core count.
