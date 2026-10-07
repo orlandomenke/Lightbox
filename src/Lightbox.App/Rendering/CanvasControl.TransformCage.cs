@@ -202,6 +202,53 @@ public partial class CanvasControl
         if (_txCage) SeedCageFromBounds();
     }
 
+    // ---- the two grid modes, dispatched as one --------------------------------
+    //
+    // Bands and the cage are the gizmo's two modes that pin the box and put
+    // something inside it. CanvasControl.cs is on the monolith ratchet, so the
+    // places it asks "is a grid mode up, and does it want this?" ask once, here,
+    // rather than once per mode there — a third such mode adds a line to this
+    // file, not to that one.
+
+    /// <summary>Leave both grid modes, keeping nothing.</summary>
+    private void TxDropGridModes()
+    {
+        TxDropBands();
+        TxDropCage();
+    }
+
+    /// <summary>A fresh session: box mode, both grid modes seeded from nothing.</summary>
+    private void TxResetGridModes()
+    {
+        TxResetBands();
+        TxDropCage();
+    }
+
+    /// <summary>Reset's half that is about shapes: the free quad and the cage's handles.</summary>
+    private void TxReseedShapes()
+    {
+        SeedQuadFromCorners();
+        TxResetCage();
+    }
+
+    /// <summary>Whether the grid mode in force is the identity, or null when neither is up.</summary>
+    private bool? TxGridModeIdentity =>
+        _txCage ? TransformCageIsIdentity
+        : _txBands ? TransformBandsAreIdentity
+        : null;
+
+    private bool TxGridModePressHandled(double x, double y, PointerEventArgs e) =>
+        TxBandPressHandled(x, y, e) || TxCagePressHandled(x, y, e);
+
+    private bool TxGridModeMoveHandled(PointerEventArgs e) =>
+        TxBandMoveHandled(e) || TxCageMoveHandled(e);
+
+    private bool TxGridModeReleaseHandled(PointerEventArgs e) =>
+        TxBandReleaseHandled(e) || TxCageReleaseHandled(e);
+
+    private static bool DrawGridModeInstead(SKCanvas canvas, TxGizmoData g, float scale) =>
+        DrawBandsInstead(canvas, g, scale) || DrawCageInstead(canvas, g, scale);
+
     /// <summary>Leave cage mode, keeping nothing.</summary>
     private void TxDropCage()
     {

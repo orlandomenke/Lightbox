@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4907
+budget: 4910
 
 ## Why it is here despite being XAML
 
@@ -309,3 +309,12 @@ leaves a number nobody can account for. So every reason above stays, and
   share menu shipped with nothing that could feed them, and the whole chain was
   reachable only from tests until somebody noticed. Sixteen lines is what it
   costs not to repeat that.
+- **→ 4,910** (2026-10-07, Q199): the cage warp's two controls on the
+  Transform options page — the *Cage* toggle beside *Perspective* and *Bands*,
+  and a *Grid* row (2–6 cells a side) laid out like *Scope* and *Sampling*. The
+  first draft cost 12 lines; each control went to one line like its neighbours
+  and the comment went to Q199, leaving the toggle's line and the row's three.
+  The gizmo half of the same change bought its room in `CanvasControl.cs` by
+  extraction instead (the grid-mode dispatch moved to
+  `CanvasControl.TransformCage.cs`), which is possible there and is not for a
+  button that has to sit on the page an artist finds it on.
