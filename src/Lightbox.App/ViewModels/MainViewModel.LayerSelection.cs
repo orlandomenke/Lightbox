@@ -63,7 +63,8 @@ public partial class MainViewModel
     /// </summary>
     public void SelectLayer(LayerRow row, bool toggle, bool range)
     {
-        _selectedGroupId = null;
+        // Ctrl adds to the pick, folders included; any other click starts again.
+        if (!toggle) _selectedGroupIds.Clear();
         var rows = SelectableLayerRows();
         var target = row.Layer.Id;
 
@@ -81,6 +82,7 @@ public partial class MainViewModel
                 {
                     _selectedLayerIds.Add(rows[i].Layer.Id);
                 }
+                _selectedGroupIds.Clear();
                 ActivateWithinSelection(row.SceneIndex);
                 RefreshLayerSelectionHighlights();
                 return;
@@ -92,6 +94,7 @@ public partial class MainViewModel
             if (!_selectedLayerIds.Add(target) && _selectedLayerIds.Count > 1)
             {
                 _selectedLayerIds.Remove(target);
+                UnpickFoldersHolding(row.Layer);
                 if (ActiveLayerIndex == row.SceneIndex
                     && rows.FirstOrDefault(r => _selectedLayerIds.Contains(r.Layer.Id)) is { } next)
                 {
@@ -115,20 +118,34 @@ public partial class MainViewModel
         RefreshLayerSelectionHighlights();
     }
 
-    // ---- a folder picked by its header ----------------------------------------
-
-    /// <summary>The folder whose header was clicked last, while that is still the latest pick.</summary>
-    private string? _selectedGroupId;
+    // ---- folders picked by their headers ---------------------------------------
 
     /// <summary>
-    /// The folder picked on its header, or null. A new layer goes inside it.
+    /// The folders picked on their headers, in the order they were picked: Ctrl
+    /// picks several, as it picks several layers (B399, Q213).
     /// </summary>
     /// <remarks>
-    /// Cleared by anything that picks a layer instead — a row click, a cel
-    /// click, the arrow-key walk — so it only ever describes the latest pick.
+    /// It used to be one id, and Ctrl cleared it — so a folder picked with Ctrl
+    /// never lit, a second Ctrl+click could not find anything to take back out,
+    /// and with the folders collapsed the click changed nothing on screen.
+    /// </remarks>
+    private readonly List<string> _selectedGroupIds = [];
+
+    /// <summary>
+    /// The folder picked last, or null. A new layer goes inside it, and a new
+    /// folder above it.
+    /// </summary>
+    /// <remarks>
+    /// Cleared by anything that picks a layer instead — a plain or Shift click on
+    /// a row, a cel click, the arrow-key walk — so it only ever describes the
+    /// latest pick. A Ctrl+click on a layer adds to the pick and keeps it.
     /// </remarks>
     public LayerGroup? SelectedGroup =>
-        _selectedGroupId is { } id ? Scene.LayerGroups.FirstOrDefault(g => g.Id == id) : null;
+        _selectedGroupIds.Count > 0 ? Scene.LayerGroups.FirstOrDefault(g => g.Id == _selectedGroupIds[^1]) : null;
+
+    /// <summary>Every folder picked on its header.</summary>
+    public IReadOnlyList<LayerGroup> SelectedGroups =>
+        Scene.LayerGroups.Where(g => _selectedGroupIds.Contains(g.Id)).ToList();
 
     /// <summary>
     /// A click on a folder header: the folder becomes the pick, and its members
@@ -144,8 +161,9 @@ public partial class MainViewModel
     /// <para>
     /// The topmost member becomes active rather than none: a stroke needs
     /// somewhere to land, and the top of the folder is where a new layer in it
-    /// goes too. Ctrl adds the folder's members to the selection, Shift takes
-    /// the run from the anchor to the folder, as on a layer row.
+    /// goes too. Ctrl adds the folder — or takes it back out when it is already
+    /// picked, or every layer in it is — and Shift takes the run from the
+    /// anchor to the folder, as on a layer row.
     /// </para>
     /// </remarks>
     public void SelectGroup(GroupRow header, bool toggle, bool range)
@@ -163,21 +181,35 @@ public partial class MainViewModel
             if (from >= 0 && to >= 0)
             {
                 _selectedLayerIds.Clear();
+                _selectedGroupIds.Clear();
                 for (var i = Math.Min(from, to); i <= Math.Max(from, to); i++)
                 {
                     if (items[i] is LayerRow r) _selectedLayerIds.Add(r.Layer.Id);
+                    // A header inside the run is picked with it, so it lights
+                    // and the verbs take the folder rather than its layers.
+                    if (items[i] is GroupRow g) _selectedGroupIds.Add(g.Group.Id);
                 }
                 foreach (var m in members) _selectedLayerIds.Add(m.Id);
-                _selectedGroupId = null;
                 if (top is not null) ActivateWithinSelection(Scene.Layers.IndexOf(top));
                 RefreshLayerSelectionHighlights();
                 return;
             }
         }
 
-        if (!toggle) _selectedLayerIds.Clear();
+        if (toggle && IsPicked(header.Group, members))
+        {
+            UnpickFolder(header.Group, members);
+            return;
+        }
+
+        if (!toggle)
+        {
+            _selectedLayerIds.Clear();
+            _selectedGroupIds.Clear();
+        }
         foreach (var m in members) _selectedLayerIds.Add(m.Id);
-        _selectedGroupId = toggle ? null : header.Group.Id;
+        _selectedGroupIds.Remove(header.Group.Id);
+        _selectedGroupIds.Add(header.Group.Id);
         if (top is not null)
         {
             _layerAnchorId = top.Id;
@@ -186,11 +218,69 @@ public partial class MainViewModel
         RefreshLayerSelectionHighlights();
     }
 
+    /// <summary>
+    /// Picked on its header, or picked one layer at a time until every layer in
+    /// it is — the owner's answer to Q213 treats the two alike.
+    /// </summary>
+    private bool IsPicked(LayerGroup folder, IReadOnlyList<Layer> members) =>
+        _selectedGroupIds.Contains(folder.Id)
+        || (members.Count > 0 && members.All(m => _selectedLayerIds.Contains(m.Id)));
+
+    /// <summary>
+    /// Ctrl+click on a picked folder: it and everything in it leave the pick —
+    /// unless nothing would be left, which is refused as for the last layer
+    /// (the class remarks: the selection is never empty).
+    /// </summary>
+    private void UnpickFolder(LayerGroup folder, IReadOnlyList<Layer> members)
+    {
+        var memberIds = members.Select(m => m.Id).ToHashSet();
+        var inside = FolderTree.SubtreeFolders(Scene, folder).Select(f => f.Id).Append(folder.Id).ToHashSet();
+        var layersLeft = _selectedLayerIds.Count(id => !memberIds.Contains(id));
+        var foldersLeft = _selectedGroupIds.Count(id => !inside.Contains(id));
+        if (layersLeft == 0 && foldersLeft == 0)
+        {
+            RefreshLayerSelectionHighlights();
+            return;
+        }
+        _selectedLayerIds.ExceptWith(memberIds);
+        _selectedGroupIds.RemoveAll(inside.Contains);
+        // A folder around it is no longer whole either.
+        foreach (var outer in FolderTree.Ancestors(Scene, folder)) _selectedGroupIds.Remove(outer.Id);
+        if (_selectedLayerIds.Count > 0
+            && !(ActiveLayerIndex >= 0 && ActiveLayerIndex < Scene.Layers.Count
+                 && _selectedLayerIds.Contains(Scene.Layers[ActiveLayerIndex].Id)))
+        {
+            ActivateWithinSelection(Scene.Layers.FindLastIndex(l => _selectedLayerIds.Contains(l.Id)));
+        }
+        if (_layerAnchorId is { } anchor && memberIds.Contains(anchor))
+        {
+            _layerAnchorId = ActiveLayerIndex >= 0 && ActiveLayerIndex < Scene.Layers.Count
+                ? Scene.Layers[ActiveLayerIndex].Id : null;
+        }
+        RefreshLayerSelectionHighlights();
+    }
+
+    /// <summary>A layer Ctrl+clicked out of the pick takes every picked folder around it out too.</summary>
+    private void UnpickFoldersHolding(Layer layer) =>
+        _selectedGroupIds.RemoveAll(id =>
+            Scene.LayerGroups.FirstOrDefault(g => g.Id == id) is { } g && FolderTree.IsWithin(Scene, layer, g));
+
+    /// <summary>
+    /// The folders an operation aimed at <paramref name="folder"/> covers: every
+    /// picked folder when it is one of them, otherwise just that one — the
+    /// folder counterpart of <see cref="LayersForOp"/>.
+    /// </summary>
+    internal IReadOnlyList<LayerGroup> GroupsForOp(LayerGroup folder) =>
+        _selectedGroupIds.Count > 1 && _selectedGroupIds.Contains(folder.Id)
+            ? SelectedGroups
+            : [folder];
+
     private void RefreshGroupSelectionHighlights()
     {
+        _selectedGroupIds.RemoveAll(id => !Scene.LayerGroups.Any(g => g.Id == id));
         foreach (var header in LayerPanelItems.OfType<GroupRow>())
         {
-            header.IsSelected = header.Group.Id == _selectedGroupId;
+            header.IsSelected = _selectedGroupIds.Contains(header.Group.Id);
         }
     }
 
@@ -223,7 +313,7 @@ public partial class MainViewModel
             return;
         }
         var id = sceneIndex >= 0 && sceneIndex < Scene.Layers.Count ? Scene.Layers[sceneIndex].Id : null;
-        _selectedGroupId = null;
+        _selectedGroupIds.Clear();
         _selectedLayerIds.Clear();
         if (id is not null) _selectedLayerIds.Add(id);
         _layerAnchorId = id;
@@ -245,7 +335,8 @@ public partial class MainViewModel
         }
         // An empty folder picked on its own selects no layer, and that is the
         // selection — not a gap for the active layer to fill.
-        if (_selectedLayerIds.Count == 0 && Scene.Layers.Count > 0 && SelectedGroup is null)
+        _selectedGroupIds.RemoveAll(id => !Scene.LayerGroups.Any(g => g.Id == id));
+        if (_selectedLayerIds.Count == 0 && Scene.Layers.Count > 0 && _selectedGroupIds.Count == 0)
         {
             var active = Math.Clamp(ActiveLayerIndex, 0, Scene.Layers.Count - 1);
             _selectedLayerIds.Add(Scene.Layers[active].Id);
