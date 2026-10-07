@@ -323,8 +323,51 @@ public partial class MainWindow
 
     public async Task OfferStartScreenAsync()
     {
+        // B394: work a crashed session left comes first. Restoring it answers
+        // "what to open", so the start screen does not ask a second time.
+        if (await OfferRecoveryAsync() > 0) return;
         if (!_vm.Settings.ShowStartScreen) return;
         await AskWhatToOpenAsync();
+    }
+
+    /// <summary>
+    /// Offer back what sessions that are no longer running left recovery copies of.
+    /// </summary>
+    /// <remarks>
+    /// At startup and from File ▸ Recover unsaved work…. It does not wait for the
+    /// app's own crash note: a native crash — the kind that cost the work this
+    /// exists for — never reaches the crash reporter, but it leaves its folder and
+    /// releases its lock all the same. Returns how many documents opened.
+    /// </remarks>
+    public async Task<int> OfferRecoveryAsync()
+    {
+        var copies = Services.RecoverySession.FindLeftBehind(
+            exceptDir: Services.RecoverySession.Current?.Dir);
+        if (copies.Count == 0) return 0;
+        var choice = await new RecoveryDialog(copies).ShowDialog<RecoveryChoice?>(this);
+        switch (choice)
+        {
+            case RecoveryChoice.Restore:
+                return _vm.RestoreRecovered(copies);
+            case RecoveryChoice.Discard:
+                foreach (var copy in copies) Services.RecoverySession.Discard(copy);
+                _vm.AiStatus = copies.Count == 1
+                    ? "Discarded the recovered document."
+                    : $"Discarded {copies.Count} recovered documents.";
+                return 0;
+            default:
+                return 0;
+        }
+    }
+
+    private async void OnRecoverUnsavedClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (Services.RecoverySession.FindLeftBehind(exceptDir: Services.RecoverySession.Current?.Dir).Count == 0)
+        {
+            _vm.AiStatus = "No unsaved work is waiting to be recovered.";
+            return;
+        }
+        await OfferRecoveryAsync();
     }
 
     /// <summary>Show the start screen and act on the answer, gate or no gate.</summary>

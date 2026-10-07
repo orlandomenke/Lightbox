@@ -614,6 +614,13 @@ public partial class MainWindow
             FileTypeChoices = [LightboxFileType],
         });
         if (file is null) return;
+        // B394: the recovery folders are emptied by Discard, Restore and a clean
+        // exit — the same refusal Save As makes.
+        if (file.TryGetLocalPath() is { } chosen && Services.RecoverySession.IsInside(chosen))
+        {
+            _vm.AiStatus = "That folder holds crash-recovery copies and is emptied automatically — choose another.";
+            return;
+        }
         await using var stream = await file.OpenWriteAsync();
         await using var writer = new StreamWriter(stream);
         // Flattened: every shared palette and gradient it uses travels with it,

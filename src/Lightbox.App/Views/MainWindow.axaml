@@ -155,6 +155,7 @@
         <MenuItem x:Name="RecentMenu" Header="Open _recent">
           <MenuItem Header="Nothing yet" IsEnabled="False" />
         </MenuItem>
+        <MenuItem x:Name="RecoverUnsavedMenu" Header="Recover unsaved wor_k…" Click="OnRecoverUnsavedClicked" />
         <!--
           No InputGesture on either: both live in ShortcutMap so they show up in the
           shortcut editor and can be rebound. The labels come from the map for the same

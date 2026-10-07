@@ -213,6 +213,11 @@ public partial class MainViewModel
             () => SaveTargetTab?.FilePath)
         {
             InPlace = Settings.AutosaveInPlace,
+            // B394: the running application's per-document copies, or null —
+            // which every view model the test suite builds gets, so none of
+            // them leaves a folder in a real profile for the next launch.
+            Recovery = Services.RecoverySession.Current,
+            RecoverySources = RecoverySourcesNow,
         };
         // B30: the render happens after the write, never inside it, because it
         // costs what opening the painting costs. Reads the save target rather

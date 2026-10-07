@@ -376,6 +376,14 @@ public partial class MainViewModel
     /// </summary>
     public void Save()
     {
+        SaveCore();
+        // B394: a saved document's recovery copy goes now, not at the next tick —
+        // a crash in between would otherwise offer it back over the newer file.
+        _autosave.SyncRecovery();
+    }
+
+    private void SaveCore()
+    {
         if (ProjectDocker.HasProject && SaveTargetTab?.Source is not null)
         {
             SaveProject();
@@ -423,6 +431,21 @@ public partial class MainViewModel
     /// <summary>Open a loaded document in a new tab.</summary>
     public void OpenDocumentTab(Doc doc, string? filePath)
     {
+        // B394: a file inside the recovery folders is a recovery copy, whoever
+        // opened it. Bound to its path, Ctrl+S would keep saving work into a
+        // folder that Discard, Restore and a clean exit all empty.
+        if (filePath is not null && Services.RecoverySession.IsInside(filePath))
+        {
+            var named = TitleFromPath(filePath);
+            var recovered = new DocumentTab(new DocumentEditor(doc),
+                named.EndsWith(" (recovered)", StringComparison.Ordinal) ? named : named + " (recovered)")
+            {
+                IsRecovered = true,
+            };
+            recovered.State.LayerIndex = LayerToOpenOn(doc);
+            AddTab(recovered);
+            return;
+        }
         var title = filePath is null ? NextUntitledName() : TitleFromPath(filePath);
         var tab = new DocumentTab(new DocumentEditor(doc), title) { FilePath = filePath };
         // B136. Land on something paintable — the same line File ▸ New has
@@ -512,6 +535,91 @@ public partial class MainViewModel
         }
     }
 
+    // ---- crash recovery (B394) ----------------------------------------------------
+
+    /// <summary>Every open document the recovery copies cover, as they need to see it.</summary>
+    /// <remarks>
+    /// A reference view is a window onto its owner's document and a symbol is
+    /// written by the project, so neither has a document of its own to copy.
+    /// <see cref="DocumentTab.HasWorkToLose"/> rather than <c>IsDirty</c>: an
+    /// untouched File ▸ New is dirty and has nothing in it worth offering back.
+    /// </remarks>
+    private IReadOnlyList<Services.RecoverySource> RecoverySourcesNow()
+    {
+        var sources = new List<Services.RecoverySource>(Tabs.Count);
+        foreach (var tab in Tabs)
+        {
+            if (tab.Kind is DocumentTabKind.Reference or DocumentTabKind.Symbol) continue;
+            var t = tab;
+            sources.Add(new Services.RecoverySource(
+                t.RecoveryKey, t.Title, t.FilePath ?? t.RecoveredFrom, t.RecoveryRevision,
+                t.HasWorkToLose, () => t.Doc));
+        }
+        return sources;
+    }
+
+    /// <summary>
+    /// Open documents a crashed session left behind, each as a new tab.
+    /// </summary>
+    /// <remarks>
+    /// Opened as "name (recovered)" and tied to no file: saving asks where,
+    /// starting beside the original, so a recovery can never quietly overwrite a
+    /// file that changed after the crash — in-place autosave can change it. The
+    /// copy moves into this session as it opens, so there is no moment at which
+    /// the work exists only in memory. Returns how many opened; a copy that
+    /// cannot be read is left on disk and reported, never deleted.
+    /// </remarks>
+    public int RestoreRecovered(IEnumerable<Services.RecoverableDocument> copies)
+    {
+        var opened = 0;
+        var failed = new List<string>();
+        foreach (var copy in copies)
+        {
+            Doc doc;
+            try
+            {
+                doc = Services.RecoverySession.Load(copy);
+            }
+            catch (Exception)
+            {
+                // Any reason at all, a newer build's format included: one copy
+                // that will not load is reported and left on disk, never thrown
+                // out of a startup that would then offer it again for ever.
+                failed.Add(copy.Title);
+                continue;
+            }
+            const string suffix = " (recovered)";
+            var title = copy.Title.EndsWith(suffix, StringComparison.Ordinal) ? copy.Title : copy.Title + suffix;
+            var tab = new DocumentTab(new DocumentEditor(doc), title)
+            {
+                IsRecovered = true,
+                RecoveredFrom = copy.OriginalPath,
+            };
+            tab.State.LayerIndex = LayerToOpenOn(doc);
+            tab.State.FrameIndex = Math.Max(0, doc.PlayheadFrame ?? 0);
+            AddTab(tab);
+            try
+            {
+                _autosave.Recovery?.Adopt(copy, tab.RecoveryKey, tab.RecoveryRevision);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Still open, still on disk where it was; the next tick writes a
+                // fresh copy into this session, and the old one is offered again
+                // next launch rather than lost.
+            }
+            opened++;
+        }
+        if (failed.Count > 0)
+        {
+            AiStatus = $"Could not restore {string.Join(", ", failed)} — the copy is still in the recovery folder.";
+        }
+        return opened;
+    }
+
+    /// <summary>One autosave tick, now. Test seam: the timer is a minute.</summary>
+    internal void FlushAutosaveForTests() => _autosave.Flush();
+
     /// <summary>Close a tab. The view confirms unsaved changes before calling this.</summary>
     public void CloseTab(DocumentTab tab)
     {
@@ -529,6 +637,9 @@ public partial class MainViewModel
         // A reference view belongs to the document it was opened from, so only a
         // tab that owns its own document can take a row out of the project.
         if (tab.Owner is null) ProjectDocker.ForgetIfNeverWritten(tab.Source);
+        // B394: the artist has answered the save-or-discard question, so the
+        // closed document's recovery copy is no longer owed to anyone.
+        _autosave.SyncRecovery();
 
         // Closing the last tab used to conjure a replacement, which meant there
         // was no way to arrive at an empty application and the canvas of that
@@ -605,6 +716,8 @@ public partial class MainViewModel
         tab.FilePath = filePath;
         tab.Title = TitleFromPath(filePath);
         tab.MarkSaved();
+        tab.RecoveredFrom = null;
+        _autosave.SyncRecovery(); // B394, as in Save
         RequestCheckpoints();
         Remember(filePath, RecentKind.Document);
         // B99's other half. A document adopted at creation has to be released
@@ -698,6 +811,31 @@ public partial class MainViewModel
     /// makes for the cache invalidated below).
     /// </summary>
     public event Action? DocumentEdited;
+
+    /// <summary>
+    /// An edit that does not go through the undo stack — camera, audio, document
+    /// features, a reference view's framing. Autosave hears about it as before,
+    /// and the tab now does too, so it badges, prompts on close and keeps a
+    /// recovery copy like any other change (B394).
+    /// </summary>
+    /// <remarks>
+    /// A project document goes into the project's dirty set exactly as a stroke
+    /// does (<see cref="MarkActiveTabEdited"/>). Without that — the sensitivity
+    /// review's blocker on B394 — a project save skipped the document, told the
+    /// artist it was saved, cleared the badge, and the recovery copy was deleted
+    /// on that claim, leaving a camera edit in memory and nowhere else.
+    /// Only a tab that owns a document of its own is counted: a project sheet or
+    /// a symbol is written by the project, and a prompt about work a save cannot
+    /// clear teaches artists to press Discard.
+    /// </remarks>
+    private void MarkEditedOutsideTheRecord()
+    {
+        _autosave.MarkDirty();
+        if (_switchingTabs || (ActiveTab?.Owner ?? ActiveTab) is not { } owner) return;
+        if (owner.Kind is DocumentTabKind.Symbol || owner.SheetSource is not null) return;
+        if (owner.Source is { } source) ProjectDocker.MarkDirty(source);
+        owner.NoteEditOutsideTheRecord();
+    }
 
     private void MarkDocumentEdited()
     {

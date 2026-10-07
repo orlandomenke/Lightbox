@@ -94,6 +94,8 @@
   <x:Double x:Key="SizeDialogLabel">110</x:Double>
   <x:Double x:Key="SizeDialogField">70</x:Double>
   <x:Double x:Key="SizeDialogButton">80</x:Double>
+  <!-- A dialog with a paragraph and a list to read: the crash-recovery offer (B394). -->
+  <x:Double x:Key="SizeDialogWidth">480</x:Double>
   <!-- The wider gaps in use beside GapBefore/GapAfter (4) and SectionGap (8):
        named so step 3 can see them, and collapse them onto the scale. -->
   <Thickness x:Key="GapBeforeWide">6,0,0,0</Thickness>

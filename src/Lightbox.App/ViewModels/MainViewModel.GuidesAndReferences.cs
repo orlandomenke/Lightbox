@@ -1661,7 +1661,7 @@ public partial class MainViewModel
     {
         NotifyReference();
         RequestSnapshot();
-        _autosave.MarkDirty();
+        MarkEditedOutsideTheRecord();
         MarkActiveTabEdited();
         ReferenceChanged?.Invoke();
     }

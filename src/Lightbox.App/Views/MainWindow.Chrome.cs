@@ -235,7 +235,12 @@ public partial class MainWindow
         // what B80 shipped unable to catch — is a new document that *has* been
         // drawn in, which has no file at all and is the easiest work to lose.
         var dirty = _vm.Tabs.Where(t => t.HasWorkToLose).ToList();
-        if (dirty.Count == 0) return;
+        if (dirty.Count == 0)
+        {
+            // B394: nothing unsaved, so the recovery copies are owed to no one.
+            if (Services.RecoverySession.Current is { } recovery) recovery.CleanExit = true;
+            return;
+        }
 
         e.Cancel = true;
         switch (await ConfirmDiscardAsync(dirty.Select(t => t.Title).ToList()))
@@ -266,6 +271,8 @@ public partial class MainWindow
         }
 
         _closeConfirmed = true;
+        // B394: every unsaved document was saved or deliberately discarded.
+        if (Services.RecoverySession.Current is { } answered) answered.CleanExit = true;
         Close();
     }
 
@@ -333,13 +340,27 @@ public partial class MainWindow
             string.IsNullOrWhiteSpace(suggestedName)
                 ? _vm.SaveTargetTab?.Title ?? _vm.ActiveTab?.Title ?? "untitled"
                 : suggestedName);
+        // B394: a recovered document starts beside the file it came from — the
+        // one place it is suggested and never written without the artist saying so.
+        var startIn = _vm.SaveTargetTab?.RecoveredFrom is { Length: > 0 } from
+                      && System.IO.Path.GetDirectoryName(from) is { Length: > 0 } dir
+            ? await StorageProvider.TryGetFolderFromPathAsync(dir)
+            : null;
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save animation",
             SuggestedFileName = $"{stem}.lightbox.json",
+            SuggestedStartLocation = startIn,
             FileTypeChoices = [LightboxFileType],
         });
         if (file is null) return;
+        // B394: the recovery folders are emptied by Discard, Restore and a clean
+        // exit, so nothing the artist means to keep may be saved into them.
+        if (file.TryGetLocalPath() is { } chosen && Services.RecoverySession.IsInside(chosen))
+        {
+            _vm.AiStatus = "That folder holds crash-recovery copies and is emptied automatically — choose another.";
+            return;
+        }
         await using (var stream = await file.OpenWriteAsync())
         await using (var writer = new StreamWriter(stream))
         {
