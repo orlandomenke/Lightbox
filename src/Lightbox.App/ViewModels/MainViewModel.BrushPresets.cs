@@ -158,6 +158,11 @@ public partial class MainViewModel
         StopAudio();
         _strokeBuilder.Cancel();
         _live.ClearEffectState();
+        // Revisions are per editor, so a remembered auto-key revision means
+        // nothing to the next one — and could name one of its steps.
+        _lastAutoKeyRevision = null;
+        _lastAutoGrowRevision = null;
+        _textKey = default;
         _editor.Changed -= OnDocumentChanged;
         _editor = editor;
         _editor.Changed += OnDocumentChanged;

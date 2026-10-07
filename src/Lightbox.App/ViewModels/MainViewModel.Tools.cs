@@ -663,11 +663,24 @@ public partial class MainViewModel
     /// it silently rewrites the frame you were holding — every mark you make
     /// at frame 4 appears at frame 3 as well, which is a very confusing way to
     /// ruin a hold. Keying first means the timeline shows a new drawing where
-    /// you made one.
+    /// you made one — and since Q197 that drawing starts blank, like the next
+    /// sheet of paper, with the copy kept as a choice.
+    /// <para>
+    /// Read by exact name only, so anything else in the file — a typo, a
+    /// number, a value from a later version — falls back to the default
+    /// rather than to whichever member happens to have that ordinal. The
+    /// retired <c>StartANewDrawing</c> is rewritten on load
+    /// (<c>AppSettings.MigrateHoldDrawing</c>) and would land here too.
+    /// </para>
     /// </remarks>
     public HoldDrawing DrawingOnAHold
     {
-        get => Enum.TryParse<HoldDrawing>(Settings.DrawingOnAHold, out var v) ? v : HoldDrawing.StartANewDrawing;
+        // TryParse alone would take "1" as an ordinal; the round trip through
+        // the name is what makes it exact, and allocates nothing.
+        get => Enum.TryParse<HoldDrawing>(Settings.DrawingOnAHold, out var v)
+               && Enum.GetName(v) == Settings.DrawingOnAHold
+            ? v
+            : HoldDrawing.StartABlankDrawing;
         set
         {
             if (DrawingOnAHold == value) return;

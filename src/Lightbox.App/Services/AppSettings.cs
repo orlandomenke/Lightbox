@@ -435,7 +435,13 @@ public sealed class AppSettings
     public bool AnimateRigDuringPlayback { get; set; }
 
     /// <summary>What a mark on a held cel does. See <c>HoldDrawing</c>.</summary>
-    public string DrawingOnAHold { get; set; } = "StartANewDrawing";
+    public string DrawingOnAHold { get; set; } = "StartABlankDrawing";
+
+    /// <summary>
+    /// The name <see cref="DrawingOnAHold"/> was stored under before Q197 split
+    /// "start a new drawing" into a blank one and a copy.
+    /// </summary>
+    internal const string LegacyHoldDefault = "StartANewDrawing";
 
     /// <summary>Whether playback wraps at the end of the range.</summary>
     public bool LoopPlayback { get; set; } = true;
@@ -468,6 +474,7 @@ public sealed class AppSettings
             var settings = JsonSerializer.Deserialize<AppSettings>(json, Json) ?? new AppSettings();
             settings.MigrateOnionFalloff();
             settings.MigrateGpuCompositing();
+            settings.MigrateHoldDrawing();
             return settings;
         }
         catch (JsonException)
@@ -522,6 +529,31 @@ public sealed class AppSettings
             GpuCompositingMode = GpuComposeMode.On;
         }
         LegacyGpuCompositing = null;
+    }
+
+    /// <summary>
+    /// Read the retired <c>StartANewDrawing</c> as the new blank default.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Q197, and the same asymmetry as <see cref="MigrateGpuCompositing"/>.</b>
+    /// Every settings file written before the split carries
+    /// <c>StartANewDrawing</c>, because the whole object is serialized defaults
+    /// and all — so an artist who chose it and one who never opened the page
+    /// are indistinguishable in the file. It was the default, so it is read as
+    /// "no choice made" and follows the new default, which is the behaviour the
+    /// owner asked for. The cost lands on the artist who had deliberately
+    /// picked the copy, and that artist can pick it again: it is still there,
+    /// renamed "Start from a copy".
+    /// </para>
+    /// <para>
+    /// <c>EditTheHeldDrawing</c> is untouched — nothing writes it but a person
+    /// choosing it. Rewritten in place, so the next save drops the old name.
+    /// </para>
+    /// </remarks>
+    private void MigrateHoldDrawing()
+    {
+        if (DrawingOnAHold == LegacyHoldDefault) DrawingOnAHold = "StartABlankDrawing";
     }
 
     public static AppSettings Load()

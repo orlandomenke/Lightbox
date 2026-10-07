@@ -358,41 +358,59 @@ own patterns can be deleted; the built-ins cannot.
 ## Drawing on a hold
 
 A cel that holds an earlier drawing is not a drawing of its own, so a mark on
-one has two honest readings — and which you mean depends on how you work.
+one has three honest readings — and which you mean depends on how you work.
+**Edit → Configure → Timeline → Drawing on a held cel** chooses.
 
-By default the cel **becomes a drawing of its own** and the mark lands on it.
-That is what every animation tool does, and it is what makes the timeline show
-a drawing where you made one. The alternative silently edits the frame being
-held, so your stroke turns up on the earlier frame too and the cel you drew on
-stays empty and dark.
+**Start a blank drawing** (the default). The cel **becomes a new, empty
+drawing** and the mark lands on it — the next sheet of paper. The onion skin
+shows the drawing before it, the way a light table does, so you draw the new
+pose over the old one without the old one being part of it. With onion skin
+off, the held drawing disappears from this frame under your first mark: the
+frame no longer holds it, and the earlier frame keeps it exactly as it was.
 
-The new drawing **starts as a copy of what the hold was showing** — strokes,
-imported pixels and placed symbols alike — so keying never changes the
-picture: the mark you just made is the only visible difference, and the
-earlier frame keeps its drawing exactly as it was. Erase the copy if what you
-wanted was a blank sheet.
+**Start from a copy.** The cel becomes a drawing of its own that **starts as a
+copy of what the hold was showing** — strokes, imported pixels and placed
+symbols alike — so the mark you just made is the only visible difference.
+Right when you work by altering the last drawing rather than redrawing it.
+(This was the default before; a settings file from then is read as the new
+default, so pick it again here if you had chosen it.)
 
-This is not only the brush: **moving or transforming the drawing, or dragging
-a placed symbol, keys a held cel the same way** and edits the copy. Those used
-to slip past the keying and rewrite the drawing the hold was borrowing, so a
-nudge on frame 2 showed up on frame 1 as well.
+**Edit the held drawing.** The mark joins the drawing being held and appears
+on every frame holding it. Right when the hold is deliberate and you are still
+working on that one pose — touching it up without breaking the hold. It governs
+the editing tools too: with it set, a move on a hold moves the held drawing and
+keys nothing.
 
-This now covers the line tools too: **reshaping a line with the pen, and
-moving, nudging, recolouring or deleting selected lines**, all key a held cel
-and edit the copy. Selecting a line on a hold still authors nothing — looking
-around is not editing, and only the edit that lands makes the cel a drawing of
-its own.
+Either of the first two is what every animation tool does: the timeline shows
+a drawing where you made one, instead of your stroke turning up on the earlier
+frame too.
+
+**A mark** is anything that adds to the page — the brush, the eraser, shapes,
+gradients, the pen, new type, filling a selection, placing a symbol. **Anything
+that works on what the hold is showing always starts from a copy**, whichever
+choice is set, because a blank page would leave it nothing to act on: moving or
+transforming the drawing, dragging a placed symbol, reshaping a line, moving,
+nudging, recolouring, cutting or deleting selected lines, Delete on a marquee,
+clicking into type the hold is showing to retype it, the **bucket** (it finds
+its edges in the held lines, so colouring held line art colours it on this
+frame), **blur and smudge** (they rework the paint already there), and painting
+on an **alpha-locked** layer (it paints only where there is paint). Selecting on a hold
+authors nothing — looking around is not editing, and only the edit that lands
+makes the cel a drawing of its own.
+
+**An eraser on a hold, with a blank drawing set, does nothing** — there is
+nothing on a blank page to rub out — so nothing is recorded and the cel stays a
+hold. To rub out part of the held drawing on this frame only, choose *Start
+from a copy*, or delete it with a marquee, which always copies.
 
 The key happens when you **commit** the edit, not when you pick the tool up.
 Pressing Ctrl+T on a hold and then Escape leaves the timeline exactly as it
-was, and so does clicking without dragging — a cel becomes a drawing of its
-own when you actually change something, never because you were looking at it.
-
-**Edit → Configure → Timeline** switches it to *Edit the held drawing*, which
-is right when the hold is deliberate and you are still working on that one
-pose — touching it up without breaking the hold. That switch governs the
-editing tools too: with it set, a move on a hold moves the held drawing and
-keys nothing.
+was, and so does clicking without dragging — a click with the shape or
+gradient tool, a fill that finds nothing to fill, or type with no letters all
+hand the new drawing back. The pen keys only when its line is finished, so a
+path of one point, or one left unfinished, leaves the hold as it was. A cel becomes a drawing of
+its own when you actually change something, never because you were looking at
+it.
 
 Keying is a separate undo step from the mark that prompted it: one undo takes
 the stroke back and leaves the new drawing, a second takes the drawing away and

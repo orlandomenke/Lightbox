@@ -46,7 +46,7 @@ public partial class MainViewModel
     /// </remarks>
     private List<Stroke>? SelectedStrokesForAnOperation()
     {
-        if (PaintTargetOrKey() is not { } frame) return null;
+        if (PaintTargetOrKey(editsWhatTheHoldShows: true) is not { } frame) return null;
 
         // A marquee wins over picked lines — Q97, the same order the transform
         // takes, read from the same place so the two can never drift apart.
