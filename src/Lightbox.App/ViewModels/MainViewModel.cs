@@ -592,7 +592,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private bool _committingScopedEdit;
 
-    private readonly HashSet<string> _dirtyThumbIds = [];
+    private readonly DirtyThumbs _dirtyThumbIds = new();
     private bool _allThumbsDirty;
 
     /// <summary>How close a point has to be, in document pixels, to be pulled.</summary>
