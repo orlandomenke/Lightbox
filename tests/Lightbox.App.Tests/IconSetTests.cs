@@ -98,7 +98,9 @@ public class IconSetTests(ITestOutputHelper output)
                 foreach (Match m in Regex.Matches(
                              File.ReadAllText(file), @"StaticResource (Icon[A-Za-z]+)"))
                 {
-                    referenced.Add(m.Groups[1].Value);
+                    // IconStroke is the line weight every icon is drawn at
+                    // (a token, Q203), not an icon.
+                    if (m.Groups[1].Value != "IconStroke") referenced.Add(m.Groups[1].Value);
                 }
             }
         }
