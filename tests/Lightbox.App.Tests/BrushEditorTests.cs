@@ -80,6 +80,27 @@ public sealed class BrushEditorTests(ITestOutputHelper output) : BrushStateIsola
     }
 
     [AvaloniaFact]
+    public void WhatAnUntickedOptionHeldSurvivesASwitchToTheEraserAndBack()
+    {
+        // Found by the adversary review: the first version dropped what it kept
+        // on any change of brush. A nudged brush stays nudged across a switch,
+        // and so must what its unticked options held.
+        var (_, vm, editor) = Open();
+        vm.BrushScatter = 0.6;
+        Pump();
+        editor.SetInUse(Option("Scatter"), false);
+        Assert.Equal(0, vm.BrushScatter);
+
+        vm.ActiveTool = ToolId.Eraser;
+        Pump();
+        vm.ActiveTool = ToolId.Brush;
+        Pump();
+
+        editor.SetInUse(Option("Scatter"), true);
+        Assert.Equal(0.6, vm.BrushScatter, 6);
+    }
+
+    [AvaloniaFact]
     public void TurningShapeDynamicsOffAlsoTakesItsPressureCurveAndOnBringsTheCurveBack()
     {
         var (_, vm, editor) = Open();

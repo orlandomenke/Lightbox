@@ -35,6 +35,10 @@ public sealed class BrushScratchpad : Control
     private WriteableBitmap? _picture;
 
     /// <summary>The settings to paint with, read each time the pad redraws.</summary>
+    /// <remarks>
+    /// With the eraser in hand these are the eraser's, drawn as ink: an eraser
+    /// on blank paper removes nothing to see, and its shape is what the pad is for.
+    /// </remarks>
     public Func<BrushSettings>? Settings { get; set; }
 
     /// <summary>The colour to paint in, read each time the pad redraws.</summary>

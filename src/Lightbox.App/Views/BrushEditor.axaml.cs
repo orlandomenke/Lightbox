@@ -93,8 +93,19 @@ public partial class BrushEditor : UserControl
         new("Blend", "OptionBlend", true, None, []),
     ];
 
-    /// <summary>What an option held before its check was turned off, for this session.</summary>
+    /// <summary>
+    /// What an option held before its check was turned off, for this session,
+    /// filed under the brush it belongs to — the tool (brush and eraser keep
+    /// separate settings) and the preset. A nudged brush stays nudged across a
+    /// switch to another and back, so what its unticked options held has to
+    /// survive the same switch (the adversary review found the first version
+    /// dropping it on any change of brush).
+    /// </summary>
     private readonly Dictionary<string, (Dictionary<string, object?> Values, Dictionary<BrushDynamic, ResponseCurve?> Curves)> _kept = [];
+
+    private string BrushKey => $"{(_vm?.IsEraserTool == true ? "eraser" : "brush")}|{_vm?.SelectedBrushPreset?.Id}";
+
+    private string KeptKey(Option option) => $"{BrushKey}|{option.Name}";
 
     private MainViewModel? _vm;
     private bool _syncing;
@@ -186,13 +197,13 @@ public partial class BrushEditor : UserControl
         if (!on)
         {
             if (!InUse(option)) return;
-            _kept[option.Name] = (
+            _kept[KeptKey(option)] = (
                 option.Off.Keys.ToDictionary(k => k, Read),
                 option.Curves.ToDictionary(c => c.Target, c => _vm.BrushDrives(c.Target) ? _vm.BrushCurve(c.Target) : null));
             foreach (var (name, off) in option.Off) Write(name, off);
             foreach (var (target, _) in option.Curves) _vm.SetBrushDrives(target, false);
         }
-        else if (_kept.Remove(option.Name, out var kept))
+        else if (_kept.Remove(KeptKey(option), out var kept))
         {
             foreach (var (name, value) in kept.Values) Write(name, value);
             foreach (var (target, curve) in kept.Curves)
@@ -312,12 +323,9 @@ public partial class BrushEditor : UserControl
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is { } name && Structural.Contains(name))
-        {
-            // A different brush: what was kept belonged to the old one.
-            if (name != nameof(MainViewModel.IsSmudgeBrush)) _kept.Clear();
-            BuildOptionList();
-        }
+        // A different brush rebuilds the list; what was kept stays filed under
+        // the brush it came from, for when that brush comes back.
+        if (e.PropertyName is { } name && Structural.Contains(name)) BuildOptionList();
         QueueRefresh();
     }
 
@@ -363,6 +371,7 @@ public partial class BrushEditor : UserControl
         if (_vm is null) return;
         var preset = _vm.SelectedBrushPreset;
         PresetNameText.Text = preset?.Name ?? "Unsaved brush";
+        ToolTip.SetTip(PresetStatusText, _vm.BrushIsModified ? _vm.BrushModifiedTip : null);
         PresetStatusText.Text = _vm.BrushIsModified
             ? "Changed since it was saved"
             : preset is null ? "Not saved as a brush yet" : string.Join(" · ", preset.Tags is { Count: > 0 } t ? t : ["Saved"]);
@@ -393,8 +402,10 @@ public partial class BrushEditor : UserControl
     {
         if (_vm?.SelectedBrushPreset is not { } preset) return;
         // Picking the brush you are on puts it back — the same call the picker makes.
+        var reloaded = BrushKey + "|";
         _vm.ApplyPreset(preset);
-        _kept.Clear();
+        // The saved brush is back, so what its unticked options held goes with the tweaks.
+        foreach (var key in _kept.Keys.Where(k => k.StartsWith(reloaded, StringComparison.Ordinal)).ToList()) _kept.Remove(key);
         _vm.AiStatus = $"“{preset.Name}” is back as it was saved.";
         Changed();
     }
