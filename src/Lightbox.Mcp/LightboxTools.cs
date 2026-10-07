@@ -47,9 +47,11 @@ public static class LightboxTools
 
     [McpServerTool(Name = "get_scene"), Description(
         "Get the Lightbox scene: canvas size, fps, frame count, current frame, " +
-        "and the layers (id, name, kind, visibility, which frames are keyed, " +
+        "and the layers (id, name, kind, visibility, which frames are keyed, the folderId it is in, " +
         "and the carve/effect state: hasMask, clipped, isAdjustment, " +
-        "hasEffects — render_frame already shows all of them applied). " +
+        "hasEffects — render_frame already shows all of them applied), and, " +
+        "when there are any, the folders topmost first (id, name, parentId, " +
+        "visible, locked, empty). " +
         "Call this first to orient yourself. It also reports which builds you " +
         "are talking to: appBuild is the running Lightbox, mcpBuild is this " +
         "server. If they disagree, or mcpBuild is missing entirely, this server " +
@@ -280,6 +282,40 @@ public static class LightboxTools
         CancellationToken ct,
         [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null) =>
         Text("set_exposure_step", new { from, to, step, layerId }, ct);
+
+    [McpServerTool(Name = "create_folder"), Description(
+        "Make an empty layer folder: at the top of the stack, or at the top inside " +
+        "another folder (inFolderId, from get_scene's folders). A folder groups layers " +
+        "and other folders; hiding or locking it hides or locks everything inside. " +
+        "Returns folderId. Refused inside a locked folder. One undo step.")]
+    public static Task<string> CreateFolder(
+        CancellationToken ct,
+        [Description("Folder name; omit for the next free \"Folder n\"")] string? name = null,
+        [Description("Folder id to create it inside; omit for the top level")] string? inFolderId = null) =>
+        Text("create_folder", new { name, inFolderId }, ct);
+
+    [McpServerTool(Name = "move_to_folder"), Description(
+        "Put a layer or a folder (with everything in it) at the top inside a folder, " +
+        "or omit folderId to take it out of every folder, to sit just above the " +
+        "folder it was in. Layer order otherwise stays as it was. Refused for a " +
+        "locked layer or folder, into a locked folder, a folder into itself, or " +
+        "nesting deeper than 32. Returns the folderId it ended up in. One undo step.")]
+    public static Task<string> MoveToFolder(
+        [Description("Layer or folder id from get_scene")] string id,
+        CancellationToken ct,
+        [Description("Destination folder id; omit to move out to the top level")] string? folderId = null) =>
+        Text("move_to_folder", new { id, folderId }, ct);
+
+    [McpServerTool(Name = "group_layers"), Description(
+        "Put layers and folders into a new folder where the topmost of them is, " +
+        "gathering them into one run if they were apart (this changes their " +
+        "stacking order when they were). The same as Ctrl+G in the app. Returns " +
+        "folderId. Refused for a locked item. One undo step.")]
+    public static Task<string> GroupLayers(
+        [Description("Layer and folder ids from get_scene")] string[] ids,
+        CancellationToken ct,
+        [Description("Folder name; omit for the next free \"Folder n\"")] string? name = null) =>
+        Text("group_layers", new { ids, name }, ct);
 
     [McpServerTool(Name = "list_reference_views"), Description(
         "List the document's character sheets and their views (id, name, size). " +

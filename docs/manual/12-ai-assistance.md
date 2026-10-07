@@ -393,6 +393,21 @@ yours and unmarked — the timing changed, not the art.
 
 A locked or hidden layer refuses all four, and says which.
 
+**An agent can organise layers into folders too**, with the same folders the
+docker shows (`get_scene` lists them, topmost first, and says which folder each
+layer is in):
+
+| Tool | What it does |
+| --- | --- |
+| `create_folder` | Makes an empty folder at the top of the stack, or at the top inside another folder. |
+| `move_to_folder` | Puts a layer or a whole folder at the top inside a folder, or takes it out of every folder. |
+| `group_layers` | Puts layers and folders into a new folder where the topmost of them was — Ctrl+G, for an agent. |
+
+**None of them deletes anything.** Ungrouping and deleting a folder are left to
+you. Each is one undo step, and an agent is stricter than your own hand about
+locks: a locked layer or folder — or anything inside a locked folder — is not
+moved or grouped, and nothing is put into a locked folder.
+
 **If an agent reports a bug you know was fixed, check which build it is talking
 to.** The server is a separate published program that your MCP client launches,
 so it goes on running an old copy until you rebuild it *and* fully quit and
