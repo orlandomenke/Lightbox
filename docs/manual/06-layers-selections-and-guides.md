@@ -65,6 +65,8 @@ or the name alike. With either key held, a click on a row's button selects the
 row instead of pressing the button. The one exception is Ctrl on the thumbnail,
 which still selects the layer's pixels.
 
+**The X-sheet picks layers the same way.** Ctrl+click or Shift+click a layer's name on the X-sheet to add it or take the range. It is the same selection the docker keeps, so a set picked in one place is still picked in the other, and a plain click on either goes back to one layer.
+
 **Clicking a folder's header picks the folder**: its header lights up, every
 layer in it is selected, and its top layer becomes the active one. Ctrl+click a
 header to add a folder's layers to what is already selected; Shift+click one to

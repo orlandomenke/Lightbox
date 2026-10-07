@@ -4728,7 +4728,7 @@
                                     RangeStart="{Binding PlaybackStartFrame, Mode=TwoWay}"
                                     RangeEnd="{Binding PlaybackEndFrame, Mode=TwoWay}"
                                     Markers="{Binding MarkersView}" PoseKeyed="{Binding PoseKeyedFrames}" />
-            <ItemsControl ItemsSource="{Binding LayerRows}">
+            <ItemsControl x:Name="XsheetLayerList" ItemsSource="{Binding LayerRows}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                   <StackPanel Orientation="Vertical" Spacing="2" />
@@ -4749,14 +4749,14 @@
                       <ToggleButton Classes="icon glyph onion" IsChecked="{Binding OnionEnabled}"
                                     ToolTip.Tip="Onion skinning for this layer"><Path /></ToggleButton>
                       <Panel Width="88" Height="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineRowHeight}">
-                        <Button Content="{Binding Name}" Width="88"
+                        <Button Classes="layerName" Content="{Binding Name}" Width="88"
                                 Height="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineRowHeight}"
                                 HorizontalContentAlignment="Left"
                                 IsVisible="{Binding !IsRenaming}"
                                 Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateLayerCommand}"
                                 CommandParameter="{Binding}"
                                 DoubleTapped="OnLayerNameDoubleTapped"
-                                ToolTip.Tip="Click to select, double-click to rename" />
+                                ToolTip.Tip="Click to select, double-click to rename. Ctrl+click adds a layer, Shift+click takes the range." />
                         <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                  IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
                                  LostFocus="OnLayerNameLostFocus" KeyDown="OnLayerNameKeyDown" />
