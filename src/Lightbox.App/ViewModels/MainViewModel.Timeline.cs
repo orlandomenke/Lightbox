@@ -139,7 +139,12 @@ public partial class MainViewModel
         // arrow having stopped working.
         PruneStrokeSelection();
 
+        // Arriving at a frame by hand (a click, a key) in named parts for the
+        // lab (Q209): the 2026-10-07 jump runs found ~870 ms between the
+        // playhead moving and the publish starting, with nothing to say where.
+        // Playback has its own TickProfile; these stay off its ticks.
         using (Profile(profiling, Services.TickProfile.Phase.Highlights))
+        using (Arrive("arrive.highlights"))
         {
             RefreshCellHighlights();
         }
@@ -159,6 +164,7 @@ public partial class MainViewModel
         if (!IsPlaying)
         {
             using (Profile(profiling, Services.TickProfile.Phase.Thumbnails))
+            using (Arrive("arrive.thumbs"))
             {
                 RefreshLayerThumbs();
             }
@@ -173,6 +179,7 @@ public partial class MainViewModel
         if (ArmatureEditMode && BonesShowAPose) OnPropertyChanged(nameof(BoneChromes));
 
         using (Profile(profiling, Services.TickProfile.Phase.Bookkeeping))
+        using (Arrive("arrive.bookkeeping"))
         {
             RefreshCamera();
             // Whether THIS frame is pinned changes with the playhead, and the pin
@@ -224,6 +231,9 @@ public partial class MainViewModel
 
 
     internal Services.TickProfile TickProfile => _tickProfile;
+
+    /// <summary>A lab span for one part of arriving at a frame, never on a playback tick.</summary>
+    private PerfLog.Span Arrive(string part) => IsPlaying ? default : PerfLog.Begin(part);
 
     /// <summary>
     /// Time a phase, or do nothing at all when this is not a playback tick.

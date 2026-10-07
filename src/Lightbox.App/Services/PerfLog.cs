@@ -80,6 +80,8 @@ public static class PerfLog
         Mark("clock", string.Create(CultureInfo.InvariantCulture, $"{origin} {Stopwatch.Frequency}"));
         // Every undoable edit, by its history label, in three parts (Q209).
         Lightbox.Core.Timeline.DocumentEditor.Measure = (name, label) => Begin(name, label);
+        // And every frame rendered on a cache miss, by drawing.
+        Lightbox.Raster.FrameBitmapCache.Measure = (name, id) => Begin(name, id);
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Flush();
         new Thread(Heartbeat) { IsBackground = true, Name = "perf heartbeat" }.Start();
     }

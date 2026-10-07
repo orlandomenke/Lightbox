@@ -98,11 +98,13 @@ public partial class MainWindow
     private void TrackResponses()
     {
         if (!PerfLog.On) return;
-        AddHandler(KeyDownEvent, (_, e) => Respond("key " + e.Key),
+        // On every TopLevel, not this window: a context menu is its own popup
+        // root, and the first runs timed a menu click as "never answered".
+        InputElement.KeyDownEvent.AddClassHandler<TopLevel>((_, e) => Respond("key " + e.Key),
             Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
-        AddHandler(PointerPressedEvent, (_, _) => Respond("press"),
+        InputElement.PointerPressedEvent.AddClassHandler<TopLevel>((_, _) => Respond("press"),
             Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
-        AddHandler(PointerReleasedEvent, (_, _) => Respond("release"),
+        InputElement.PointerReleasedEvent.AddClassHandler<TopLevel>((_, _) => Respond("release"),
             Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
     }
 

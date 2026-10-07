@@ -399,7 +399,13 @@ def locate(pipe: Pipe, target: dict) -> tuple[float, float]:
     else:
         raise ValueError(f"unknown target {target}")
     r = pipe.ask("lab_locate", q)
-    return r["x"] + r["w"] / 2, r["y"] + r["h"] / 2
+    x, y = r["x"] + r["w"] / 2, r["y"] + r["h"] / 2
+    # Off every monitor is off screen, however the app laid it out: a cel scrolled
+    # below the bottom edge was "found", and the pointer, clamped to the screen,
+    # tripped the hands-off guard as if someone had grabbed the mouse.
+    if not ctypes.windll.user32.MonitorFromPoint(wt.POINT(int(x), int(y)), 0):
+        raise RuntimeError(f"{target} is at {x:.0f},{y:.0f}, on no monitor: scrolled out of view or off screen")
+    return x, y
 
 
 def check_expect(step: dict, state: dict) -> tuple[bool, str]:
@@ -519,7 +525,9 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
         log.poll()
     metrics = summarise(log.lines, marks)
     result = {"scenario": scenario["name"], "exe": str(exe), "build": build_of(log.lines),
-              "outcome": outcome, "metrics": metrics, "checks": checks}
+              "outcome": outcome, "metrics": metrics, "checks": checks,
+              # Raw, so a run can be re-read step by step (first round against second).
+              "marks": marks}
     (out / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
 
