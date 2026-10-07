@@ -1806,9 +1806,16 @@ public partial class MainViewModel
     /// the headless suite, which keeps the synchronous path.
     /// </summary>
     internal ThumbnailWorker? ThumbWorker =>
-        ThumbnailWorker.Post is { } post
-            ? _thumbWorker ??= new ThumbnailWorker(post, InstallThumbSource, () => QueueThumbRefresh(post))
-            : null;
+        ThumbnailWorker.Post is { } post ? _thumbWorker ??= StartThumbWorker(post) : null;
+
+    private ThumbnailWorker StartThumbWorker(Action<Action> post)
+    {
+        var worker = new ThumbnailWorker(post, InstallThumbSource, () => QueueThumbRefresh(post));
+        // Every path that marks a thumbnail out of date now also tells the
+        // worker, so a render begun before that edit is refused (B397's review).
+        _dirtyThumbIds.Added = worker.Invalidate;
+        return worker;
+    }
 
     private bool _thumbRefreshQueued;
 
@@ -1836,6 +1843,14 @@ public partial class MainViewModel
     private bool DeferThumbSource(Frame frame, int celIndex)
     {
         if (ThumbWorker is not { } worker || _thumbs.Holds(frame.Id)) return false;
+        // A posed drawing renders through the cache's pose resolver, which a
+        // detached render has not got: done in the background it would come out
+        // at the rest pose — and InsertWarm would put that on the canvas under
+        // the posed key. The prewarmer refuses posed frames for the same reason.
+        if (_cache.Rig.IsPosed(frame)) return false;
+        // Everything is about to be re-rendered: start from a clean slate, so no
+        // result from before the document-wide change can be installed after it.
+        if (_allThumbsDirty) worker.Flush();
         var scale = ThumbSourceScale(Scene.Width, Scene.Height);
         if (_cache.Holds(frame, Scene.Width, Scene.Height, scale, celIndex)) return false;
         if (!FrameBitmapCache.CanCache(frame)) return false; // samples live: never cached, never deferred
@@ -1844,30 +1859,38 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// A source the worker made, still current: give every cell and layer row that
-    /// shows this drawing its picture, and offer the bitmap to the frame cache.
+    /// A source the worker made, still current: hold its thumbnail, offer the
+    /// bitmap to the frame cache, and let one coalesced refresh put it in place.
     /// </summary>
+    /// <remarks>
+    /// Stored, not applied: setting every cell that shows the drawing here meant a
+    /// scan of the whole sheet per arrival — 64 arrivals on opening, each walking
+    /// every cell (the leak-hunter's finding). The refresh after a batch of
+    /// arrivals finds them all held and is a lookup per cell.
+    /// </remarks>
     private bool InstallThumbSource(ThumbnailWorker.Made made)
     {
         var id = made.Frame.Id;
-        var cellThumb = _thumbs.Put(id, ThumbnailRenderer.Render(made.Bitmap));
-        foreach (var row in LayerRows)
+        // A document-wide change is pending and has not been refreshed yet: this
+        // render predates it. Refused, and the refresh that follows asks again.
+        if (_allThumbsDirty) return false;
+        _thumbs.Put(id, ThumbnailRenderer.Render(made.Bitmap));
+        var taken = _cache.InsertWarm(made.Frame, made.Width, made.Height, made.Scale, made.Cel, made.Bitmap);
+        if (!taken)
         {
-            foreach (var cell in row.Cells)
+            // The cache had no room, so the layer rows could not find the source
+            // later; give the few that show this drawing their picture now — a
+            // walk of the rows, not of every cell.
+            foreach (var row in LayerRows)
             {
-                if (ExposureSheet.FrameAtExactIndex(row.Layer, cell.Index)?.Id != id) continue;
-                cell.Thumb = cellThumb;
-                cell.ThumbFrameId = id;
-            }
-            if (ExposureSheet.ExposedFrame(row.Layer, CurrentFrameIndex)?.Id == id)
-            {
+                if (ExposureSheet.ExposedFrame(row.Layer, CurrentFrameIndex)?.Id != id) continue;
                 row.Thumb = ThumbnailRenderer.RenderChecker(made.Bitmap, 44, 26);
                 row.ThumbFrameId = id;
                 LayerThumbRenders++;
             }
         }
-        _dirtyThumbIds.Remove(id);
-        return _cache.InsertWarm(made.Frame, made.Width, made.Height, made.Scale, made.Cel, made.Bitmap);
+        if (ThumbnailWorker.Post is { } post) QueueThumbRefresh(post);
+        return taken;
     }
 
     /// <summary>How the thumbnail cache is doing — B202's guard reads this.</summary>

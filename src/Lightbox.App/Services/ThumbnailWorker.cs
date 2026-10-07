@@ -53,7 +53,9 @@ public sealed class ThumbnailWorker : IDisposable
     private readonly Action _stale;
     private readonly BlockingCollection<Job> _queue = new();
     private readonly Dictionary<string, long> _generation = [];
-    private readonly HashSet<string> _pending = [];
+    // Which generation each in-flight id was asked for, so a late result for an
+    // older request cannot clear the guard of a newer one.
+    private readonly Dictionary<string, long> _pending = [];
     private readonly Thread _thread;
     private long _flushes;
     private bool _disposed;
@@ -82,15 +84,17 @@ public sealed class ThumbnailWorker : IDisposable
     /// <summary>Ask for a drawing's source, unless one is already on its way. UI thread.</summary>
     public void Request(Frame frame, int width, int height, double scale, int cel)
     {
-        if (_disposed || !_pending.Add(frame.Id)) return;
-        _queue.Add(new Job(frame, width, height, scale, cel, GenerationOf(frame.Id)));
+        if (_disposed) return;
+        var generation = GenerationOf(frame.Id);
+        if (_pending.TryGetValue(frame.Id, out var asked) && asked == generation) return;
+        _pending[frame.Id] = generation;
+        _queue.Add(new Job(frame, width, height, scale, cel, generation));
     }
 
     /// <summary>This drawing changed: anything rendered from before is stale. UI thread.</summary>
     public void Invalidate(string frameId)
     {
         _generation[frameId] = GenerationOf(frameId) + 1;
-        _pending.Remove(frameId);
     }
 
     /// <summary>Every drawing changed. UI thread.</summary>
@@ -98,7 +102,6 @@ public sealed class ThumbnailWorker : IDisposable
     {
         _flushes++;
         _generation.Clear();
-        _pending.Clear();
     }
 
     // The flush count is folded in so a result begun before a Flush can never
@@ -110,24 +113,38 @@ public sealed class ThumbnailWorker : IDisposable
     {
         foreach (var job in _queue.GetConsumingEnumerable())
         {
+            // Everything is caught, per job: an exception that escaped here would
+            // end the loop, the thread would die silently, and every thumbnail
+            // asked for afterwards would never come (B397's review). A failed
+            // render arrives as nothing, which re-asks.
             SKBitmap? bmp = null;
             try
             {
                 bmp = FrameBitmapCache.RenderDetached(job.Frame, job.Width, job.Height, job.Scale, job.Cel);
             }
-            catch (Exception e) when (e is InvalidOperationException or ArgumentException or IndexOutOfRangeException)
+            catch (Exception)
             {
-                // The record changed under the walk; the change bumped the
-                // generation, and the refresh that follows asks again.
+                // Most likely the record changed under the walk.
             }
             var made = bmp;
-            _post(() => Arrive(job, made));
+            try
+            {
+                _post(() => Arrive(job, made));
+            }
+            catch (Exception)
+            {
+                made?.Dispose(); // the dispatcher is gone: the app is closing
+                return;
+            }
         }
     }
 
     private void Arrive(Job job, SKBitmap? bmp)
     {
-        _pending.Remove(job.Frame.Id);
+        if (_pending.TryGetValue(job.Frame.Id, out var asked) && asked == job.Generation)
+        {
+            _pending.Remove(job.Frame.Id);
+        }
         if (_disposed)
         {
             bmp?.Dispose();
