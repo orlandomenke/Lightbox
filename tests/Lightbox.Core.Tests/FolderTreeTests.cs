@@ -221,4 +221,95 @@ public class FolderTreeTests
         Assert.Null(editor.Doc.Scene.LayerGroups.Single().Under);
         Assert.Equal("b [f] .a paper", Docker(editor.Doc.Scene));
     }
+
+    // ---- operations ------------------------------------------------------------------
+
+    private static StackRef Ref(string id, bool folder = false) => new(id, folder);
+
+    [Fact]
+    public void NewFolderIsEmptyAndLandsDirectlyAboveTheActiveItem_InItsContainer()
+    {
+        var scene = Stack("paper", "a", "b", "c");
+        Folder(scene, "holder");
+        L(scene, "b").GroupId = "holder";
+        L(scene, "a").GroupId = "holder";
+
+        FolderTree.AddFolder(scene, new LayerGroup { Id = "n1" }, Ref("a"));
+        Assert.Equal("c [holder] .b .[n1] .a paper", Docker(scene));
+
+        FolderTree.AddFolder(scene, new LayerGroup { Id = "n2" }, Ref("b"));
+        Assert.Equal("c [holder] .[n2] .b .[n1] .a paper", Docker(scene));
+
+        FolderTree.AddFolder(scene, new LayerGroup { Id = "n3" }, Ref("holder", folder: true));
+        Assert.Equal("c [n3] [holder] .[n2] .b .[n1] .a paper", Docker(scene));
+
+        FolderTree.AddFolder(scene, new LayerGroup { Id = "n4" }, null);
+        Assert.Equal("[n4] c [n3] [holder] .[n2] .b .[n1] .a paper", Docker(scene));
+
+        FolderTree.AddFolder(scene, new LayerGroup { Id = "n5" }, Ref("n4", folder: true));
+        Assert.Equal("[n5] [n4] c [n3] [holder] .[n2] .b .[n1] .a paper", Docker(scene));
+        Assert.Equal(["paper", "a", "b", "c"], scene.Layers.Select(l => l.Id));
+    }
+
+    [Fact]
+    public void GroupGathersAScatteredSelectionWhereTheTopmostWas()
+    {
+        var scene = Stack("paper", "a", "b", "c", "d");
+
+        Assert.Null(FolderTree.Group(scene, new LayerGroup { Id = "g" }, [Ref("a"), Ref("c")]));
+
+        Assert.Equal("d [g] .c .a b paper", Docker(scene));
+    }
+
+    [Fact]
+    public void LayersAndFoldersMoveIntoOutOfAndBetweenFolders()
+    {
+        var scene = Stack("paper", "a", "b", "c");
+        Folder(scene, "f");
+        Folder(scene, "e", under: "a");
+
+        Assert.Null(FolderTree.Move(scene, [Ref("c")], Ref("f", true), StackDrop.Into));
+        Assert.Equal("[f] .c b a [e] paper", Docker(scene));
+
+        Assert.Null(FolderTree.Move(scene, [Ref("e", true)], Ref("f", true), StackDrop.Into));
+        Assert.Equal("[f] .[e] .c b a paper", Docker(scene));
+
+        Assert.Null(FolderTree.Move(scene, [Ref("a")], Ref("e", true), StackDrop.Into));
+        Assert.Equal("[f] .[e] ..a .c b paper", Docker(scene));
+
+        Assert.Null(FolderTree.Move(scene, [Ref("e", true)], Ref("b"), StackDrop.Below));
+        Assert.Equal("[f] .c b [e] .a paper", Docker(scene));
+    }
+
+    [Fact]
+    public void AFolderCannotGoInsideItself_AndThePaperStaysAtTheBottom()
+    {
+        var scene = Stack("paper", "a");
+        L(scene, "paper").IsBackground = true;
+        Folder(scene, "outer");
+        Folder(scene, "inner", parent: "outer");
+        var before = FolderTree.Signature(scene);
+
+        Assert.NotNull(FolderTree.Move(scene, [Ref("outer", true)], Ref("inner", true), StackDrop.Into));
+        Assert.NotNull(FolderTree.Move(scene, [Ref("paper")], Ref("outer", true), StackDrop.Into));
+        Assert.NotNull(FolderTree.Move(scene, [Ref("a")], Ref("paper"), StackDrop.Below));
+        Assert.Equal(before, FolderTree.Signature(scene));
+    }
+
+    [Fact]
+    public void UngroupLeavesTheContentsInTheFoldersPlace_DeleteTakesThemWithIt()
+    {
+        var scene = Stack("paper", "a", "b");
+        Folder(scene, "outer");
+        Folder(scene, "inner", parent: "outer");
+        L(scene, "a").GroupId = "inner";
+        Folder(scene, "spare", parent: "outer");
+
+        FolderTree.Ungroup(scene, FolderTree.Folder(scene, "outer")!);
+        Assert.Equal("b [spare] [inner] .a paper", Docker(scene));
+
+        var gone = FolderTree.DeleteWithContents(scene, FolderTree.Folder(scene, "inner")!);
+        Assert.Equal(["a"], gone.Select(l => l.Id));
+        Assert.Equal("b [spare] paper", Docker(scene));
+    }
 }

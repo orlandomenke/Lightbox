@@ -294,4 +294,250 @@ public static class FolderTree
             folder.Under = AnchorOf(after, folder)?.Id; // still inside its parent, or the top of it
         }
     }
+
+    // ---- operations ------------------------------------------------------------------
+    //
+    // Each takes ids rather than objects, so the view model can run it on a
+    // clone first — to refuse with a reason, or to see that it changes nothing
+    // and record no step — and then on the document inside one undo step.
+
+    /// <summary>The bottommost and topmost index of a folder's layers, or null when it holds none.</summary>
+    private static (int Bottom, int Top)? Span(Scene scene, LayerGroup folder)
+    {
+        var bottom = scene.Layers.FindIndex(l => IsWithin(scene, l, folder));
+        if (bottom < 0) return null;
+        return (bottom, scene.Layers.FindLastIndex(l => IsWithin(scene, l, folder)));
+    }
+
+    /// <summary>Where a layer inserted "at the top of <paramref name="folder"/>" lands in <see cref="Scene.Layers"/>.</summary>
+    private static int TopSlot(Scene scene, LayerGroup? folder)
+    {
+        if (folder is null) return scene.Layers.Count;
+        if (Span(scene, folder) is { } span) return span.Top + 1;
+        return OwnSlot(scene, folder);
+    }
+
+    /// <summary>Where an empty folder sits, as an insertion index.</summary>
+    private static int OwnSlot(Scene scene, LayerGroup folder) =>
+        AnchorOf(scene, folder) is { } anchor ? scene.Layers.IndexOf(anchor) : TopSlot(scene, ParentOf(scene, folder));
+
+    /// <summary>The folder an item is directly inside, or null.</summary>
+    public static LayerGroup? ContainerOf(Scene scene, object item) => item switch
+    {
+        Layer layer => Folder(scene, layer.GroupId),
+        LayerGroup folder => ParentOf(scene, folder),
+        _ => null,
+    };
+
+    /// <summary>A layer or folder by id.</summary>
+    public static object? Find(Scene scene, StackRef item) => item.IsFolder
+        ? Folder(scene, item.Id)
+        : scene.Layers.FirstOrDefault(l => l.Id == item.Id);
+
+    private static bool Inside(Scene scene, object item, LayerGroup folder) => item switch
+    {
+        Layer l => IsWithin(scene, l, folder),
+        LayerGroup g => IsWithin(scene, g, folder),
+        _ => false,
+    };
+
+    /// <summary>
+    /// Move layers and folders, each folder with everything inside it, to sit
+    /// above or below <paramref name="target"/>, or at the top inside it.
+    /// Returns null, or why it was refused — an empty reason for a drop on
+    /// itself — and nothing is changed when it refuses.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Above or below an item puts the moved items in that item's container;
+    /// above a folder's header is outside that folder, and above its top layer
+    /// is inside it — which is what the docker shows at each place.
+    /// </para>
+    /// <para>
+    /// The moved layers keep their order and land as one run, so a folder that
+    /// was together stays together, and a scattered selection is gathered.
+    /// </para>
+    /// </remarks>
+    public static string? Move(Scene scene, IReadOnlyList<StackRef> items, StackRef target, StackDrop where)
+    {
+        var resolved = items.Select(i => Find(scene, i)).ToList();
+        if (resolved.Any(r => r is null) || Find(scene, target) is not { } onto) return "That item is no longer in the stack.";
+        if (where == StackDrop.Into && onto is not LayerGroup) where = StackDrop.Above;
+
+        var folders = resolved.OfType<LayerGroup>().ToList();
+        // Something inside a moved folder moves with it, not on its own.
+        var roots = resolved
+            .Where(r => !folders.Any(f => !ReferenceEquals(r, f) && Inside(scene, r!, f)))
+            .Select(r => r!)
+            .Distinct()
+            .ToList();
+        if (roots.Contains(onto)) return "";
+        if (folders.Any(f => Inside(scene, onto, f))) return "A folder can't go inside itself.";
+
+        var run = scene.Layers
+            .Where(l => roots.Contains(l) || roots.OfType<LayerGroup>().Any(f => IsWithin(scene, l, f)))
+            .ToList();
+        if (run.FirstOrDefault(l => l.IsBackground) is { } paper)
+        {
+            return $"“{paper.Name}” is the paper — it stays at the bottom of the stack.";
+        }
+        if (where == StackDrop.Below && onto is Layer { IsBackground: true } under)
+        {
+            return $"“{under.Name}” is the paper — nothing goes under it.";
+        }
+
+        var parent = where == StackDrop.Into ? (LayerGroup)onto : ContainerOf(scene, onto);
+        foreach (var layer in run) scene.Layers.Remove(layer);
+        var at = (where, onto) switch
+        {
+            (StackDrop.Into, LayerGroup t) => TopSlot(scene, t),
+            (StackDrop.Above, Layer t) => scene.Layers.IndexOf(t) + 1,
+            (StackDrop.Below, Layer t) => scene.Layers.IndexOf(t),
+            (StackDrop.Above, LayerGroup t) => Span(scene, t) is { } s ? s.Top + 1 : OwnSlot(scene, t),
+            (_, LayerGroup t) => Span(scene, t) is { } s ? s.Bottom : OwnSlot(scene, t),
+            _ => scene.Layers.Count,
+        };
+        // Nothing under the paper, whichever way the slot was reached.
+        if (at == 0 && scene.Layers.Count > 0 && scene.Layers[0].IsBackground) at = 1;
+        scene.Layers.InsertRange(at, run);
+
+        foreach (var root in roots)
+        {
+            switch (root)
+            {
+                case Layer l: l.GroupId = parent?.Id; break;
+                case LayerGroup f: f.ParentId = parent?.Id; break;
+            }
+        }
+        // Empty folders among the moved items sit at the top of the run.
+        var above = at + run.Count < scene.Layers.Count ? scene.Layers[at + run.Count].Id : null;
+        foreach (var f in roots.OfType<LayerGroup>().Where(f => Span(scene, f) is null))
+        {
+            f.Under = above;
+            f.Under = AnchorOf(scene, f)?.Id;
+        }
+        // Beside another folder in the same slot, the list order is the stack
+        // order (later is higher), so a moved folder goes next to it there too.
+        if (onto is LayerGroup sibling && where != StackDrop.Into)
+        {
+            var moved = roots.OfType<LayerGroup>().ToList();
+            foreach (var f in moved) scene.LayerGroups.Remove(f);
+            var i = scene.LayerGroups.IndexOf(sibling);
+            scene.LayerGroups.InsertRange(where == StackDrop.Above ? i + 1 : i, moved);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Put a new, empty folder directly above <paramref name="active"/>, in
+    /// the same container — or at the top of the stack when nothing is active.
+    /// </summary>
+    /// <remarks>
+    /// Photoshop's <em>New Group</em> and Krita's <em>Add Group Layer</em>: an
+    /// empty container, made where the artist is working (Q204).
+    /// </remarks>
+    public static void AddFolder(Scene scene, LayerGroup folder, StackRef? active)
+    {
+        var item = active is { } a ? Find(scene, a) : null;
+        folder.ParentId = item is null ? null : ContainerOf(scene, item)?.Id;
+        switch (item)
+        {
+            case Layer layer:
+                var i = scene.Layers.IndexOf(layer);
+                folder.Under = i + 1 < scene.Layers.Count ? scene.Layers[i + 1].Id : null;
+                scene.LayerGroups.Add(folder);
+                break;
+            case LayerGroup other when Span(scene, other) is { } span:
+                folder.Under = span.Top + 1 < scene.Layers.Count ? scene.Layers[span.Top + 1].Id : null;
+                scene.LayerGroups.Add(folder);
+                break;
+            case LayerGroup other:
+                folder.Under = AnchorOf(scene, other)?.Id;
+                scene.LayerGroups.Insert(scene.LayerGroups.IndexOf(other) + 1, folder);
+                break;
+            default:
+                folder.Under = null;
+                scene.LayerGroups.Add(folder);
+                break;
+        }
+        // The slot above the top of a folder is the top inside it, not outside.
+        folder.Under = AnchorOf(scene, folder)?.Id;
+    }
+
+    /// <summary>
+    /// Wrap the items in a new folder where the topmost of them was — gathering
+    /// them into one run if they were apart. Returns null, or why not.
+    /// </summary>
+    /// <remarks>Photoshop's <em>Group from Layers</em>, Krita's <em>Quick Group</em> — Ctrl+G in both.</remarks>
+    public static string? Group(Scene scene, LayerGroup folder, IReadOnlyList<StackRef> items)
+    {
+        var resolved = items.Select(i => Find(scene, i)).Where(r => r is not null).Select(r => r!).ToList();
+        if (resolved.Count == 0) return "Select the layers or folders to put in a folder.";
+        if (resolved.OfType<Layer>().FirstOrDefault(l => l.IsBackground) is { } paper)
+        {
+            return $"“{paper.Name}” is the paper — it stays out of folders.";
+        }
+        var rows = Rows(scene).Select(r => r.Item).ToList();
+        var topmost = resolved.OrderBy(rows.IndexOf).First();
+        AddFolder(scene, folder, StackRef.Of(topmost));
+        // AddFolder put it just above the topmost item; Into then gathers the
+        // items at its top — which is where the topmost one already was.
+        return Move(scene, items, new StackRef(folder.Id, true), StackDrop.Into) is { Length: > 0 } why ? why : null;
+    }
+
+    /// <summary>Remove a folder and leave what was in it in the folder's place, one level up.</summary>
+    public static void Ungroup(Scene scene, LayerGroup folder)
+    {
+        var parent = ParentOf(scene, folder);
+        // The folder's own slot, as the layer directly above it: an empty child
+        // that sat at the top inside it sits there once it is gone.
+        var slot = Span(scene, folder) is { } span
+            ? span.Top + 1 < scene.Layers.Count ? scene.Layers[span.Top + 1].Id : null
+            : AnchorOf(scene, folder)?.Id;
+        var children = scene.LayerGroups.Where(g => g.ParentId == folder.Id).ToList();
+        var atTop = children.Where(c => Span(scene, c) is null && AnchorOf(scene, c) is null).ToList();
+        foreach (var layer in scene.Layers.Where(l => l.GroupId == folder.Id)) layer.GroupId = parent?.Id;
+        foreach (var child in children) child.ParentId = parent?.Id;
+        foreach (var child in atTop) child.Under = slot;
+        scene.LayerGroups.Remove(folder);
+        foreach (var child in children.Where(c => Span(scene, c) is null)) child.Under = AnchorOf(scene, child)?.Id;
+    }
+
+    /// <summary>Remove a folder and everything inside it — layers and folders — as Krita does (Q204).</summary>
+    /// <returns>The layers removed, bottom first.</returns>
+    public static List<Layer> DeleteWithContents(Scene scene, LayerGroup folder)
+    {
+        var layers = SubtreeLayers(scene, folder);
+        var folders = SubtreeFolders(scene, folder);
+        folders.Add(folder);
+        scene.Layers.RemoveAll(layers.Contains);
+        scene.LayerGroups.RemoveAll(folders.Contains);
+        return layers;
+    }
+
+    /// <summary>What a stack edit is judged by: the layer order, who is in what, and where empty folders sit.</summary>
+    public static string Signature(Scene scene) =>
+        string.Join("|", scene.Layers.Select(l => $"{l.Id}:{l.GroupId}"))
+        + "#" + string.Join("|", scene.LayerGroups.Select(g => $"{g.Id}:{g.ParentId}:{g.Under}"));
+}
+
+/// <summary>A layer or a folder in the stack, by id.</summary>
+public readonly record struct StackRef(string Id, bool IsFolder)
+{
+    public static StackRef Of(object item) => item switch
+    {
+        Layer l => new StackRef(l.Id, false),
+        LayerGroup g => new StackRef(g.Id, true),
+        _ => throw new ArgumentException("Not a layer or a folder.", nameof(item)),
+    };
+}
+
+/// <summary>Where a moved item lands relative to the one it is dropped on.</summary>
+public enum StackDrop
+{
+    Above,
+    Below,
+
+    /// <summary>At the top inside a folder.</summary>
+    Into,
 }
