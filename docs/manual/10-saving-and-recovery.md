@@ -68,6 +68,11 @@ mask's coverage, at the rectangle Photoshop gave it, with whatever it said appli
 outside — and a mask switched off in Photoshop arrives switched off. A clipped
 layer arrives clipped to the layer below, which is the same rule Photoshop uses.
 
+**Folders come across as they were** — nested inside one another, under their
+own names, empty ones included. A folder hidden in Photoshop arrives hidden (and
+so hides everything inside it), and one collapsed in Photoshop's panel arrives
+collapsed.
+
 **Lightbox refuses a PSD it cannot draw faithfully, and tells you exactly what to
 fix.** Adjustment layers, fill layers, text layers, smart objects, layer effects,
 vector masks and a folder that blends as a group all change what the pixels

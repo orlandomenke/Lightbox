@@ -664,7 +664,8 @@ it is re-rendered rather than recorded. What is missing is only presentation.
 
 - [~] PSD import/export `evidence: PsdReader, PsdDocumentImport, PsdBlendMap, PsdReadTests, PsdImportTests, PsdFixture, ChannelsBecomeRgbaAtTheLayersOwnOffset, EveryCompressionSchemeDecodesToTheSamePixels, EveryReasonIsCollectedBeforeRefusing_NotJustTheFirst, ALayersPixelsLandOnTheBaselineAtTheirCanvasPosition, APhotoshopFolderBecomesALayerFolder, PsdWriter, APsdRoundTripsThroughPhotoshopWithItsLayers`
   - **Built: import.** RGB and greyscale, 8 and 16 bits, PSD and PSB, raw / RLE /
-    ZIP channels, folders, and layer name, visibility, opacity, blend mode and
+    ZIP channels, folders — nested and empty ones as they were (Q204,
+    `NestedFoldersStayNested`) — and layer name, visibility, opacity, blend mode and
     locking. `.psd` and `.psb` open through **File ▸ Open…** rather than a
     separate Import item, because "open this drawing" is the same intent whoever
     made the file.
