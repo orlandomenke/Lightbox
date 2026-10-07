@@ -85,6 +85,20 @@ sealed class TransformSession
     internal IReadOnlyList<(SKRectI Source, SKMatrix Matrix)> BandPasses { get; set; } = [];
 
     /// <summary>
+    /// The cage warp being previewed, as the mesh the renderer draws (Q199).
+    /// Null in every other mode and while the lattice is untouched.
+    /// </summary>
+    internal Lightbox.Raster.PassMesh? CageMesh { get; set; }
+
+    /// <summary>
+    /// Where the cage's last preview put pixels, so the next one can repaint
+    /// where they were as well as where they now are. A cage may carry pixels
+    /// outside the box, which the band preview's "the box bounds the change"
+    /// cannot assume.
+    /// </summary>
+    internal SKRectI? CageDirty { get; set; }
+
+    /// <summary>
     /// Doc-space bounds of everything the gesture moves, render reach included
     /// — or null when the moving pixels cannot be bounded from the stroke
     /// record (a raster baseline or a placement moves with the layer), in
@@ -157,7 +171,13 @@ sealed class TransformSession
     /// Drop the preview and every split cached for it, freeing the bitmaps this
     /// session rendered and leaving the borrowed ones alone.
     /// </summary>
-    internal void ClearBands() => BandPasses = [];
+    /// <summary>Drop the non-matrix previews: the band passes and the cage mesh.</summary>
+    internal void ClearBands()
+    {
+        BandPasses = [];
+        CageMesh = null;
+        CageDirty = null;
+    }
 
     internal void ClearPreview()
     {

@@ -422,6 +422,12 @@ public partial class MainWindow
                 ToggleTransformBands();
                 e.Handled = true;
                 break;
+            case "canvas.transformCage":
+                // Same shape as the bands: one press opens a session in cage mode.
+                if (!_vm.TransformActive) _vm.BeginTransform();
+                ToggleTransformCage();
+                e.Handled = true;
+                break;
             case "project.refresh":
                 // Harmless with no project — the command guards on it — so this
                 // does not need a HasProject check that could drift from the one

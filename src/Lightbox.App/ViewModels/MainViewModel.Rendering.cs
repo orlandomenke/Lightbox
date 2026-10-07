@@ -1387,6 +1387,7 @@ public partial class MainViewModel
             // `this` allocates a closure and a delegate on every publish, and a
             // publish happens per pointer event while drawing.
             _passTransformSplit ??= TransformSplitFor,
+            TransformMesh: _transform.CageMesh,
             MaskEditing: EditingLayerMask,
             TipScratch: BuildLiveTip(),
             TipBounds: _live.TipUsed,

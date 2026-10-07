@@ -61,6 +61,7 @@ public partial class CanvasControl
             if (value)
             {
                 _txPerspective = false;
+                TxDropCage();
                 SeedBandsFromBounds();
             }
             _txBandDrag = null;

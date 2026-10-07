@@ -112,7 +112,8 @@ internal static class ScenePassBuilder
         SKBitmap? MaskScratch = null,
         bool MaskScratchErases = false,
         Lightbox.Core.Effects.EffectStack? Fx = null,
-        bool Adjusts = false);
+        bool Adjusts = false,
+        PassMesh? Mesh = null);
 
     /// <summary>
     /// The described pass list, plus where the active layer's own contribution
@@ -219,6 +220,7 @@ internal static class ScenePassBuilder
         IReadOnlyList<Frame>? TransformFrames = null,
         IReadOnlyList<(SKRectI Source, SKMatrix Matrix)>? TransformBands = null,
         Func<Frame, TransformSplit?>? PartsFor = null,
+        PassMesh? TransformMesh = null,
         bool MaskEditing = false,
         SKBitmap? TipScratch = null,
         SKRectI? TipBounds = null,
@@ -274,7 +276,8 @@ internal static class ScenePassBuilder
             EffectFrame: spec.CelIndex,
             Style: spec.Adjusts || spec.Fx is null
                 ? null
-                : Lightbox.Raster.Effects.EffectRegistry.StyleFor(spec.Fx, spec.CelIndex));
+                : Lightbox.Raster.Effects.EffectRegistry.StyleFor(spec.Fx, spec.CelIndex),
+            Mesh: spec.Mesh);
     }
 
     /// <summary>
@@ -525,7 +528,8 @@ internal static class ScenePassBuilder
             // and the ones that stay (a region-limited transform) are drawn
             // where they are, which is exactly the split the commit makes.
             var bands = live.TransformBands;
-            if ((live.TransformPreview is not null || bands is { Count: > 0 })
+            var cage = live.TransformMesh;
+            if ((live.TransformPreview is not null || bands is { Count: > 0 } || cage is not null)
                 && Moving(live.TransformFrames, frame)
                 && live.PartsFor?.Invoke(frame) is { } parts)
             {
@@ -536,7 +540,18 @@ internal static class ScenePassBuilder
                         SceneRenderer.ToSkia(layer.BlendMode), Matrix: parallax,
                         Shapes: shapes, Fx: fx));
                 }
-                if (bands is { Count: > 0 })
+                if (cage is not null)
+                {
+                    // **A cage warp is one mesh pass (Q199).** The moving bitmap
+                    // is stretched over the lattice's triangles; the plane's
+                    // parallax, when there is one, is the pass matrix the mesh
+                    // nests under, as the single-matrix preview nests.
+                    passes.Add(new PassSpec(
+                        null, state.FrameIndex, parts.Moving, null, layer.Opacity,
+                        SceneRenderer.ToSkia(layer.BlendMode), overlay, parallax,
+                        Shapes: shapes, Fx: fx, Mesh: cage));
+                }
+                else if (bands is { Count: > 0 })
                 {
                     // **A band scale is one pass per band (Q184).** Inside a
                     // band the map is a scale and an offset, so each one is a

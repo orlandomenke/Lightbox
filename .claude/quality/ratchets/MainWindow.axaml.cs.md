@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml.cs
 
-budget: 432
+budget: 429
 
 ## Why it has moved
 

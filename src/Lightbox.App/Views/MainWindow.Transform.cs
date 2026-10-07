@@ -45,6 +45,7 @@ public partial class MainWindow
             Canvas.EndTransformGizmo();
             TransformPerspectiveToggle.IsChecked = false; // gizmo resets per session
             TransformBandsToggle.IsChecked = false;
+            TransformCageToggle.IsChecked = false;
             SyncCanvasToolMode();
         };
         // The gizmo is the authority on the shape of the drag; the view model
@@ -56,14 +57,22 @@ public partial class MainWindow
             // — so the two modes feed different preview entry points. Clearing
             // the other one on every change is what stops a mode switch leaving
             // a stale preview of the mode you just left on screen.
-            if (Canvas.TransformBands)
+            if (Canvas.TransformCage)
             {
                 _vm.PreviewTransform(null);
+                _vm.PreviewTransformBands([]);
+                _vm.PreviewTransformCage(Canvas.TransformCageMesh);
+            }
+            else if (Canvas.TransformBands)
+            {
+                _vm.PreviewTransform(null);
+                _vm.PreviewTransformCage(null);
                 _vm.PreviewTransformBands(Canvas.TransformBandPasses);
             }
             else
             {
                 _vm.PreviewTransformBands([]);
+                _vm.PreviewTransformCage(null);
                 _vm.PreviewTransform(Canvas.TransformMatrix);
             }
         };
@@ -81,7 +90,11 @@ public partial class MainWindow
             _vm.CancelTransform(); // nothing changed — don't record an undo step
             return;
         }
-        if (Canvas.TransformBands)
+        if (Canvas.TransformCage)
+        {
+            _vm.CommitTransformCage(Canvas.TransformCageResult);
+        }
+        else if (Canvas.TransformBands)
         {
             var (bx, by) = Canvas.TransformBandsResult;
             _vm.CommitTransformBands(bx, by);
@@ -105,6 +118,38 @@ public partial class MainWindow
         // that, and the button has to say so or it claims a mode that is off.
         if (Canvas.TransformPerspective) Canvas.TransformBands = false;
         TransformBandsToggle.IsChecked = Canvas.TransformBands;
+        TransformCageToggle.IsChecked = Canvas.TransformCage;
+    }
+
+    private void OnTransformCageToggled(object? sender, RoutedEventArgs e)
+    {
+        var wanted = TransformCageToggle.IsChecked == true;
+        if (Canvas.TransformCage != wanted) ToggleTransformCage();
+        TransformCageToggle.IsChecked = Canvas.TransformCage;
+    }
+
+    private void OnTransformCageGridChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (e.NewValue is { } value) Canvas.TransformCageGrid = (int)Math.Round((double)value);
+    }
+
+    /// <summary>
+    /// Turn cage mode on or off (Q199) — from the docker, the gizmo menu and a
+    /// rebindable shortcut, like the bands.
+    /// </summary>
+    internal void ToggleTransformCage()
+    {
+        if (!_vm.TransformActive) return;
+        Canvas.TransformCage = !Canvas.TransformCage;
+        if (Canvas.TransformCage)
+        {
+            TransformPerspectiveToggle.IsChecked = false;
+            TransformBandsToggle.IsChecked = false;
+        }
+        TransformCageToggle.IsChecked = Canvas.TransformCage;
+        _vm.AiStatus = Canvas.TransformCage
+            ? $"Cage: drag a handle to bend the drawing around it — {Canvas.TransformCageGrid}×{Canvas.TransformCageGrid} cells; change the grid in Tool options."
+            : "Box mode.";
     }
 
     private void OnTransformBandsToggled(object? sender, RoutedEventArgs e)
@@ -115,6 +160,7 @@ public partial class MainWindow
         var wanted = TransformBandsToggle.IsChecked == true;
         if (Canvas.TransformBands != wanted) ToggleTransformBands();
         TransformBandsToggle.IsChecked = Canvas.TransformBands;
+        TransformCageToggle.IsChecked = Canvas.TransformCage;
     }
 
     /// <summary>
@@ -125,7 +171,11 @@ public partial class MainWindow
     {
         if (!_vm.TransformActive) return;
         Canvas.TransformBands = !Canvas.TransformBands;
-        if (Canvas.TransformBands) TransformPerspectiveToggle.IsChecked = false;
+        if (Canvas.TransformBands)
+        {
+            TransformPerspectiveToggle.IsChecked = false;
+            TransformCageToggle.IsChecked = false;
+        }
         TransformBandsToggle.IsChecked = Canvas.TransformBands;
         _vm.AiStatus = Canvas.TransformBands
             ? "Bands: click to place a line, Shift+click for an upright one, "
@@ -183,6 +233,8 @@ public partial class MainWindow
                 new Separator(),
                 Item(Canvas.TransformBands ? "Box mode (affine)" : "Band mode (divide and redistribute)",
                     ToggleTransformBands),
+                Item(Canvas.TransformCage ? "Box mode (affine)" : "Cage mode (bend with a lattice)",
+                    ToggleTransformCage),
                 Item(Canvas.TransformPerspective ? "Box mode (affine)" : "Perspective mode (free corners)",
                     () =>
                     {

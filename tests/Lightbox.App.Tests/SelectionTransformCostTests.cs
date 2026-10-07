@@ -169,6 +169,96 @@ public sealed class SelectionTransformCostTests(ITestOutputHelper output) : Brus
         return (first, later.Min(), commit);
     }
 
+    /// <summary>
+    /// The cage's sibling of <see cref="OneDrag"/> (Q199): a 3×3 lattice over
+    /// the marquee's box, its centre handle walked down one pixel per event,
+    /// with the mesh rebuilt per event as the gizmo rebuilds it.
+    /// </summary>
+    private static (double First, double Later, double Commit) OneCageDrag()
+    {
+        var vm = Sketch();
+        Publish(vm);
+        Marquee(vm);
+        Assert.True(vm.BeginTransform(), vm.AiStatus);
+        var lattice = Lightbox.Core.Geometry.CageWarp.Lattice.Identity(150, 100, 600, 400, 3, 3);
+        var centre = lattice.IndexOf(1, 1);
+        var (cx, cy) = lattice.Points[centre];
+
+        Lightbox.Raster.PassMesh MeshAt(int step)
+        {
+            lattice = Lightbox.Core.Geometry.CageWarp.Drag(lattice, centre, cx, cy + step);
+            return Rendering.CanvasControl.ToPassMesh(Lightbox.Core.Geometry.CageWarp.MeshOf(lattice));
+        }
+
+        vm.PreviewTransformCage(MeshAt(1));
+        var first = Ms(() => Publish(vm));
+        var later = new List<double>();
+        for (var i = 2; i <= 8; i++)
+        {
+            vm.PreviewTransformCage(MeshAt(i));
+            later.Add(Ms(() => Publish(vm)));
+        }
+        var commit = Ms(() => vm.CommitTransformCage(lattice));
+        return (first, later.Min(), commit);
+    }
+
+    private (double First, double Later, double Commit) CageDrag()
+    {
+        double first = double.MaxValue, later = double.MaxValue, commit = double.MaxValue;
+        for (var round = 0; round < 3; round++)
+        {
+            var (f, l, c) = OneCageDrag();
+            first = Math.Min(first, f);
+            later = Math.Min(later, l);
+            commit = Math.Min(commit, c);
+        }
+        return (first, later, commit);
+    }
+
+    [AvaloniaFact]
+    [Trait("Category", "Performance")]
+    public void TheFirstEventOfACageDragIsNotAStall()
+    {
+        var (first, later, _) = CageDrag();
+        output.WriteLine($"first cage event {first:F1} ms, later events {later:F1} ms — {first / later:F1}×");
+        Assert.True(first < later * 12, $"the first cage event cost {first:F1} ms against {later:F1} ms for the rest");
+    }
+
+    /// <summary>
+    /// Against the matrix commit of the same drag rather than against the
+    /// cage's own drag events: a cage event repaints only the mesh's reach
+    /// and comes out cheaper than a rotation's, which made the event ratio
+    /// read 11× for a commit that costs the same 20 ms the matrix commit
+    /// does. The commit is the same walk of the same record; the cage adds
+    /// its point insertion and a cubic per point, and that is what the 2×
+    /// headroom is for.
+    /// </summary>
+    [AvaloniaFact]
+    [Trait("Category", "Performance")]
+    public void CommittingACageCostsAboutWhatAMatrixCommitCosts()
+    {
+        var (_, _, matrix) = Drag();
+        var (_, _, cage) = CageDrag();
+        output.WriteLine($"matrix commit {matrix:F1} ms, cage commit {cage:F1} ms — {cage / matrix:F1}×");
+        Assert.True(cage < matrix * 2 + 5, $"the cage commit cost {cage:F1} ms against {matrix:F1} ms for a matrix one");
+    }
+
+    /// <summary>
+    /// A cage publish against a matrix publish of the same drag: the mesh is
+    /// a few hundred textured triangles over the same bitmap, so it must cost
+    /// about what the matrix draw costs — not a canvas-sized copy more, which
+    /// is what a bitmap shader built from a mutable bitmap would add.
+    /// </summary>
+    [AvaloniaFact]
+    [Trait("Category", "Performance")]
+    public void ACagePublishCostsAboutWhatAMatrixPublishCosts()
+    {
+        var (_, matrix, _) = Drag();
+        var (_, cage, _) = CageDrag();
+        output.WriteLine($"matrix publish {matrix:F2} ms, cage publish {cage:F2} ms — {cage / matrix:F1}×");
+        Assert.True(cage < matrix * 3 + 1, $"a cage publish cost {cage:F2} ms against {matrix:F2} ms for a matrix one");
+    }
+
     [AvaloniaFact]
     [Trait("Category", "Performance")]
     public void TheFirstDragOfASelectionTransformIsNotAStall()

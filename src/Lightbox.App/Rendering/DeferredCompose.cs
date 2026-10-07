@@ -225,6 +225,7 @@ public readonly record struct DeferredCompose(
         || pass.AdjustStack is not null
         || pass.Matrix is not null
         || pass.Source is not null
+        || pass.Mesh is not null
         || pass.Overlay is { NeedsMask: true };
 
     /// <summary>
