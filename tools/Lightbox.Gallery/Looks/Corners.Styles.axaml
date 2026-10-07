@@ -67,8 +67,10 @@
   </Style>
 
   <!-- ===== Pills ===== -->
+  <!-- Badges are controls here, not pills (owner, 2026-10-07): they follow the
+       set with everything else, square in Square. -->
   <Style Selector="Border.badge">
-    <Setter Property="CornerRadius" Value="{StaticResource LookPillRadius}" />
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
   </Style>
   <Style Selector="ToggleSwitch /template/ Border#OuterBorder, ToggleSwitch /template/ Border#SwitchKnobBounds">
     <Setter Property="CornerRadius" Value="{StaticResource LookPillRadius}" />

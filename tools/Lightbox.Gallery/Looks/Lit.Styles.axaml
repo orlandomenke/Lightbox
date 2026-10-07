@@ -200,6 +200,11 @@
     <Setter Property="BorderThickness" Value="1" />
   </Style>
 
+  <!-- One icon line, from the token. -->
+  <Style Selector="Path.icon, Path.effectIcon">
+    <Setter Property="StrokeThickness" Value="{StaticResource LookIconStroke}" />
+  </Style>
+
   <!-- 4 · One primary, plain. -->
   <Style Selector="Button.primary">
     <Setter Property="Background" Value="{StaticResource AccentGradientBrush}" />

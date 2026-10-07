@@ -33,6 +33,11 @@
   <!-- Text and icons inside a row or list item, from its own edge. -->
   <Thickness x:Key="LookItemPadding">8,0</Thickness>
 
+  <!-- ===== Icons ===== -->
+  <!-- The icon line, one weight for every glyph (owner, 2026-10-07: slightly
+       thinner than the shipped 1.5). -->
+  <x:Double x:Key="LookIconStroke">1.25</x:Double>
+
   <!-- ===== Tabs ===== -->
   <Thickness x:Key="LookTabPadding">14,6</Thickness>
 </ResourceDictionary>
