@@ -8,7 +8,7 @@
         WindowStartupLocation="CenterOwner"
         Title="Resize">
 
-  <StackPanel Margin="16" Spacing="12">
+  <StackPanel Margin="16" Spacing="{StaticResource Space12}">
 
     <!-- Pixel size. Both modes have it; only the labels around it differ. -->
     <Grid ColumnDefinitions="Auto,*,Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
@@ -46,7 +46,7 @@
       direction is faster to point at than to read out of a list. Canvas mode
       only — rescaling artwork has no corner to hold still.
     -->
-    <StackPanel Spacing="6" IsVisible="{Binding IsCanvas}">
+    <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding IsCanvas}">
       <TextBlock Text="Anchor" />
       <UniformGrid x:Name="AnchorGrid" Rows="3" Columns="3"
                    Width="108" Height="108" HorizontalAlignment="Left" />
@@ -60,7 +60,7 @@
       <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
     </Border>
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}">
       <Button Content="Reset" Click="OnReset" />
       <Button Content="Cancel" Click="OnCancel" IsCancel="True" />
       <Button Content="Resize" Click="OnApply" IsDefault="True"

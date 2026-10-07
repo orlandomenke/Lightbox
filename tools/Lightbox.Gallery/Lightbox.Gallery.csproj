@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The component gallery (Q203): Lightbox's real controls, in their named
+    states, under candidate looks — a sandbox to prototype a treatment before it
+    reaches the app. Not shipped. It references Lightbox.App for its controls
+    and loads the app's own Styles/AppResources.axaml and Styles/AppStyles.axaml,
+    so what it shows is what the app would draw, not a copy.
+
+    Run with the snapshot switch and a folder, it renders every story under
+    every look to PNG, headless on Skia, for a pull request to show before
+    and after (see Program.cs).
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Lightbox.Gallery</RootNamespace>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Lightbox.App\Lightbox.App.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Headless" Version="12.1.1" />
+    <!-- Reads Looks/*.axaml from disk while the gallery runs, so a saved edit
+         shows without a rebuild. -->
+    <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Skia" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Looks/**" />
+  </ItemGroup>
+
+</Project>

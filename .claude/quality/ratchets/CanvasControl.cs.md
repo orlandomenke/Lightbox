@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4824
+budget: 4795
 
 ## Why it has moved
 
@@ -131,3 +131,7 @@ other's reason and leaves a number nobody can account for.
   about the control, so it had a name of its own and now has a file of its own.
   The probe is called from there, so the feature added nothing to this file.
 - **4,831 → 4,824** when `CanvasControl.PointerOwnership.cs` took the question of *which device owns the gesture in flight*: the pen-over-echo takeover B256 needed, and `OnPointerCaptureLost`, which moved with it because deciding whether a capture loss belongs to the owner is the only thing it now does.
+- **4,824 → 4,795** when the transform session got its own undo history.
+  Mirror and Reset moved to the new `CanvasControl.TransformSteps.cs` with
+  the history they make steps in; what stayed here is four calls marking
+  the moments a gizmo gesture ends, a capture loss among them.

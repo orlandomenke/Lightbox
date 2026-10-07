@@ -1,0 +1,43 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Spacing and alignment tokens (Q203). Every element in the looks reads its
+    insets, gaps and widths from here, so a docker's dropdown, its sliders and
+    its rows all start and end on the same lines. An override is allowed, but it
+    names the token it bends, in a comment, at the site.
+
+    Live: change a number and save.
+  -->
+
+  <!-- ===== Containers ===== -->
+  <!-- Inside a docker, round its content: every row starts and ends here. -->
+  <Thickness x:Key="LookPanelPadding">12,10,12,12</Thickness>
+  <!-- The docker's header strip: room above the tabs, none below — the active
+       tab has to touch the content it belongs to. -->
+  <Thickness x:Key="LookHeaderPadding">8,6,8,0</Thickness>
+
+  <!-- ===== Rows ===== -->
+  <!-- One row height for every setting row, field, combo and list row. -->
+  <x:Double x:Key="LookRowHeight">24</x:Double>
+  <!-- Between rows in a panel. -->
+  <x:Double x:Key="LookRowGap">8</x:Double>
+  <!-- Between the columns of a setting row: control · value · icon. -->
+  <x:Double x:Key="LookColumnGap">8</x:Double>
+  <!-- The value column. Fixed, not growing, so every row's value field ends on
+       the same line — the indent the owner spotted came from fields sized to
+       their numbers. -->
+  <x:Double x:Key="LookFieldWidth">48</x:Double>
+  <!-- The trailing icon column, present on every setting row so the rows end
+       together even where a row has no icon. -->
+  <x:Double x:Key="LookIconSlot">16</x:Double>
+  <!-- Text and icons inside a row or list item, from its own edge. -->
+  <Thickness x:Key="LookItemPadding">8,0</Thickness>
+
+  <!-- ===== Icons ===== -->
+  <!-- The icon line, one weight for every glyph (owner, 2026-10-07: slightly
+       thinner than the shipped 1.5). -->
+  <x:Double x:Key="LookIconStroke">1.25</x:Double>
+
+  <!-- ===== Tabs ===== -->
+  <Thickness x:Key="LookTabPadding">14,6</Thickness>
+</ResourceDictionary>

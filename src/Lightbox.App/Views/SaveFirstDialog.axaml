@@ -15,9 +15,9 @@
     this appears the artist has already clicked a status and the honest question is
     whether that click stands.
   -->
-  <StackPanel Margin="16" Spacing="12">
+  <StackPanel Margin="16" Spacing="{StaticResource Space12}">
     <TextBlock x:Name="Message" TextWrapping="Wrap" />
-    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space8}" HorizontalAlignment="Right">
       <Button Classes="primary" x:Name="SaveButton" Content="Save file as…" IsDefault="True"
               Click="OnSaveAsClicked" MinWidth="110" />
       <Button Classes="tertiary" x:Name="RevertButton" IsCancel="True" Click="OnRevertClicked" MinWidth="140" />

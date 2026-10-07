@@ -10,7 +10,7 @@
     never fitted, at any window width. Four children degrade instead, and this
     is the one that must survive, because choosing the marquee is the tool.
   -->
-  <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+  <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}" VerticalAlignment="Center">
     <StackPanel.IsVisible>
       <MultiBinding Converter="{x:Static BoolConverters.And}">
         <Binding Path="IsSelectTool" />

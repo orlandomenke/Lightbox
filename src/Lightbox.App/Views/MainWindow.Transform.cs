@@ -80,6 +80,32 @@ public partial class MainWindow
         // so the outline follows the drag instead of catching up on release.
         _vm.TransformPreviewChanged += Canvas.SetSelectionPreviewTransform;
         Canvas.TransformMenuRequested += ShowTransformMenu;
+        // The session's history is the gizmo's; the view model routes the keys
+        // and the leaving here, since it never sees the box until a commit.
+        _vm.TransformUndo = () => StepTransformGizmo(Canvas.UndoTransformStep);
+        _vm.TransformRedo = () => StepTransformGizmo(Canvas.RedoTransformStep);
+        // A Move-tool drag opens a session with no gizmo, and the gizmo's
+        // fields then still hold the last Ctrl+T box — applying from them would
+        // replay that box onto this drag's frames. Leaving mid-drag drops it.
+        _vm.ConfirmTransform = () =>
+        {
+            if (Canvas.TransformSessionActive) CommitTransformFromGizmo();
+            else _vm.CancelTransform();
+        };
+    }
+
+    /// <summary>
+    /// Take one session step, then make the docker's mode buttons and grid
+    /// agree with the box it restored — a step can cross a mode switch.
+    /// </summary>
+    private bool StepTransformGizmo(Func<bool> step)
+    {
+        if (!step()) return false;
+        TransformPerspectiveToggle.IsChecked = Canvas.TransformPerspective;
+        TransformBandsToggle.IsChecked = Canvas.TransformBands;
+        TransformCageToggle.IsChecked = Canvas.TransformCage;
+        TransformCageGrid.Value = Canvas.TransformCageGrid;
+        return true;
     }
 
     /// <summary>Read the gizmo and commit through the matching VM path.</summary>
