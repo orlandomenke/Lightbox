@@ -25,7 +25,7 @@
       The path under the rows rather than over: the rows are edited, the path
       is read, and the thing you act on belongs where the pointer arrives first.
     -->
-    <controls:CameraPathPlot DockPanel.Dock="Bottom" Height="96" Margin="0,6,0,0"
+    <controls:CameraPathPlot DockPanel.Dock="Bottom" Height="96" Margin="{StaticResource SubsectionGap}"
                              IsVisible="{Binding HasCamera}"
                              DocumentSize="{Binding ScenePlotSize}"
                              PathPoints="{Binding CameraPathPoints}"
