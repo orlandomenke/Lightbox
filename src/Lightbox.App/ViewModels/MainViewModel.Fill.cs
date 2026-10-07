@@ -487,6 +487,8 @@ public partial class MainViewModel
     private SKBitmap CompositeVisibleLayers()
     {
         var scene = Scene;
+        // B392: held until the compose is done; see FrameBitmapCache.HoldFetches.
+        using var hold = _cache.HoldFetches();
         using var image = SceneRenderer.Compose(
             scene.Width, scene.Height, VisiblePasses(), SkiaSharp.SKColors.Transparent);
         return SKBitmap.FromImage(image);
@@ -501,6 +503,11 @@ public partial class MainViewModel
     /// the list twice would be two answers to "what is visible", and the pointer
     /// preview drifting from the click it predicts is precisely the failure that
     /// makes a preview worse than none.
+    /// <para>
+    /// <b>Call it inside <see cref="FrameBitmapCache.HoldFetches"/>.</b> The
+    /// bitmaps in the list belong to the cache, and building the list can evict
+    /// the ones fetched earlier in it (B392).
+    /// </para>
     /// </remarks>
     private List<RenderPass> VisiblePasses()
     {
@@ -558,6 +565,9 @@ public partial class MainViewModel
     /// </remarks>
     private SKColor SampleVisibleComposite(int x, int y)
     {
+        // B392: without this, playback's eviction freed each layer as the next
+        // one was fetched, and the compose read the freed pixels.
+        using var hold = _cache.HoldFetches();
         using var image = SceneRenderer.Compose(
             1, 1, VisiblePasses(), SkiaSharp.SKColors.Transparent,
             SKMatrix.CreateTranslation(-x, -y));

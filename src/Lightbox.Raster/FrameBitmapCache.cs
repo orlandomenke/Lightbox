@@ -167,6 +167,84 @@ public sealed class FrameBitmapCache : IDisposable
     }
 
     /// <summary>
+    /// Pin everything <see cref="Get"/> hands out until the returned hold is
+    /// disposed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B392: a pin taken after the fetch is a pin taken too late.</b> A
+    /// composite fetches several bitmaps in a row — a layer's masks, then the
+    /// layer, then the next layer — and any of those fetches can evict one
+    /// fetched a moment before. Under <see cref="EvictionOrder.MostRecent"/>,
+    /// which playback turns on, the victim is the entry just behind the newest:
+    /// exactly the previous fetch. The brush ring's colour sample built its
+    /// layer list unpinned, so on a document over the budget every hover during
+    /// playback composed freed pixels, and the owner lost work to the access
+    /// violation twice in one morning.
+    /// </para>
+    /// <para>
+    /// Pinning at each call site cannot close it, because one call can fetch
+    /// several times: <c>LayerShapes.Resolve</c> fetches every mask of a layer
+    /// in a loop before the caller sees any of them. So the pin is part of the
+    /// fetch. Holds nest; each fetch is pinned by the innermost one, and the
+    /// counted pins make a bitmap fetched twice safe to release twice.
+    /// </para>
+    /// </remarks>
+    public FetchHold HoldFetches()
+    {
+        var hold = new FetchHold(this);
+        _holds.Add(hold);
+        return hold;
+    }
+
+    private readonly List<FetchHold> _holds = [];
+
+    private SKBitmap Held(SKBitmap bmp)
+    {
+        if (_holds.Count > 0) _holds[^1].Add(bmp);
+        return bmp;
+    }
+
+    /// <summary>The pins taken by one <see cref="HoldFetches"/>; dispose to release them.</summary>
+    public sealed class FetchHold : IDisposable
+    {
+        private readonly FrameBitmapCache _cache;
+        private readonly List<SKBitmap> _held = [];
+        private bool _released;
+
+        internal FetchHold(FrameBitmapCache cache) => _cache = cache;
+
+        /// <summary>How many fetches this hold has pinned. For tests.</summary>
+        public int Count => _held.Count;
+
+        internal void Add(SKBitmap bmp)
+        {
+            _cache.Pin(bmp);
+            _held.Add(bmp);
+        }
+
+        /// <summary>
+        /// Move this hold's pins into <paramref name="holder"/>, which takes over
+        /// releasing them with <see cref="Unpin"/>. For a caller whose pins have
+        /// to outlive the scope the fetches happened in.
+        /// </summary>
+        public void HandOver(List<SKBitmap> holder)
+        {
+            holder.AddRange(_held);
+            _held.Clear();
+        }
+
+        public void Dispose()
+        {
+            if (_released) return;
+            _released = true;
+            _cache._holds.Remove(this);
+            for (var i = 0; i < _held.Count; i++) _cache.Unpin(_held[i]);
+            _held.Clear();
+        }
+    }
+
+    /// <summary>
     /// Dispose now, or hand to <see cref="_awaitingUnpin"/> if somebody is
     /// reading it. The single place a cached bitmap is freed.
     /// </summary>
@@ -359,7 +437,7 @@ public sealed class FrameBitmapCache : IDisposable
             Hits++;
             _lru.Remove(node);
             _lru.AddFirst(node);
-            return node.Value.Bmp;
+            return Held(node.Value.Bmp);
         }
 
         Misses++;
@@ -393,6 +471,8 @@ public sealed class FrameBitmapCache : IDisposable
         _map[key] = newNode;
         CachedBytes += BytesOf(bmp);
 
+        // Held before the trim, so the trim's choice of victim cannot matter.
+        Held(bmp);
         Evict();
         return bmp;
     }

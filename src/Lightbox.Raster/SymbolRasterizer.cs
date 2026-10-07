@@ -289,6 +289,10 @@ public static class SymbolRasterizer
         // symbol, version, frame, size and scale — so this runs on a miss and
         // the masks it holds have nothing to outlive.
         using var masks = new FrameBitmapCache();
+        // B392: a symbol with more layers than the budget fits would evict its
+        // first layer while fetching its last. Declared after the cache, so it
+        // is released before the cache is.
+        using var hold = masks.HoldFetches();
         var passes = new List<RenderPass>(layers.Count);
 
         for (var i = 0; i < layers.Count; i++)

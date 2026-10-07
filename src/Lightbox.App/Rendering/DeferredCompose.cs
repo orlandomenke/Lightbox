@@ -138,6 +138,10 @@ public readonly record struct DeferredCompose(
                 continue;
             }
             if (pass.Bitmap is null) continue;
+            // B392: this body draws natively without going through DrawOne, so
+            // it carries the same refusal. PinPasses is what keeps it from
+            // firing; this is what makes a lapse there a report, not a fault.
+            SceneRenderer.RequireLive(pass);
 
             using var paint = new SKPaint { BlendMode = pass.Blend };
             if (pass.Opacity < 1.0)
