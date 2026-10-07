@@ -193,6 +193,7 @@ public partial class MainViewModel
         // hand-edited 0.1 must not produce a window nobody can read (Q200).
         Settings.UiScale = UiScale.Normalise(Settings.UiScale);
         UiScale.Current = Settings.UiScale;
+        ApplyTheme(Settings.Theme);
         _snapTolerance = Settings.SnapTolerance;
         // Mirror it where the render thread can see it (B125): the draw op has no
         // route to the view model, and an environment variable still forces it on

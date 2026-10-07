@@ -40,7 +40,8 @@
   -->
   <FluentTheme>
     <FluentTheme.Palettes>
-      <ColorPaletteResources x:Key="Dark" Accent="#5B48C8" RegionColor="#222634" />
+      <ColorPaletteResources x:Key="Dark" Accent="#3C3C41" RegionColor="#2E2E32" />
+      <ColorPaletteResources x:Key="Light" Accent="#2A2A29" RegionColor="#C9C9C7" />
     </FluentTheme.Palettes>
   </FluentTheme>
   <!-- ColorSpectrum/ColorSlider templates live in a separate theme file;

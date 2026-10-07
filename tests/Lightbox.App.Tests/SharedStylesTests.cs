@@ -97,8 +97,9 @@ public sealed class SharedStylesTests
         Assert.Equal(new Thickness(0, 0, 0, 1), resting.BorderThickness);
         Assert.Equal(new CornerRadius(4, 4, 0, 0), resting.CornerRadius);
 
-        // Fluent's accent, from the ColorPaletteResources now inside AppStyles.axaml.
+        // Fluent's accent, from the ColorPaletteResources inside AppStyles.axaml:
+        // the raised neutral since Q203 (no colour for "on").
         Assert.True(window.TryFindResource("SystemAccentColor", window.ActualThemeVariant, out var accent));
-        Assert.Equal(Color.Parse("#5B48C8"), Assert.IsType<Color>(accent));
+        Assert.Equal(Color.Parse("#3C3C41"), Assert.IsType<Color>(accent));
     }
 }

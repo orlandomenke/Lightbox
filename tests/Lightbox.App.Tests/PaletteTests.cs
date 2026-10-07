@@ -53,15 +53,17 @@ public class PaletteTests
             "BorderBrush", "BorderStrongBrush",
             "AccentCoralBrush", "AccentMagentaBrush", "AccentVioletBrush",
             "AccentCyanBrush", "AccentLimeBrush", "AccentAmberBrush",
-            "AccentGradientBrush",
+            "PrimaryFillBrush", "PrimaryForegroundBrush", "ActiveFillBrush",
             "StatusInfoBrush", "StatusWarningBrush", "StatusErrorBrush", "StatusSuccessBrush",
             "CanvasPaperBrush",
         ];
 
         foreach (var role in roles)
         {
+            // With the theme named: since Q203 the chrome's brushes live in the
+            // palette's theme dictionaries, which a lookup without a variant skips.
             Assert.True(
-                Application.Current!.TryFindResource(role, out var found),
+                Application.Current!.TryFindResource(role, Avalonia.Styling.ThemeVariant.Dark, out var found),
                 $"{role} does not resolve — the palette is not merged, or the key was renamed");
             Assert.NotNull(found);
         }
@@ -70,23 +72,26 @@ public class PaletteTests
     [AvaloniaFact]
     public void TheCoreSurfacesAreTheColoursTheDesignGave()
     {
-        // Pinned to the mockup's values. A retune is a deliberate edit to the
-        // palette and to this list, not a drift somebody notices months later.
-        (string Role, string Hex)[] core =
+        // Pinned to the values chosen in the gallery (Q203), per theme. A retune
+        // is a deliberate edit to the theme and to this list, not a drift
+        // somebody notices months later. The greys carry no tint: that was the
+        // old palette's fault, measured at chroma 0.027 on the raised surface.
+        (string Role, string Dark, string Light)[] core =
         [
-            ("BackgroundPrimaryBrush", "#FF0B0D12"),
-            ("BackgroundSecondaryBrush", "#FF13161D"),
-            ("SurfacePanelBrush", "#FF1A1E27"),
-            ("SurfaceElevatedBrush", "#FF222634"),
-            ("TextPrimaryBrush", "#FFE6E8F0"),
-            ("TextSecondaryBrush", "#FF9AA1B2"),
+            ("BackgroundPrimaryBrush", "#FF161618", "#FF9C9C9A"),
+            ("BackgroundSecondaryBrush", "#FF1A1A1C", "#FFA4A4A2"),
+            ("SurfacePanelBrush", "#FF222225", "#FFB9B9B7"),
+            ("SurfaceElevatedBrush", "#FF2E2E32", "#FFC9C9C7"),
+            ("TextPrimaryBrush", "#FFECECEA", "#FF1C1C1B"),
+            ("TextSecondaryBrush", "#FF9A9A97", "#FF4A4A48"),
         ];
 
-        foreach (var (role, hex) in core)
+        foreach (var (role, dark, light) in core)
         {
-            Application.Current!.TryFindResource(role, out var found);
-            var brush = Assert.IsType<SolidColorBrush>(found);
-            Assert.Equal(hex, brush.Color.ToString(), ignoreCase: true);
+            Application.Current!.TryFindResource(role, Avalonia.Styling.ThemeVariant.Dark, out var d);
+            Assert.Equal(dark, Assert.IsType<SolidColorBrush>(d).Color.ToString(), ignoreCase: true);
+            Application.Current!.TryFindResource(role, Avalonia.Styling.ThemeVariant.Light, out var l);
+            Assert.Equal(light, Assert.IsType<SolidColorBrush>(l).Color.ToString(), ignoreCase: true);
         }
     }
 
@@ -112,7 +117,7 @@ public class PaletteTests
         // fills the size of a button, and full AccentViolet glows at that
         // size. The bright violet stays for marks: dots, gradients, the tab
         // line, focus.
-        Application.Current!.TryFindResource("AccentVioletDeepBrush", out var role);
+        Application.Current!.TryFindResource("AccentVioletDeepBrush", Avalonia.Styling.ThemeVariant.Dark, out var role);
         Assert.Equal(((SolidColorBrush)role!).Color, violet);
     }
 
@@ -135,7 +140,7 @@ public class PaletteTests
         // flat neutral with no blue in it, which is why a right-click looked
         // like it belonged to a different application. It did: that value is
         // Fluent's and nothing in the palette had ever reached it.
-        Application.Current!.TryFindResource("SurfaceElevatedBrush", out var elevated);
+        Application.Current!.TryFindResource("SurfaceElevatedBrush", Avalonia.Styling.ThemeVariant.Dark, out var elevated);
         var expected = ((SolidColorBrush)elevated!).Color;
 
         foreach (var key in new[]
@@ -205,6 +210,7 @@ public class PaletteTests
         {
             var name = Path.GetFileName(file);
             if (name is "Palette.axaml") continue;      // where colour is defined
+            if (file.Replace('\\', '/').Contains("/Styles/Themes/")) continue; // and its two themes (Q203)
             if (name is "SplashWindow.axaml") continue; // the placeholder; branding is deferred
             if (name is "Brand.axaml") continue;        // the brand IS its colours — they are
                                                         // measured off the reference and must not

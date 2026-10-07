@@ -48,14 +48,17 @@
     it means "this is the thing you came here to do", and a screen with three
     of them has told the artist nothing.
   -->
+  <!-- The primary is a plain full-contrast fill (Q203): light on Dark-lit,
+       near-black on Studio grey, with the text colour that reads on it. The
+       coral-to-magenta gradient is the brand's, on the logo and the splash. -->
   <Style Selector="Button.primary">
-    <Setter Property="Background" Value="{DynamicResource AccentGradientBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource PrimaryFillBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryForegroundBrush}" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
   <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource AccentGradientBrush}" />
+    <Setter Property="Background" Value="{DynamicResource PrimaryFillBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
   </Style>
 
@@ -598,8 +601,10 @@
     colour systems, and the clearest evidence that repointing the theme was the
     missing half of the palette rather than a polish item.
   -->
+  <!-- The value side of a track: the theme's neutral fill (Q203: the chrome
+       is grey; colour is for data). -->
   <Style Selector="Slider">
-    <Setter Property="Foreground" Value="{DynamicResource AccentGradientBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource SliderTrackValueFill}" />
   </Style>
 
   <!-- ===== Toggles and checks ======================================== -->

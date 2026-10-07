@@ -45,10 +45,6 @@
     at the point of contact: pointing at something should make it lighter, never
     darker. It composites over the well rather than over the panel now.
   -->
-  <StaticResource x:Key="TextControlBackground" ResourceKey="BackgroundPrimaryBrush" />
-  <StaticResource x:Key="TextControlBackgroundPointerOver" ResourceKey="FieldGroundHoverBrush" />
-  <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="BackgroundPrimaryBrush" />
-  <StaticResource x:Key="TextControlBackgroundDisabled" ResourceKey="FieldGroundDisabledBrush" />
 
   <!--
     `#99ffffff` is 60% white, which on a dark panel is a bright wire around
@@ -56,9 +52,6 @@
     is only a container. A border is a boundary, not an emphasis: it takes the
     strong border role, the same hairline a raised edge uses.
   -->
-  <StaticResource x:Key="TextControlBorderBrush" ResourceKey="BorderStrongBrush" />
-  <StaticResource x:Key="TextControlBorderBrushPointerOver" ResourceKey="BorderStrongBrush" />
-  <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="TextSecondaryBrush" />
 
   <!--
     Fluent pins every field's font to this resource (default 14), and a style
@@ -86,9 +79,6 @@
     second place to change it and a first place for the two to disagree.
   -->
 
-  <StaticResource x:Key="ComboBoxBackground" ResourceKey="BackgroundPrimaryBrush" />
-  <StaticResource x:Key="ComboBoxBackgroundPointerOver" ResourceKey="FieldGroundHoverBrush" />
-  <StaticResource x:Key="ComboBoxBackgroundPressed" ResourceKey="FieldGroundHoverBrush" />
 
   <!--
     Every field the same shape as every other boxed thing on the page.
@@ -100,7 +90,6 @@
     kind of number that only reads as deliberate when nothing disagrees with it.
     The value now lives in Tokens.axaml as RadiusField.
   -->
-  <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="BorderStrongBrush" />
   <!--
     Fluent's own two radii, which every stock control reads — checkboxes, combo
     drop-downs, list items, flyouts, tooltips — pointed at the corner set
@@ -122,14 +111,6 @@
     1px border samples by position, so the top edge catches light, the sides
     taper and the bottom gets none. One brush, no second element.
   -->
-  <StaticResource x:Key="ButtonBackground" ResourceKey="SurfacePanelBrush" />
-  <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="SurfaceElevatedBrush" />
-  <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="BackgroundPrimaryBrush" />
-  <StaticResource x:Key="ButtonBorderBrush" ResourceKey="RimLightBrush" />
-  <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="RimLightBrush" />
-  <StaticResource x:Key="ToggleButtonBackground" ResourceKey="SurfacePanelBrush" />
-  <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="SurfaceElevatedBrush" />
-  <StaticResource x:Key="ToggleButtonBorderBrush" ResourceKey="RimLightBrush" />
 
   <!-- ===== Things that float ========================================= -->
   <!--
@@ -142,7 +123,4 @@
     floating above the window goes one step up, which is the whole meaning of
     the four surfaces.
   -->
-  <StaticResource x:Key="ComboBoxDropDownBackground" ResourceKey="SurfaceElevatedBrush" />
-  <StaticResource x:Key="FlyoutPresenterBackground" ResourceKey="SurfaceElevatedBrush" />
-  <StaticResource x:Key="MenuFlyoutPresenterBackground" ResourceKey="SurfaceElevatedBrush" />
 </ResourceDictionary>
