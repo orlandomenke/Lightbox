@@ -107,8 +107,9 @@ one. An empty folder is picked all the same, with no layer selected. Ctrl+click
 a header to add a folder's layers to what is already selected; Shift+click one
 to range up to it.
 
-The selected rows are tinted, and one of them — the last you clicked — is
-tinted more strongly. That one is the **active** layer, and it is where the next
+Every selected row — and every picked folder — has a light bar down its left
+edge and a tint, and one of them — the last you clicked — is tinted more
+strongly. That one is the **active** layer, and it is where the next
 brush stroke lands. There is always exactly one, which is why Ctrl+clicking the
 only selected row does not deselect it: the app would have nowhere to paint.
 
