@@ -236,6 +236,10 @@ public sealed partial class LayerRow : ObservableObject
     /// <summary>This layer is its folder's shape (Q215): the layers above it in the folder stay inside it.</summary>
     public bool IsFolderShape => _owner.IsFolderShape(Layer);
 
+    /// <summary>The row menu's one item for it, worded for what a click will do.</summary>
+    public string FolderShapeMenuText =>
+        IsFolderShape ? "Stop keeping layers inside" : "Keep layers above inside this";
+
     /// <summary>Which piece of the folder-shape bracket this row draws.</summary>
     public LayerShapeMark ShapeMark => _owner.ShapeMarkOf(Layer);
 
@@ -281,6 +285,7 @@ public sealed partial class LayerRow : ObservableObject
         OnPropertyChanged(nameof(IsEditingMask));
         OnPropertyChanged(nameof(IsClipped));
         OnPropertyChanged(nameof(IsFolderShape));
+        OnPropertyChanged(nameof(FolderShapeMenuText));
         OnPropertyChanged(nameof(ShapeMark));
         OnPropertyChanged(nameof(IsKeptTop));
         OnPropertyChanged(nameof(IsKeptMiddle));
