@@ -153,31 +153,39 @@ public partial class MainWindow
     /// layout, so a workspace that never uses the left edge looks exactly like
     /// one that could not have.
     /// </summary>
+    /// <remarks>
+    /// Every size here is stored and declared at 100% and multiplied by the
+    /// interface scale on the way to the grid (Q200) — the strip inside is
+    /// scaled, so the room it is given has to be too, or a docker at 150%
+    /// would show two thirds of itself in the width it had at 100%.
+    /// </remarks>
     private void SizeArea(DockSide side, DockLayout layout, double? cap, bool occupied)
     {
-        var extent = layout.AreaExtents.TryGetValue(side, out var saved) && saved > 40
+        var scale = UiScale.Current;
+        var extent = (layout.AreaExtents.TryGetValue(side, out var saved) && saved > 40
             ? saved
-            : side is DockSide.Left or DockSide.Right ? 300 : 280;
+            : side is DockSide.Left or DockSide.Right ? 300 : 280) * scale;
+        cap *= scale;
 
         switch (side)
         {
             case DockSide.Left:
                 Collapse(LeftHost, LeftSplitter, occupied);
-                SizeColumn(WorkArea.ColumnDefinitions[2], occupied, extent, cap);
+                SizeColumn(WorkArea.ColumnDefinitions[2], occupied, extent, cap, scale);
                 break;
             case DockSide.Right:
                 Collapse(RightHost, RightSplitter, occupied);
-                SizeColumn(WorkArea.ColumnDefinitions[6], occupied, extent, cap);
+                SizeColumn(WorkArea.ColumnDefinitions[6], occupied, extent, cap, scale);
                 break;
             case DockSide.Top:
                 Collapse(TopHost, TopSplitter, occupied);
-                SizeRow(RootGrid.RowDefinitions[0], occupied, extent, cap);
+                SizeRow(RootGrid.RowDefinitions[0], occupied, extent, cap, scale);
                 break;
             default:
                 Collapse(BottomHost, BottomSplitter, occupied);
                 // The bottom strip lives inside the centre column now, so the
                 // sidebars keep their full height beside it.
-                SizeRow(CentreColumn.RowDefinitions[2], occupied, extent, cap);
+                SizeRow(CentreColumn.RowDefinitions[2], occupied, extent, cap, scale);
                 break;
         }
     }
@@ -188,7 +196,7 @@ public partial class MainWindow
         splitter.IsVisible = occupied;
     }
 
-    private static void SizeColumn(ColumnDefinition col, bool occupied, double extent, double? cap)
+    private static void SizeColumn(ColumnDefinition col, bool occupied, double extent, double? cap, double scale)
     {
         if (!occupied)
         {
@@ -197,7 +205,7 @@ public partial class MainWindow
             col.Width = new GridLength(0, GridUnitType.Pixel);
             return;
         }
-        col.MinWidth = 180;
+        col.MinWidth = 180 * scale;
         // A capped strip holds only fixed-size controls, so widening it just
         // adds whitespace. Uncapped panels — the layer stack, the project tree
         // — genuinely use the room, and remove the ceiling for the whole strip.
@@ -205,7 +213,7 @@ public partial class MainWindow
         col.Width = new GridLength(cap is { } c ? Math.Min(extent, c) : extent, GridUnitType.Pixel);
     }
 
-    private static void SizeRow(RowDefinition row, bool occupied, double extent, double? cap)
+    private static void SizeRow(RowDefinition row, bool occupied, double extent, double? cap, double scale)
     {
         if (!occupied)
         {
@@ -214,7 +222,7 @@ public partial class MainWindow
             row.Height = new GridLength(0, GridUnitType.Pixel);
             return;
         }
-        row.MinHeight = 120;
+        row.MinHeight = 120 * scale;
         row.MaxHeight = cap ?? double.PositiveInfinity;
         row.Height = new GridLength(cap is { } c ? Math.Min(extent, c) : extent, GridUnitType.Pixel);
     }

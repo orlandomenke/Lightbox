@@ -23,7 +23,7 @@ namespace Lightbox.App.Views;
 /// file uses is either declared here or in the shared block at the top of
 /// <c>MainWindow.axaml.cs</c>. See <c>docs/DESIGN-mainviewmodel-decomposition.md</c>.
 /// </remarks>
-public partial class MainWindow
+public partial class MainWindow : IFollowsUiScale
 {
     // ---- the workspace -------------------------------------------------------
 
@@ -66,6 +66,78 @@ public partial class MainWindow
             strip.Value.Side = strip.Key;
             strip.Value.ExtentsChanged += () => _vm.Workspace.Touch();
         }
+        UiScale.Follow(this);
+        ApplyRailLimits(UiScale.Current);
+    }
+
+    /// <summary>The tool rail's drag range at 100%, from the column in MainWindow.axaml.</summary>
+    private const double RailMinWidth = 40, RailMaxWidth = 220;
+
+    /// <summary>
+    /// Set the rail's drag range for a scale from its 100% values.
+    /// </summary>
+    /// <remarks>
+    /// From the constants, never by ratio: the column starts <c>Auto</c>, which
+    /// the ratio rescale skips, so ratio-scaling the limits only after a drag
+    /// left them out of step — 220 px at 150% is 147 units in the rail's own
+    /// space, short of the 150 the labelled layout needs, and a round trip of
+    /// scale changes did not come back to 220.
+    /// </remarks>
+    private void ApplyRailLimits(double scale)
+    {
+        var rail = WorkArea.ColumnDefinitions[0];
+        rail.MinWidth = RailMinWidth * scale;
+        rail.MaxWidth = RailMaxWidth * scale;
+    }
+
+    /// <summary>
+    /// The interface scale moved: give every scaled region the room it now
+    /// needs (Q200).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>By ratio, from what is on screen, rather than by laying the
+    /// workspace out again.</b> A sidebar dragged wider is not written back
+    /// into the layout until something rebuilds it, so re-running the layout
+    /// here would quietly undo the artist's drag every time they nudged the
+    /// slider. Multiplying what is there keeps it.
+    /// </para>
+    /// <para>
+    /// The tool rail is the same story with one difference: until it is
+    /// dragged its column is <c>Auto</c> and follows its scaled content by
+    /// itself, so only a dragged, pixel-wide rail needs the ratio.
+    /// </para>
+    /// </remarks>
+    void IFollowsUiScale.OnUiScaleChanged(double old, double now)
+    {
+        var ratio = now / old;
+        var rail = WorkArea.ColumnDefinitions[0];
+        if (rail.Width.IsAbsolute && rail.Width.Value > 0)
+        {
+            rail.Width = new GridLength(rail.Width.Value * ratio, GridUnitType.Pixel);
+        }
+        ApplyRailLimits(now);
+        Rescale(WorkArea.ColumnDefinitions[2], ratio);
+        Rescale(WorkArea.ColumnDefinitions[6], ratio);
+        Rescale(RootGrid.RowDefinitions[0], ratio);
+        Rescale(CentreColumn.RowDefinitions[2], ratio);
+        foreach (var window in _floating.Values) window.Rescale(old, now);
+    }
+
+    private static void Rescale(ColumnDefinition col, double ratio)
+    {
+        if (!col.Width.IsAbsolute || col.Width.Value <= 0) return;
+        col.MinWidth *= ratio;
+        if (!double.IsPositiveInfinity(col.MaxWidth)) col.MaxWidth *= ratio;
+        col.Width = new GridLength(col.Width.Value * ratio, GridUnitType.Pixel);
+    }
+
+    private static void Rescale(RowDefinition row, double ratio)
+    {
+        if (!row.Height.IsAbsolute || row.Height.Value <= 0) return;
+        row.MinHeight *= ratio;
+        if (!double.IsPositiveInfinity(row.MaxHeight)) row.MaxHeight *= ratio;
+        row.Height = new GridLength(row.Height.Value * ratio, GridUnitType.Pixel);
     }
 
     private IEnumerable<KeyValuePair<DockSide, DockStrip>> Strips()
@@ -230,6 +302,7 @@ public partial class MainWindow
     protected override void OnClosed(EventArgs e)
     {
         Rendering.CanvasControl.BackendDetected -= _backendDetected;
+        UiScale.Unfollow(this);
         base.OnClosed(e);
     }
 
@@ -794,23 +867,35 @@ public partial class MainWindow
             var side = layout.SideOf(id);
             if (side is DockSide.Hidden or DockSide.Floating) continue;
             Visual visual = panel;
-            // TranslatePoint returns null for a panel that is not in this
+            // TransformToVisual returns null for a panel that is not in this
             // window's tree — parked in the pool, or floating — which is
             // exactly the set that has no slot to report.
             if (!panel.IsVisible) continue;
-            if (visual.TranslatePoint(default, RootGrid) is not { } origin) continue;
+            // The whole transform, not just the origin: a docked panel sits in
+            // a scaled region (Q200), so its own width, header and tabs are
+            // all in units the window's coordinates are not. Translating only
+            // the corner gave drop targets the right place and the wrong size.
+            if (visual.TransformToVisual(RootGrid) is not { } toRoot) continue;
+            var origin = new Point(0, 0).Transform(toRoot);
+            var scaleX = toRoot.M11;
+            var scaleY = toRoot.M22;
             slots.Add(new PanelSlot(
                 id, side, layout.Place(id).Order,
-                new DockRect(origin.X, origin.Y, panel.Bounds.Width, panel.Bounds.Height),
+                new DockRect(origin.X, origin.Y, panel.Bounds.Width * scaleX, panel.Bounds.Height * scaleY),
                 // Measured rather than assumed a constant: the header carries a
                 // tab strip now, and a band that does not match what is on
                 // screen is a drop target you cannot see to aim at.
-                panel.HeaderHeight,
+                panel.HeaderHeight * scaleY,
                 // The same measure-don't-assume, one level down: where each tab
                 // is, so a drop can name a position in the strip rather than
                 // only the group. Lifted from the docker's coordinates into the
                 // window's, which is the space every other rectangle here is in.
-                [.. panel.TabRects().Select(t => t with { Bounds = t.Bounds.Offset(origin.X, origin.Y) })]));
+                [.. panel.TabRects().Select(t => t with
+                {
+                    Bounds = new DockRect(
+                        origin.X + t.Bounds.X * scaleX, origin.Y + t.Bounds.Y * scaleY,
+                        t.Bounds.Width * scaleX, t.Bounds.Height * scaleY),
+                })]));
         }
         return slots;
     }
@@ -879,8 +964,7 @@ public partial class MainWindow
             var place = _vm.Workspace.Layout.Place(floated);
             place.FloatX = w.Position.X;
             place.FloatY = w.Position.Y;
-            place.FloatWidth = w.Width;
-            place.FloatHeight = w.Height;
+            (place.FloatWidth, place.FloatHeight) = w.UnscaledSize;
         };
         // A torn-off panel keeps the keyboard it had while docked — see
         // FloatingPanelWindow.Scope for what tearing one off used to cost.

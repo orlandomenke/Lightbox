@@ -45,7 +45,7 @@ public sealed class FloatingPanelTests : BrushStateIsolated
     private static Docker Panel(MainWindow window, DockPanelId id) =>
         window.GetVisualDescendants().OfType<Docker>().FirstOrDefault(d => d.PanelId == id)
         ?? window.FloatingWindowsForTests
-            .Select(w => w.Content).OfType<Docker>().First(d => d.PanelId == id);
+            .Select(w => w.Panel).OfType<Docker>().First(d => d.PanelId == id);
 
     private const DockPanelId Subject = DockPanelId.Layers;
 
@@ -154,7 +154,7 @@ public sealed class FloatingPanelTests : BrushStateIsolated
         vm.Workspace.Float(Subject, 200, 200, 320, 400);
         Pump();
         var floater = window.FloatingWindowsForTests.First(w => w.PanelId == Subject);
-        var panel = (Docker)floater.Content!;
+        var panel = floater.Panel!;
 
         floater.Close();
         Pump();
