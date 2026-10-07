@@ -97,6 +97,13 @@
     Fluent's defaults and disagree with the ones somebody did.
   -->
   <StaticResource x:Key="ControlCornerRadius" ResourceKey="RadiusControl" />
+  <!--
+    Fluent seats a checkbox's box in an inner grid this tall, pinned to the
+    top: at its stock 32 the box sat low in a SizeRow row and lost its bottom
+    edge (the brush editor's sensor rows, seen in the gallery). The field
+    height centres the box in a row like any other control.
+  -->
+  <StaticResource x:Key="CheckBoxMinHeight" ResourceKey="SizeFieldHeight" />
   <StaticResource x:Key="OverlayCornerRadius" ResourceKey="RadiusContainer" />
 
   <!-- ===== Buttons =================================================== -->

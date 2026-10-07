@@ -40,6 +40,30 @@ public class BrushPreviewRendererTests(ITestOutputHelper output)
         return inked;
     }
 
+    /// <summary>
+    /// The brush editor's scratchpad (Q211) draws at the brush's true size, where
+    /// the picker tile maps size onto a range. Measured as the mark's height across
+    /// a level stroke — geometry, not alpha, so overlapping dabs saturating cannot
+    /// make a wrong size pass. Both brushes are measured, so the number is about
+    /// the size and not about one lucky value.
+    /// </summary>
+    [Theory]
+    [InlineData(12)]
+    [InlineData(40)]
+    public void TheScratchpadDrawsAtTheBrushsTrueSize(double size)
+    {
+        var brush = Plain();
+        brush.Size = size;
+        brush.Hardness = 1;
+        IReadOnlyList<StrokePoint> level = [new(20, 60, 1), new(100, 60, 1), new(180, 60, 1)];
+        using var pad = BrushPreviewRenderer.RenderStrokes(brush, [level], "#1a1a1a", 200, 120);
+
+        var rows = Enumerable.Range(0, pad.Height).Where(y => pad.GetPixel(100, y).Red < 0x80).ToList();
+        var height = rows.Count == 0 ? 0 : rows.Max() - rows.Min() + 1;
+        output.WriteLine($"brush {size}px: mark {height}px tall at the stroke's middle");
+        Assert.InRange(height, size - 3, size + 3);
+    }
+
     [Fact]
     public void APreviewActuallyHasAMarkOnIt()
     {

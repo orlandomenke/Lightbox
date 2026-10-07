@@ -23,7 +23,8 @@
   <SolidColorBrush x:Key="PrimaryFillBrush" Color="#ECECEA" />
   <SolidColorBrush x:Key="PrimaryForegroundBrush" Color="#111112" />
   <SolidColorBrush x:Key="SelectionBrush" Color="#FFFFFF" Opacity="0.08" />
-  <SolidColorBrush x:Key="SelectionWeakBrush" Color="#FFFFFF" Opacity="0.04" />
+  <!-- Above HoverTint (0.065), below ActiveFill (0.13): B400. -->
+  <SolidColorBrush x:Key="SelectionWeakBrush" Color="#FFFFFF" Opacity="0.10" />
   <SolidColorBrush x:Key="PressTintBrush" Color="#FFFFFF" Opacity="0.06" />
   <SolidColorBrush x:Key="HoverTintBrush" Color="#FFFFFF" Opacity="0.065" />
   <SolidColorBrush x:Key="GroupRowBrush" Color="#222225" />
@@ -120,4 +121,6 @@
   <BoxShadows x:Key="IslandShadow">inset 0 1 0 0 #14FFFFFF, 0 10 28 -12 #A6000000, 0 2 6 -2 #80000000</BoxShadows>
   <BoxShadows x:Key="RaisedShadow">inset 0 1 0 0 #26FFFFFF, 0 2 5 -2 #80000000</BoxShadows>
   <BoxShadows x:Key="InsetShadow">inset 0 1 2 0 #59000000</BoxShadows>
+  <!-- A selected row's bar: 2 px on the left edge, TextPrimary at 70% (B400). -->
+  <BoxShadows x:Key="SelectionBar">inset 2 0 0 0 #B3ECECEA</BoxShadows>
 </ResourceDictionary>

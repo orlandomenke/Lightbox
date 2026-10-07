@@ -61,6 +61,9 @@ public sealed class ToolOptionsFlyoutTests(Xunit.ITestOutputHelper output) : Bru
         var (window, vm, gear) = Open();
         try
         {
+            // A tool whose options are the panel's own: a paint tool's gear opens
+            // the brush editor instead (Q211), tested below.
+            vm.ActiveTool = Lightbox.App.ViewModels.ToolId.Fill;
             vm.Workspace.SetVisible(Lightbox.App.Docking.DockPanelId.ToolOptions, false);
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             var docker = TheDocker(window);
@@ -97,6 +100,7 @@ public sealed class ToolOptionsFlyoutTests(Xunit.ITestOutputHelper output) : Bru
         var (window, vm, gear) = Open();
         try
         {
+            vm.ActiveTool = Lightbox.App.ViewModels.ToolId.Fill;
             vm.Workspace.SetVisible(Lightbox.App.Docking.DockPanelId.ToolOptions, true);
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
             var docker = TheDocker(window);
@@ -110,6 +114,44 @@ public sealed class ToolOptionsFlyoutTests(Xunit.ITestOutputHelper output) : Bru
             // the flyout solves.
             Assert.Same(page, docker.Content);
             Assert.True(vm.Workspace.ToolOptionsDockerVisible);
+        }
+        finally { window.Close(); }
+    }
+
+    /// <summary>
+    /// Q211: a paint tool's gear opens the brush editor, whether or not the
+    /// Tool options panel is on screen — the panel holds how the tool behaves,
+    /// the brush itself is only in the editor — and the panel keeps its content.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void APaintToolsGearOpensTheBrushEditor(bool panelOnScreen)
+    {
+        var (window, vm, gear) = Open();
+        try
+        {
+            vm.ActiveTool = Lightbox.App.ViewModels.ToolId.Brush;
+            vm.Workspace.SetVisible(Lightbox.App.Docking.DockPanelId.ToolOptions, panelOnScreen);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            var page = TheDocker(window).Content;
+
+            gear.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            Assert.True(window.BrushEditorOpen, "the gear did not open the brush editor");
+            Assert.IsType<BrushEditor>(window.BrushEditorForTests);
+            Assert.Same(page, TheDocker(window).Content);
+
+            FlyoutBase.GetAttachedFlyout(gear)!.Hide();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.False(window.BrushEditorOpen);
+
+            // And it opens again: the editor is let go on close, not stranded in
+            // the old popup where a second open could not adopt it.
+            gear.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.True(window.BrushEditorOpen, "the editor did not open a second time");
         }
         finally { window.Close(); }
     }

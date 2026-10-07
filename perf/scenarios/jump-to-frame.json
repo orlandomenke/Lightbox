@@ -1,0 +1,78 @@
+{
+  "name": "jump-to-frame",
+  "about": "The owner: clicking a cel to jump to its frame is slow, while scrubbing is fine. Click cels on one row in an order that never lands on a neighbour, so every click is a real jump. On Layer 10, the top row: the X-sheet lists layers top of the stack first, and Layer 1's row sits below a 1440-high screen.",
+  "fixture": "owner-shape",
+  "window": "maximised",
+  "panels": [
+    "Xsheet"
+  ],
+  "repeat": 2,
+  "steps": [
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Layer 10",
+          15
+        ]
+      },
+      "measure": "jump",
+      "after_ms": 300
+    },
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Layer 10",
+          2
+        ]
+      },
+      "measure": "jump",
+      "after_ms": 300
+    },
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Layer 10",
+          19
+        ]
+      },
+      "measure": "jump",
+      "after_ms": 300
+    },
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Layer 10",
+          8
+        ]
+      },
+      "measure": "jump",
+      "after_ms": 300
+    },
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Layer 10",
+          0
+        ]
+      },
+      "measure": "jump",
+      "after_ms": 300
+    },
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Layer 10",
+          12
+        ]
+      },
+      "measure": "jump",
+      "after_ms": 300
+    }
+  ]
+}

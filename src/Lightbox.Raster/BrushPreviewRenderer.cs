@@ -94,6 +94,48 @@ public static class BrushPreviewRenderer
     }
 
     /// <summary>
+    /// The artist's own strokes in <paramref name="settings"/>, on paper, at the
+    /// brush's <b>true size</b> — the brush editor's scratchpad (Q211).
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="Render(BrushSettings, string, int, int)"/>, nothing is
+    /// fitted: a scratchpad is where a setting is judged, and a judgement made
+    /// on a shrunk mark is a judgement about a different brush. Same engine,
+    /// same path as the document — <see cref="BrushEngine.StampStroke"/>.
+    /// </remarks>
+    public static SKBitmap RenderStrokes(
+        BrushSettings settings, IEnumerable<IReadOnlyList<StrokePoint>> strokes,
+        string colorHex, int width, int height)
+    {
+        var info = new SKImageInfo(
+            Math.Max(8, width), Math.Max(8, height), SKColorType.Rgba8888, SKAlphaType.Premul);
+        var bitmap = Ground(settings, info);
+        using var canvas = new SKCanvas(bitmap);
+        foreach (var points in strokes)
+        {
+            if (points.Count == 0) continue;
+            var stroke = new Stroke
+            {
+                Tool = ToolKind.Brush,
+                Color = colorHex,
+                Brush = settings.Clone(),
+                Points = [.. points],
+            };
+            try
+            {
+                BrushEngine.StampStroke(canvas, stroke, info, bitmap);
+            }
+            catch (Exception)
+            {
+                // As for the tile: a brush the engine cannot honour leaves the pad
+                // blank rather than taking the editor down while it is being tuned.
+            }
+        }
+        canvas.Flush();
+        return bitmap;
+    }
+
+    /// <summary>
     /// The brush, resized to fit a tile and with anything view-dependent settled.
     /// </summary>
     /// <remarks>

@@ -395,6 +395,10 @@ public sealed class FramePrewarmer : IDisposable
 
     private static Warmed Render(WarmRequest job, int generation)
     {
+        // Off the UI thread: the lab reads these beside the UI thread's own
+        // misses, to see whether the worker rendered a drawing the tick then
+        // rendered again.
+        using var timed = PerfLog.Begin("prewarm", job.Frame.Id);
         if (job.Want == WarmProduct.Tiles)
         {
             var (store, pyramid) = TileFrameCache.RenderDetached(

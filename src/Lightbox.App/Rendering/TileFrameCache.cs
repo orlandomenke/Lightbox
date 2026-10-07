@@ -162,7 +162,9 @@ public sealed class TileFrameCache : IDisposable
             return (node.Value.Entry.Store, node.Value.Entry.Pyramid);
         }
 
-        var (store, pyramid) = RenderDetached(frame, width, height);
+        TileStore store;
+        TilePyramid pyramid;
+        using (Services.PerfLog.Begin("raster.miss.tiles", frame.Id)) (store, pyramid) = RenderDetached(frame, width, height);
         var entry = new Entry(store, pyramid, ++_stamps);
 
         var fresh = _lru.AddFirst((frame.Id, entry));
