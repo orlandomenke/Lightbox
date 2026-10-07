@@ -1596,7 +1596,12 @@ public partial class MainViewModel
                     foreach (var (id, region) in split.Used) doc.ClipRegions.TryAdd(id, region);
                 }
                 foreach (var (id, region) in travel.Used) doc.ClipRegions.TryAdd(id, region);
-            });
+            },
+            // The drawings walked above are the only ones this edit changes —
+            // the clip regions it adds are new entries no other stroke refers
+            // to — so undoing it re-renders these and keeps the rest (the lab's
+            // transform-undo measured 10.5 s per undo while it threw them all away).
+            touchedFrames: frames.Select(f => f.Id).ToList());
         }
         finally
         {

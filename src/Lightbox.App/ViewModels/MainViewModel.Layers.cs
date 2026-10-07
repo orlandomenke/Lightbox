@@ -877,6 +877,19 @@ public partial class MainViewModel
             InvalidateFrameRender(frameId, scope.RepaintBounds, scope.Revision);
             _dirtyThumbIds.Add(frameId);
         }
+        else if (scope.FrameIds is { } touched)
+        {
+            // A whole-document step that said which drawings it altered — a
+            // transform commit. Those re-render; every other drawing's render
+            // and thumbnail is still exactly right, as in the branch below.
+            // Before this, undoing a transform on an 11-layer document threw
+            // away all 64 drawings and every thumbnail: 10.5 s in the lab.
+            foreach (var id in touched)
+            {
+                InvalidateFrameRender(id);
+                _dirtyThumbIds.Add(id);
+            }
+        }
         else if (scope.FrameContentUnchanged)
         {
             // Nothing to invalidate: the step moved the layer structure and no
