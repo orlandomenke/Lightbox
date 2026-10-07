@@ -1142,15 +1142,28 @@ public sealed class DocumentEditor
     /// the tail so the scene keeps its length. One undo step. Returns the cels
     /// removed.
     /// </summary>
+    /// <remarks>
+    /// <b>Q212: a trailing empty cel trims the scene.</b> An empty cel with no
+    /// drawing after it on its own row is pulled back and padded back as the very
+    /// same empty — every row runs to the end of the scene (Q206) — so on a
+    /// multi-layer document the command used to change nothing and say nothing,
+    /// which is how the owner met it, repeatedly. When one was picked, the scene
+    /// now ends one frame after the last drawing on any layer, in the same undo
+    /// step. <see cref="LastTrim"/> says what that did.
+    /// </remarks>
     public int DeleteCelsAcross(IEnumerable<(string LayerId, int Index)> cels)
     {
         var byLayer = GroupByLayer(cels);
+        LastTrim = -1;
         // ClearCelsAcross's rule: nothing to remove records nothing, so an
         // unknown layer or a pick past the end costs no empty undo step.
         var reachable = byLayer.Any(kv => FindLayer(kv.Key) is { } layer
             && kv.Value.Any(i => i >= 0 && i < Math.Max(layer.Cels.Count, Doc.Scene.FrameCount)));
         if (!reachable) return 0;
+        var trailingPicked = byLayer.Any(kv => FindLayer(kv.Key) is { } layer
+            && kv.Value.Any(i => IsTrailingEmpty(layer, i, Doc.Scene.FrameCount)));
         var removed = 0;
+        var trimmed = 0;
         Perform(doc =>
         {
             foreach (var (layerId, indices) in byLayer)
@@ -1166,8 +1179,68 @@ public sealed class DocumentEditor
                 }
                 PadCels(layer, doc.Scene.FrameCount);
             }
+            if (trailingPicked) trimmed = TrimToLastDrawing(doc.Scene);
         }, label: "Delete and pull");
+        LastTrim = trailingPicked ? trimmed : -1;
         return removed;
+    }
+
+    /// <summary>
+    /// What the last <see cref="DeleteCelsAcross"/> trimmed: the frames the scene
+    /// lost, 0 when a trailing empty was picked but the last drawing already sits
+    /// at the end, -1 when no trailing empty was picked.
+    /// </summary>
+    public int LastTrim { get; private set; } = -1;
+
+    /// <summary>An empty cel with no drawing after it on its own row (Q212).</summary>
+    public static bool IsTrailingEmpty(Layer layer, int index, int frameCount)
+    {
+        if (layer.IsBackground || index < 0 || index >= frameCount) return false;
+        if (index < layer.Cels.Count && layer.Cels[index].Frame is not null) return false;
+        for (var k = index + 1; k < layer.Cels.Count; k++)
+        {
+            if (layer.Cels[k].Frame is not null) return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// The frame after the last drawing on any drawing layer — where the scene
+    /// ends once its trailing empties are gone. Never less than one.
+    /// </summary>
+    public static int EndOfLastDrawing(Scene scene)
+    {
+        var end = 1;
+        foreach (var layer in scene.Layers)
+        {
+            if (layer.IsBackground) continue;
+            for (var k = layer.Cels.Count - 1; k >= 0; k--)
+            {
+                if (layer.Cels[k].Frame is null) continue;
+                end = Math.Max(end, k + 1);
+                break;
+            }
+        }
+        return end;
+    }
+
+    /// <summary>
+    /// End the scene one frame after its last drawing, every row with it (Q212).
+    /// Returns the frames removed. Reference strips that follow the timeline lose
+    /// the same frames, as a column delete takes them.
+    /// </summary>
+    private static int TrimToLastDrawing(Scene scene)
+    {
+        var end = EndOfLastDrawing(scene);
+        var cut = scene.FrameCount - end;
+        if (cut <= 0) return 0;
+        foreach (var layer in scene.Layers)
+        {
+            if (layer.Cels.Count > end) layer.Cels.RemoveRange(end, layer.Cels.Count - end);
+        }
+        for (var f = scene.FrameCount - 1; f >= end; f--) RippleReferences(scene, f, -1);
+        scene.FrameCount = end;
+        return cut;
     }
 
     /// <summary>

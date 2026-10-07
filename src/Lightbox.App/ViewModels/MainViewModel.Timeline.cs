@@ -752,6 +752,21 @@ public partial class MainViewModel
         }
         var editable = EditablePicks(picks, "delete a cel on it");
         if (editable.Count == 0 || _editor.DeleteCelsAcross(editable) == 0) return;
+        // Q212: a trailing empty trims the scene to its last drawing. Said either
+        // way — the command used to do nothing here and say nothing.
+        if (_editor.LastTrim > 0)
+        {
+            AiStatus = $"The scene now ends at frame {Scene.FrameCount}, after its last drawing.";
+            CurrentFrameIndex = Math.Min(CurrentFrameIndex, Scene.FrameCount - 1);
+        }
+        else if (_editor.LastTrim == 0)
+        {
+            var last = Scene.Layers.FirstOrDefault(l => !l.IsBackground
+                && l.Cels.Count >= Scene.FrameCount && l.Cels[Scene.FrameCount - 1].Frame is not null);
+            AiStatus = last is null
+                ? "Nothing to trim — the scene already ends at its last drawing."
+                : $"Nothing to trim — “{last.Name}” has a drawing on the last frame.";
+        }
         _allThumbsDirty = true;
         ClearCelRange(); // the indices it held have shifted out from under it
         RefreshThumbnails();
