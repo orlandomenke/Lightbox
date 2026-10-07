@@ -4,7 +4,7 @@
     The bridge between Fluent's own resource names and our palette.
 
     `DESIGN.md` says the colour system has two halves and the views are only
-    one of them. `App.axaml`'s `ColorPaletteResources` is most of the second —
+    one of them. `AppStyles.axaml`'s `ColorPaletteResources` is most of the second —
     two properties that repoint every accent and the window ground. This file
     is the rest: the keys Fluent does *not* derive from the accent, which it
     instead hard-codes as translucent black and white.
@@ -98,8 +98,8 @@
     corners except those text boxes", and visible the moment the two are cropped
     together. It is one value rather than four because a corner radius is the
     kind of number that only reads as deliberate when nothing disagrees with it.
+    The value now lives in Tokens.axaml as RadiusField.
   -->
-  <CornerRadius x:Key="FieldCornerRadius">4</CornerRadius>
   <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="BorderStrongBrush" />
 
   <!-- ===== Buttons =================================================== -->

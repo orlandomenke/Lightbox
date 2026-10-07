@@ -20,8 +20,8 @@
   <Style Selector="controls|ColorField">
     <Setter Property="Template">
       <ControlTemplate>
-        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-          <TextBlock Text="{TemplateBinding Label}" VerticalAlignment="Center" FontSize="11"
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center">
+          <TextBlock Text="{TemplateBinding Label}" VerticalAlignment="Center" FontSize="{StaticResource TypeDense}"
                      IsVisible="{TemplateBinding Label, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
           <Button x:Name="PART_Swatch" Width="26" Height="22" Padding="0"
                   Background="{TemplateBinding Swatch}"
@@ -47,7 +47,7 @@
 
   <Styles.Resources>
     <DataTemplate x:Key="ColorPickerBody" DataType="vm:ColorPickerViewModel">
-      <StackPanel Width="248" Spacing="8">
+      <StackPanel Width="248" Spacing="{StaticResource Space8}">
 
         <!-- The same wheel the Color panel draws: a hue RING with the SV
              square inside it, one unit, no separate value slider — the square
@@ -69,41 +69,41 @@
         <!-- The numbers behind the colour, for reading off and for typing in. -->
         <UniformGrid Columns="3" Rows="2">
           <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,0,4,3">
-            <TextBlock Text="H" Width="12" FontSize="10" VerticalAlignment="Center" Opacity="0.7" />
+            <TextBlock Text="H" Width="12" FontSize="{StaticResource TypeHint}" VerticalAlignment="Center" Opacity="0.7" />
             <NumericUpDown Value="{Binding Hue}" Minimum="0" Maximum="360" Increment="1"
                            FormatString="0" Width="56" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,0,4,3">
-            <TextBlock Text="S" Width="12" FontSize="10" VerticalAlignment="Center" Opacity="0.7" />
+            <TextBlock Text="S" Width="12" FontSize="{StaticResource TypeHint}" VerticalAlignment="Center" Opacity="0.7" />
             <NumericUpDown Value="{Binding HsvSaturation}" Minimum="0" Maximum="100" Increment="1"
                            FormatString="0" Width="56" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,0,0,3">
-            <TextBlock Text="V" Width="12" FontSize="10" VerticalAlignment="Center" Opacity="0.7" />
+            <TextBlock Text="V" Width="12" FontSize="{StaticResource TypeHint}" VerticalAlignment="Center" Opacity="0.7" />
             <NumericUpDown Value="{Binding HsvValue}" Minimum="0" Maximum="100" Increment="1"
                            FormatString="0" Width="56" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,0,4,0">
-            <TextBlock Text="R" Width="12" FontSize="10" VerticalAlignment="Center" Opacity="0.7" />
+            <TextBlock Text="R" Width="12" FontSize="{StaticResource TypeHint}" VerticalAlignment="Center" Opacity="0.7" />
             <NumericUpDown Value="{Binding Red}" Minimum="0" Maximum="255" Increment="1"
                            FormatString="0" Width="56" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="3" Margin="0,0,4,0">
-            <TextBlock Text="G" Width="12" FontSize="10" VerticalAlignment="Center" Opacity="0.7" />
+            <TextBlock Text="G" Width="12" FontSize="{StaticResource TypeHint}" VerticalAlignment="Center" Opacity="0.7" />
             <NumericUpDown Value="{Binding Green}" Minimum="0" Maximum="255" Increment="1"
                            FormatString="0" Width="56" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="3">
-            <TextBlock Text="B" Width="12" FontSize="10" VerticalAlignment="Center" Opacity="0.7" />
+            <TextBlock Text="B" Width="12" FontSize="{StaticResource TypeHint}" VerticalAlignment="Center" Opacity="0.7" />
             <NumericUpDown Value="{Binding Blue}" Minimum="0" Maximum="255" Increment="1"
                            FormatString="0" Width="56" />
           </StackPanel>
         </UniformGrid>
 
         <DockPanel>
-          <TextBlock DockPanel.Dock="Left" Text="Hex" Width="26" FontSize="11"
+          <TextBlock DockPanel.Dock="Left" Text="Hex" Width="26" FontSize="{StaticResource TypeDense}"
                      VerticalAlignment="Center" Opacity="0.7" />
-          <TextBox Text="{Binding Hex, Mode=TwoWay}" FontSize="11"
+          <TextBox Text="{Binding Hex, Mode=TwoWay}" FontSize="{StaticResource TypeDense}"
                    ToolTip.Tip="Hex colour, e.g. #1a1a1a" />
         </DockPanel>
 
@@ -160,7 +160,7 @@
                     ToolTip.Tip="Add this colour to the palette — the selected one, or a new one if there is none yet">
               <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconPlus}" />
             </Button>
-            <TextBlock Text="Palette" FontSize="10" Opacity="0.6" VerticalAlignment="Center" />
+            <TextBlock Text="Palette" FontSize="{StaticResource TypeHint}" Opacity="0.6" VerticalAlignment="Center" />
           </DockPanel>
           <ItemsControl ItemsSource="{Binding PaletteSwatches}" IsVisible="{Binding HasPalette}">
             <ItemsControl.ItemsPanel>

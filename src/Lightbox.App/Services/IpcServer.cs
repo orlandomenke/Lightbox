@@ -33,10 +33,19 @@ public sealed class IpcServer : IAsyncDisposable
     /// </remarks>
     private readonly WeakReference<Dispatcher> _dispatcher = new(Dispatcher.UIThread);
 
-public IpcServer(IpcDocumentApi api, string? pipeName = null)
+    /// <summary>
+    /// A pipe name for every server this process starts, when set. For a
+    /// process that builds the real window but must not answer for the
+    /// artist's Lightbox — the gallery's app snapshot — so an agent connected
+    /// to the live app can never reach a throwaway instance instead. Null, the
+    /// default, leaves the shipped name.
+    /// </summary>
+    internal static string? PipeNameOverride { get; set; }
+
+    public IpcServer(IpcDocumentApi api, string? pipeName = null)
     {
         _api = api;
-        _pipeName = pipeName ?? IpcProtocol.PipeName;
+        _pipeName = pipeName ?? PipeNameOverride ?? IpcProtocol.PipeName;
         _acceptLoop = Task.Run(AcceptLoopAsync);
     }
 

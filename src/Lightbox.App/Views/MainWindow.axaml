@@ -13,7 +13,7 @@
         Title="Lightbox"
         Icon="/Assets/lightbox.ico"
         Width="1280" Height="800"
-        Background="{StaticResource BackgroundPrimaryBrush}"
+        Background="{DynamicResource BackgroundPrimaryBrush}"
         ExtendClientAreaToDecorationsHint="True"
         WindowDecorations="BorderOnly"
         ExtendClientAreaTitleBarHeightHint="-1"
@@ -28,32 +28,32 @@
       <Setter Property="Margin" Value="16,0,0,0" />
     </Style>
     <Style Selector="Button.cel">
-      <Setter Property="Background" Value="{StaticResource CelBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CelBrush}" />
     </Style>
     <!-- Frame-role colors: key (default), breakdown, inbetween -->
     <Style Selector="Button.cel.breakdown">
-      <Setter Property="Background" Value="{StaticResource CelBreakdownBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CelBreakdownBrush}" />
     </Style>
     <Style Selector="Button.cel.tween">
-      <Setter Property="Background" Value="{StaticResource CelTweenBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CelTweenBrush}" />
     </Style>
     <!-- Past the end of the scene: hatched, so "no frame here" cannot be read
          as "a frame with no drawing". Q89. -->
     <Style Selector="Button.cel.virtualCell">
       <Setter Property="Opacity" Value="0.35" />
-      <Setter Property="Background" Value="{StaticResource CelVirtualHatchBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CelVirtualHatchBrush}" />
     </Style>
     <Style Selector="Button.cel.dim">
       <Setter Property="Opacity" Value="0.45" />
     </Style>
     <Style Selector="Button.cel.current">
-      <Setter Property="Background" Value="{StaticResource CelCurrentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CelCurrentBrush}" />
     </Style>
     <Style Selector="Button.cel.sel">
-      <Setter Property="Background" Value="{StaticResource CelSelectedBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CelSelectedBrush}" />
     </Style>
     <Style Selector="GridSplitter">
-      <Setter Property="Background" Value="{StaticResource BackgroundPrimaryBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BackgroundPrimaryBrush}" />
     </Style>
     <!-- Headroom meter: amber once the document is costing the machine real time -->
     <Style Selector="ProgressBar.strained /template/ Border#PART_Indicator">
@@ -69,19 +69,19 @@
     <Style Selector="Border.docTab">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="CornerRadius" Value="4,4,0,0" />
-      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
       <Setter Property="BorderThickness" Value="0,0,0,1" />
     </Style>
     <Style Selector="Border.docTab.active">
-      <Setter Property="Background" Value="{StaticResource TabActiveGroundBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+      <Setter Property="Background" Value="{DynamicResource TabActiveGroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
       <Setter Property="BorderThickness" Value="1,1,1,0" />
     </Style>
     <!-- The tab's project-membership badge: a small squarish P before the
          name. Violet rather than a status colour — membership is identity,
          not news, and it must not read as a warning. -->
     <Style Selector="Border.projectBadge">
-      <Setter Property="Background" Value="{StaticResource AccentVioletDeepBrush}" />
+      <Setter Property="Background" Value="{DynamicResource AccentVioletDeepBrush}" />
       <Setter Property="CornerRadius" Value="3" />
       <Setter Property="Padding" Value="4,1" />
       <Setter Property="Margin" Value="6,0,-4,0" />
@@ -91,14 +91,14 @@
          does the next command act on", this answers "what am I editing", and
          the two drift apart the moment a row is clicked to act on it. -->
     <Style Selector="DockPanel.editingRow">
-      <Setter Property="Background" Value="{StaticResource HoverTintBrush}" />
+      <Setter Property="Background" Value="{DynamicResource HoverTintBrush}" />
     </Style>
     <Style Selector="Border.editingBar">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Width" Value="3" />
     </Style>
     <Style Selector="DockPanel.editingRow > Border.editingBar">
-      <Setter Property="Background" Value="{StaticResource AccentVioletBrush}" />
+      <Setter Property="Background" Value="{DynamicResource AccentVioletBrush}" />
     </Style>
     <!-- ToggleButton.tool is sized by Density.axaml. Only the alignment
          changes here: the toolbar's "labels" class (set from code-behind at a
@@ -148,8 +148,8 @@
       that land on the menu or a button stay theirs.
     -->
     <controls:ScaledChrome DockPanel.Dock="Top"><Border x:Name="TitleBar" Height="34"
-            Background="{StaticResource BackgroundSecondaryBrush}"
-            BorderBrush="{StaticResource BackgroundPrimaryBrush}" BorderThickness="0,0,0,1"
+            Background="{DynamicResource BackgroundSecondaryBrush}"
+            BorderBrush="{DynamicResource BackgroundPrimaryBrush}" BorderThickness="0,0,0,1"
             PointerPressed="OnTitleBarPressed" DoubleTapped="OnTitleBarDoubleTapped">
       <DockPanel>
         <Image DockPanel.Dock="Left" Source="{StaticResource BrandIconDrawing}"
@@ -855,7 +855,7 @@
     </Border></controls:ScaledChrome>
 
     <!-- Dynamic tool options bar: contents depend on the selected tool -->
-    <controls:ScaledChrome DockPanel.Dock="Top"><Border Padding="8,2" Background="{StaticResource BackgroundSecondaryBrush}">
+    <controls:ScaledChrome DockPanel.Dock="Top"><Border Padding="8,2" Background="{DynamicResource BackgroundSecondaryBrush}">
       <DockPanel>
 
         <!--
@@ -871,7 +871,7 @@
         <!-- A rule between the two, because the bar's overflow control ends up
              directly beside this one and without a divider the pair reads as
              one group belonging to the workspace. -->
-        <Border DockPanel.Dock="Right" Width="1" Margin="10,3" Background="{StaticResource BorderBrush}" />
+        <Border DockPanel.Dock="Right" Width="1" Margin="10,3" Background="{DynamicResource BorderBrush}" />
         <!-- A dropdown rather than a tab strip, for a measured reason: the six
              workspaces as flush tabs wanted 872px of this bar, leaving the quick
              options ZERO width at 1280 and squeezing Size/Opacity — pinned by
@@ -912,7 +912,7 @@
             <Flyout Placement="Bottom">
               <!-- No fixed width: the longest label sizes the flyout, so the
                    catalogue can grow a word without clipping it. -->
-              <StackPanel Spacing="6">
+              <StackPanel Spacing="{StaticResource Space6}">
                 <TextBlock Text="Quick options for this workspace" FontWeight="SemiBold" />
                 <ItemsControl ItemsSource="{Binding Workspace.QuickBarChoices}">
                   <ItemsControl.ItemTemplate>
@@ -924,7 +924,7 @@
                 </ItemsControl>
                 <!-- One short line, so the checkboxes size the flyout. The ⋮
                      tooltip already explains that size and opacity are fixed. -->
-                <TextBlock Text="Saved with the workspace" Opacity="0.6" FontSize="11" />
+                <TextBlock Text="Saved with the workspace" Opacity="0.6" FontSize="{StaticResource TypeDense}" />
               </StackPanel>
             </Flyout>
           </Button.Flyout>
@@ -973,10 +973,10 @@
       -->
       <Path DockPanel.Dock="Left" Data="{Binding ActiveToolIcon}" Width="18" Height="18"
             Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"
-            Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1.5"
+            Stroke="{DynamicResource TextPrimaryBrush}" StrokeThickness="1.5"
             StrokeLineCap="Round" StrokeJoin="Round"
             ToolTip.Tip="The active tool. Its quick options fill this bar." />
-      <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="4"
+      <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="{StaticResource Space4}"
                   VerticalAlignment="Center" Margin="0,0,10,0">
         <!--
           Foreground over background, the arrangement every painting tool
@@ -1036,7 +1036,7 @@
         </Button>
         <!-- A rule, so the tool's own options read as a separate group rather
              than as more colour controls. -->
-        <Border Width="1" Margin="6,3,0,3" Background="{StaticResource BorderBrush}" />
+        <Border Width="1" Margin="6,3,0,3" Background="{DynamicResource BorderBrush}" />
       </StackPanel>
 
       <!--
@@ -1049,7 +1049,7 @@
         catalogue the way size and opacity were never in it. The ⚙ stays
         beside the picker it configures, and opens the Tool options docker.
       -->
-      <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="6"
+      <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="{StaticResource Space6}"
                   VerticalAlignment="Center" Margin="0,0,10,0">
         <!--
           The badge is the whole point of the list being ordered the way it
@@ -1072,14 +1072,14 @@
                 Click="OnBrushPickerOpen"
                 ToolTip.Tip="Brush preset (B returns to the last configured brush). Picking one puts its tool in your hand. ◈ marks an expressive brush — richer mark, more cost.">
           <DockPanel>
-            <TextBlock DockPanel.Dock="Right" Text="▾" FontSize="10" Opacity="0.6"
+            <TextBlock DockPanel.Dock="Right" Text="▾" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                        VerticalAlignment="Center" Margin="4,0,0,0" />
             <!-- The dot says the brush has drifted from the preset named beside it -->
-            <TextBlock DockPanel.Dock="Right" Text="{Binding BrushModifiedBadge}" Foreground="{StaticResource StatusWarningBrush}"
-                       FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"
+            <TextBlock DockPanel.Dock="Right" Text="{Binding BrushModifiedBadge}" Foreground="{DynamicResource StatusWarningBrush}"
+                       FontSize="{StaticResource TypeBody}" VerticalAlignment="Center" Margin="4,0,0,0"
                        ToolTip.Tip="{Binding BrushModifiedTip}" />
             <TextBlock x:Name="BrushPickerName" Text="Brush" VerticalAlignment="Center"
-                       FontSize="12" TextTrimming="CharacterEllipsis" />
+                       FontSize="{StaticResource TypeBody}" TextTrimming="CharacterEllipsis" />
           </DockPanel>
           <Button.Flyout>
             <Flyout Placement="Bottom">
@@ -1101,7 +1101,7 @@
                   </ItemsControl.ItemsPanel>
                 </ItemsControl>
                 <TextBlock x:Name="BrushFilterEmpty" DockPanel.Dock="Bottom" IsVisible="False"
-                           Text="No brush matches." Opacity="0.5" FontSize="11" Margin="0,6,0,0" />
+                           Text="No brush matches." Opacity="0.5" FontSize="{StaticResource TypeDense}" Margin="0,6,0,0" />
                 <!--
                   The way out of the picker, same as the tip picker's own. It
                   is where you are when you notice you have brushes you do not
@@ -1129,9 +1129,9 @@
                     </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="views:BrushChoice">
-                        <StackPanel Margin="0,2" Spacing="2" ToolTip.Tip="{Binding Tip}">
+                        <StackPanel Margin="0,2" Spacing="{StaticResource Space2}" ToolTip.Tip="{Binding Tip}">
                           <Panel>
-                            <Border Height="44" Background="{StaticResource CanvasPaperBrush}" CornerRadius="3">
+                            <Border Height="44" Background="{DynamicResource CanvasPaperBrush}" CornerRadius="3">
                               <Image Source="{Binding Preview}" Stretch="None"
                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
@@ -1141,15 +1141,15 @@
                               looking at, and a price tag off to the side of
                               a grid is read as decoration.
                             -->
-                            <TextBlock Text="{Binding CostBadge}" Foreground="{StaticResource StatusWarningBrush}" FontSize="11"
+                            <TextBlock Text="{Binding CostBadge}" Foreground="{DynamicResource StatusWarningBrush}" FontSize="{StaticResource TypeDense}"
                                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,1,3,0" />
                             <!-- The one thing the picture cannot carry: the brush's real size -->
-                            <Border Background="{StaticResource CanvasPaperBrush}" CornerRadius="2" Padding="3,0"
+                            <Border Background="{DynamicResource CanvasPaperBrush}" CornerRadius="2" Padding="3,0"
                                     HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,2,2">
-                              <TextBlock Text="{Binding SizeLabel}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" />
+                              <TextBlock Text="{Binding SizeLabel}" FontSize="9" Foreground="{DynamicResource TextSecondaryBrush}" />
                             </Border>
                           </Panel>
-                          <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                       </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -1168,7 +1168,7 @@
           <Path Classes="icon" Data="{StaticResource IconGear}" />
         </Button>
         <!-- Same rule the colour group ends with: a pinned | tool-gated boundary -->
-        <Border Width="1" Margin="6,3,0,3" Background="{StaticResource BorderBrush}" />
+        <Border Width="1" Margin="6,3,0,3" Background="{DynamicResource BorderBrush}" />
       </StackPanel>
 
       <!--
@@ -1181,7 +1181,7 @@
         a fixed control that vanishes is not fixed.
       -->
       <StackPanel x:Name="QuickFixedOptions" DockPanel.Dock="Left" Orientation="Horizontal"
-                  Spacing="6" VerticalAlignment="Center" Margin="0,0,10,0"
+                  Spacing="{StaticResource Space6}" VerticalAlignment="Center" Margin="0,0,10,0"
                   IsEnabled="{Binding MakesSizedMarks}">
         <TextBlock Text="Size" VerticalAlignment="Center" />
         <Slider Value="{Binding BrushSize}" Minimum="1" Maximum="300" Classes="param" VerticalAlignment="Center" />
@@ -1194,28 +1194,28 @@
                        FormatString="0.00" Classes="value" VerticalAlignment="Center"
                        ToolTip.Tip="Opacity of the mark the tool in hand makes, in percent" />
       </StackPanel>
-      <controls:OverflowBar x:Name="QuickToolOptions" Spacing="14" VerticalAlignment="Center"
+      <controls:OverflowBar x:Name="QuickToolOptions" Spacing="{StaticResource Space14}" VerticalAlignment="Center"
                             MoreLabel="&#x25BE;">
 
         <!-- The preset picker and its ⚙ are pinned beside the colour pair
              now, so the OverflowBar starts with the tool in hand's options. -->
 
         <!-- Brush options -->
-        <StackPanel Orientation="Horizontal" Spacing="14">
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space14}">
           <StackPanel.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
               <Binding Path="IsBrushTool" />
               <Binding Path="Workspace.QuickBrushOptions" />
             </MultiBinding>
           </StackPanel.IsVisible>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center">
             <TextBlock Text="Hardness" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown controls:FieldMath.Percent="True" Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Increment="0.05"
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Brush hardness in percent (type an exact value)" />
           </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center">
             <TextBlock Text="Stabilizer" VerticalAlignment="Center" />
             <ComboBox ItemsSource="{Binding SmoothingChoices}" SelectedItem="{Binding SmoothingMode}"
                       Width="140" VerticalAlignment="Center"
@@ -1239,7 +1239,7 @@
               heavy lazy-mouse and a pencil wants none, and that is the whole
               reason stabilisation is worth setting at all.
             -->
-            <CheckBox Content="Per brush" VerticalAlignment="Center" FontSize="11"
+            <CheckBox Content="Per brush" VerticalAlignment="Center" FontSize="{StaticResource TypeDense}"
                       MinHeight="0" Height="22" Padding="4,0,0,0"
                       IsChecked="{Binding BrushHasOwnStabilisation}"
                       ToolTip.Tip="On, this brush carries its own stabilisation and keeps it in its preset. Off, it follows the application-wide setting." />
@@ -1256,9 +1256,9 @@
           an area each dab samples, and those were three clicks deep in the
           parameters flyout.
         -->
-        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space10}" VerticalAlignment="Center"
                     IsVisible="{Binding ShowsEffectOptions}">
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center">
             <TextBlock Text="Strength" VerticalAlignment="Center" />
             <Slider Value="{Binding EffectStrength}" Minimum="0.01" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <!--
@@ -1273,7 +1273,7 @@
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="How hard each dab pulls (smudge and blender), or how much softening (blur). Effect-brush dabs overlap about ten deep, so small values go a long way." />
           </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center"
                       IsVisible="{Binding UsesSmudgeRadius}">
             <TextBlock Text="Radius" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Classes="param" VerticalAlignment="Center" />
@@ -1281,7 +1281,7 @@
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="How wide an area a dulling dab averages its colour over. Wider blends more and keeps less detail." />
           </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center"
                       IsVisible="{Binding IsSmudgeBrush}">
             <TextBlock Text="Colour" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Classes="param" VerticalAlignment="Center" />
@@ -1314,7 +1314,7 @@
           the gradient. Where a change happens is a spatial judgement, and a
           number is a poor way to make one.
         -->
-        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space10}" VerticalAlignment="Center">
           <StackPanel.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
               <Binding Path="IsGradientTool" />
@@ -1338,17 +1338,17 @@
                   ToolTip.Tip="Edit this gradient — click the ramp to add stops">
             <Button.Flyout>
               <Flyout Placement="Bottom">
-                <StackPanel Width="300" Spacing="8">
+                <StackPanel Width="300" Spacing="{StaticResource Space8}">
                   <controls:GradientRamp x:Name="RampEditor"
                                          Gradient="{Binding GradientDocker.SelectedGradient}" />
-                  <TextBlock FontSize="10" Opacity="0.55" TextWrapping="Wrap"
+                  <TextBlock FontSize="{StaticResource TypeHint}" Opacity="0.55" TextWrapping="Wrap"
                              Text="Click above the ramp for an opacity stop, below it for a colour stop. Drag to move, middle-click to remove." />
 
                   <!-- An opacity stop: a number and a slider, nothing else. -->
-                  <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasAlphaStop}">
-                    <TextBlock Text="Opacity stop" FontSize="10" Opacity="0.6" />
+                  <StackPanel Spacing="{StaticResource Space4}" IsVisible="{Binding GradientDocker.HasAlphaStop}">
+                    <TextBlock Text="Opacity stop" FontSize="{StaticResource TypeHint}" Opacity="0.6" />
                     <DockPanel>
-                      <NumericUpDown DockPanel.Dock="Right" Classes="value" FontSize="11"
+                      <NumericUpDown DockPanel.Dock="Right" Classes="value" FontSize="{StaticResource TypeDense}"
                                      Value="{Binding GradientDocker.SelectedAlpha}"
                                      Minimum="0" Maximum="100" Increment="5" FormatString="0" />
                       <Slider Value="{Binding GradientDocker.SelectedAlpha}"
@@ -1357,18 +1357,18 @@
                   </StackPanel>
 
                   <!-- A colour stop: the picker, the same one as everywhere. -->
-                  <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasStop}">
-                    <TextBlock Text="Colour stop" FontSize="10" Opacity="0.6" />
+                  <StackPanel Spacing="{StaticResource Space4}" IsVisible="{Binding GradientDocker.HasStop}">
+                    <TextBlock Text="Colour stop" FontSize="{StaticResource TypeHint}" Opacity="0.6" />
                     <controls:ColorField Hex="{Binding GradientDocker.SelectedStop.Color, Mode=TwoWay}"
                                          HorizontalAlignment="Left" />
                   </StackPanel>
 
-                  <StackPanel Orientation="Horizontal" Spacing="4">
+                  <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                     <ComboBox ItemsSource="{Binding GradientDocker.KindChoices}"
-                              SelectedItem="{Binding GradientDocker.Kind}" Width="92" FontSize="11"
+                              SelectedItem="{Binding GradientDocker.Kind}" Width="92" FontSize="{StaticResource TypeDense}"
                               ToolTip.Tip="Linear runs along the drag; radial takes the drag as its radius" />
                     <ComboBox ItemsSource="{Binding GradientDocker.SpreadChoices}"
-                              SelectedItem="{Binding GradientDocker.Spread}" Width="92" FontSize="11"
+                              SelectedItem="{Binding GradientDocker.Spread}" Width="92" FontSize="{StaticResource TypeDense}"
                               ToolTip.Tip="What happens beyond the ends of the ramp" />
                     <Button Classes="icon"
                             Command="{Binding GradientDocker.AddGradientCommand}"
@@ -1387,7 +1387,7 @@
             </Button.Flyout>
           </Button>
 
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center">
             <TextBlock Text="Opacity" VerticalAlignment="Center" />
             <Slider Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Classes="param"
                     VerticalAlignment="Center" />
@@ -1398,14 +1398,14 @@
         </StackPanel>
 
         <!-- Shape options -->
-        <StackPanel Orientation="Horizontal" Spacing="14">
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space14}">
           <StackPanel.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
               <Binding Path="IsShapeTool" />
               <Binding Path="Workspace.QuickShapeOptions" />
             </MultiBinding>
           </StackPanel.IsVisible>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center">
             <TextBlock Text="Shape" VerticalAlignment="Center" />
             <ComboBox ItemsSource="{Binding ShapeChoices}" SelectedItem="{Binding ActiveShape}"
                       Width="110" VerticalAlignment="Center"
@@ -1413,13 +1413,13 @@
           </StackPanel>
           <!-- Only a polygon has a side count, and a disabled field is one
                more thing to read past on every other shape. -->
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center"
                       IsVisible="{Binding IsPolygonShape}">
             <TextBlock Text="Sides" VerticalAlignment="Center" />
             <NumericUpDown Value="{Binding PolygonSides}" Minimum="3" Maximum="64" Increment="1"
                            FormatString="0" Classes="value" VerticalAlignment="Center" />
           </StackPanel>
-          <TextBlock Text="Drawn with the current brush" FontSize="11" Opacity="0.55"
+          <TextBlock Text="Drawn with the current brush" FontSize="{StaticResource TypeDense}" Opacity="0.55"
                      VerticalAlignment="Center"
                      ToolTip.Tip="A shape is a stroke, so it takes the brush you have loaded — and erases and re-renders like any other mark" />
         </StackPanel>
@@ -1427,21 +1427,21 @@
 
         <!-- Eraser options. Size and opacity are not here: they are pinned on
              the fixed section of the bar for every painting tool (Q70). -->
-        <StackPanel Orientation="Horizontal" Spacing="14">
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space14}">
           <StackPanel.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
               <Binding Path="IsEraserTool" />
               <Binding Path="Workspace.QuickEraserOptions" />
             </MultiBinding>
           </StackPanel.IsVisible>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center">
             <TextBlock Text="Hardness" VerticalAlignment="Center" />
             <Slider Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Classes="param" VerticalAlignment="Center" />
             <NumericUpDown controls:FieldMath.Percent="True" Value="{Binding BrushHardness}" Minimum="0" Maximum="1" Increment="0.05"
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Eraser hardness in percent (type an exact value)" />
           </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center">
             <TextBlock Text="Stabilizer" VerticalAlignment="Center" />
             <ComboBox ItemsSource="{Binding SmoothingChoices}" SelectedItem="{Binding SmoothingMode}"
                       Width="140" VerticalAlignment="Center"
@@ -1465,7 +1465,7 @@
               heavy lazy-mouse and a pencil wants none, and that is the whole
               reason stabilisation is worth setting at all.
             -->
-            <CheckBox Content="Per brush" VerticalAlignment="Center" FontSize="11"
+            <CheckBox Content="Per brush" VerticalAlignment="Center" FontSize="{StaticResource TypeDense}"
                       MinHeight="0" Height="22" Padding="4,0,0,0"
                       IsChecked="{Binding BrushHasOwnStabilisation}"
                       ToolTip.Tip="On, this brush carries its own stabilisation and keeps it in its preset. Off, it follows the application-wide setting." />
@@ -1477,7 +1477,7 @@
              selected, and the actions that need a selection arrive with V3. An
              empty bar would still be right to register now, because a tool with
              no options panel is a tool the bar has never heard of. -->
-        <StackPanel Orientation="Horizontal" Spacing="14">
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space14}">
           <StackPanel.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
               <Binding Path="IsArrowTool" />
@@ -1492,7 +1492,7 @@
           <!-- The actions appear with a selection rather than sitting greyed
                out. A bar that is mostly disabled controls reads as a tool that
                is mostly broken; this one says nothing until it can do something. -->
-          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center"
                       IsVisible="{Binding HasStrokeSelection}">
             <Button Content="Recolour" Command="{Binding RecolourSelectedLinesCommand}"
                     ToolTip.Tip="Repaint the selected lines in the foreground colour. A line that came from a palette stops following its swatch." />
@@ -1528,7 +1528,7 @@
           buttons mirror the timeline's own, same commands, same glyphs, so
           learning one is learning both.
         -->
-        <StackPanel x:Name="QuickTransport" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+        <StackPanel x:Name="QuickTransport" Orientation="Horizontal" Spacing="{StaticResource Space4}" VerticalAlignment="Center"
                     IsVisible="{Binding Workspace.QuickTransport}">
           <Button Classes="icon" Command="{Binding TogglePlaybackCommand}"
                   ToolTip.Tip="Play / pause">
@@ -1538,7 +1538,7 @@
             </Panel>
           </Button>
         </StackPanel>
-        <StackPanel x:Name="QuickAddFrame" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+        <StackPanel x:Name="QuickAddFrame" Orientation="Horizontal" Spacing="{StaticResource Space4}" VerticalAlignment="Center"
                     IsVisible="{Binding Workspace.QuickAddFrame}">
           <Button Classes="icon" Command="{Binding AddFrameCommand}"
                   ToolTip.Tip="Add an empty frame after this one">
@@ -1555,13 +1555,13 @@
 
     <!-- AI bar. Absent, not greyed, when assistance is switched off: a row
          that can never do anything is worse than no row. -->
-    <controls:ScaledChrome DockPanel.Dock="Top" IsVisible="{Binding AiEnabled}"><Border Padding="8,2" Background="{StaticResource SurfacePanelBrush}"
+    <controls:ScaledChrome DockPanel.Dock="Top" IsVisible="{Binding AiEnabled}"><Border Padding="8,2" Background="{DynamicResource SurfacePanelBrush}"
             ToolTip.Tip="{Binding AiUnavailableHint}">
-      <StackPanel Orientation="Horizontal" Spacing="10">
+      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space10}">
         <!-- Which model is answering. The bar used to say "Claude" in three
              places; now that the provider is the artist's choice, saying it
              once and truthfully beats saying it three times and wrongly. -->
-        <TextBlock Text="{Binding AiProviderLabel}" VerticalAlignment="Center" Opacity="0.6" FontSize="12"
+        <TextBlock Text="{Binding AiProviderLabel}" VerticalAlignment="Center" Opacity="0.6" FontSize="{StaticResource TypeBody}"
                    ToolTip.Tip="Change this in Edit ▸ Configure ▸ AI" />
         <Button Content="✦ AI Inbetween"
                 Command="{Binding AiInbetweenCommand}"
@@ -1587,33 +1587,33 @@
     </Border></controls:ScaledChrome>
 
     <!-- Info strip: what the document is, and how much room the machine has left -->
-    <controls:ScaledChrome DockPanel.Dock="Bottom"><Border Background="{StaticResource BackgroundSecondaryBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
+    <controls:ScaledChrome DockPanel.Dock="Bottom"><Border Background="{DynamicResource BackgroundSecondaryBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
             Padding="10,2">
       <DockPanel LastChildFill="False">
         <!-- One panel for the document facts, so all of them (and their dot
              separators) vanish together when nothing is open: these numbers
              would otherwise describe the internal placeholder document. -->
         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" IsVisible="{Binding HasDocument}">
-          <TextBlock Text="{Binding DocumentSizeLabel}" FontSize="11" Opacity="0.85"
+          <TextBlock Text="{Binding DocumentSizeLabel}" FontSize="{StaticResource TypeDense}" Opacity="0.85"
                      VerticalAlignment="Center" ToolTip.Tip="Canvas size and resolution of the open document" />
-          <TextBlock Text="·" FontSize="11" Opacity="0.4" Margin="8,0" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding DocumentContentLabel}" FontSize="11" Opacity="0.85"
+          <TextBlock Text="·" FontSize="{StaticResource TypeDense}" Opacity="0.4" Margin="8,0" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding DocumentContentLabel}" FontSize="{StaticResource TypeDense}" Opacity="0.85"
                      VerticalAlignment="Center" ToolTip.Tip="Layers and distinct drawings in this document" />
-          <TextBlock Text="·" FontSize="11" Opacity="0.4" Margin="8,0" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding MemoryLabel}" FontSize="11" Opacity="0.6"
+          <TextBlock Text="·" FontSize="{StaticResource TypeDense}" Opacity="0.4" Margin="8,0" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding MemoryLabel}" FontSize="{StaticResource TypeDense}" Opacity="0.6"
                      VerticalAlignment="Center" ToolTip.Tip="Image memory held for cached frames and the canvas buffers" />
         </StackPanel>
 
         <!-- Performance headroom, measured from real repaint times -->
-        <TextBlock DockPanel.Dock="Right" Text="{Binding Performance.HealthLabel}" FontSize="11"
+        <TextBlock DockPanel.Dock="Right" Text="{Binding Performance.HealthLabel}" FontSize="{StaticResource TypeDense}"
                    VerticalAlignment="Center" Margin="8,0,0,0" Opacity="0.85" />
         <ProgressBar DockPanel.Dock="Right" Width="90" Height="8" Minimum="0" Maximum="100"
                      Value="{Binding Performance.HeadroomPercent}" VerticalAlignment="Center"
                      Classes.strained="{Binding Performance.NeedsAttention}"
                      ToolTip.Tip="How much of a 60 fps frame is left after repainting the canvas" />
-        <TextBlock DockPanel.Dock="Right" Text="Headroom" FontSize="11" Opacity="0.6" Margin="0,0,6,0"
+        <TextBlock DockPanel.Dock="Right" Text="Headroom" FontSize="{StaticResource TypeDense}" Opacity="0.6" Margin="0,0,6,0"
                    VerticalAlignment="Center" />
-        <TextBlock DockPanel.Dock="Right" Text="{Binding Performance.Advice}" FontSize="11"
+        <TextBlock DockPanel.Dock="Right" Text="{Binding Performance.Advice}" FontSize="{StaticResource TypeDense}"
                    Foreground="#e0a030" VerticalAlignment="Center" Margin="0,0,14,0"
                    TextTrimming="CharacterEllipsis" MaxWidth="520"
                    IsVisible="{Binding Performance.NeedsAttention}" />
@@ -1621,7 +1621,7 @@
     </Border></controls:ScaledChrome>
 
     <!-- Open documents: click to switch, ✕ to close, • marks unsaved changes -->
-    <controls:ScaledChrome DockPanel.Dock="Top"><Border Background="{StaticResource BackgroundSecondaryBrush}" Padding="4,2,4,0">
+    <controls:ScaledChrome DockPanel.Dock="Top"><Border Background="{DynamicResource BackgroundSecondaryBrush}" Padding="4,2,4,0">
       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
         <ItemsControl ItemsSource="{Binding Tabs}">
           <ItemsControl.ItemsPanel>
@@ -1714,8 +1714,8 @@
           <ColumnDefinition Width="300" MinWidth="200" />
         </Grid.ColumnDefinitions>
 
-        <controls:ScaledChrome Grid.Column="0"><Border x:Name="Toolbar" Background="{StaticResource SurfacePanelBrush}"
-                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+        <controls:ScaledChrome Grid.Column="0"><Border x:Name="Toolbar" Background="{DynamicResource SurfacePanelBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
                 Margin="4,4,0,4" ClipToBounds="True" SizeChanged="OnToolbarSizeChanged">
           <ScrollViewer VerticalScrollBarVisibility="Auto">
             <!-- Columns are decided in ReflowToolRail (Q56): 1 when the
@@ -1725,7 +1725,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsBrushTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Brush}"
                             ToolTip.Tip="Brush (B)">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconBrush}" />
                   <TextBlock Text="Brush" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1733,7 +1733,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsEraserTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Eraser}"
                             ToolTip.Tip="Eraser (E)">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconEraser}" />
                   <TextBlock Text="Eraser" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1741,7 +1741,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsFillTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Fill}"
                             ToolTip.Tip="Fill (F)">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconFill}" />
                   <TextBlock Text="Fill" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1749,7 +1749,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsPickerTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Picker}"
                             ToolTip.Tip="Color picker (I on the canvas) — click to pick the color under the cursor">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconPicker}" />
                   <TextBlock Text="Picker" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1757,7 +1757,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsGradientTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Gradient}"
                             ToolTip.Tip="Gradient (G) — drag to set the ramp's direction and length">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconGradient}" />
                   <TextBlock Text="Gradient" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1768,7 +1768,7 @@
                 <!-- The mark sits at the BUTTON's corner, so the panel stretches to the
                      content area and the glyph re-centres itself inside it. -->
                 <Panel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                  <StackPanel Orientation="Horizontal" Spacing="6"
+                  <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}"
                               HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Path Data="{Binding ShapeGlyph}" />
                     <TextBlock Text="Shape" Classes="toolname" VerticalAlignment="Center" />
@@ -1780,7 +1780,7 @@
                      one nobody trusts. -->
                 <ToggleButton.ContextFlyout>
                   <Flyout Placement="RightEdgeAlignedTop">
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="{StaticResource Space2}">
                       <Button Content="╱ Line" Command="{Binding SelectShapeCommand}" Click="OnVariantChosen"
                               CommandParameter="{x:Static geo:ShapeKind.Line}" HorizontalAlignment="Stretch" />
                       <Button Content="▭ Rectangle" Command="{Binding SelectShapeCommand}" Click="OnVariantChosen"
@@ -1796,7 +1796,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsMoveTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Move}"
                             ToolTip.Tip="Move (V) — drag the drawing. Ctrl moves every drawing on the layer, Shift holds it to one axis. Guides are picked up with this tool.">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconMove}" />
                   <TextBlock Text="Move" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1809,7 +1809,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsCropTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Crop}"
                             ToolTip.Tip="Crop (C) — drag a frame, push its handles, Shift holds the ratio. Enter crops the paper to it, Escape puts the frame back round the page. Nothing drawn moves, and ink outside the frame is kept.">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconCrop}" />
                   <TextBlock Text="Crop" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1821,7 +1821,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsBoneTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Bone}"
                             ToolTip.Tip="Bone (K) - drag on empty canvas to add a bone (parented to the selected one), drag a tip to re-aim it, switch to posing to rotate and key at the playhead.">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconBone}" />
                   <TextBlock Text="Bone" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1829,7 +1829,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsArrowTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Arrow}"
                             ToolTip.Tip="Arrow (A) — click to select a whole line, a guide, a placed symbol or a rig anchor. Shift adds. Selects things, not areas of pixels.">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconArrow}" />
                   <TextBlock Text="Arrow" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1842,7 +1842,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsDirectSelectTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.DirectSelect}"
                             ToolTip.Tip="Direct select (N) — reshape one line by its points. Double-click a line with the arrow to go inside it, drag its points and handles, Esc to finish.">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconPoints}" />
                   <TextBlock Text="Points" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1850,7 +1850,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsPenTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Pen}"
                             ToolTip.Tip="Pen (P) — click to place a corner, click and drag to curve it. Shift constrains to 45°, Alt breaks a handle pair, clicking the first point closes the line. Enter finishes, Backspace takes a point back.">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconPen}" />
                   <TextBlock Text="Pen" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1858,7 +1858,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsTextTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Text}"
                             ToolTip.Tip="Text (T) — click to put a caret on the canvas and type. Esc sets the type; clicking type already there picks it up to retype. What it leaves behind is ordinary strokes, so it erases and transforms like a drawing.">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconText}" />
                   <TextBlock Text="Text" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1866,7 +1866,7 @@
               <ToggleButton Classes="tool" IsChecked="{Binding IsWidthTool, Mode=OneWay}"
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Width}"
                             ToolTip.Tip="Width (W) — drag away from a line to make it heavier, back towards it to make it lighter. Works inside a line you have gone into with the arrow.">
-                <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                   <Path Data="{StaticResource IconWidth}" />
                   <TextBlock Text="Width" Classes="toolname" VerticalAlignment="Center" />
                 </StackPanel>
@@ -1875,7 +1875,7 @@
                             Command="{Binding SelectToolCommand}" CommandParameter="{x:Static vm:ToolId.Select}"
                             ToolTip.Tip="Select (S — press again to switch variant; hold for the list)">
                 <Panel HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                  <StackPanel Orientation="Horizontal" Spacing="6"
+                  <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}"
                               HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Path Data="{Binding SelectVariantGlyph}" />
                     <TextBlock Text="Select" Classes="toolname" VerticalAlignment="Center" />
@@ -1884,7 +1884,7 @@
                 </Panel>
                 <ToggleButton.ContextFlyout>
                   <Flyout Placement="RightEdgeAlignedTop">
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="{StaticResource Space2}">
                       <Button Content="◌ Freehand" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
                               CommandParameter="{x:Static vm:SelectVariant.Freehand}" HorizontalAlignment="Stretch" />
                       <Button Content="⬠ Polygon" Command="{Binding SelectVariantOfCommand}" Click="OnVariantChosen"
@@ -1955,7 +1955,7 @@
                                HorizontalAlignment="Left" VerticalAlignment="Stretch"
                                Margin="0,18,0,0"
                                IsVisible="{Binding Workspace.RulersVisible}" />
-          <Border x:Name="RulerCorner" Width="18" Height="18" Background="{StaticResource BackgroundSecondaryBrush}"
+          <Border x:Name="RulerCorner" Width="18" Height="18" Background="{DynamicResource BackgroundSecondaryBrush}"
                   HorizontalAlignment="Left" VerticalAlignment="Top"
                   IsVisible="{Binding Workspace.RulersVisible}" />
           <!--
@@ -1965,7 +1965,7 @@
             on, so its icons stay upright — see CanvasOverlayBar.
           -->
           <controls:CanvasOverlayBar x:Name="ViewBar" OverlayId="View" Title="View">
-            <StackPanel Spacing="2"
+            <StackPanel Spacing="{StaticResource Space2}"
                         Orientation="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
               <Button Click="OnZoomOut" ToolTip.Tip="Zoom out (mouse wheel)">
                 <Path Data="{StaticResource IconMinus}" />
@@ -1988,7 +1988,7 @@
                       Width="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.ReadoutWidth}}"
                       Height="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.ReadoutHeight}}"
                       ToolTip.Tip="Current zoom — click to reset the whole view">
-                <TextBlock x:Name="ZoomLabelText" Text="100%" Width="42" FontSize="11"
+                <TextBlock x:Name="ZoomLabelText" Text="100%" Width="42" FontSize="{StaticResource TypeDense}"
                            TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center">
                   <TextBlock.RenderTransform>
                     <RotateTransform Angle="{Binding ReadoutAngle, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}}" />
@@ -2032,7 +2032,7 @@
             wired past ShortcutMap.
           -->
           <controls:CanvasOverlayBar x:Name="ShortcutBar" OverlayId="Shortcuts" Title="Shortcuts">
-            <StackPanel Spacing="2"
+            <StackPanel Spacing="{StaticResource Space2}"
                         Orientation="{Binding IsVertical, RelativeSource={RelativeSource AncestorType=controls:CanvasOverlayBar}, Converter={x:Static docking:OverlayConverters.VerticalToOrientation}}">
               <ToggleButton Classes="onion" IsChecked="{Binding ActiveLayerOnion}"
                             ToolTip.Tip="Onion skin on the active layer" ><Path /></ToggleButton>
@@ -2118,15 +2118,15 @@
       -->
       <Border x:Name="NothingOpen" Grid.Row="0" Grid.RowSpan="5"
               IsVisible="{Binding !HasDocument}"
-              Background="{StaticResource BackgroundPrimaryBrush}">
-        <controls:ScaledChrome HorizontalAlignment="Center" VerticalAlignment="Center"><StackPanel Spacing="10">
-          <TextBlock Text="Nothing open" FontSize="18" HorizontalAlignment="Center"
-                     Foreground="{StaticResource TextPrimaryBrush}" />
+              Background="{DynamicResource BackgroundPrimaryBrush}">
+        <controls:ScaledChrome HorizontalAlignment="Center" VerticalAlignment="Center"><StackPanel Spacing="{StaticResource Space10}">
+          <TextBlock Text="Nothing open" FontSize="{StaticResource TypeDisplay}" HorizontalAlignment="Center"
+                     Foreground="{DynamicResource TextPrimaryBrush}" />
           <TextBlock Text="Make a document or a project, or open something you already have."
-                     FontSize="12" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="360"
+                     FontSize="{StaticResource TypeBody}" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="360"
                      TextAlignment="Center"
-                     Foreground="{StaticResource TextSecondaryBrush}" />
-          <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" Margin="0,6,0,0">
+                     Foreground="{DynamicResource TextSecondaryBrush}" />
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" HorizontalAlignment="Center" Margin="0,6,0,0">
             <Button x:Name="NothingOpenNew" Content="New…" Click="OnNewClicked"
                     ToolTip.Tip="A new document (Ctrl+N)" />
             <Button x:Name="NothingOpenNewProject" Content="New project…" Click="OnNewProjectClicked" />
@@ -2149,7 +2149,7 @@
                 <!-- Paint tools get the full brush editor, exactly as before. -->
                 <Grid ColumnDefinitions="110,6,*" IsVisible="{Binding IsPaintTool}">
                   <ListBox x:Name="BrushCategoryList" Grid.Column="0" SelectedIndex="0"
-                           SelectionChanged="OnBrushCategoryChanged" Background="{StaticResource BackgroundSecondaryBrush}">
+                           SelectionChanged="OnBrushCategoryChanged" Background="{DynamicResource BackgroundSecondaryBrush}">
                     <ListBoxItem Content="General" />
                     <ListBoxItem Content="Effects" />
                     <ListBoxItem Content="Medium" />
@@ -2159,31 +2159,31 @@
                   <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
                     <Panel>
 
-                      <StackPanel x:Name="BrushPageGeneral" Spacing="6">
-                        <TextBlock Text="General" FontWeight="SemiBold" FontSize="12" />
+                      <StackPanel x:Name="BrushPageGeneral" Spacing="{StaticResource Space6}">
+                        <TextBlock Text="General" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
                         <CheckBox Content="Anti-aliasing (global)" IsChecked="{Binding AntiAliasing}"
                                   ToolTip.Tip="Smooth edges on everything that paints (brush, eraser, fill). Recorded per stroke, so existing art never changes." />
                         <DockPanel>
-                          <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1"
                                          Increment="0.05" FormatString="0.00" MinWidth="44" />
                           <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Margin="4,0" />
                         </DockPanel>
                         <DockPanel>
-                          <TextBlock Text="Flow" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <TextBlock Text="Flow" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1"
                                          Increment="0.05" FormatString="0.00" MinWidth="44" />
                           <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Margin="4,0" />
                         </DockPanel>
                         <DockPanel>
-                          <TextBlock Text="Spacing" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <TextBlock Text="Spacing" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2"
                                          Increment="0.02" FormatString="0.00" MinWidth="44" />
                           <Slider Value="{Binding BrushSpacing}" Minimum="0.02" Maximum="2" Margin="4,0" />
                         </DockPanel>
 
                         <DockPanel ToolTip.Tip="How the finished stroke lands on the layer. Applied once, where the stroke meets the layer — so a Multiply brush does not go black where it crosses itself.">
-                          <TextBlock Text="Blend" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <TextBlock Text="Blend" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <ComboBox ItemsSource="{Binding BlendModeChoices}" SelectedItem="{Binding BrushBlend}"
                                     HorizontalAlignment="Stretch" Margin="4,0,0,0" />
                         </DockPanel>
@@ -2195,16 +2195,16 @@
                           thumbnail and never read the name again.
                         -->
                         <DockPanel Margin="0,4,0,0">
-                          <TextBlock Text="Tip" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <TextBlock Text="Tip" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <Button x:Name="TipPickerButton" HorizontalAlignment="Stretch" Margin="4,0,0,0"
                                   Padding="4" Click="OnTipPickerOpen"
                                   ToolTip.Tip="The shape each dab stamps. Painting with one copies it into the drawing.">
                             <DockPanel>
-                              <Border DockPanel.Dock="Left" Width="26" Height="26" Background="{StaticResource SurfacePanelBrush}"
+                              <Border DockPanel.Dock="Left" Width="26" Height="26" Background="{DynamicResource SurfacePanelBrush}"
                                       CornerRadius="3" Margin="0,0,8,0">
                                 <Image x:Name="TipPickerThumb" Stretch="Uniform" Margin="1" />
                               </Border>
-                              <TextBlock x:Name="TipPickerName" Text="Round" VerticalAlignment="Center" FontSize="12" />
+                              <TextBlock x:Name="TipPickerName" Text="Round" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             </DockPanel>
                             <Button.Flyout>
                               <Flyout Placement="Bottom">
@@ -2223,11 +2223,11 @@
                                       </ListBox.ItemsPanel>
                                       <ListBox.ItemTemplate>
                                         <DataTemplate x:DataType="views:TipChoice">
-                                          <StackPanel Margin="0,2" Spacing="2">
-                                            <Border Height="60" Background="{StaticResource SurfacePanelBrush}" CornerRadius="3">
+                                          <StackPanel Margin="0,2" Spacing="{StaticResource Space2}">
+                                            <Border Height="60" Background="{DynamicResource SurfacePanelBrush}" CornerRadius="3">
                                               <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="3" />
                                             </Border>
-                                            <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}" TextTrimming="CharacterEllipsis" />
                                           </StackPanel>
                                         </DataTemplate>
                                       </ListBox.ItemTemplate>
@@ -2240,79 +2240,79 @@
                         </DockPanel>
                       </StackPanel>
 
-                      <StackPanel x:Name="BrushPageEffects" Spacing="6" IsVisible="False">
-                        <TextBlock Text="Effects" FontWeight="SemiBold" FontSize="12" />
-                        <StackPanel Spacing="6" IsVisible="{Binding IsSmudgeBrush}" Margin="0,0,0,8">
-                          <TextBlock Text="Smudge" FontWeight="SemiBold" FontSize="11" Opacity="0.8" />
+                      <StackPanel x:Name="BrushPageEffects" Spacing="{StaticResource Space6}" IsVisible="False">
+                        <TextBlock Text="Effects" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
+                        <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding IsSmudgeBrush}" Margin="0,0,0,8">
+                          <TextBlock Text="Smudge" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" />
                           <ComboBox ItemsSource="{Binding SmudgeModeChoices}" SelectedItem="{Binding BrushSmudgeMode}"
                                     HorizontalAlignment="Stretch"
                                     ToolTip.Tip="Smearing copies what was under the last dab onto the next, so edges and texture streak. Dulling lays down one colour taken from under the dab, so detail dissolves — that is a blender." />
                           <DockPanel ToolTip.Tip="How far what the brush picked up travels before it fades.">
-                            <TextBlock Text="Length" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Length" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushSmudgeLength}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushSmudgeLength}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="How wide an area a dulling dab averages its colour over. Wider blends more and keeps less detail."
                                      IsVisible="{Binding UsesSmudgeRadius}">
-                            <TextBlock Text="Radius" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Radius" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushSmudgeRadius}" Minimum="0.05" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="How much of the brush's own colour it adds while smudging. Zero is a pure blender.">
-                            <TextBlock Text="Color rate" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Color rate" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushColorRate}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushColorRate}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                         </StackPanel>
-                        <TextBlock Text="Shape Dynamics" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <TextBlock Text="Shape Dynamics" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="0,8,0,0" />
                           <DockPanel ToolTip.Tip="How much dab diameter varies. This is the biggest single difference between a digital mark and a natural one.">
-                            <TextBlock Text="Size jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Size jitter" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="Floor for jittered size. Without it, jitter produces dabs that vanish and the stroke reads as broken rather than varied.">
-                            <TextBlock Text="Minimum size" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Minimum size" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="1 is circular; lower squashes the dab into a chisel.">
-                            <TextBlock Text="Roundness" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Roundness" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Roundness jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Roundness jitter" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Angle jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Angle jitter" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
-                        <CheckBox Content="Angle follows stroke direction" FontSize="12"
+                        <CheckBox Content="Angle follows stroke direction" FontSize="{StaticResource TypeBody}"
                                   IsChecked="{Binding BrushAngleFollowsDirection}"
                                   ToolTip.Tip="Required for any flat or chisel tip to behave like one instead of a repeated stamp." />
 
-                        <TextBlock Text="Scattering" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <TextBlock Text="Scattering" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="0,8,0,0" />
                           <DockPanel>
-                            <TextBlock Text="Scatter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Scatter" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushScatter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushScatter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
 
-                        <TextBlock Text="Texture" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <TextBlock Text="Texture" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="0,8,0,0" />
                         <DockPanel ToolTip.Tip="Paper surface multiplied into the stroke. Anchored to the document, so the grain stays put as you paint over it.">
-                          <TextBlock Text="Surface" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <TextBlock Text="Surface" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <ComboBox ItemsSource="{Binding TextureSurfaceChoices}" SelectedItem="{Binding BrushTextureSurface}"
                                     HorizontalAlignment="Stretch" IsEnabled="{Binding !HasImportedTexture}" />
                         </DockPanel>
@@ -2332,67 +2332,67 @@
                           <Button Content="Paper image…" Click="OnImportTextureClicked"
                                   HorizontalAlignment="Stretch" />
                         </DockPanel>
-                        <TextBlock x:Name="TextureSourceNote" FontSize="10" Opacity="0.6"
+                        <TextBlock x:Name="TextureSourceNote" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                                    IsVisible="False" TextWrapping="Wrap" />
                           <DockPanel>
-                            <TextBlock Text="Grain size" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Grain size" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128"
                                            Increment="1" FormatString="0" MinWidth="44" />
                             <Slider Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Depth" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Depth" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="The flat grain used when no texture surface is chosen.">
-                            <TextBlock Text="Granulation" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Granulation" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushGranulation}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Wet edge" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Wet edge" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
 
-                        <TextBlock Text="Transfer" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <TextBlock Text="Transfer" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="0,8,0,0" />
                           <DockPanel ToolTip.Tip="Per-dab paint amount varies, giving wash and build-up variation that pressure alone cannot.">
-                            <TextBlock Text="Flow jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Flow jitter" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
 
-                        <TextBlock Text="Color Dynamics" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,8,0,0" />
+                        <TextBlock Text="Color Dynamics" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="0,8,0,0" />
                         <DockPanel ToolTip.Tip="Natural media drifts between two chosen colours rather than randomly around one. Leave empty to vary only hue, saturation and brightness.">
-                          <TextBlock Text="Second color" Width="100" VerticalAlignment="Center" FontSize="12" />
+                          <TextBlock Text="Second color" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <controls:ColorField Hex="{Binding BrushSecondaryColor, Mode=TwoWay}"
                                                AllowsNone="True" HorizontalAlignment="Left" />
                         </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Toward second" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Toward second" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Hue jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Hue jitter" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Saturation jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Saturation jitter" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Brightness jitter" Width="100" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Brightness jitter" Width="100" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1" Margin="4,0" />
@@ -2400,124 +2400,124 @@
 
                         </StackPanel>
 
-                      <StackPanel x:Name="BrushPageMedium" Spacing="6" IsVisible="False">
-                        <TextBlock Text="Medium" FontWeight="SemiBold" FontSize="12" />
-                        <TextBlock FontSize="11" Opacity="0.65" TextWrapping="Wrap"
+                      <StackPanel x:Name="BrushPageMedium" Spacing="{StaticResource Space6}" IsVisible="False">
+                        <TextBlock Text="Medium" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
+                        <TextBlock FontSize="{StaticResource TypeDense}" Opacity="0.65" TextWrapping="Wrap"
                                    Text="Simulates how real paint moves, settles and layers. Runs when the stroke is committed, over the region the stroke touched." />
                         <ComboBox ItemsSource="{Binding MediumKindChoices}" SelectedItem="{Binding BrushMedium}"
                                   HorizontalAlignment="Stretch" Margin="0,2,0,6" />
 
-                        <StackPanel Spacing="6" IsVisible="{Binding MediumIsSimulated}">
-                          <TextBlock Text="Fluid" FontWeight="SemiBold" FontSize="11" Opacity="0.8" />
+                        <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding MediumIsSimulated}">
+                          <TextBlock Text="Fluid" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" />
                           <DockPanel>
-                            <TextBlock Text="Wetness" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Wetness" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumWetness}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumWetness}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Viscosity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Viscosity" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumViscosity}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumViscosity}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Drag" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Drag" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumDrag}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumDrag}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Absorbency" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Absorbency" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumAbsorbency}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumAbsorbency}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="Capillary pull toward the wet boundary — this is what darkens the rim.">
-                            <TextBlock Text="Edge pull" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Edge pull" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumEdgePull}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumEdgePull}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="Simulation iterations. Cost is linear in this — the one control here that can make a stroke commit feel slow.">
-                            <TextBlock Text="Flow steps" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Flow steps" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumFlowSteps}" Minimum="0" Maximum="32"
                                            Increment="1" FormatString="0" MinWidth="44" />
                             <Slider Value="{Binding MediumFlowSteps}" Minimum="0" Maximum="32" Margin="4,0" />
                           </DockPanel>
 
-                          <TextBlock Text="Pigment" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                          <TextBlock Text="Pigment" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="0,6,0,0" />
                           <DockPanel>
-                            <TextBlock Text="Density" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Density" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumPigmentDensity}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumPigmentDensity}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="How readily pigment settles into the paper's valleys.">
-                            <TextBlock Text="Granularity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Granularity" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumGranularity}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumGranularity}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="0 is a transparent glaze, 1 fully hides what is underneath.">
-                            <TextBlock Text="Hiding" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Hiding" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumHiding}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumHiding}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
-                          <CheckBox Content="Mix pigment physically (Kubelka–Munk)" FontSize="12"
+                          <CheckBox Content="Mix pigment physically (Kubelka–Munk)" FontSize="{StaticResource TypeBody}"
                                     IsChecked="{Binding MediumPhysicalMixing}"
                                     ToolTip.Tip="Layer paint the way pigment layers, not the way film layers. A yellow glaze over blue gives green." />
 
-                          <TextBlock Text="Paper" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                          <TextBlock Text="Paper" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="0,6,0,0" />
                           <DockPanel>
-                            <TextBlock Text="Surface" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Surface" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <ComboBox ItemsSource="{Binding PaperKindChoices}" SelectedItem="{Binding MediumPaper}"
                                       HorizontalAlignment="Stretch" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Grain size" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Grain size" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding MediumPaperScale}" Minimum="1" Maximum="128"
                                            Increment="1" FormatString="0" MinWidth="44" />
                             <Slider Value="{Binding MediumPaperScale}" Minimum="1" Maximum="128" Margin="4,0" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Influence" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Influence" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumPaperInfluence}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
 
-                          <TextBlock Text="Interaction" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                          <TextBlock Text="Interaction" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="0,6,0,0" />
                           <DockPanel ToolTip.Tip="How much a light touch means water rather than pigment. Raise it and light strokes go paler and bloom further.">
-                            <TextBlock Text="Light = water" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Light = water" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumPressureWater}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumPressureWater}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="How much pressure governs mixing with the paint already there. At 1 a light touch barely disturbs it.">
-                            <TextBlock Text="Pressure mix" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Pressure mix" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumPressureMix}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumPressureMix}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="How much this stroke re-wets what is under it. Above zero, earlier paint lifts and travels with the new stroke — wet into wet.">
-                            <TextBlock Text="Re-wetting" Width="90" VerticalAlignment="Center" FontSize="12" />
+                            <TextBlock Text="Re-wetting" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumRewetting}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="44" />
                             <Slider Value="{Binding MediumRewetting}" Minimum="0" Maximum="1" Margin="4,0" />
                           </DockPanel>
 
-                          <StackPanel Spacing="6" IsVisible="{Binding MediumHasBody}">
-                            <TextBlock Text="Body" FontWeight="SemiBold" FontSize="11" Opacity="0.8" Margin="0,6,0,0" />
+                          <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding MediumHasBody}">
+                            <TextBlock Text="Body" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="0,6,0,0" />
                             <DockPanel>
-                              <TextBlock Text="Thickness" Width="90" VerticalAlignment="Center" FontSize="12" />
+                              <TextBlock Text="Thickness" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                               <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumBody}" Minimum="0" Maximum="1"
                                              Increment="0.05" FormatString="0.00" MinWidth="44" />
                               <Slider Value="{Binding MediumBody}" Minimum="0" Maximum="1" Margin="4,0" />
                             </DockPanel>
                             <DockPanel ToolTip.Tip="Shades the paint's own height, giving impasto relief.">
-                              <TextBlock Text="Relief" Width="90" VerticalAlignment="Center" FontSize="12" />
+                              <TextBlock Text="Relief" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                               <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumRelief}" Minimum="0" Maximum="1"
                                              Increment="0.05" FormatString="0.00" MinWidth="44" />
                               <Slider Value="{Binding MediumRelief}" Minimum="0" Maximum="1" Margin="4,0" />
@@ -2541,7 +2541,7 @@
                               really needs the loop. B23.
                             -->
                             <DockPanel ToolTip.Tip="Paint on the brush at the start. Below 1 the brush runs out — that is dry-brush.">
-                              <TextBlock Text="Paint load" Width="90" VerticalAlignment="Center" FontSize="12" />
+                              <TextBlock Text="Paint load" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                               <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1"
                                              Increment="0.05" FormatString="0.00" MinWidth="44" />
                               <Slider Value="{Binding MediumPaintLoad}" Minimum="0" Maximum="1" Margin="4,0" />
@@ -2550,16 +2550,16 @@
                         </StackPanel>
                       </StackPanel>
 
-                      <StackPanel x:Name="BrushPagePressure" Spacing="6" IsVisible="False">
-                        <CheckBox Content="Brush ring follows pen pressure" FontSize="12"
+                      <StackPanel x:Name="BrushPagePressure" Spacing="{StaticResource Space6}" IsVisible="False">
+                        <CheckBox Content="Brush ring follows pen pressure" FontSize="{StaticResource TypeBody}"
                                   IsChecked="{Binding CursorTracksPressure}"
                                   ToolTip.Tip="On, the ring shows the thickness the stroke is laying down right now. Off, it stays at the brush's full size as a stable target. Hovering always shows the maximum." />
-                        <TextBlock Text="Pen pressure" FontWeight="SemiBold" FontSize="12" />
-                        <TextBlock Text="{Binding PenDiagnostic}" FontSize="11" Foreground="{StaticResource AccentCyanBrush}"
+                        <TextBlock Text="Pen pressure" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
+                        <TextBlock Text="{Binding PenDiagnostic}" FontSize="{StaticResource TypeDense}" Foreground="{DynamicResource AccentCyanBrush}"
                                    TextWrapping="Wrap"
                                    ToolTip.Tip="Live report of what Windows delivers while you draw" />
                         <TextBlock Text="Seeing Mouse instead of Pen? Enable “Windows Ink” in your Huion/Wacom driver settings, then restart Lightbox."
-                                   FontSize="10" Opacity="0.65" TextWrapping="Wrap" />
+                                   FontSize="{StaticResource TypeHint}" Opacity="0.65" TextWrapping="Wrap" />
                         <CheckBox Content="Use pen pressure" IsChecked="{Binding BrushPressureEnabled}"
                                   ToolTip.Tip="Master switch for this brush — off ignores the tablet's pressure entirely" />
                         <!--
@@ -2574,17 +2574,17 @@
                           here: they differ only by which dynamic they drive.
                         -->
                         <TextBlock Text="Drag a point to shape the response. Click for a new one, middle-click to remove."
-                                   FontSize="10" Opacity="0.6" TextWrapping="Wrap" />
-                        <StackPanel x:Name="PressureCurveRows" Spacing="10"
+                                   FontSize="{StaticResource TypeHint}" Opacity="0.6" TextWrapping="Wrap" />
+                        <StackPanel x:Name="PressureCurveRows" Spacing="{StaticResource Space10}"
                                     IsEnabled="{Binding BrushPressureEnabled}" />
                       </StackPanel>
 
-                      <StackPanel x:Name="BrushPagePresets" Spacing="6" IsVisible="False">
-                        <TextBlock Text="Presets" FontWeight="SemiBold" FontSize="12" />
+                      <StackPanel x:Name="BrushPagePresets" Spacing="{StaticResource Space6}" IsVisible="False">
+                        <TextBlock Text="Presets" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
 
-                        <Border x:Name="PresetModifiedNote" Background="{StaticResource StatusWarningSurfaceBrush}" CornerRadius="4"
+                        <Border x:Name="PresetModifiedNote" Background="{DynamicResource StatusWarningSurfaceBrush}" CornerRadius="4"
                                 Padding="8,6" IsVisible="False">
-                          <TextBlock x:Name="PresetModifiedText" TextWrapping="Wrap" FontSize="11" />
+                          <TextBlock x:Name="PresetModifiedText" TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" />
                         </Border>
 
                         <DockPanel>
@@ -2594,7 +2594,7 @@
                           <Button x:Name="RevertPresetButton" DockPanel.Dock="Right" Content="Revert"
                                   Click="OnRevertPresetClicked"
                                   ToolTip.Tip="Throw away your changes to this shipped brush and get the original back" />
-                          <TextBlock x:Name="PresetCurrentName" VerticalAlignment="Center" FontSize="12"
+                          <TextBlock x:Name="PresetCurrentName" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}"
                                      TextTrimming="CharacterEllipsis" />
                         </DockPanel>
 
@@ -2638,43 +2638,43 @@
                 -->
                 <ScrollViewer x:Name="NonPaintToolOptions" VerticalScrollBarVisibility="Auto"
                               IsVisible="{Binding UsesGenericToolOptions}">
-                  <StackPanel Spacing="6">
-                    <TextBlock x:Name="ToolOptionsToolName" Text="{Binding ActiveToolLabel}" FontWeight="SemiBold" FontSize="12" />
+                  <StackPanel Spacing="{StaticResource Space6}">
+                    <TextBlock x:Name="ToolOptionsToolName" Text="{Binding ActiveToolLabel}" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
 
                     <!-- Fill -->
-                    <StackPanel Spacing="6" IsVisible="{Binding IsFillTool}">
+                    <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding IsFillTool}">
                       <DockPanel>
-                        <TextBlock Text="Tolerance" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Tolerance" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <NumericUpDown DockPanel.Dock="Right" Value="{Binding FillTolerance}" Minimum="0" Maximum="255"
                                        Increment="4" FormatString="0" MinWidth="44"
                                        ToolTip.Tip="How different a pixel may be and still count as the same area" />
                         <Slider Value="{Binding FillTolerance}" Minimum="0" Maximum="255" Margin="4,0" />
                       </DockPanel>
                       <DockPanel>
-                        <TextBlock Text="Gap px" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Gap px" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <NumericUpDown DockPanel.Dock="Right" Value="{Binding FillGapPx}" Minimum="0" Maximum="32"
                                        Increment="1" FormatString="0" MinWidth="44"
                                        ToolTip.Tip="Openings up to this many pixels still count as closed" />
                         <Slider Value="{Binding FillGapPx}" Minimum="0" Maximum="32" Margin="4,0" />
                       </DockPanel>
                       <DockPanel>
-                        <TextBlock Text="Grow px" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Grow px" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <NumericUpDown DockPanel.Dock="Right" Value="{Binding FillGrowPx}" Minimum="-16" Maximum="16"
                                        Increment="1" FormatString="0" MinWidth="44"
                                        ToolTip.Tip="Overfill (+) under the line work, or underfill (−) to keep a margin" />
                         <Slider Value="{Binding FillGrowPx}" Minimum="-16" Maximum="16" Margin="4,0" />
                       </DockPanel>
-                      <CheckBox Content="Smart fill" FontSize="12" IsChecked="{Binding SmartFill}"
+                      <CheckBox Content="Smart fill" FontSize="{StaticResource TypeBody}" IsChecked="{Binding SmartFill}"
                                 ToolTip.Tip="Sample every visible layer (fill what looks empty) instead of only the active layer" />
-                      <CheckBox Content="Below line work" FontSize="12" IsChecked="{Binding FillBelowLines}"
+                      <CheckBox Content="Below line work" FontSize="{StaticResource TypeBody}" IsChecked="{Binding FillBelowLines}"
                                 ToolTip.Tip="Tuck the fill under the lines; off = fill on top, preserving lines" />
                     </StackPanel>
 
                     <!-- Selection -->
-                    <StackPanel Spacing="6" IsVisible="{Binding IsSelectTool}">
+                    <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding IsSelectTool}">
                       <!-- Its own group name: the bar carries the same radios, and
                            two groups sharing a name uncheck each other. -->
-                      <StackPanel Orientation="Horizontal" Spacing="4">
+                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                         <RadioButton GroupName="selvarPanel" IsChecked="{Binding IsFreehandVariant, Mode=OneWay}"
                                      Command="{Binding SelectVariantOfCommand}" CommandParameter="{x:Static vm:SelectVariant.Freehand}"
                                      ToolTip.Tip="Freehand selection">
@@ -2701,44 +2701,44 @@
                           <Path Classes="icon" Data="{StaticResource IconSelectWand}" />
                         </RadioButton>
                       </StackPanel>
-                      <StackPanel Spacing="6" IsVisible="{Binding IsWandVariant}">
+                      <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding IsWandVariant}">
                         <DockPanel>
-                          <TextBlock Text="Tolerance" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <TextBlock Text="Tolerance" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <NumericUpDown DockPanel.Dock="Right" Value="{Binding WandTolerance}" Minimum="0" Maximum="255"
                                          Increment="4" FormatString="0" MinWidth="44" />
                           <Slider Value="{Binding WandTolerance}" Minimum="0" Maximum="255" Margin="4,0" />
                         </DockPanel>
                         <DockPanel>
-                          <TextBlock Text="Gap px" Width="90" VerticalAlignment="Center" FontSize="12" />
+                          <TextBlock Text="Gap px" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <NumericUpDown DockPanel.Dock="Right" Value="{Binding WandGapPx}" Minimum="0" Maximum="32"
                                          Increment="1" FormatString="0" MinWidth="44" />
                           <Slider Value="{Binding WandGapPx}" Minimum="0" Maximum="32" Margin="4,0" />
                         </DockPanel>
-                        <CheckBox Content="Sample all layers" FontSize="12" IsChecked="{Binding WandSampleAllLayers}"
+                        <CheckBox Content="Sample all layers" FontSize="{StaticResource TypeBody}" IsChecked="{Binding WandSampleAllLayers}"
                                   ToolTip.Tip="Select from what you see (all visible layers) instead of only the active layer" />
                       </StackPanel>
                       <DockPanel>
-                        <TextBlock Text="Feather" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Feather" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <NumericUpDown DockPanel.Dock="Right" Value="{Binding SelectionFeather}" Minimum="0" Maximum="100"
                                        Increment="1" FormatString="0" MinWidth="44"
                                        ToolTip.Tip="Soften the selection edge by this many pixels" />
                         <Slider Value="{Binding SelectionFeather}" Minimum="0" Maximum="100" Margin="4,0" />
                       </DockPanel>
                       <DockPanel>
-                        <TextBlock Text="Grow/Shrink" Width="90" VerticalAlignment="Center" FontSize="12" />
-                        <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Grow/Shrink" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                           <NumericUpDown Value="{Binding SelectionAdjustPx}" Minimum="1" Maximum="64" Increment="1"
                                          FormatString="0" MinWidth="44" ToolTip.Tip="Pixels for Grow/Shrink" />
-                          <Button Content="Grow" Command="{Binding GrowSelectionCommand}" FontSize="12" />
-                          <Button Content="Shrink" Command="{Binding ShrinkSelectionCommand}" FontSize="12" />
+                          <Button Content="Grow" Command="{Binding GrowSelectionCommand}" FontSize="{StaticResource TypeBody}" />
+                          <Button Content="Shrink" Command="{Binding ShrinkSelectionCommand}" FontSize="{StaticResource TypeBody}" />
                         </StackPanel>
                       </DockPanel>
-                      <StackPanel Orientation="Horizontal" Spacing="4">
-                        <Button Content="All" Command="{Binding SelectAllCommand}" FontSize="12" ToolTip.Tip="Select the whole canvas (Ctrl+A)" />
-                        <Button Content="None" Command="{Binding DeselectCommand}" FontSize="12" ToolTip.Tip="Deselect (Ctrl+D)" />
-                        <Button Content="Invert" Command="{Binding InvertSelectionCommand}" FontSize="12" ToolTip.Tip="Invert the selection (Ctrl+Shift+I)" />
+                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
+                        <Button Content="All" Command="{Binding SelectAllCommand}" FontSize="{StaticResource TypeBody}" ToolTip.Tip="Select the whole canvas (Ctrl+A)" />
+                        <Button Content="None" Command="{Binding DeselectCommand}" FontSize="{StaticResource TypeBody}" ToolTip.Tip="Deselect (Ctrl+D)" />
+                        <Button Content="Invert" Command="{Binding InvertSelectionCommand}" FontSize="{StaticResource TypeBody}" ToolTip.Tip="Invert the selection (Ctrl+Shift+I)" />
                       </StackPanel>
-                      <TextBlock Text="Shift adds · Alt subtracts" Opacity="0.6" FontSize="11" />
+                      <TextBlock Text="Shift adds · Alt subtracts" Opacity="0.6" FontSize="{StaticResource TypeDense}" />
                     </StackPanel>
 
                     <!-- Move — the selected guide, with room for labels. -->
@@ -2749,28 +2749,28 @@
                     <views:TextOptionsPanel />
 
                     <!-- Shape -->
-                    <StackPanel Spacing="6" IsVisible="{Binding IsShapeTool}">
+                    <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding IsShapeTool}">
                       <DockPanel>
-                        <TextBlock Text="Shape" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Shape" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <ComboBox ItemsSource="{Binding ShapeChoices}" SelectedItem="{Binding ActiveShape}"
                                   HorizontalAlignment="Stretch" Margin="4,0,0,0"
                                   ToolTip.Tip="Shift squares it, Alt grows it from the centre" />
                       </DockPanel>
                       <DockPanel IsVisible="{Binding IsPolygonShape}">
-                        <TextBlock Text="Sides" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Sides" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <NumericUpDown DockPanel.Dock="Right" Value="{Binding PolygonSides}" Minimum="3" Maximum="64"
                                        Increment="1" FormatString="0" MinWidth="44" />
                         <Slider Value="{Binding PolygonSides}" Minimum="3" Maximum="64" Margin="4,0" />
                       </DockPanel>
-                      <TextBlock Text="Drawn with the current brush" FontSize="11" Opacity="0.55" TextWrapping="Wrap"
+                      <TextBlock Text="Drawn with the current brush" FontSize="{StaticResource TypeDense}" Opacity="0.55" TextWrapping="Wrap"
                                  ToolTip.Tip="A shape is a stroke, so it takes the brush you have loaded" />
                     </StackPanel>
 
                     <!-- Gradient. The ramp editing stays in the bar's flyout —
                          one live editor per gradient, not two fighting. -->
-                    <StackPanel Spacing="6" IsVisible="{Binding IsGradientTool}">
+                    <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding IsGradientTool}">
                       <DockPanel>
-                        <TextBlock Text="Gradient" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Gradient" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <ComboBox ItemsSource="{Binding GradientDocker.Gradients}"
                                   SelectedItem="{Binding GradientDocker.SelectedGradient}"
                                   HorizontalAlignment="Stretch" Margin="4,0,0,0">
@@ -2782,33 +2782,33 @@
                         </ComboBox>
                       </DockPanel>
                       <DockPanel>
-                        <TextBlock Text="Kind" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Kind" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <ComboBox ItemsSource="{Binding GradientDocker.KindChoices}"
                                   SelectedItem="{Binding GradientDocker.Kind}"
                                   HorizontalAlignment="Stretch" Margin="4,0,0,0"
                                   ToolTip.Tip="Linear runs along the drag; radial takes the drag as its radius" />
                       </DockPanel>
                       <DockPanel>
-                        <TextBlock Text="Spread" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Spread" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <ComboBox ItemsSource="{Binding GradientDocker.SpreadChoices}"
                                   SelectedItem="{Binding GradientDocker.Spread}"
                                   HorizontalAlignment="Stretch" Margin="4,0,0,0"
                                   ToolTip.Tip="What happens beyond the ends of the ramp" />
                       </DockPanel>
                       <DockPanel>
-                        <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Opacity" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding GradientOpacity}" Minimum="0" Maximum="1"
                                        Increment="0.05" FormatString="0.00" MinWidth="44" />
                         <Slider Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Margin="4,0" />
                       </DockPanel>
-                      <TextBlock Text="Edit the ramp from the preview on the bar." FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
+                      <TextBlock Text="Edit the ramp from the preview on the bar." FontSize="{StaticResource TypeDense}" Opacity="0.55" TextWrapping="Wrap" />
                     </StackPanel>
 
                     <!-- Tools whose whole vocabulary fits on the bar. Saying so
                          beats a blank panel, which reads as broken. -->
                     <TextBlock IsVisible="{Binding ActiveToolHasNoPanelOptions}"
                                Text="This tool has no panel options. Everything it offers is on the bar above the canvas."
-                               FontSize="11" Opacity="0.55" TextWrapping="Wrap" />
+                               FontSize="{StaticResource TypeDense}" Opacity="0.55" TextWrapping="Wrap" />
                   </StackPanel>
                 </ScrollViewer>
 
@@ -2820,30 +2820,30 @@
                      underneath for as long as the session is open. BeginTransform
                      opens this docker so the controls are never off-screen. -->
                 <Border x:Name="TransformOptionsPage" IsVisible="{Binding TransformActive}"
-                        Background="{StaticResource BackgroundPrimaryBrush}">
+                        Background="{DynamicResource BackgroundPrimaryBrush}">
                   <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="6">
-                      <TextBlock Text="Transform" FontWeight="SemiBold" FontSize="12" />
+                    <StackPanel Spacing="{StaticResource Space6}">
+                      <TextBlock Text="Transform" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
                       <DockPanel>
-                        <TextBlock Text="Scope" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Scope" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <ComboBox ItemsSource="{Binding TransformScopeChoices}" SelectedItem="{Binding TransformScope}"
                                   HorizontalAlignment="Stretch" Margin="4,0,0,0"
                                   ToolTip.Tip="What the transform applies to: this cel, all layers at this frame, the selected cel range, or the whole animation" />
                       </DockPanel>
                       <DockPanel>
-                        <TextBlock Text="Sampling" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Sampling" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <ComboBox ItemsSource="{Binding TransformSamplingChoices}" SelectedItem="{Binding TransformSampling}"
                                   HorizontalAlignment="Stretch" Margin="4,0,0,0"
                                   ToolTip.Tip="Pixel solver for raster baselines: Bilinear (smooth), Nearest (pixel art), Bicubic (highest quality). Strokes are geometry and never resample." />
                       </DockPanel>
-                      <ToggleButton x:Name="TransformPerspectiveToggle" Content="Perspective" FontSize="12" Click="OnTransformPerspectiveToggled" ToolTip.Tip="Drag the four corners freely instead of the affine box" />
-                      <ToggleButton x:Name="TransformBandsToggle" Content="Bands" FontSize="12" Click="OnTransformBandsToggled" ToolTip.Tip="Divide the box with draggable lines and redistribute the space inside it — the outer edges never move, so the drawing keeps its overall size. Click to place a line, Shift+click for an upright one, Alt+click to remove one. (Q184: beside Perspective because it is the same kind of choice, and the docker is where an artist finds a mode.)" />
-                      <ToggleButton x:Name="TransformCageToggle" Content="Cage" FontSize="12" Click="OnTransformCageToggled" ToolTip.Tip="Cover the box with a lattice of handles and drag one to bend the drawing around it — a limb, a jaw, a shoulder — while the rest stays put. The box itself is pinned. (Q199)" />
+                      <ToggleButton x:Name="TransformPerspectiveToggle" Content="Perspective" FontSize="{StaticResource TypeBody}" Click="OnTransformPerspectiveToggled" ToolTip.Tip="Drag the four corners freely instead of the affine box" />
+                      <ToggleButton x:Name="TransformBandsToggle" Content="Bands" FontSize="{StaticResource TypeBody}" Click="OnTransformBandsToggled" ToolTip.Tip="Divide the box with draggable lines and redistribute the space inside it — the outer edges never move, so the drawing keeps its overall size. Click to place a line, Shift+click for an upright one, Alt+click to remove one. (Q184: beside Perspective because it is the same kind of choice, and the docker is where an artist finds a mode.)" />
+                      <ToggleButton x:Name="TransformCageToggle" Content="Cage" FontSize="{StaticResource TypeBody}" Click="OnTransformCageToggled" ToolTip.Tip="Cover the box with a lattice of handles and drag one to bend the drawing around it — a limb, a jaw, a shoulder — while the rest stays put. The box itself is pinned. (Q199)" />
                       <DockPanel>
-                        <TextBlock Text="Grid" Width="90" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Text="Grid" Width="90" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <NumericUpDown x:Name="TransformCageGrid" Value="3" Minimum="2" Maximum="6" Increment="1" FormatString="0" Classes="value" VerticalAlignment="Center" Width="56" HorizontalAlignment="Left" Margin="4,0,0,0" ValueChanged="OnTransformCageGridChanged" ToolTip.Tip="Cells per side of the cage, 2 to 6. Changing it lays the lattice out afresh." />
                       </DockPanel>
-                      <StackPanel Orientation="Horizontal" Spacing="6">
+                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                         <Button Click="OnTransformMirrorH"
                                 ToolTip.Tip="Mirror horizontally in place (around the pivot)">
                           <Path Classes="icon" Data="{StaticResource IconMirrorHorizontal}" />
@@ -2852,13 +2852,13 @@
                                 ToolTip.Tip="Mirror vertically in place (around the pivot)">
                           <Path Classes="icon" Data="{StaticResource IconMirrorVertical}" />
                         </Button>
-                        <Button Content="Reset" FontSize="12" Click="OnTransformReset"
+                        <Button Content="Reset" FontSize="{StaticResource TypeBody}" Click="OnTransformReset"
                                 ToolTip.Tip="Back to the untransformed drawing (session stays open)" />
                       </StackPanel>
-                      <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Button Content="Apply" FontSize="12" FontWeight="SemiBold" Click="OnTransformApply"
+                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
+                        <Button Content="Apply" FontSize="{StaticResource TypeBody}" FontWeight="SemiBold" Click="OnTransformApply"
                                 ToolTip.Tip="Commit the transform (Enter)" />
-                        <Button Content="Cancel" FontSize="12" Click="OnTransformCancel"
+                        <Button Content="Cancel" FontSize="{StaticResource TypeBody}" Click="OnTransformCancel"
                                 ToolTip.Tip="Discard the transform (Esc)" />
                       </StackPanel>
                     </StackPanel>
@@ -2914,7 +2914,7 @@
                             ToolTip.Tip="Re-read the project from disk (F5)">
                       <Path Classes="icon" Data="{StaticResource IconRefresh}" />
                     </Button>
-                    <StackPanel Orientation="Horizontal" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                       <Button Classes="text" Content="＋ New ▾" ToolTip.Tip="Create something in this project">
                         <Button.Flyout>
                           <!-- Written out rather than generated from
@@ -2997,14 +2997,14 @@
                       </ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="x:String">
-                          <TextBlock Text="{Binding}" FontSize="10" Opacity="0.6" Margin="0,0,8,0" />
+                          <TextBlock Text="{Binding}" FontSize="{StaticResource TypeHint}" Opacity="0.6" Margin="0,0,8,0" />
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
                   </Border>
                   <Border Classes="dockerBar"
                           IsVisible="{Binding ProjectDocker.Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                    <TextBlock Text="{Binding ProjectDocker.Status}" FontSize="10" Opacity="0.6" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ProjectDocker.Status}" FontSize="{StaticResource TypeHint}" Opacity="0.6" TextWrapping="Wrap" />
                   </Border>
                 </StackPanel>
               </controls:Docker.BottomBar>
@@ -3095,7 +3095,7 @@
                                       ToolTip.Tip="What this folder is, in your words. Nothing reads it.">
                               <MenuItem.ItemTemplate>
                                 <DataTemplate x:DataType="vm:ScopeMenuEntry">
-                                  <TextBlock Text="{Binding Label}" FontSize="15" />
+                                  <TextBlock Text="{Binding Label}" FontSize="{StaticResource TypeTitle}" />
                                 </DataTemplate>
                               </MenuItem.ItemTemplate>
                               <MenuItem.Styles>
@@ -3220,7 +3220,7 @@
                                   IsVisible="{Binding IsCollapsed}" />
                           </Panel>
                         </Button>
-                        <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontSize="11"
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontSize="{StaticResource TypeDense}"
                                    VerticalAlignment="Center" Margin="0,0,4,0" Opacity="0.7" />
                         <!-- The kind's own word on asset rows — automatic, from
                              AssetKinds, so a sheet reads as reference art here
@@ -3229,7 +3229,7 @@
                              because it is recognition rather than news. -->
                         <TextBlock DockPanel.Dock="Right" Text="{Binding Designation}"
                                    IsVisible="{Binding HasDesignation}"
-                                   FontSize="10" Opacity="0.5" Margin="4,0,2,0"
+                                   FontSize="{StaticResource TypeHint}" Opacity="0.5" Margin="4,0,2,0"
                                    VerticalAlignment="Center"
                                    ToolTip.Tip="What kind of asset this is. Automatic — every asset of a kind wears the same word and glyph." />
                         <!-- Status as a dot, because the column has to read down at a
@@ -3245,7 +3245,7 @@
                              against. -->
                         <TextBlock DockPanel.Dock="Right" Text="{Binding Duration}"
                                    IsVisible="{Binding HasDuration}"
-                                   FontSize="10" Opacity="0.55" Margin="6,0,2,0"
+                                   FontSize="{StaticResource TypeHint}" Opacity="0.55" Margin="6,0,2,0"
                                    VerticalAlignment="Center" />
                         <!--
                           B76, and B61's half that never reached the view. Two
@@ -3259,12 +3259,12 @@
                         -->
                         <TextBlock DockPanel.Dock="Right" Text="{Binding PendingHint}"
                                    IsVisible="{Binding Pending}"
-                                   FontSize="10" Opacity="0.5" FontStyle="Italic"
+                                   FontSize="{StaticResource TypeHint}" Opacity="0.5" FontStyle="Italic"
                                    Margin="6,0,2,0" VerticalAlignment="Center"
                                    ToolTip.Tip="In the project, not written to disk yet. Save to write it." />
                         <TextBlock DockPanel.Dock="Right" Text="{Binding MissingHint}"
                                    IsVisible="{Binding Missing}"
-                                   FontSize="10" Foreground="{StaticResource AccentCoralBrush}" FontWeight="SemiBold"
+                                   FontSize="{StaticResource TypeHint}" Foreground="{DynamicResource AccentCoralBrush}" FontWeight="SemiBold"
                                    Margin="6,0,2,0" VerticalAlignment="Center"
                                    ToolTip.Tip="This is in your project and its file cannot be found. Removing it from the project stays your decision." />
                         <!-- Q143. The variant this folder is showing, worn on
@@ -3274,7 +3274,7 @@
                              the name it qualifies. -->
                         <TextBlock DockPanel.Dock="Right" Text="{Binding VariantBadge}"
                                    IsVisible="{Binding HasVariantBadge}"
-                                   FontSize="10" Opacity="0.7" FontStyle="Italic"
+                                   FontSize="{StaticResource TypeHint}" Opacity="0.7" FontStyle="Italic"
                                    Margin="6,0,2,0" VerticalAlignment="Center"
                                    ToolTip.Tip="The variant this subject is showing. Right-click ▸ Variant to switch." />
                         <Panel MinHeight="20">
@@ -3286,10 +3286,10 @@
                                      Background="Transparent"
                                      DoubleTapped="OnProjectNameDoubleTapped"
                                      ToolTip.Tip="Double-click to rename"
-                                     VerticalAlignment="Center" FontSize="11" />
+                                     VerticalAlignment="Center" FontSize="{StaticResource TypeDense}" />
                           <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                    IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
-                                   FontSize="11" LostFocus="OnProjectNameLostFocus"
+                                   FontSize="{StaticResource TypeDense}" LostFocus="OnProjectNameLostFocus"
                                    KeyDown="OnProjectNameKeyDown" />
                         </Panel>
                       </DockPanel>
@@ -3316,11 +3316,11 @@
                        acting at the bottom. -->
                   <DockPanel>
                     <ComboBox DockPanel.Dock="Left" ItemsSource="{Binding BlendModeChoices}"
-                              SelectedItem="{Binding ActiveLayerBlendMode}" Width="104" FontSize="12"
+                              SelectedItem="{Binding ActiveLayerBlendMode}" Width="104" FontSize="{StaticResource TypeBody}"
                               ToolTip.Tip="Blend mode of the active layer" />
                     <NumericUpDown DockPanel.Dock="Right" Value="{Binding ActiveLayerOpacity}"
                                    Minimum="0" Maximum="100" Increment="5" FormatString="0"
-                                   MinWidth="44" FontSize="12"
+                                   MinWidth="44" FontSize="{StaticResource TypeBody}"
                                    ToolTip.Tip="Opacity of the active layer (%)" />
                     <Slider Value="{Binding ActiveLayerOpacity}" Minimum="0" Maximum="100" Margin="6,0"
                             VerticalAlignment="Center" ToolTip.Tip="Opacity of the active layer" />
@@ -3334,7 +3334,7 @@
                          the artist to choose a limitation before drawing anything:
                          both kinds painted identical strokes, and Vector only meant
                          "this layer cannot hold imported pixels or a symbol". Q52. -->
-                    <StackPanel Orientation="Horizontal" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                       <Button Classes="icon" Command="{Binding AddPaintedLayerCommand}"
                               ToolTip.Tip="Add a new layer">
                         <Path Classes="icon" Data="{StaticResource IconPlus}" />
@@ -3360,7 +3360,7 @@
                 <ItemsControl x:Name="LayerList" ItemsSource="{Binding LayerPanelItems}" Margin="4">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                      <StackPanel Orientation="Vertical" Spacing="2" />
+                      <StackPanel Orientation="Vertical" Spacing="{StaticResource Space2}" />
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.DataTemplates>
@@ -3578,7 +3578,7 @@
                                   ToolTip.Tip="Clipped to the layer below — this layer shows only where that one has content">
                             <Border Width="2" Margin="0,4" CornerRadius="1" HorizontalAlignment="Center"
                                     VerticalAlignment="Stretch"
-                                    Background="{StaticResource AccentCyanBrush}" />
+                                    Background="{DynamicResource AccentCyanBrush}" />
                           </Border>
                           <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}"
                                         ToolTip.Tip="Layer visibility"><Path /></ToggleButton>
@@ -3698,7 +3698,7 @@
                     <DockPanel>
                       <Button DockPanel.Dock="Right" Content="Acknowledge" Click="OnAcknowledgeStale"
                               ToolTip.Tip="Stop reporting these. Nothing about the drawing changes." />
-                      <TextBlock Text="{Binding StalePlacementReport}" FontSize="10" Opacity="0.7"
+                      <TextBlock Text="{Binding StalePlacementReport}" FontSize="{StaticResource TypeHint}" Opacity="0.7"
                                  TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,4,0" />
                     </DockPanel>
                   </Border>
@@ -3736,7 +3736,7 @@
                 </StackPanel>
               </controls:Docker.BottomBar>
               <Panel>
-                <TextBlock Text="{Binding SymbolBrowser.EmptyMessage}" Margin="10" FontSize="11"
+                <TextBlock Text="{Binding SymbolBrowser.EmptyMessage}" Margin="10" FontSize="{StaticResource TypeDense}"
                            Opacity="0.6" TextWrapping="Wrap" VerticalAlignment="Top"
                            IsVisible="{Binding SymbolBrowser.EmptyMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -3754,10 +3754,10 @@
                       <DataTemplate>
                         <StackPanel Width="72" Margin="1" Spacing="1"
                                     ToolTip.Tip="{Binding Tags}">
-                          <Border Background="{StaticResource SurfaceElevatedBrush}" CornerRadius="3" Height="48">
+                          <Border Background="{DynamicResource SurfaceElevatedBrush}" CornerRadius="3" Height="48">
                             <Image Source="{Binding Thumb}" Stretch="Uniform" />
                           </Border>
-                          <TextBlock Text="{Binding Name}" FontSize="10" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeHint}" TextTrimming="CharacterEllipsis" />
                           <DockPanel>
                             <TextBlock DockPanel.Dock="Right" Text="{Binding Length}" FontSize="9" Opacity="0.5" />
                             <TextBlock Text="{Binding KindLabel}" FontSize="9" Opacity="0.5"
@@ -3834,10 +3834,10 @@
                       <DockPanel Opacity="{Binding Opacity}" MinHeight="20"
                                  Background="Transparent"
                                  DoubleTapped="OnHistoryRowJump">
-                        <TextBlock DockPanel.Dock="Right" FontSize="10" Opacity="0.5"
+                        <TextBlock DockPanel.Dock="Right" FontSize="{StaticResource TypeHint}" Opacity="0.5"
                                    VerticalAlignment="Center" IsVisible="{Binding IsCurrent}"
                                    Text="●" />
-                        <TextBlock Text="{Binding Label}" FontSize="11"
+                        <TextBlock Text="{Binding Label}" FontSize="{StaticResource TypeDense}"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis" />
                       </DockPanel>
@@ -3879,7 +3879,7 @@
                       </FlyoutBase.AttachedFlyout>
                     </Border>
                     <TextBlock Text="{Binding ColorHex}" Margin="8,0,0,0" VerticalAlignment="Center"
-                               FontSize="11" Opacity="0.75" />
+                               FontSize="{StaticResource TypeDense}" Opacity="0.75" />
                   </DockPanel>
                 </Border>
               </controls:Docker.BottomBar>
@@ -3933,7 +3933,7 @@
                 </Viewbox>
 
                   <!-- HSV sliders -->
-                  <StackPanel Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsHsvMode}">
+                  <StackPanel Spacing="{StaticResource Space4}" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsHsvMode}">
                     <DockPanel>
                       <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
@@ -3955,7 +3955,7 @@
                   </StackPanel>
 
                   <!-- HSL sliders -->
-                  <StackPanel Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsHslMode}">
+                  <StackPanel Spacing="{StaticResource Space4}" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsHslMode}">
                     <DockPanel>
                       <TextBlock Text="H" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Hue}" Minimum="0" Maximum="360"
@@ -3977,7 +3977,7 @@
                   </StackPanel>
 
                   <!-- RGB sliders -->
-                  <StackPanel Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsRgbMode}">
+                  <StackPanel Spacing="{StaticResource Space4}" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsRgbMode}">
                     <DockPanel>
                       <TextBlock Text="R" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Red}" Minimum="0" Maximum="255"
@@ -3999,7 +3999,7 @@
                   </StackPanel>
 
                   <!-- CMYK sliders -->
-                  <StackPanel Spacing="4" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsCmykMode}">
+                  <StackPanel Spacing="{StaticResource Space4}" VerticalAlignment="Top" IsVisible="{Binding ColorPicker.IsCmykMode}">
                     <DockPanel>
                       <TextBlock Text="C" Width="16" VerticalAlignment="Center" />
                       <NumericUpDown DockPanel.Dock="Right" Value="{Binding ColorPicker.Cyan}" Minimum="0" Maximum="100"
@@ -4032,7 +4032,7 @@
                          CloseCommand="{Binding ToggleSheetsDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
-                  <StackPanel Orientation="Horizontal" Spacing="4">
+                  <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                     <Button Classes="text" Content="＋ Sheet" Click="OnAddReferenceSheet"
                             ToolTip.Tip="Add a character sheet (reference art, not part of the animation)" />
                     <!-- The board used to be reachable only from a view row's icon,
@@ -4047,14 +4047,14 @@
                 <ItemsControl ItemsSource="{Binding ReferenceSheetsView}" Margin="4">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                      <StackPanel Orientation="Vertical" Spacing="2" />
+                      <StackPanel Orientation="Vertical" Spacing="{StaticResource Space2}" />
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="docs:ReferenceSheet">
                       <StackPanel Spacing="1">
                         <DockPanel>
-                          <Button DockPanel.Dock="Right" Content="＋ view" FontSize="11" Padding="6,2"
+                          <Button DockPanel.Dock="Right" Content="＋ view" FontSize="{StaticResource TypeDense}" Padding="6,2"
                                   Click="OnAddReferenceView"
                                   ToolTip.Tip="Add a view (front/side/…) to this sheet" />
                           <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
@@ -4085,7 +4085,7 @@
                                   <Path Classes="icon" Width="11" Height="11" Data="{StaticResource IconDuplicate}" />
                                 </Button>
                                 <TextBox Text="{Binding Name}" BorderThickness="0" Background="Transparent"
-                                         VerticalAlignment="Center" FontSize="12"
+                                         VerticalAlignment="Center" FontSize="{StaticResource TypeBody}"
                                          GotFocus="OnReferenceNameFocused" LostFocus="OnReferenceRenamed" />
                               </DockPanel>
                             </DataTemplate>
@@ -4102,7 +4102,7 @@
                          CloseCommand="{Binding TogglePaletteDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
-                  <StackPanel Spacing="4">
+                  <StackPanel Spacing="{StaticResource Space4}">
                     <DockPanel>
                       <Button Classes="icon" DockPanel.Dock="Right"
                               Command="{Binding PaletteDocker.RemovePaletteCommand}"
@@ -4120,9 +4120,9 @@
                               ToolTip.Tip="New palette, inside whatever is selected">
                         <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconPlus}" />
                       </Button>
-                      <TextBlock Text="Palettes" FontSize="11" Opacity="0.6" VerticalAlignment="Center" />
+                      <TextBlock Text="Palettes" FontSize="{StaticResource TypeDense}" Opacity="0.6" VerticalAlignment="Center" />
                     </DockPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                       <Button Classes="text" Content="＋ Swatch"
                               Command="{Binding PaletteDocker.AddSwatchCommand}"
                               IsEnabled="{Binding PaletteDocker.HasPalette}"
@@ -4155,7 +4155,7 @@
 
               <controls:Docker.BottomBar>
                 <Border Classes="dockerBar">
-                  <StackPanel Spacing="4">
+                  <StackPanel Spacing="{StaticResource Space4}">
                     <CheckBox Content="Edit selected swatch"
                               IsChecked="{Binding PaletteDocker.EditSelectedSwatch}"
                               IsEnabled="{Binding PaletteDocker.HasSwatch}"
@@ -4170,10 +4170,10 @@
                       <controls:ColorField x:Name="PaletteSwatchField" DockPanel.Dock="Left" Margin="0,0,4,0"
                                            Hex="{Binding PaletteDocker.SelectedSwatch.Color, Mode=TwoWay}" />
                       <TextBox Text="{Binding PaletteDocker.SelectedSwatch.Name, Mode=TwoWay}"
-                               FontSize="11" PlaceholderText="Swatch name"
+                               FontSize="{StaticResource TypeDense}" PlaceholderText="Swatch name"
                                ToolTip.Tip="A palette is a vocabulary — “skin shadow”, not “#b07a5e”" />
                     </DockPanel>
-                    <TextBlock Text="{Binding PaletteDocker.Status}" FontSize="10" Opacity="0.6"
+                    <TextBlock Text="{Binding PaletteDocker.Status}" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                                TextWrapping="Wrap" IsVisible="{Binding PaletteDocker.Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                   </StackPanel>
                 </Border>
@@ -4224,11 +4224,11 @@
                               DragDrop.AllowDrop="True"
                               DragDrop.DragOver="OnPaletteNodeDragOver" DragDrop.Drop="OnPaletteNodeDrop"
                               ToolTip.Tip="Drag onto a folder to file it, or right-click to assign">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                          <TextBlock Text="{Binding Glyph}" FontSize="11" VerticalAlignment="Center" />
-                          <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center"
+                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
+                          <TextBlock Text="{Binding Glyph}" FontSize="{StaticResource TypeDense}" VerticalAlignment="Center" />
+                          <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}" VerticalAlignment="Center"
                                      IsVisible="{Binding !IsRenaming}" />
-                          <TextBox Text="{Binding Name, Mode=TwoWay}" FontSize="11" MinWidth="90"
+                          <TextBox Text="{Binding Name, Mode=TwoWay}" FontSize="{StaticResource TypeDense}" MinWidth="90"
                                    IsVisible="{Binding IsRenaming}"
                                    LostFocus="OnPaletteNameCommitted" KeyDown="OnPaletteNameKey" />
                         </StackPanel>
@@ -4280,7 +4280,7 @@
                          CloseCommand="{Binding ToggleGradientDockerCommand}">
               <controls:Docker.TopBar>
                 <Border Classes="dockerBar">
-                  <StackPanel Spacing="4">
+                  <StackPanel Spacing="{StaticResource Space4}">
                     <DockPanel>
                       <Button Classes="icon" DockPanel.Dock="Right"
                               Command="{Binding GradientDocker.RemoveGradientCommand}"
@@ -4309,13 +4309,13 @@
                             Background="{Binding GradientDocker.Preview}"
                             IsVisible="{Binding GradientDocker.HasGradient}"
                             ToolTip.Tip="Preview of the ramp" />
-                    <StackPanel Orientation="Horizontal" Spacing="4"
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}"
                                 IsVisible="{Binding GradientDocker.HasGradient}">
                       <ComboBox ItemsSource="{Binding GradientDocker.KindChoices}"
-                                SelectedItem="{Binding GradientDocker.Kind}" Width="92" FontSize="11"
+                                SelectedItem="{Binding GradientDocker.Kind}" Width="92" FontSize="{StaticResource TypeDense}"
                                 ToolTip.Tip="Linear runs along the drag; radial takes the drag as its radius" />
                       <ComboBox ItemsSource="{Binding GradientDocker.SpreadChoices}"
-                                SelectedItem="{Binding GradientDocker.Spread}" Width="92" FontSize="11"
+                                SelectedItem="{Binding GradientDocker.Spread}" Width="92" FontSize="{StaticResource TypeDense}"
                                 ToolTip.Tip="What happens beyond the ends of the ramp" />
                     </StackPanel>
                   </StackPanel>
@@ -4329,18 +4329,18 @@
                 spatial judgement that a number makes awkward.
               -->
               <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel Margin="6" Spacing="8">
+                <StackPanel Margin="6" Spacing="{StaticResource Space8}">
                   <controls:GradientRamp x:Name="PanelRampEditor"
                                          Gradient="{Binding GradientDocker.SelectedGradient}"
                                          IsVisible="{Binding GradientDocker.HasGradient}" />
-                  <TextBlock FontSize="10" Opacity="0.55" TextWrapping="Wrap"
+                  <TextBlock FontSize="{StaticResource TypeHint}" Opacity="0.55" TextWrapping="Wrap"
                              IsVisible="{Binding GradientDocker.HasGradient}"
                              Text="Click above the ramp for an opacity stop, below it for a colour stop. Drag to move, middle-click to remove." />
 
-                  <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasAlphaStop}">
-                    <TextBlock Text="Opacity stop" FontSize="10" Opacity="0.6" />
+                  <StackPanel Spacing="{StaticResource Space4}" IsVisible="{Binding GradientDocker.HasAlphaStop}">
+                    <TextBlock Text="Opacity stop" FontSize="{StaticResource TypeHint}" Opacity="0.6" />
                     <DockPanel>
-                      <NumericUpDown DockPanel.Dock="Right" Width="56" FontSize="11"
+                      <NumericUpDown DockPanel.Dock="Right" Width="56" FontSize="{StaticResource TypeDense}"
                                      Value="{Binding GradientDocker.SelectedAlpha}"
                                      Minimum="0" Maximum="100" Increment="5" FormatString="0" />
                       <Slider Value="{Binding GradientDocker.SelectedAlpha}"
@@ -4348,16 +4348,16 @@
                     </DockPanel>
                   </StackPanel>
 
-                  <StackPanel Spacing="4" IsVisible="{Binding GradientDocker.HasStop}">
-                    <TextBlock Text="Colour stop" FontSize="10" Opacity="0.6" />
+                  <StackPanel Spacing="{StaticResource Space4}" IsVisible="{Binding GradientDocker.HasStop}">
+                    <TextBlock Text="Colour stop" FontSize="{StaticResource TypeHint}" Opacity="0.6" />
                     <controls:ColorField Hex="{Binding GradientDocker.SelectedStop.Color, Mode=TwoWay}"
                                          HorizontalAlignment="Left" />
                   </StackPanel>
 
                   <DockPanel ToolTip.Tip="Opacity the gradient tool lays the ramp down at">
-                    <TextBlock DockPanel.Dock="Left" Text="Tool" FontSize="11" Width="34"
+                    <TextBlock DockPanel.Dock="Left" Text="Tool" FontSize="{StaticResource TypeDense}" Width="34"
                                VerticalAlignment="Center" />
-                    <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Width="56" FontSize="11"
+                    <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Width="56" FontSize="{StaticResource TypeDense}"
                                    Value="{Binding GradientOpacity}" Minimum="0" Maximum="1"
                                    Increment="0.05" FormatString="0.00" />
                     <Slider Value="{Binding GradientOpacity}" Minimum="0" Maximum="1" Margin="4,0" />
@@ -4373,7 +4373,7 @@
              view-only — the record never hears about it (invariant 5). -->
         <controls:Docker x:Name="ChannelsPanel" PanelId="Channels" Title="Channels"
                          CloseCommand="{Binding ToggleChannelsDockerCommand}">
-          <StackPanel Spacing="4" Margin="2">
+          <StackPanel Spacing="{StaticResource Space4}" Margin="2">
             <ToggleButton IsChecked="{Binding IsRedSolo, Mode=OneWay}" HorizontalAlignment="Stretch"
                           HorizontalContentAlignment="Left" Padding="4"
                           Command="{Binding ToggleChannelSoloCommand}"
@@ -4384,7 +4384,7 @@
                         ClipToBounds="True" Margin="0,0,8,0">
                   <Image Source="{Binding ChannelThumbRed}" Stretch="Uniform" />
                 </Border>
-                <TextBlock Text="Red" VerticalAlignment="Center" FontSize="12" />
+                <TextBlock Text="Red" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
               </DockPanel>
             </ToggleButton>
             <ToggleButton IsChecked="{Binding IsGreenSolo, Mode=OneWay}" HorizontalAlignment="Stretch"
@@ -4397,7 +4397,7 @@
                         ClipToBounds="True" Margin="0,0,8,0">
                   <Image Source="{Binding ChannelThumbGreen}" Stretch="Uniform" />
                 </Border>
-                <TextBlock Text="Green" VerticalAlignment="Center" FontSize="12" />
+                <TextBlock Text="Green" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
               </DockPanel>
             </ToggleButton>
             <ToggleButton IsChecked="{Binding IsBlueSolo, Mode=OneWay}" HorizontalAlignment="Stretch"
@@ -4410,7 +4410,7 @@
                         ClipToBounds="True" Margin="0,0,8,0">
                   <Image Source="{Binding ChannelThumbBlue}" Stretch="Uniform" />
                 </Border>
-                <TextBlock Text="Blue" VerticalAlignment="Center" FontSize="12" />
+                <TextBlock Text="Blue" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
               </DockPanel>
             </ToggleButton>
             <ToggleButton IsChecked="{Binding IsAlphaSolo, Mode=OneWay}" HorizontalAlignment="Stretch"
@@ -4423,10 +4423,10 @@
                         ClipToBounds="True" Margin="0,0,8,0">
                   <Image Source="{Binding ChannelThumbAlpha}" Stretch="Uniform" />
                 </Border>
-                <TextBlock Text="Alpha" VerticalAlignment="Center" FontSize="12" />
+                <TextBlock Text="Alpha" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
               </DockPanel>
             </ToggleButton>
-            <TextBlock Text="Viewing only — the drawing is untouched." FontSize="11" Opacity="0.55"
+            <TextBlock Text="Viewing only — the drawing is untouched." FontSize="{StaticResource TypeDense}" Opacity="0.55"
                        TextWrapping="Wrap" />
           </StackPanel>
         </controls:Docker>
@@ -4462,16 +4462,16 @@
           </controls:Docker.TopBar>
 
           <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="6" Spacing="8">
-              <TextBlock Text="{Binding ReferenceSummary}" FontSize="10" Opacity="0.6"
+            <StackPanel Margin="6" Spacing="{StaticResource Space8}">
+              <TextBlock Text="{Binding ReferenceSummary}" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                          TextWrapping="Wrap" />
 
-              <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
+              <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                          IsVisible="{Binding !HasReferences}"
                          Text="Import a sprite sheet or a strip of frames. Lightbox finds the frames in it and puts one on each frame of the timeline." />
 
-              <StackPanel Spacing="8" IsVisible="{Binding HasReferences}">
-                <TextBlock Text="{Binding ReferenceCellLabel}" FontSize="11" />
+              <StackPanel Spacing="{StaticResource Space8}" IsVisible="{Binding HasReferences}">
+                <TextBlock Text="{Binding ReferenceCellLabel}" FontSize="{StaticResource TypeDense}" />
 
                 <CheckBox Content="Show on canvas" IsChecked="{Binding ReferenceVisible}" />
                 <CheckBox Content="Follow timeline edits" IsChecked="{Binding ReferenceFollowsTimeline}"
@@ -4480,45 +4480,45 @@
                           ToolTip.Tip="Pin this reference where it is. It can still be selected on the canvas with the Arrow; it stops being draggable, so it cannot be knocked out of register." />
 
                 <DockPanel ToolTip.Tip="One scale for every frame: a reference whose size varied frame to frame is the one thing a size reference exists to prevent.">
-                  <TextBlock DockPanel.Dock="Left" Text="Scale" Width="52" VerticalAlignment="Center" FontSize="12" />
+                  <TextBlock DockPanel.Dock="Left" Text="Scale" Width="52" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                   <NumericUpDown DockPanel.Dock="Right" Value="{Binding ReferenceScale}" Minimum="0.05"
                                  Maximum="8" Increment="0.05" FormatString="0.00" MinWidth="44" />
                   <Slider Value="{Binding ReferenceScale}" Minimum="0.05" Maximum="4" Margin="4,0" />
                 </DockPanel>
                 <DockPanel>
-                  <TextBlock DockPanel.Dock="Left" Text="Opacity" Width="52" VerticalAlignment="Center" FontSize="12" />
+                  <TextBlock DockPanel.Dock="Left" Text="Opacity" Width="52" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                   <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding ReferenceOpacity}" Minimum="0"
                                  Maximum="1" Increment="0.05" FormatString="0.00" MinWidth="44" />
                   <Slider Value="{Binding ReferenceOpacity}" Minimum="0" Maximum="1" Margin="4,0" />
                 </DockPanel>
 
-                <TextBlock Text="Frames" FontWeight="SemiBold" FontSize="11" Margin="0,4,0,0" />
-                <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
+                <TextBlock Text="Frames" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Margin="0,4,0,0" />
+                <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                            Text="Detection reads the gaps between the drawings. Two rows that touch have no gap to find — say how many columns and rows instead." />
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                  <TextBlock Text="Cols" VerticalAlignment="Center" FontSize="11" />
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
+                  <TextBlock Text="Cols" VerticalAlignment="Center" FontSize="{StaticResource TypeDense}" />
                   <NumericUpDown Value="{Binding ReferenceColumns}" Minimum="0" Maximum="64"
                                  Increment="1" FormatString="0" Width="56" />
-                  <TextBlock Text="Rows" VerticalAlignment="Center" FontSize="11" />
+                  <TextBlock Text="Rows" VerticalAlignment="Center" FontSize="{StaticResource TypeDense}" />
                   <NumericUpDown Value="{Binding ReferenceRows}" Minimum="0" Maximum="64"
                                  Increment="1" FormatString="0" Width="56" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="4">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                   <Button Content="Apply grid" Command="{Binding ApplyReferenceGridCommand}" />
                   <Button Content="Detect" Command="{Binding DetectReferenceFramesCommand}"
                           ToolTip.Tip="Find the frames from the image again" />
                 </StackPanel>
 
-                <TextBlock Text="Alignment" FontWeight="SemiBold" FontSize="11" Margin="0,4,0,0" />
+                <TextBlock Text="Alignment" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Margin="0,4,0,0" />
                 <ToggleButton Content="Align on canvas" IsChecked="{Binding ReferenceAlignMode}"
                               HorizontalAlignment="Stretch"
                               ToolTip.Tip="Drag the canvas to line this frame's reference up. Hold Shift to move the whole sheet instead. A mode rather than a modifier because Shift, Ctrl and Alt are already spoken for on the canvas." />
                 <Grid ColumnDefinitions="52,*,6,20,*" IsVisible="{Binding HasReferenceCell}">
-                  <TextBlock Grid.Column="0" Text="This frame" FontSize="10" VerticalAlignment="Center"
+                  <TextBlock Grid.Column="0" Text="This frame" FontSize="{StaticResource TypeHint}" VerticalAlignment="Center"
                              TextWrapping="Wrap" />
                   <NumericUpDown Grid.Column="1" Value="{Binding ReferenceCellDx}" Increment="1"
                                  FormatString="0.#" ToolTip.Tip="Horizontal nudge, document pixels" />
-                  <TextBlock Grid.Column="3" Text="Y" FontSize="10" VerticalAlignment="Center"
+                  <TextBlock Grid.Column="3" Text="Y" FontSize="{StaticResource TypeHint}" VerticalAlignment="Center"
                              HorizontalAlignment="Center" />
                   <NumericUpDown Grid.Column="4" Value="{Binding ReferenceCellDy}" Increment="1"
                                  FormatString="0.#" ToolTip.Tip="Vertical nudge, document pixels" />
@@ -4541,7 +4541,7 @@
                          CloseCommand="{Binding ToggleTimelineCommand}">
           <controls:Docker.TopBar>
             <Border Classes="dockerBar">
-              <controls:OverflowBar Spacing="10" HorizontalAlignment="Center"
+              <controls:OverflowBar Spacing="{StaticResource Space10}" HorizontalAlignment="Center"
                                     MoreLabel="More  &#x25BE;" MenuPlacement="TopEdgeAlignedRight">
                 <views:TransportBar />
                 <!-- Onion skin belongs on both tabs, not only the X-sheet's:
@@ -4555,13 +4555,13 @@
                 <Button Content="♪ Add audio" Click="OnImportAudio"
                         IsVisible="{Binding !HasAudio}" VerticalAlignment="Center"
                         ToolTip.Tip="Import a sound file to time the animation against (WAV)" />
-                <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding HasAudio}">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}" IsVisible="{Binding HasAudio}">
                   <TextBlock Text="♪" VerticalAlignment="Center" />
-                  <TextBlock Text="{Binding AudioFileName}" VerticalAlignment="Center" FontSize="11"
+                  <TextBlock Text="{Binding AudioFileName}" VerticalAlignment="Center" FontSize="{StaticResource TypeDense}"
                              MaxWidth="140" TextTrimming="CharacterEllipsis"
                              ToolTip.Tip="{Binding AudioFileName}" />
                   <TextBlock Text="missing" IsVisible="{Binding AudioMissing}"
-                             VerticalAlignment="Center" FontSize="11"
+                             VerticalAlignment="Center" FontSize="{StaticResource TypeDense}"
                              Foreground="{DynamicResource StatusWarningBrush}"
                              ToolTip.Tip="The referenced sound file cannot be found — the track stays, silent, until it is back" />
                   <CheckBox Content="Mute" IsChecked="{Binding AudioMuted}" VerticalAlignment="Center" />
@@ -4609,7 +4609,7 @@
                  it reads from the middle out. When the docker narrows, the
                  Frames slider gives way first; only at its floor do controls
                  start moving into the ▾ menu — the owner's overflow rule. -->
-            <controls:OverflowBar Spacing="10" HorizontalAlignment="Center"
+            <controls:OverflowBar Spacing="{StaticResource Space10}" HorizontalAlignment="Center"
                                   MoreLabel="More  &#x25BE;" MenuPlacement="TopEdgeAlignedRight">
               <views:TransportBar />
               <views:OnionBar />
@@ -4628,7 +4628,7 @@
 
         <controls:Docker.BottomBar>
           <Border Classes="dockerBar">
-            <StackPanel Orientation="Horizontal" Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
               <Button Classes="icon" Command="{Binding AddFrameCommand}" ToolTip.Tip="Add empty frame after current">
                 <Path Classes="icon" Data="{StaticResource IconPlus}" />
               </Button>
@@ -4666,15 +4666,15 @@
                 <Path Classes="icon" Data="{StaticResource IconGear}" />
                 <Button.Flyout>
                   <Flyout Placement="Top">
-                    <StackPanel Width="260" Spacing="8">
-                      <TextBlock Text="Timing patterns" FontWeight="SemiBold" FontSize="12" />
-                      <TextBlock TextWrapping="Wrap" FontSize="10" Opacity="0.6"
+                    <StackPanel Width="260" Spacing="{StaticResource Space8}">
+                      <TextBlock Text="Timing patterns" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
+                      <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                                  Text="Hold length per drawing, in frames. &quot;2&quot; is on 2s. &quot;1, 1, 2, 3, 4&quot; is a slow-in: two snappy frames, then progressively longer holds." />
                       <TextBox Text="{Binding NewTimingPresetName, Mode=TwoWay}"
                                PlaceholderText="Name — e.g. Studio slow-in" />
                       <TextBox Text="{Binding NewTimingPresetPattern, Mode=TwoWay}"
                                PlaceholderText="Pattern — e.g. 1, 1, 2, 3, 4" />
-                      <StackPanel Orientation="Horizontal" Spacing="6">
+                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                         <Button Content="Save" Click="OnSaveTimingPreset" />
                         <Button Content="Delete selected" Click="OnDeleteTimingPreset"
                                 IsEnabled="{Binding CanDeleteTimingPreset}"
@@ -4690,7 +4690,7 @@
               <Button Content="🎥 Add camera" Command="{Binding AddCameraCommand}"
                       IsVisible="{Binding !HasCamera}"
                       ToolTip.Tip="Add a shot camera — keyframed pan, zoom and roll, exported through the framing" />
-              <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding HasCamera}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}" IsVisible="{Binding HasCamera}">
                 <TextBlock Text="Camera" VerticalAlignment="Center" Margin="6,0,0,0" />
                 <Button Classes="icon" Command="{Binding SetCameraKeyCommand}"
                         ToolTip.Tip="Key the current framing at the playhead">
@@ -4724,7 +4724,7 @@
 
         <!-- Ruler (scrubbable numbering, range indication) above one row per layer -->
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-          <StackPanel Orientation="Vertical" Spacing="2">
+          <StackPanel Orientation="Vertical" Spacing="{StaticResource Space2}">
             <controls:TimelineRuler x:Name="Ruler" Height="22" HorizontalAlignment="Left"
                                     LeadingInset="152"
                                     CellWidth="{Binding TimelineRulerCellWidth}"
@@ -4738,14 +4738,14 @@
             <ItemsControl x:Name="XsheetLayerList" ItemsSource="{Binding LayerRows}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                  <StackPanel Orientation="Vertical" Spacing="2" />
+                  <StackPanel Orientation="Vertical" Spacing="{StaticResource Space2}" />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:LayerRow">
                   <Border Classes="layerRow" Classes.active="{Binding IsActive}"
                           Classes.hiddenLayer="{Binding !Visible}" Classes.selected="{Binding IsSelected}">
-                    <StackPanel Orientation="Horizontal" Spacing="2">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}">
                       <!-- Both explicitly centred. They looked inconsistent
                            because they were relying on the default, and ◉ and
                            👁 do not have the same metrics: an emoji glyph and a
@@ -4776,7 +4776,7 @@
                       <ItemsControl ItemsSource="{Binding Cells}">
                         <ItemsControl.ItemsPanel>
                           <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" Spacing="2" />
+                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}" />
                           </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
@@ -4865,7 +4865,7 @@
                          CloseCommand="{Binding ToggleGraphEditorDockerCommand}">
           <controls:Docker.TopBar>
             <Border Classes="dockerBar">
-              <controls:OverflowBar Spacing="10" HorizontalAlignment="Center"
+              <controls:OverflowBar Spacing="{StaticResource Space10}" HorizontalAlignment="Center"
                                     MoreLabel="More  &#x25BE;" MenuPlacement="TopEdgeAlignedRight">
                 <views:TransportBar />
                 <!-- The legend IS the series switchboard: each row toggles
@@ -4874,7 +4874,7 @@
                 <ItemsControl ItemsSource="{Binding GraphLegend}" VerticalAlignment="Center">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                      <StackPanel Orientation="Horizontal" Spacing="4" />
+                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}" />
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
@@ -4884,7 +4884,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="5">
                           <Border Width="8" Height="8" CornerRadius="4" VerticalAlignment="Center"
                                   Background="{Binding Colour}" />
-                          <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center" />
+                          <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}" VerticalAlignment="Center" />
                         </StackPanel>
                       </ToggleButton>
                     </DataTemplate>

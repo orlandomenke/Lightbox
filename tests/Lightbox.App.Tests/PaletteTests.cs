@@ -156,10 +156,10 @@ public class PaletteTests
     {
         // ColorPaletteResources is built before the merged dictionaries it
         // would look into, so {StaticResource} there cannot resolve — the two
-        // literals in App.axaml are unavoidable rather than sloppy. This is the
+        // literals in Styles/AppStyles.axaml are unavoidable rather than sloppy. This is the
         // check the reference would have been, so the comment saying so is not
         // the only thing keeping them in step.
-        var app = Read("App.axaml");
+        var app = Read("Styles", "AppStyles.axaml");
         var palette = Read("Styles", "Palette.axaml");
 
         foreach (var (property, token) in new[]

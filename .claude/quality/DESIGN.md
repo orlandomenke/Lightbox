@@ -415,6 +415,24 @@ Do not shrink these to save space:
   a misdrop waiting to happen.
 - The **canvas**. Everything above is in service of it.
 
+## Trying a treatment before it ships
+
+**A change of look is tried in `tools/Lightbox.Gallery` first** (Q203). The
+gallery runs the app's real controls under the app's own style files, in named
+states, and switches theme, corners and light effects independently. A
+treatment that has only been judged in a browser mock or a description has
+been judged on pixels Avalonia does not draw.
+
+Q203 is moving the chrome towards *light, not lines*: panels as islands lit
+from above, a grey interface with colour only for data, one plain primary per
+view, and actions that appear on hover. Until the owner chooses in the gallery,
+the rules above stay the shipping rules. The candidate looks live in
+`tools/Lightbox.Gallery/Looks/` and do not reach the app.
+
+**A value written inline in a `ControlTemplate` cannot be restyled.** Put a
+template part's border, radius and shadow in a style setter aimed at a named
+part (`Border#PART_Frame`), so a look can change it.
+
 ## When a rule does not decide it
 
 Write the question down in `.claude/quality/QUESTIONS.md` rather than guessing,

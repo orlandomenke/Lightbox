@@ -65,7 +65,7 @@ public partial class CanvasControl
                 SeedBandsFromBounds();
             }
             _txBandDrag = null;
-            TransformGizmoChanged?.Invoke();
+            TxChanged();
             InvalidateVisual();
         }
     }
@@ -194,7 +194,7 @@ public partial class CanvasControl
                 if (hit.Vertical) _txBandsX = BandScale.Remove(_txBandsX, hit.Index);
                 else _txBandsY = BandScale.Remove(_txBandsY, hit.Index);
                 _txBandDrag = null;
-                TransformGizmoChanged?.Invoke();
+                TxChanged();
                 InvalidateVisual();
                 return true;
             }
@@ -223,7 +223,7 @@ public partial class CanvasControl
         // Placing a line moves nothing (Q184), so the gizmo has changed shape
         // without the drawing changing — the preview still has to be told, or
         // the new line would not appear until something else invalidated.
-        TransformGizmoChanged?.Invoke();
+        TxChanged();
         InvalidateVisual();
         return true;
     }
@@ -263,11 +263,15 @@ public partial class CanvasControl
         if (_txBandDrag is not { } held) return;
         if (held.Vertical) _txBandsX = BandScale.Drag(_txBandsX, held.Index, x);
         else _txBandsY = BandScale.Drag(_txBandsY, held.Index, y);
-        TransformGizmoChanged?.Invoke();
+        TxChanged();
         InvalidateVisual();
     }
 
-    private void TxBandRelease() => _txBandDrag = null;
+    private void TxBandRelease()
+    {
+        _txBandDrag = null;
+        TxSettle();
+    }
 
     /// <summary>The divider lines and the box they live in, for the overlay.</summary>
     /// <remarks>

@@ -1028,6 +1028,7 @@ public partial class MainViewModel
         // box that snaps and the box on screen cannot disagree.
         _transform.SnapBounds = bounds.Value;
         _transform.HeldFrameIdToKey = HeldCelNeedingKey();
+        _transformLayers = [.. Scene.Layers];
         TransformActive = true;
         // The session's controls live in the Tool options docker now (Q70), so
         // starting a transform with the docker closed must open it — Apply and
