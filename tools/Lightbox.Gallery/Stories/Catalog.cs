@@ -19,6 +19,10 @@ public static partial class Catalog
 {
     public static readonly IReadOnlyList<Story> All =
     [
+        BrushOptionsAsBuilt(),
+        BrushOptionsBar(),
+        BrushOptionsEditor(),
+        BrushOptionsHomes(),
         BonesDocker(),
         ColorDocker(),
         PaletteDocker(),
