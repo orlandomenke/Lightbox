@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Diagnostics;
 
 namespace Lightbox.App.Services;
@@ -41,12 +42,21 @@ internal static class LayerSelectionTrace
     }
 
     /// <summary>The methods that led here, innermost first, without this one.</summary>
+    /// <remarks>
+    /// B395: the trace's own frames are skipped by type, not by a fixed count.
+    /// Skipping two assumed the caller of <see cref="Callers"/> was its own
+    /// frame; once the JIT inlined it into its caller, the second skipped frame
+    /// was the method the trace exists to name, and the test failed on whichever
+    /// run had warmed the JIT enough to inline.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static string Callers(int depth = 8)
     {
         try
         {
-            var frames = new StackTrace(2, fNeedFileInfo: false).GetFrames();
+            var frames = new StackTrace(1, fNeedFileInfo: false).GetFrames();
             return string.Join(" <- ", frames
+                .Where(f => f.GetMethod()?.DeclaringType != typeof(LayerSelectionTrace))
                 .Take(depth)
                 .Select(f => f.GetMethod() is { } m ? $"{m.DeclaringType?.Name}.{m.Name}" : "?"));
         }
