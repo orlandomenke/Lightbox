@@ -90,6 +90,31 @@ undo step**:
 Anything you do to a row that is *not* in the selection is done to that row
 alone. Right-clicking a layer you have not selected is not a trap.
 
+### Copying a layer
+
+**Copy layer** and **Paste layer** are on the row's right-click menu in the
+docker and on a layer's name on the X-sheet, and **Ctrl+C / Ctrl+V** do the same
+when a layer row or a layer name on the X-sheet has keyboard focus. Right-clicking
+a layer that is already in the selection copies the whole selection.
+
+A paste is a **new layer** with everything on it: every drawing and hold, the
+mask, effects, blend mode and opacity, and the rig it follows. It lands directly
+above the active layer, in that layer's folder, named *Ink copy* (*Ink copy 2*
+and so on if that is taken). Several layers paste together in their original
+order, the pasted layers become the selection, and the whole paste is **one undo
+step**. Pasting twice gives two independent layers.
+
+What a copy does not keep is what tied the original to other layers: it does not
+join the original's link or fluid group, and it is never the paper.
+
+Two limits. A layer can only be pasted **into the document it was copied from**
+— pasting into another says so and does nothing. And the keys mean a layer only
+while a layer row or a layer name has focus: on a cel, **Ctrl+C is still the
+cel clipboard**, and with lines selected on the canvas it is still the lines.
+**Copy the selected layers** and **Paste the copied layers** are also in
+**Edit → Configure → Shortcuts**, unbound, for a key that is always a layer.
+
+
 ### Reordering by dragging
 
 Rows also **drag**: pick a layer up and drop it where it should go. Dropping on
