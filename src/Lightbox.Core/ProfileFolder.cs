@@ -39,7 +39,9 @@ public static class ProfileFolder
     /// Whether <see cref="Root"/> is an honoured override — a throwaway profile,
     /// so anything else that would live beside the profile follows it there.
     /// </summary>
-    public static bool Overridden => !string.Equals(Root, Standard, StringComparison.OrdinalIgnoreCase);
+    public static bool Overridden => !string.Equals(
+        Path.TrimEndingDirectorySeparator(Root), Path.TrimEndingDirectorySeparator(Standard),
+        StringComparison.OrdinalIgnoreCase);
 
     private static string Standard => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lightbox");

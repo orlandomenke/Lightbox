@@ -1,0 +1,94 @@
+{
+  "name": "layers-multiselect",
+  "about": "The owner's report: Ctrl/Shift+click in the layer docker picks one layer at a time, for layers and folders. Click Ink, Ctrl+click Color (both), Shift+click Line (the range), click the Character folder (its two layers), Ctrl+click Ink (added).",
+  "fixture": "sheet",
+  "window": "maximised",
+  "steps": [
+    {
+      "do": "click",
+      "target": {
+        "layer": "Ink"
+      },
+      "after_ms": 300
+    },
+    {
+      "do": "expect",
+      "selected": [
+        "Ink"
+      ]
+    },
+    {
+      "do": "click",
+      "target": {
+        "layer": "Color"
+      },
+      "mods": "ctrl",
+      "after_ms": 300
+    },
+    {
+      "do": "expect",
+      "selected": [
+        "Ink",
+        "Color"
+      ]
+    },
+    {
+      "do": "click",
+      "target": {
+        "layer": "Ink"
+      },
+      "after_ms": 300
+    },
+    {
+      "do": "click",
+      "target": {
+        "layer": "Line"
+      },
+      "mods": "shift",
+      "after_ms": 300
+    },
+    {
+      "do": "expect",
+      "selected": [
+        "Ink",
+        "Color",
+        "Shade",
+        "Line"
+      ]
+    },
+    {
+      "do": "click",
+      "target": {
+        "folder": "Character"
+      },
+      "after_ms": 300
+    },
+    {
+      "do": "expect",
+      "selected": [
+        "Shade",
+        "Line"
+      ]
+    },
+    {
+      "do": "expect",
+      "folder_selected": "Character"
+    },
+    {
+      "do": "click",
+      "target": {
+        "layer": "Ink"
+      },
+      "mods": "ctrl",
+      "after_ms": 300
+    },
+    {
+      "do": "expect",
+      "selected": [
+        "Shade",
+        "Line",
+        "Ink"
+      ]
+    }
+  ]
+}

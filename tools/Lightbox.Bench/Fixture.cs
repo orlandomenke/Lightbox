@@ -138,6 +138,52 @@ public static class Fixture
     }
 
     /// <summary>
+    /// A small, named sheet for behaviour checks rather than timing: the shapes of
+    /// the owner's X-sheet and layer-docker reports, with names a scenario can
+    /// point at. Ink <c>A · · B · · · ·</c> (a hold between drawings, empties
+    /// after the last), Color <c>X · Y · · · · ·</c>, and Shade and Line inside a
+    /// folder named Character.
+    /// </summary>
+    public static Doc Sheet()
+    {
+        var doc = DocumentFactory.CreateDoc(960, 540, 24, paperColor: "#f4f2ec");
+        var scene = doc.Scene;
+        scene.Layers.RemoveAll(l => !l.IsBackground);
+        scene.FrameCount = 8;
+        var character = new LayerGroup { Id = "group-character", Name = "Character" };
+        scene.LayerGroups.Add(character);
+
+        Layer Row(string name, string?[] keys, string? group = null)
+        {
+            var layer = new Layer { Id = $"layer-{name.ToLowerInvariant()}", Name = name, GroupId = group };
+            var y = 80 + scene.Layers.Count * 70;
+            foreach (var key in keys)
+            {
+                Frame? frame = null;
+                if (key is not null)
+                {
+                    frame = new Frame { Id = key };
+                    frame.Strokes.Add(new Stroke
+                    {
+                        Tool = ToolKind.Brush, Color = "#1a1a1a",
+                        Points = [new StrokePoint(200, y, 1), new StrokePoint(760, y + 40, 1)],
+                        Brush = new BrushSettings { Size = 8, Hardness = 1, Opacity = 1, Flow = 1, Spacing = 0.15 },
+                    });
+                }
+                layer.Cels.Add(new Cel { Frame = frame });
+            }
+            scene.Layers.Add(layer);
+            return layer;
+        }
+
+        Row("Ink", ["A", null, null, "B", null, null, null, null]);
+        Row("Color", ["X", null, "Y", null, null, null, null, null]);
+        Row("Shade", ["S1", null, null, null, "S2", null, null, null], character.Id);
+        Row("Line", ["L1", null, "L2", null, "L3", null, "L4", null], character.Id);
+        return doc;
+    }
+
+    /// <summary>
     /// <c>fixture --out path [--preset owner] [--width W --height H --layers N
     /// --drawings N --strokes N --points N --frames N --step N --seed N]</c>
     /// </summary>
@@ -156,7 +202,15 @@ public static class Fixture
             Console.Error.WriteLine("fixture: --out <path.lightbox.json> is required");
             return 2;
         }
-        var b = Shape.OwnerShape; // the only preset so far
+        if (Arg("--preset") == "sheet")
+        {
+            var sheet = Sheet();
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output))!);
+            DocJson.Save(sheet, output);
+            Console.WriteLine($"fixture: sheet -> {output}");
+            return 0;
+        }
+        var b = Shape.OwnerShape;
         var shape = new Shape(
             Int("--width", b.Width), Int("--height", b.Height), Int("--layers", b.Layers),
             Int("--drawings", b.Drawings), Int("--strokes", b.Strokes), Int("--points", b.Points),

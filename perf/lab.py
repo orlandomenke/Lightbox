@@ -36,8 +36,10 @@ DEFAULT_EXE = REPO / "src" / "Lightbox.App" / "bin" / "Release" / "net10.0" / "L
 
 # Never let a lab run carry the artist's AI configuration into the app it starts:
 # the profile is throwaway, but these come from the environment (the AI review's note).
-STRIPPED_ENV = ("ANTHROPIC_API_KEY", "LIGHTBOX_OLLAMA_URL", "LIGHTBOX_OLLAMA_MODEL",
-                "OPENAI_API_KEY", "LIGHTBOX_AI_PROVIDER")
+def stripped(name: str) -> bool:
+    """By rule, not by list: a hand-kept list had already missed OPENROUTER_API_KEY."""
+    upper = name.upper()
+    return upper.endswith("_API_KEY") or upper.startswith("LIGHTBOX_OLLAMA_")
 
 STALL_MS = 50.0  # three refreshes at 60 Hz: what the eye can see
 
@@ -47,6 +49,9 @@ STALL_MS = 50.0  # three refreshes at 60 Hz: what the eye can see
 PRESETS = {
     # The owner's document of 2026-10-07, by its render report's counts (no art copied).
     "owner-shape": [],
+    # A small named sheet for behaviour checks: Ink A . . B . . . ., Color X . Y . . . . .,
+    # Shade and Line inside a folder named Character.
+    "sheet": ["--preset", "sheet"],
 }
 
 
@@ -101,11 +106,13 @@ class INPUT(ctypes.Structure):
 
 
 MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP = 0x0002, 0x0004
+MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP = 0x0008, 0x0010
 MOUSEEVENTF_MOVE, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_VIRTUALDESK = 0x0001, 0x8000, 0x4000
 KEYEVENTF_KEYUP = 0x0002
 VK = {
     "ctrl": 0x11, "shift": 0x10, "alt": 0x12, "enter": 0x0D, "escape": 0x1B, "space": 0x20,
     "left": 0x25, "up": 0x26, "right": 0x27, "down": 0x28, "delete": 0x2E, "tab": 0x09,
+    "insert": 0x2D, "home": 0x24, "end": 0x23, "pageup": 0x21, "pagedown": 0x22, "backspace": 0x08,
     **{chr(c): c for c in range(ord("A"), ord("Z") + 1)},
     **{str(d): 0x30 + d for d in range(10)},
 }
@@ -117,8 +124,18 @@ def _send(*inputs: INPUT) -> None:
         raise OSError(ctypes.get_last_error(), "SendInput was refused")
 
 
+# Keys Windows calls "extended". Sent without the flag, Delete is the numpad's Del,
+# and Shift+numpad-Del with NumLock on makes Windows release Shift itself before the
+# key: the app then sees plain Delete. The first Shift+Delete check failed exactly
+# that way and was nearly reported as the app's fault.
+EXTENDED = {0x2D, 0x2E, 0x24, 0x23, 0x21, 0x22, 0x25, 0x26, 0x27, 0x28}  # ins del home end pgup pgdn arrows
+KEYEVENTF_EXTENDEDKEY = 0x0001
+
+
 def _key(vk: int, up: bool) -> INPUT:
-    return INPUT(type=1, u=_INPUTUNION(ki=KEYBDINPUT(wVk=vk, dwFlags=KEYEVENTF_KEYUP if up else 0)))
+    flags = (KEYEVENTF_KEYUP if up else 0) | (KEYEVENTF_EXTENDEDKEY if vk in EXTENDED else 0)
+    scan = user32.MapVirtualKeyW(vk, 0) if user32 else 0
+    return INPUT(type=1, u=_INPUTUNION(ki=KEYBDINPUT(wVk=vk, wScan=scan, dwFlags=flags)))
 
 
 def _mouse(flags: int) -> INPUT:
@@ -175,10 +192,18 @@ class Pointer:
         # the cursor straight after would record where it was, not where it is going.
         self.expected = (xi, yi)
 
-    def click(self, x: float, y: float) -> None:
+    def click(self, x: float, y: float, button: str = "left", mods: str = "") -> None:
+        """A click, with modifiers held around it the way a hand holds them."""
         self.move(x, y)
-        _send(_mouse(MOUSEEVENTF_LEFTDOWN))
-        _send(_mouse(MOUSEEVENTF_LEFTUP))
+        held = [VK[m] for m in mods.lower().split("+") if m]
+        _send(*[_key(c, False) for c in held]) if held else None
+        time.sleep(0.03)
+        down, up = ((MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP) if button == "right"
+                    else (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP))
+        _send(_mouse(down))
+        _send(_mouse(up))
+        time.sleep(0.03)
+        _send(*[_key(c, True) for c in reversed(held)]) if held else None
 
     def drag(self, start: tuple[float, float], end: tuple[float, float], ms: float, hz: float) -> None:
         """Press, move at `hz` events a second for `ms`, release — a hand's drag, paced."""
@@ -225,12 +250,16 @@ def answering(hwnd: int, within_ms: int = 100) -> bool:
                                            ctypes.byref(result)))
 
 
-def bring_forward(hwnd: int) -> None:
+def bring_forward(hwnd: int, maximise: bool = False) -> None:
     # A tap of Alt first: Windows refuses SetForegroundWindow to a process that has
     # not had input, and the Alt counts.
-    # Left at the size it opened at: a fresh profile always opens at the same
-    # default, and resizing here would move the canvas after the app reported it.
+    # Left at the size it opened at unless asked: a fresh profile always opens at
+    # the same default, and resizing moves the canvas after the app reported it.
+    # Behaviour checks ask for it, because their targets are found by name and a
+    # small window can leave docker rows out of sight.
     press("alt")
+    if maximise:
+        user32.ShowWindow(hwnd, 3)
     user32.SetForegroundWindow(hwnd)
     time.sleep(0.3)
 
@@ -299,6 +328,88 @@ class Placement:
                 oy + (self.right[1] - oy) * fx + (self.down[1] - oy) * fy)
 
 
+# ---- asking the app ------------------------------------------------------------------
+
+class Pipe:
+    """The lab instance's own pipe (lightbox-ipc-<pid>): one JSON request per line.
+
+    Only a lab instance serves it — one started with a throwaway profile and the perf
+    log on — so this can never reach the artist's open Lightbox."""
+
+    def __init__(self, pid: int) -> None:
+        self.path = rf"\\.\pipe\lightbox-ipc-{pid}"
+        self.f = None
+
+    def ask(self, op: str, payload: dict | None = None) -> dict:
+        if self.f is None:
+            deadline = time.monotonic() + 20
+            while True:
+                try:
+                    self.f = open(self.path, "r+b", buffering=0)
+                    break
+                except OSError:
+                    if time.monotonic() > deadline:
+                        raise RuntimeError(
+                            f"the app's lab pipe {self.path} never opened — most likely a build "
+                            "from before behaviour checks, which serves only the shared pipe; "
+                            "behaviour checks need a build that includes them")
+                    time.sleep(0.2)
+        line = json.dumps({"op": op, "payload": payload}) + "\n"
+        self.f.write(line.encode("utf-8"))
+        reply = b""
+        while not reply.endswith(b"\n"):
+            chunk = self.f.read(1)
+            if not chunk:
+                raise RuntimeError("the app closed its lab pipe")
+            reply += chunk
+        answer = json.loads(reply)
+        if not answer.get("ok"):
+            raise RuntimeError(f"{op}: {answer.get('error')}")
+        return answer.get("payload") or {}
+
+    def close(self) -> None:
+        if self.f is not None:
+            self.f.close()
+
+
+def locate(pipe: Pipe, target: dict) -> tuple[float, float]:
+    """Screen centre of a named thing: an X-sheet cel, a layer row, a folder, a menu item."""
+    if "xsheet" in target:
+        layer, frame = target["xsheet"]
+        q = {"kind": "xsheet-cel", "layer": layer, "frame": frame}
+    elif "layer" in target:
+        q = {"kind": "layer-row", "layer": target["layer"]}
+    elif "folder" in target:
+        q = {"kind": "folder-row", "folder": target["folder"]}
+    elif "menu" in target:
+        q = {"kind": "menu-item", "text": target["menu"]}
+    else:
+        raise ValueError(f"unknown target {target}")
+    r = pipe.ask("lab_locate", q)
+    return r["x"] + r["w"] / 2, r["y"] + r["h"] / 2
+
+
+def check_expect(step: dict, state: dict) -> tuple[bool, str]:
+    """One expectation against the app's own answer. Returns (passed, what was seen)."""
+    layers = {l["name"]: l for l in state["layers"]}
+    if "frame_count" in step:
+        return state["frameCount"] == step["frame_count"], f"frameCount {state['frameCount']}"
+    if "row" in step:
+        name, want = step["row"]
+        got = layers[name]["row"] if name in layers else None
+        return got == want, f"{name}: {got}"
+    if "selected" in step:
+        got = sorted(l["name"] for l in state["layers"] if l["selected"])
+        return got == sorted(step["selected"]), f"selected {got}"
+    if "folder_selected" in step:
+        got = [f["name"] for f in state["folders"] if f["selected"]]
+        return step["folder_selected"] in got, f"folders selected {got}"
+    if "status_contains" in step:
+        got = state.get("status") or ""
+        return step["status_contains"] in got, f"status {got!r}"
+    raise ValueError(f"unknown expectation {step}")
+
+
 # ---- one run -------------------------------------------------------------------------
 
 def load_scenario(name: str) -> dict:
@@ -322,7 +433,8 @@ def resolve_exe(build: str | None) -> Path:
 def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     log = Log(out / "perf.jsonl")
-    env = {k: v for k, v in os.environ.items() if k not in STRIPPED_ENV}
+    env = {k: v for k, v in os.environ.items() if not stripped(k)}
+    env["LIGHTBOX_LAB"] = "1"  # the explicit opt-in: only the lab makes a lab instance
     env["LIGHTBOX_PROFILE_DIR"] = str((out / "profile").resolve())
     env["LIGHTBOX_PERF_LOG"] = str(log.path.resolve())
     fixture = ensure_fixture(scenario.get("fixture", "owner-shape"))
@@ -336,6 +448,8 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
                                "--terminate_after_timed"],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     pointer = Pointer()
+    pipe = Pipe(proc.pid)
+    checks: list[dict] = []
     outcome = "ok"
     try:
         ready = log.wait_for("ready", timeout=float(scenario.get("open_timeout_s", 120)))
@@ -343,13 +457,31 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
         hwnd = window_of(proc.pid)
         if hwnd is None:
             raise RuntimeError("the app's window was not found")
-        bring_forward(hwnd)
+        bring_forward(hwnd, maximise=scenario.get("window") == "maximised")
+        # Panels the scenario needs on screen, whatever the fresh workspace shows.
+        for panel in scenario.get("panels", []):
+            pipe.ask("lab_show_panel", {"panel": panel})
         log.settle(quiet=1.0, timeout=20, hwnd=hwnd)
         for name, step in iterate_steps(scenario):
             # Nothing is sent to an app that is not answering: queued input would
             # replay into whatever state it wakes up in.
             log.settle(quiet=0.0, timeout=120, hwnd=hwnd)
             pointer.guard()
+            if step["do"] == "expect":
+                state = pipe.ask("lab_state")
+                passed, seen = check_expect(step, state)
+                if not passed:
+                    # The whole sheet and selection, so a miss says where the edit went.
+                    seen += " | " + "; ".join(
+                        f"{l['name']}{'*' if l['selected'] else ''}: {l['row']}" for l in state["layers"]
+                    ) + f" | active {state['active']}, frame {state['currentFrame']}, status {state['status']!r}"
+                checks.append({"expect": {k: v for k, v in step.items() if k != "do"},
+                               "passed": passed, "seen": seen})
+                continue
+            if step["do"] == "click" and "target" in step:
+                step = {**step, "_screen": locate(pipe, step["target"])}
+            elif step["do"] == "hover" and "target" in step:
+                step = {**step, "_screen": locate(pipe, step["target"])}
             do_step(step, place, pointer, log, hwnd)
         log.settle(quiet=1.5, timeout=120, hwnd=hwnd)
     except Interrupted as stop:
@@ -357,6 +489,7 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
     except (TimeoutError, RuntimeError) as failed:
         outcome = f"failed: {failed}"
     finally:
+        pipe.close()
         proc.kill()
         proc.wait(timeout=10)
         if pm is not None:
@@ -365,7 +498,7 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
         log.poll()
     metrics = summarise(log.lines)
     result = {"scenario": scenario["name"], "exe": str(exe), "build": build_of(log.lines),
-              "outcome": outcome, "metrics": metrics}
+              "outcome": outcome, "metrics": metrics, "checks": checks}
     (out / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
 
@@ -382,13 +515,14 @@ def do_step(step: dict, place: Placement, pointer: Pointer, log: Log, hwnd: int)
         pointer.guard()
         press(step["keys"])
     elif kind == "click":
-        pointer.click(*place.at(*step["at"]))
+        where = step["_screen"] if "_screen" in step else place.at(*step["at"])
+        pointer.click(*where, button=step.get("button", "left"), mods=step.get("mods", ""))
     elif kind == "drag":
         a = place.at(*step["from"])
         b = place.at(step["from"][0] + step["by"][0], step["from"][1] + step["by"][1])
         pointer.drag(a, b, ms=float(step.get("ms", 1000)), hz=float(step.get("hz", 120)))
     elif kind == "hover":
-        pointer.move(*place.at(*step["at"]))
+        pointer.move(*(step["_screen"] if "_screen" in step else place.at(*step["at"])))
     elif kind == "wait":
         time.sleep(step["ms"] / 1000)
     elif kind == "settle":
@@ -518,6 +652,28 @@ def cmd_run(args) -> None:
     print(f"done — {folder / 'summary.json'}")
 
 
+def cmd_check(args) -> None:
+    """Run a behaviour scenario once and say, expectation by expectation, whether the
+    app did what the scenario expects — on any build, the installed one included."""
+    make_dpi_aware()
+    scenario = load_scenario(args.scenario)
+    exe = resolve_exe(args.build)
+    folder = RUNS / f"{stamp()}-{scenario['name']}-check"
+    print(f"{scenario['name']}: checking {exe}\n  hands off the mouse and keyboard until it says done.")
+    r = run_once(scenario, exe, folder / "run-1", None)
+    print(f"  run: {r['outcome']}  build {r['build']}")
+    failed = 0
+    for c in r["checks"]:
+        mark = "PASS" if c["passed"] else "FAIL"
+        failed += not c["passed"]
+        print(f"  {mark}  {json.dumps(c['expect'])}  ->  {c['seen']}")
+    if r["outcome"] != "ok":
+        print(f"\nINCONCLUSIVE: {r['outcome']}")
+        sys.exit(2)
+    print(f"\n{'FAIL' if failed else 'PASS'} — {len(r['checks']) - failed}/{len(r['checks'])} expectations held — {folder}")
+    sys.exit(1 if failed else 0)
+
+
 def cmd_ab(args) -> None:
     make_dpi_aware()
     scenario = load_scenario(args.scenario)
@@ -589,6 +745,10 @@ def main() -> None:
     ab.add_argument("--tolerance", type=float, default=0.15, help="relative change that counts (default 0.15)")
     ab.add_argument("--presentmon")
     ab.set_defaults(go=cmd_ab)
+    c = sub.add_parser("check", help="run a behaviour scenario once and check its expectations")
+    c.add_argument("scenario")
+    c.add_argument("--build", help="Lightbox.App.exe, or the folder holding it (default: this repo's Release build)")
+    c.set_defaults(go=cmd_check)
     rep = sub.add_parser("report", help="print a run's summary")
     rep.add_argument("summary")
     rep.set_defaults(go=cmd_report)

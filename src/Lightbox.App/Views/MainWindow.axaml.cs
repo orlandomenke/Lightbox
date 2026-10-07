@@ -395,7 +395,7 @@ public partial class MainWindow : Window
         {
             _vm.PublishSnapshot();
             // MCP bridge endpoint (Lightbox.Mcp connects here).
-            _ipc ??= new Services.IpcServer(new Services.IpcDocumentApi(_vm));
+            _ipc ??= StartIpc();
             // The backend is only known once a frame has actually been
             // presented, which is after Loaded on every platform.
             _vm.NoteGraphicsBackend();
