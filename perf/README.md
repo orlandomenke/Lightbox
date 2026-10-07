@@ -26,7 +26,8 @@ folder holding it, so an installed alpha build can be measured against a branch.
   27 s on the same build, minutes apart, with other work going on.
 - **Nothing touches your profile or your keys.** Every run gets its own throwaway
   profile (`LIGHTBOX_PROFILE_DIR`), and `ANTHROPIC_API_KEY` and the other AI variables
-  are removed from the app's environment. AI features therefore do not run — never
+  are removed from the app's environment — every `*_API_KEY` and the Ollama
+  variables, by rule. AI features therefore do not run — never
   use the lab to judge AI output (the art-director's note).
 - **No private document is ever used.** Fixtures are generated from a seed by
   `tools/Lightbox.Bench` (`fixture` command). `owner-shape` matches the counts of the
@@ -83,6 +84,60 @@ start a move drag a little off it (`transform-undo` uses `[0.53, 0.53]`).
 
 Planned, from the owner's list: first playback, adding a frame, click-to-jump on the
 timeline (scrubbing is fine; jumping is not), and the X-sheet operations that lag.
+
+## Behaviour checks
+
+Timing is half of it. A fix can pass every headless test and still fail in an
+artist's hands, because the tests call the view model directly and skip the real
+input path — routing, focus, which control the pointer actually lands on. Twice in
+one day the owner reported, after being told something was fixed, that it still was
+not (Delete and pull on empty cells; Shift/Ctrl+click in the layer docker).
+
+```
+python perf/lab.py check xsheet-delete-pull-menu
+python perf/lab.py check layers-multiselect --build path/to/Lightbox.App.exe
+```
+
+A behaviour scenario finds its targets **by name** and checks the document **as the
+app itself reports it**, over the lab instance's own pipe:
+
+| Step | |
+|---|---|
+| `{"do": "click", "target": {"xsheet": ["Ink", 2]}, "button": "right"}` | an X-sheet cel by layer and frame |
+| `{"do": "click", "target": {"layer": "Color"}, "mods": "ctrl"}` | a layer-docker row, Ctrl or Shift held |
+| `{"do": "click", "target": {"folder": "Character"}}` | a folder header |
+| `{"do": "click", "target": {"menu": "Delete and pull"}}` | an item of the menu the last right-click opened |
+| `{"do": "expect", "row": ["Ink", "A . B . . . . ."]}` | a layer's row: drawing ids, `.` for an empty cel |
+| `{"do": "expect", "frame_count": 7}` / `"selected": [...]` / `"folder_selected": "..."` / `"status_contains": "..."` | |
+
+`"window": "maximised"` and `"panels": ["Xsheet"]` set the stage, whatever a fresh
+workspace shows. A target that is laid out but covered — a row scrolled out of
+sight, a panel still settling — is refused rather than clicked: the first run
+clicked two hidden rows and read the misses as the app ignoring them. A failed
+expectation prints every layer's row, the selection and the status line. Every lab
+run also arms the input trace, so the layer-selection notes — which row, which
+modifiers arrived, which handler took the press; row indices and method names, never
+layer names — land in its profile's `logs/diagnostics.log`. A lab instance needs
+`LIGHTBOX_LAB=1`, which only `lab.py` sets, and serves its own pipe
+(`lightbox-ipc-<pid>`): the MCP bridge never reaches it, and it never answers on the
+shared one.
+
+**Two traps the lab itself fell into, both fixed, both worth knowing:** a drag must
+be real `SendInput` moves (a `SetCursorPos` teleport is not a drag to the app), and
+Delete, Insert, the arrows, Home, End and the page keys must carry the
+extended-key flag — without it Windows treats Shift+Delete as Shift+numpad-Del,
+releases Shift itself, and the app sees plain Delete.
+
+**Pen input is not in the lab yet.** Windows' synthetic pen API accepted the
+injection on the development machine and delivered nothing; pen-only faults (B391's
+Windows Ink echo) still need a real tablet.
+
+| Behaviour scenario | Checks |
+|---|---|
+| `xsheet-delete-pull-menu` | right-click → Delete and pull on a hold between drawings, then on trailing empties (Q212) |
+| `xsheet-delete-pull-key` | Shift+Delete over the X-sheet on a hold |
+| `xsheet-delete-pull-block` | a Shift-selected block of holds, Shift+Delete |
+| `layers-multiselect` | Ctrl+click, Shift+click range, folder click, Ctrl+click after a folder |
 
 ## Results
 

@@ -1,0 +1,57 @@
+{
+  "name": "xsheet-delete-pull-block",
+  "about": "The owner's report, on a selected block: click Ink at frame 2, Shift+click Ink at frame 3 to select both empties between A and B, then Shift+Delete over the X-sheet. Ink: A . . B -> A B.",
+  "fixture": "sheet",
+  "window": "maximised",
+  "panels": [
+    "Xsheet"
+  ],
+  "steps": [
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Ink",
+          1
+        ]
+      },
+      "after_ms": 300
+    },
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Ink",
+          2
+        ]
+      },
+      "mods": "shift",
+      "after_ms": 300
+    },
+    {
+      "do": "hover",
+      "target": {
+        "xsheet": [
+          "Ink",
+          2
+        ]
+      }
+    },
+    {
+      "do": "key",
+      "keys": "shift+delete",
+      "after_ms": 300
+    },
+    {
+      "do": "settle",
+      "quiet_s": 0.6
+    },
+    {
+      "do": "expect",
+      "row": [
+        "Ink",
+        "A B . . . . . ."
+      ]
+    }
+  ]
+}

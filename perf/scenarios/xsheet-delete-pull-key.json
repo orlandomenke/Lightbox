@@ -1,0 +1,50 @@
+{
+  "name": "xsheet-delete-pull-key",
+  "about": "The owner's report, by keyboard: click an empty cell between Ink's drawings, then Shift+Delete with the pointer over the X-sheet. Ink: A . . B -> A . B.",
+  "fixture": "sheet",
+  "window": "maximised",
+  "panels": [
+    "Xsheet"
+  ],
+  "steps": [
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Ink",
+          2
+        ]
+      },
+      "after_ms": 300
+    },
+    {
+      "do": "hover",
+      "target": {
+        "xsheet": [
+          "Ink",
+          2
+        ]
+      }
+    },
+    {
+      "do": "key",
+      "keys": "shift+delete",
+      "after_ms": 300
+    },
+    {
+      "do": "settle",
+      "quiet_s": 0.6
+    },
+    {
+      "do": "expect",
+      "row": [
+        "Ink",
+        "A . B . . . . ."
+      ]
+    },
+    {
+      "do": "expect",
+      "frame_count": 8
+    }
+  ]
+}

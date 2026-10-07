@@ -1,0 +1,70 @@
+{
+  "name": "xsheet-delete-pull-menu",
+  "about": "The owner's report: Delete and pull from the cel's right-click menu on empty cells does nothing. First a hold between drawings (Ink: A . . B -> A . B), then empty cells after Ink's last drawing (Q212: the scene ends at the last drawing on any layer, Line's L4 at frame 7).",
+  "fixture": "sheet",
+  "window": "maximised",
+  "panels": [
+    "Xsheet"
+  ],
+  "steps": [
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Ink",
+          1
+        ]
+      },
+      "button": "right",
+      "after_ms": 400
+    },
+    {
+      "do": "click",
+      "target": {
+        "menu": "Delete and pull"
+      },
+      "after_ms": 400
+    },
+    {
+      "do": "settle",
+      "quiet_s": 0.6
+    },
+    {
+      "do": "expect",
+      "row": [
+        "Ink",
+        "A . B . . . . ."
+      ]
+    },
+    {
+      "do": "expect",
+      "frame_count": 8
+    },
+    {
+      "do": "click",
+      "target": {
+        "xsheet": [
+          "Ink",
+          5
+        ]
+      },
+      "button": "right",
+      "after_ms": 400
+    },
+    {
+      "do": "click",
+      "target": {
+        "menu": "Delete and pull"
+      },
+      "after_ms": 400
+    },
+    {
+      "do": "settle",
+      "quiet_s": 0.6
+    },
+    {
+      "do": "expect",
+      "frame_count": 7
+    }
+  ]
+}

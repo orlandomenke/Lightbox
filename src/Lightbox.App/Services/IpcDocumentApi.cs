@@ -40,6 +40,14 @@ public sealed class IpcDocumentApi(MainViewModel vm)
             ? target
             : throw new InvalidOperationException("The document this server belonged to is gone.");
 
+    /// <summary>
+    /// The performance lab's questions, answered by the window (all read-only but
+    /// lab_show_panel, which puts a panel on screen as the View menu would) — set
+    /// only on a lab instance (MainWindow.Lab), so no other pipe client ever
+    /// reaches them.
+    /// </summary>
+    public Func<IpcProtocol.Request, IpcProtocol.Response?>? Lab { get; init; }
+
     public IpcProtocol.Response Handle(IpcProtocol.Request request)
     {
         try
@@ -62,7 +70,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 "create_folder" => CreateFolder(request),
                 "move_to_folder" => MoveToFolder(request),
                 "group_layers" => GroupLayers(request),
-                _ => IpcProtocol.Response.Fail($"Unknown op \"{request.Op}\"."),
+                _ => Lab?.Invoke(request) ?? IpcProtocol.Response.Fail($"Unknown op \"{request.Op}\"."),
             };
         }
         catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException)
