@@ -520,34 +520,25 @@ public static class FolderTree
         }
 
         var parent = where == StackDrop.Into ? (LayerGroup)onto : ContainerOf(scene, onto);
-        // Beside an EMPTY folder the slot is read before anything is lifted:
-        // its anchor may be one of the moved layers, and then the slot would
-        // resolve to the top of its parent instead (the adversary's B, A, Z
-        // case). It is kept as "directly above the first layer below the
-        // folder that is staying".
-        var emptyTarget = where != StackDrop.Into && onto is LayerGroup e && Span(scene, e) is null ? e : null;
-        string? besideBelow = null;
-        if (emptyTarget is not null)
+        // Where the run goes is read BEFORE anything is lifted, as an index in
+        // the stack as it stands, and then shifted down by the moved layers
+        // that sat below it. Reading it after the lift was wrong twice over:
+        // an empty folder's anchor could be one of the moved layers (the
+        // adversary's B, A, Z case), and a folder whose last layers are the
+        // ones moving has no span left to be beside — so ▲ on the only layer
+        // in a folder, or a drop of it back on its own header, failed.
+        var original = (where, onto) switch
         {
-            for (var k = OwnSlot(scene, emptyTarget) - 1; k >= 0; k--)
-            {
-                if (run.Contains(scene.Layers[k])) continue;
-                besideBelow = scene.Layers[k].Id;
-                break;
-            }
-        }
-        foreach (var layer in run) scene.Layers.Remove(layer);
-        var at = (where, onto) switch
-        {
-            _ when emptyTarget is not null =>
-                besideBelow is null ? 0 : scene.Layers.FindIndex(l => l.Id == besideBelow) + 1,
             (StackDrop.Into, LayerGroup t) => TopSlot(scene, t),
             (StackDrop.Above, Layer t) => scene.Layers.IndexOf(t) + 1,
             (StackDrop.Below, Layer t) => scene.Layers.IndexOf(t),
-            (StackDrop.Above, LayerGroup t) => Span(scene, t)!.Value.Top + 1,
-            (_, LayerGroup t) => Span(scene, t)!.Value.Bottom,
+            (StackDrop.Above, LayerGroup t) => Span(scene, t) is { } s ? s.Top + 1 : OwnSlot(scene, t),
+            (_, LayerGroup t) => Span(scene, t) is { } s ? s.Bottom : OwnSlot(scene, t),
             _ => scene.Layers.Count,
         };
+        var runSet = run.ToHashSet();
+        var at = original - scene.Layers.Take(original).Count(runSet.Contains);
+        foreach (var layer in run) scene.Layers.Remove(layer);
         // Nothing under the paper, whichever way the slot was reached.
         if (at == 0 && scene.Layers.Count > 0 && scene.Layers[0].IsBackground) at = 1;
         scene.Layers.InsertRange(at, run);
@@ -560,11 +551,12 @@ public static class FolderTree
                 case LayerGroup f: f.ParentId = parent?.Id; break;
             }
         }
-        // And the empty folder itself ends up on the side of the run it was
-        // dropped against: under the run's bottom layer for "above it", over
-        // the run's top layer for "below it". Without this a layer could never
-        // be put above an empty folder sitting directly on it.
-        if (emptyTarget is not null && run.Count > 0)
+        // A folder dropped beside that is empty now — it was empty, or the run
+        // was everything in it — ends up on the side of the run it was dropped
+        // against: under the run's bottom layer for "above it", over the run's
+        // top layer for "below it". Without this a layer could never be put
+        // above an empty folder sitting directly on it.
+        if (where != StackDrop.Into && onto is LayerGroup emptyTarget && run.Count > 0 && Span(scene, emptyTarget) is null)
         {
             emptyTarget.Under = where == StackDrop.Above
                 ? run[0].Id

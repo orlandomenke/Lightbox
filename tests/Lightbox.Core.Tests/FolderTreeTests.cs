@@ -398,6 +398,27 @@ public class FolderTreeTests
     }
 
     [Fact]
+    public void AFoldersOnlyLayerMovesBesideItsOwnFolder_OrBackIntoIt_InPlace()
+    {
+        // ▲ on the only layer in a folder: it steps out, above the folder,
+        // and the folder — empty now — stays where it was.
+        Assert.Equal("b [F] a paper",
+            Moved(["paper", "a", "b"], s => { Folder(s, "F"); s.Layers[2].GroupId = "F"; },
+                [Ref("b")], Ref("F", true), StackDrop.Above));
+        Assert.Equal("[F] b a paper",
+            Moved(["paper", "a", "b"], s => { Folder(s, "F"); s.Layers[2].GroupId = "F"; },
+                [Ref("b")], Ref("F", true), StackDrop.Below));
+
+        // Dropped back on its own header: it is already at the top inside.
+        var scene = Stack("paper", "a", "b");
+        Folder(scene, "F");
+        L(scene, "b").GroupId = "F";
+        var before = Docker(scene);
+        Assert.Null(FolderTree.Move(scene, [Ref("b")], Ref("F", true), StackDrop.Into));
+        Assert.Equal(before, Docker(scene));
+    }
+
+    [Fact]
     public void UngroupLeavesTheContentsInTheFoldersPlace_DeleteTakesThemWithIt()
     {
         var scene = Stack("paper", "a", "b");
