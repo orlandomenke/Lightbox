@@ -49,7 +49,7 @@
             <DataTemplate x:DataType="views:TipRow">
               <DockPanel Margin="0,2">
                 <Border DockPanel.Dock="Left" Width="52" Height="52" Background="{DynamicResource SurfacePanelBrush}"
-                        CornerRadius="{StaticResource RadiusControl}" Margin="0,0,10,0">
+                        CornerRadius="{StaticResource RadiusPreview}" Margin="0,0,10,0">
                   <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="2" />
                 </Border>
                 <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Space2}">
@@ -145,7 +145,7 @@
 
         <StackPanel Grid.Column="2" Spacing="{StaticResource Space6}">
           <TextBlock Text="Preview" Opacity="0.7" />
-          <Border Width="180" Height="180" Background="{DynamicResource SurfacePanelBrush}" CornerRadius="{StaticResource RadiusControl}">
+          <Border Width="180" Height="180" Background="{DynamicResource SurfacePanelBrush}" CornerRadius="{StaticResource RadiusPreview}">
             <Image x:Name="GeneratePreview" Stretch="Uniform" Margin="4" />
           </Border>
           <TextBlock Text="Baked once when you add it. Nothing here is computed while you draw."
@@ -196,7 +196,7 @@
 
         <StackPanel Grid.Column="2" Spacing="{StaticResource Space6}">
           <TextBlock Text="Preview" Opacity="0.7" />
-          <Border Width="180" Height="180" Background="{DynamicResource SurfacePanelBrush}" CornerRadius="{StaticResource RadiusControl}">
+          <Border Width="180" Height="180" Background="{DynamicResource SurfacePanelBrush}" CornerRadius="{StaticResource RadiusPreview}">
             <Image x:Name="ScanPreview" Stretch="Uniform" Margin="4" />
           </Border>
         </StackPanel>

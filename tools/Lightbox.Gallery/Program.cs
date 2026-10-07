@@ -168,12 +168,20 @@ public static class Program
         var project = new Lightbox.App.Views.ProjectWindow { Width = 1080, Height = 700 };
         project.Show();
         Shoot(project, "project-window");
+        project.Close();
 
         // Every other window and panel in the app's views that opens without
         // arguments: the dialogs, the start screen, the bars. One that needs a
         // document, a project or a service to open is skipped and named, so the
         // gap in coverage is visible rather than silent.
-        var skip = new HashSet<Type> { typeof(Lightbox.App.Views.MainWindow), typeof(Lightbox.App.Views.ConfigureWindow), typeof(Lightbox.App.Views.ProjectWindow) };
+        // BrushTipsWindow is left out on purpose: it reads the artist's real tip
+        // store (TipStore's path is fixed), and isolation outranks a picture —
+        // its lines are covered by scripts/tokenpairs.py instead.
+        var skip = new HashSet<Type>
+        {
+            typeof(Lightbox.App.Views.MainWindow), typeof(Lightbox.App.Views.ConfigureWindow),
+            typeof(Lightbox.App.Views.ProjectWindow), typeof(Lightbox.App.Views.BrushTipsWindow),
+        };
         var views = typeof(Lightbox.App.Views.MainWindow).Assembly.GetTypes()
             .Where(t => t.Namespace == "Lightbox.App.Views" && typeof(Control).IsAssignableFrom(t) && !t.IsAbstract
                         && !skip.Contains(t) && t.GetConstructor(Type.EmptyTypes) is not null)

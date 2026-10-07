@@ -250,7 +250,7 @@
 
     <!-- ── the preview, and the two buttons that cost something ─────────── -->
     <Grid Grid.Column="2" RowDefinitions="*,Auto,Auto,Auto,Auto" RowSpacing="6">
-      <Border Grid.Row="0" Background="{DynamicResource BackgroundPrimaryBrush}" CornerRadius="{StaticResource RadiusControl}" Padding="4">
+      <Border Grid.Row="0" Background="{DynamicResource BackgroundPrimaryBrush}" CornerRadius="{StaticResource RadiusPreview}" Padding="4">
         <Image x:Name="PreviewImage" Stretch="Uniform" />
       </Border>
 

@@ -72,7 +72,7 @@
         <DataTemplate x:DataType="views:BrushChoice">
           <DockPanel Margin="0,1" ToolTip.Tip="{Binding Tip}">
             <Border DockPanel.Dock="Left" Width="120" Height="42" Background="{DynamicResource CanvasPaperBrush}"
-                    CornerRadius="{StaticResource RadiusControl}" Margin="0,0,10,0">
+                    CornerRadius="{StaticResource RadiusPreview}" Margin="0,0,10,0">
               <Image Source="{Binding Preview}" Stretch="None"
                      HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>

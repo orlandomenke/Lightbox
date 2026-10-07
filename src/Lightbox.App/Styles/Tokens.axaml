@@ -81,6 +81,10 @@
   <x:Double x:Key="SizeSettingsCombo">260</x:Double>
   <!-- An information card on a page ("Measured now"): its corners and inset. -->
   <CornerRadius x:Key="RadiusCard">4</CornerRadius>
+  <!-- An image preview's corners: a brush thumbnail, a tip, an effect preview.
+       Not a control (UI review, windows step). Step 3 decides whether previews
+       go square with the rest of the artwork. -->
+  <CornerRadius x:Key="RadiusPreview">3</CornerRadius>
   <Thickness x:Key="CardPadding">10</Thickness>
 
   <!-- ===== Dialogs and secondary windows (step 2, area 3) ===== -->
