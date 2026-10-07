@@ -101,6 +101,14 @@
     The value now lives in Tokens.axaml as RadiusField.
   -->
   <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="BorderStrongBrush" />
+  <!--
+    Fluent's own two radii, which every stock control reads — checkboxes, combo
+    drop-downs, list items, flyouts, tooltips — pointed at the corner set
+    (Q203: Tight). Without these the controls nobody styled by hand keep
+    Fluent's defaults and disagree with the ones somebody did.
+  -->
+  <StaticResource x:Key="ControlCornerRadius" ResourceKey="RadiusControl" />
+  <StaticResource x:Key="OverlayCornerRadius" ResourceKey="RadiusContainer" />
 
   <!-- ===== Buttons =================================================== -->
   <!--

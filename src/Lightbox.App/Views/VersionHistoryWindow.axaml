@@ -16,7 +16,7 @@
                Text="{Binding Status}" />
 
     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
-                HorizontalAlignment="Right" Spacing="{StaticResource Space8}" Margin="{StaticResource SectionGapWide}">
+                HorizontalAlignment="Right" Spacing="{StaticResource Space8}" Margin="{StaticResource SectionGap}">
       <Button Content="Close" Click="OnClose" IsCancel="True" />
       <Button Classes="primary" Content="Revert to selected"
               Command="{Binding RevertCommand}"

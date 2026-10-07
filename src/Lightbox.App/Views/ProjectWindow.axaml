@@ -119,9 +119,9 @@
           <Border DockPanel.Dock="Bottom" Classes="bar"
                   IsVisible="{Binding HasSelection}">
             <WrapPanel>
-              <TextBlock Classes="head" VerticalAlignment="Center" Margin="{StaticResource GapAfterWide}"
+              <TextBlock Classes="head" VerticalAlignment="Center" Margin="{StaticResource GapAfter}"
                          Text="{Binding SelectionLabel}" />
-              <ComboBox MinWidth="120" Margin="{StaticResource GapAfterWide}"
+              <ComboBox MinWidth="120" Margin="{StaticResource GapAfter}"
                         ItemsSource="{Binding StatusChoices}"
                         SelectedItem="{Binding StatusToApply}"
                         PlaceholderText="set status…">
@@ -131,7 +131,7 @@
                   </DataTemplate>
                 </ComboBox.ItemTemplate>
               </ComboBox>
-              <ComboBox MinWidth="120" Margin="{StaticResource GapAfterWide}"
+              <ComboBox MinWidth="120" Margin="{StaticResource GapAfter}"
                         ItemsSource="{Binding AssignChoices}"
                         SelectedItem="{Binding PersonToApply}"
                         PlaceholderText="assign to…">
@@ -155,7 +155,7 @@
                 the docker, and offering two movers for one thing invites the
                 question of why they differ.
               -->
-              <ComboBox MinWidth="150" Margin="{StaticResource GapBeforeWide}"
+              <ComboBox MinWidth="150" Margin="{StaticResource GapBefore}"
                         IsVisible="{Binding HasSheetSelection}"
                         ItemsSource="{Binding SheetHomeChoices}"
                         SelectedItem="{Binding SheetHomeToApply}"
@@ -330,7 +330,7 @@
               clip the sentence rather than move it to a second line.
             -->
             <WrapPanel>
-              <Button Content="＋ New ▾" Margin="{StaticResource GapAfterWide}"
+              <Button Content="＋ New ▾" Margin="{StaticResource GapAfter}"
                       ToolTip.Tip="Create something in this project">
                 <Button.Flyout>
                   <MenuFlyout>
@@ -341,7 +341,7 @@
                   </MenuFlyout>
                 </Button.Flyout>
               </Button>
-              <Button Content="✎ Rename project…" Margin="{StaticResource GapAfterWide}"
+              <Button Content="✎ Rename project…" Margin="{StaticResource GapAfter}"
                       Command="{Binding RenameProjectCommand}"
                       ToolTip.Tip="Renames the project and its folder on disk">
               </Button>
@@ -352,13 +352,13 @@
                 opens in the file manager. Opening a document closes this
                 window — it is modal, and a tab behind it is a tab nobody sees.
               -->
-              <Button Content="⏵ Open" Margin="{StaticResource GapAfterWide}"
+              <Button Content="⏵ Open" Margin="{StaticResource GapAfter}"
                       Command="{Binding OpenSelectedInLightboxCommand}"
                       ToolTip.Tip="Open the selected documents in Lightbox as tabs. Closes this window." />
-              <Button Content="🗀 Show on disk" Margin="{StaticResource GapAfterWide}"
+              <Button Content="🗀 Show on disk" Margin="{StaticResource GapAfter}"
                       Command="{Binding RevealSelectedCommand}"
                       ToolTip.Tip="Show the selected row in the file manager — a folder opened, a document selected inside its folder" />
-              <Button Content="🗁 Project folder" Margin="{StaticResource GapAfterWide}"
+              <Button Content="🗁 Project folder" Margin="{StaticResource GapAfter}"
                       Command="{Binding RevealProjectFolderCommand}"
                       ToolTip.Tip="Show the project's own folder in the file manager, whatever is selected" />
               <TextBlock Classes="dim" VerticalAlignment="Center"

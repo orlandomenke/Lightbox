@@ -342,7 +342,7 @@
 
   <Style Selector="ToggleButton.glyph Path">
     <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
-    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeThickness" Value="{StaticResource IconStroke}" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
@@ -388,7 +388,7 @@
   -->
   <Style Selector="Path.icon">
     <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
-    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeThickness" Value="{StaticResource IconStroke}" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
@@ -411,7 +411,7 @@
   -->
   <Style Selector="controls|CanvasOverlayBar ToggleButton Path">
     <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
-    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeThickness" Value="{StaticResource IconStroke}" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
@@ -423,7 +423,7 @@
        as the tiles beside them, so the grid keeps one weight throughout. -->
   <Style Selector="controls|CanvasOverlayBar Button Path">
     <Setter Property="Stroke" Value="{DynamicResource TextPrimaryBrush}" />
-    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeThickness" Value="{StaticResource IconStroke}" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
@@ -460,7 +460,7 @@
   <!-- The tool rail's glyphs: quiet at rest, full-strength on the active tool. -->
   <Style Selector="ToggleButton.tool Path:not(.variantmark)">
     <Setter Property="Stroke" Value="{DynamicResource TextSecondaryBrush}" />
-    <Setter Property="StrokeThickness" Value="1.5" />
+    <Setter Property="StrokeThickness" Value="{StaticResource IconStroke}" />
     <Setter Property="StrokeLineCap" Value="Round" />
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />

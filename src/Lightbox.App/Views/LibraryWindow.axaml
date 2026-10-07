@@ -12,7 +12,7 @@
 
     <!-- Where libraries live. At the bottom, set once and left — the shelf is
          what the window is for. -->
-    <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource Space6}" Margin="{StaticResource SectionGapWide}">
+    <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource Space6}" Margin="{StaticResource SectionGap}">
       <TextBlock Text="Library folders" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
       <TextBlock FontSize="{StaticResource TypeDense}" Opacity="0.6" TextWrapping="Wrap"
                  Text="A library is an ordinary project whose type is Asset library. Point this at one, or at a folder holding several." />

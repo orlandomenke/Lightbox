@@ -2269,31 +2269,31 @@
                         </StackPanel>
                         <TextBlock Text="Shape Dynamics" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="{StaticResource SectionGap}" />
                           <DockPanel ToolTip.Tip="How much dab diameter varies. This is the biggest single difference between a digital mark and a natural one.">
-                            <TextBlock Text="Size jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Size jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushSizeJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="Floor for jittered size. Without it, jitter produces dabs that vanish and the stroke reads as broken rather than varied.">
-                            <TextBlock Text="Minimum size" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Minimum size" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushMinimumDiameter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="1 is circular; lower squashes the dab into a chisel.">
-                            <TextBlock Text="Roundness" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Roundness" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Roundness jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Roundness jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushRoundnessJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Angle jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Angle jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushRotationJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
@@ -2304,7 +2304,7 @@
 
                         <TextBlock Text="Scattering" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="{StaticResource SectionGap}" />
                           <DockPanel>
-                            <TextBlock Text="Scatter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Scatter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushScatter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushScatter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
@@ -2312,7 +2312,7 @@
 
                         <TextBlock Text="Texture" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="{StaticResource SectionGap}" />
                         <DockPanel ToolTip.Tip="Paper surface multiplied into the stroke. Anchored to the document, so the grain stays put as you paint over it.">
-                          <TextBlock Text="Surface" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                          <TextBlock Text="Surface" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <ComboBox ItemsSource="{Binding TextureSurfaceChoices}" SelectedItem="{Binding BrushTextureSurface}"
                                     HorizontalAlignment="Stretch" IsEnabled="{Binding !HasImportedTexture}" />
                         </DockPanel>
@@ -2335,25 +2335,25 @@
                         <TextBlock x:Name="TextureSourceNote" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                                    IsVisible="False" TextWrapping="Wrap" />
                           <DockPanel>
-                            <TextBlock Text="Grain size" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Grain size" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown DockPanel.Dock="Right" Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128"
                                            Increment="1" FormatString="0" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushTextureScale}" Minimum="1" Maximum="128" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Depth" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Depth" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel ToolTip.Tip="The flat grain used when no texture surface is chosen.">
-                            <TextBlock Text="Granulation" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Granulation" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushGranulation}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Wet edge" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Wet edge" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushWetEdge}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
@@ -2361,7 +2361,7 @@
 
                         <TextBlock Text="Transfer" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="{StaticResource SectionGap}" />
                           <DockPanel ToolTip.Tip="Per-dab paint amount varies, giving wash and build-up variation that pressure alone cannot.">
-                            <TextBlock Text="Flow jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Flow jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushFlowJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
@@ -2369,30 +2369,30 @@
 
                         <TextBlock Text="Color Dynamics" FontWeight="SemiBold" FontSize="{StaticResource TypeDense}" Opacity="0.8" Margin="{StaticResource SectionGap}" />
                         <DockPanel ToolTip.Tip="Natural media drifts between two chosen colours rather than randomly around one. Leave empty to vary only hue, saturation and brightness.">
-                          <TextBlock Text="Second color" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                          <TextBlock Text="Second color" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                           <controls:ColorField Hex="{Binding BrushSecondaryColor, Mode=TwoWay}"
                                                AllowsNone="True" HorizontalAlignment="Left" />
                         </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Toward second" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Toward second" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushColorJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Hue jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Hue jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushHueJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Saturation jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Saturation jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushSaturationJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
                           </DockPanel>
                           <DockPanel>
-                            <TextBlock Text="Brightness jitter" Width="{StaticResource SizeDockerLabelWide}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                            <TextBlock Text="Brightness jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1"
                                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
                             <Slider Value="{Binding BrushBrightnessJitter}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />

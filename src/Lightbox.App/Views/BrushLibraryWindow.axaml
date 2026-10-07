@@ -43,7 +43,7 @@
     <TextBox x:Name="SearchBox" DockPanel.Dock="Top" PlaceholderText="Search brushes"
              Margin="0,0,0,8" TextChanged="OnSearchChanged" />
 
-    <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource Space8}" Margin="{StaticResource SectionGapWide}">
+    <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource Space8}" Margin="{StaticResource SectionGap}">
       <!--
         Rename appears only with exactly one brush selected, because renaming
         twelve at once has no sensible meaning and a field that silently applies
@@ -51,7 +51,7 @@
         rather than disabled — the same rule the camera follows.
       -->
       <DockPanel x:Name="RenameRow" IsVisible="False">
-        <Button x:Name="RenameButton" DockPanel.Dock="Right" Content="Rename" Click="OnRename" Margin="{StaticResource GapBeforeWide}" />
+        <Button x:Name="RenameButton" DockPanel.Dock="Right" Content="Rename" Click="OnRename" Margin="{StaticResource GapBefore}" />
         <TextBox x:Name="RenameBox" PlaceholderText="Name" KeyDown="OnRenameKey" />
       </DockPanel>
       <TextBlock x:Name="ShippedNote" IsVisible="False" FontSize="{StaticResource TypeDense}" Opacity="0.6"
@@ -79,7 +79,7 @@
             <TextBlock DockPanel.Dock="Right" Text="{Binding Origin}" VerticalAlignment="Center"
                        FontSize="{StaticResource TypeHint}" Opacity="0.5" Margin="8,0,4,0" />
             <TextBlock DockPanel.Dock="Right" Text="{Binding CostBadge}" Foreground="{DynamicResource StatusWarningBrush}"
-                       FontSize="{StaticResource TypeDense}" VerticalAlignment="Center" Margin="{StaticResource GapBeforeWide}" />
+                       FontSize="{StaticResource TypeDense}" VerticalAlignment="Center" Margin="{StaticResource GapBefore}" />
             <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Space2}">
               <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
               <TextBlock Text="{Binding SizeAndTags}" FontSize="{StaticResource TypeHint}" Opacity="0.55"

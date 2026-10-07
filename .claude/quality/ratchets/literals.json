@@ -8,7 +8,7 @@
   "src/Lightbox.App/Views/BrushLibraryWindow.axaml": 15,
   "src/Lightbox.App/Views/BrushTipsWindow.axaml": 22,
   "src/Lightbox.App/Views/ConfigureWindow.axaml": 24,
-  "src/Lightbox.App/Views/EffectsPanel.axaml": 25,
+  "src/Lightbox.App/Views/EffectsPanel.axaml": 23,
   "src/Lightbox.App/Views/ExportWindow.axaml": 2,
   "src/Lightbox.App/Views/FluidEffectsWindow.axaml": 26,
   "src/Lightbox.App/Views/GuideSetEditor.axaml": 2,

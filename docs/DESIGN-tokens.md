@@ -73,6 +73,7 @@ should be none.
 | 2 · dockers | 912 | setting rows (label, slider gap, value floor), icon sizes, section gaps — the docker part of MainWindow.axaml and the panels it hosts (tool option pages, effects, guides, scene) |
 | 2 · Configure | 865 | the settings page inset, the settings field and combo widths, the information card's corners and inset |
 | 2 · windows and dialogs | 748 | the dialog inset, label column, small field and button floor, the wider gaps, card radii — the project window and 25 dialogs, panels and bars |
+| 3 · values | 746 | the new look's values: Tight corners (and Fluent's own two radii), one docker label width, one gap scale (4 and 8), the 10 px floor, a 1.25 icon line |
 
 **How each area proves "no visual change":** the gallery's `--snapshot-app`
 renders the main window empty and with a document open, every docker brought to
