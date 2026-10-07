@@ -163,6 +163,9 @@ public partial class MainViewModel
         _lastAutoKeyRevision = null;
         _lastAutoGrowRevision = null;
         _textKey = default;
+        // Whatever still holds a session here — an open or a replace, which no
+        // one confirms — is holding frames of the document going away.
+        if (TransformActive) CancelTransform();
         _editor.Changed -= OnDocumentChanged;
         _editor = editor;
         _editor.Changed += OnDocumentChanged;

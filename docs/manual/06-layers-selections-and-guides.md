@@ -709,10 +709,29 @@ from the keyboard as always.
 **While a transform is up, the canvas belongs to it** — every press on the
 drawing goes to the handles, whatever the toolbar says. **Picking a tool ends
 the session and discards the drag**, on the grounds that reaching for the brush
-means you are done transforming. Nothing is written to the drawing that way:
-only Enter applies, so an accidental tool press costs you the drag and never
-the artwork. Holding **Ctrl** for the eyedropper is a borrow rather than a
-choice and leaves the transform alone.
+means you are done transforming. Nothing is written to the drawing that way, so
+an accidental tool press costs you the drag and never the artwork. Holding
+**Ctrl** for the eyedropper is a borrow rather than a choice and leaves the
+transform alone.
+
+**Ctrl+Z steps back through the transform, not through the drawing.** Each
+drag of a handle, each mirror, each Reset and each switch between box,
+perspective, bands and cage is one step: Ctrl+Z takes the last one back and
+Ctrl+Y puts it back again. With every step taken back the box is as it opened,
+and Ctrl+Z goes no further — nothing you drew before the transform can be
+undone from inside it. Esc is the way out. The Edit menu says *Undo transform
+step* while this is so.
+
+**Applying makes the whole transform one undo step**, however many tweaks it
+took, so Ctrl+Z straight afterwards puts the drawing back exactly as it was
+before you pressed Ctrl+T.
+
+**Moving to another frame, layer or document applies the transform**, as Enter
+would, and ends the session. It is applied to the drawing it was on, not the
+one you moved to, and it leaves the same single undo step. A box you never
+moved applies nothing and leaves no step. Picking a row in the **History**
+docker cancels the transform instead — a row is a different state of the
+document, and the box was drawn round this one.
 
 **Scope** decides what moves: this cel, all layers at this frame, a marked cel
 range, or the whole animation.

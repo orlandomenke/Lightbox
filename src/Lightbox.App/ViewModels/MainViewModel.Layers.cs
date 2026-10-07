@@ -720,10 +720,15 @@ public partial class MainViewModel
     }
 
     /// <summary>Whether there is a step to take back — the Edit menu greys out on it.</summary>
-    public bool CanUndo => _editor.CanUndo;
+    /// <remarks>
+    /// Always available while a transform is open: the key then steps the
+    /// session, and an empty session answers in the status line rather than by
+    /// a greyed entry that would read as Undo being broken.
+    /// </remarks>
+    public bool CanUndo => TransformActive || _editor.CanUndo;
 
     /// <summary>Whether there is a step to put back.</summary>
-    public bool CanRedo => _editor.CanRedo;
+    public bool CanRedo => TransformActive || _editor.CanRedo;
 
     /// <summary>
     /// The Edit menu's Undo entry, naming the step it would take back —
@@ -742,11 +747,15 @@ public partial class MainViewModel
     /// loses its access key when it gains a name would be a strange trade.
     /// </para>
     /// </remarks>
-    public string UndoMenuHeader => _editor.UndoLabel is { } step ? $"_Undo {step}" : "_Undo";
+    public string UndoMenuHeader =>
+        TransformActive ? "_Undo transform step"
+        : _editor.UndoLabel is { } step ? $"_Undo {step}" : "_Undo";
 
     /// <summary>The Edit menu's Redo entry, naming the step it would put back.</summary>
     /// <inheritdoc cref="UndoMenuHeader" path="/remarks"/>
-    public string RedoMenuHeader => _editor.RedoLabel is { } step ? $"_Redo {step}" : "_Redo";
+    public string RedoMenuHeader =>
+        TransformActive ? "_Redo transform step"
+        : _editor.RedoLabel is { } step ? $"_Redo {step}" : "_Redo";
 
     /// <summary>
     /// Re-read the four properties above. Called from the edit funnel rather
@@ -766,6 +775,11 @@ public partial class MainViewModel
     [RelayCommand]
     private void Undo()
     {
+        if (TransformActive)
+        {
+            StepTransformSession(undo: true);
+            return;
+        }
         // The stroke the next Shift+click would have joined to may be the one
         // going away. Joining to a mark that is no longer there draws a line
         // out of nowhere, which is worse than not joining at all.
@@ -779,6 +793,11 @@ public partial class MainViewModel
     [RelayCommand]
     private void Redo()
     {
+        if (TransformActive)
+        {
+            StepTransformSession(undo: false);
+            return;
+        }
         CommitSwatchEdit();
         ApplyEditScope(WhileApplyingScope(_editor.RedoScoped));
     }
@@ -795,6 +814,9 @@ public partial class MainViewModel
     /// </summary>
     private void JumpToHistory(long revision)
     {
+        // A row is a document state, and the session's preview is composited
+        // over the one it opened on — leave the session before the record moves.
+        if (TransformActive) CancelTransform();
         // Same two preconditions as Undo, for the same reasons.
         _lastStrokeEnd = null;
         CommitSwatchEdit();
