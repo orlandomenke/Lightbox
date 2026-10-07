@@ -259,13 +259,19 @@ public static class ImageResize
             if (stroke.Baked is { PngBase64.Length: > 0 } baked)
             {
                 var resampled = resampler.Resample(baked.PngBase64, sx, sy);
-                if (resampled is null) stroke.Baked = null;
-                else
-                {
-                    baked.PngBase64 = resampled;
-                    baked.X = (int)Math.Round(baked.X * sx);
-                    baked.Y = (int)Math.Round(baked.Y * sy);
-                }
+                // A NEW sample, never the old one edited (B380). Stroke.Clone
+                // shares the sample on purpose — it can be a megabyte — so the
+                // undo snapshot's stroke holds this very object, and editing
+                // it in place resized the snapshot's pixels too: undo brought
+                // the old points back under re-placed, resampled pixels.
+                stroke.Baked = resampled is null
+                    ? null
+                    : new BakedSample
+                    {
+                        PngBase64 = resampled,
+                        X = (int)Math.Round(baked.X * sx),
+                        Y = (int)Math.Round(baked.Y * sy),
+                    };
             }
         }
 
