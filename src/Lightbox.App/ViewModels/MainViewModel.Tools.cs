@@ -986,14 +986,19 @@ public partial class MainViewModel
     {
         if (!CanEdit(ActiveLayer, "transform it")) return false;
         var frames = CollectTransformFrames();
-        filter ??= DerivedTransformFilter(frames);
+        // B381: judged and boxed as the canvas shows them — posed, where the
+        // rig poses them at this playhead. A restart re-poses, since the
+        // playhead or the pose may have moved between sessions.
+        _posedViews.Clear();
+        var shown = PosedViews(frames);
+        filter ??= DerivedTransformFilter(shown);
         // B302: the box round the drawing as it LOOKS, not as the record
         // remembers it. TransformOps.Bounds walked stroke points and nothing
         // else, so the handles wrapped rubbed-out ink — and, the half that was
         // not cosmetic, a frame that is nothing but imported pixels measured as
         // empty and this method refused it. See VisibleDrawingBounds for why
         // wrapping the strokes in StrokeRecordCleaner is the wrong fix.
-        var bounds = VisibleDrawingBounds.Of(frames, filter, PaperRect());
+        var bounds = VisibleDrawingBounds.Of(shown, filter, PaperRect());
         if (frames.Count == 0 || bounds is null)
         {
             AiStatus = "Nothing to transform in this scope.";
@@ -1004,7 +1009,7 @@ public partial class MainViewModel
         // this one is keyed to nothing but the session it was built for.
         _previewSplit = null;
         _transform.Begin(frames, filter);
-        _transform.MovingBounds = PreviewMovingBounds(frames, filter);
+        _transform.MovingBounds = PreviewMovingBounds(shown, filter);
         // B225: the gizmo's own box, which is what a move lines up against a
         // guide. Set from the same value the gizmo is raised with below, so the
         // box that snaps and the box on screen cannot disagree.

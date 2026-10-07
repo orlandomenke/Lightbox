@@ -595,20 +595,13 @@ public sealed class DocumentEditor
         });
     }
 
-    public void DeleteFrame(int i)
-    {
-        Perform(doc =>
-        {
-            if (doc.Scene.FrameCount <= 1) return;
-            foreach (var layer in doc.Scene.Layers)
-            {
-                PadCels(layer, doc.Scene.FrameCount);
-                if (i < layer.Cels.Count) layer.Cels.RemoveAt(i);
-            }
-            doc.Scene.FrameCount--;
-            RippleReferences(doc.Scene, i, -1);
-        });
-    }
+    /// <summary>Remove frame <paramref name="i"/> from every layer — one column of <see cref="DeleteColumns"/>.</summary>
+    /// <remarks>
+    /// It used to carry its own loop, which took the paper's one drawing out of
+    /// the scene when <paramref name="i"/> was 0. Routed through the column
+    /// delete so there is one answer to "what happens to the paper".
+    /// </remarks>
+    public void DeleteFrame(int i) => DeleteColumns([i], label: "Delete frame");
 
     /// <summary>
     /// Move imported references along with a timeline edit.
@@ -1012,6 +1005,278 @@ public sealed class DocumentEditor
             // and a short row would desynchronise every cel after it.
             while (target.Cels.Count < doc.Scene.FrameCount) target.Cels.Add(new Cel());
         });
+    }
+
+    // ---- the X-sheet's selection verbs (Q196) ----------------------------------
+    //
+    // Delete, Delete and pull, Insert blank frame. Each takes the whole cel
+    // selection — any number of cels on any number of layers — and is ONE undo
+    // step, because an artist who selected three layers and pressed a key did
+    // one thing. The single-layer methods above stay for their own callers.
+
+    /// <summary>
+    /// The frames a cel selection names as <b>whole columns</b>, or null when it
+    /// is not a column selection.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A selection is a column selection when every animated layer has the
+    /// <em>same</em> set of frames selected — a rectangle across the whole
+    /// sheet, or the same picked-out frames on every row. That is the shape an
+    /// artist makes when they mean "this frame of the scene" rather than "this
+    /// drawing on this layer", and it is the only shape where shortening the
+    /// scene leaves nobody out of step.
+    /// </para>
+    /// <para>
+    /// <b>The paper does not count, either way.</b> A background layer is not
+    /// animated — it is locked from birth and holds one drawing for the whole
+    /// scene — so requiring its cels in the selection would mean nobody ever
+    /// made a column selection by accident or on purpose. Its cels in the
+    /// selection add nothing and its absence takes nothing away; a column
+    /// operation then carries the paper along so it keeps showing what it
+    /// showed (<see cref="DeleteColumns"/>, <see cref="InsertHoldColumns"/>).
+    /// </para>
+    /// <para>
+    /// Hidden layers count. They are rows on the sheet, and a column delete
+    /// that skipped one would slide it out of step with everything else the
+    /// moment it was shown again.
+    /// </para>
+    /// Frames past the end of the scene are ignored: there is nothing there
+    /// to delete or push along.
+    /// </remarks>
+    public static IReadOnlyList<int>? ColumnsOf(Scene scene, IEnumerable<(string LayerId, int Index)> cels)
+    {
+        var animated = scene.Layers.Where(l => !l.IsBackground).ToList();
+        if (animated.Count == 0) return null;
+        var byLayer = cels
+            .Where(c => c.Index >= 0 && c.Index < scene.FrameCount)
+            .GroupBy(c => c.LayerId)
+            .ToDictionary(g => g.Key, g => g.Select(c => c.Index).ToHashSet());
+        if (!byLayer.TryGetValue(animated[0].Id, out var first) || first.Count == 0) return null;
+        foreach (var layer in animated.Skip(1))
+        {
+            if (!byLayer.TryGetValue(layer.Id, out var set) || !set.SetEquals(first)) return null;
+        }
+        return first.Order().ToList();
+    }
+
+    /// <summary>
+    /// Remove whole frames from the scene — every layer's cel at each — and pull
+    /// the rest of the sheet back. One undo step. Returns how many frames went.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Never below one frame.</b> Worked from the end, so if the selection
+    /// is the whole scene the earliest frame is the one kept.
+    /// </para>
+    /// <para>
+    /// <b>The paper keeps showing what it showed.</b> A background layer loses
+    /// its cel like every other row — it has to, or it would drift out of step
+    /// — but when the cel going holds the paper's drawing and the one after it
+    /// is a hold, the drawing moves onto that hold first. Without that, a
+    /// column delete at frame 0 took the paper out of the whole scene: the one
+    /// drawing it has lives there and every other cel is a hold of it.
+    /// </para>
+    /// </remarks>
+    public int DeleteColumns(IEnumerable<int> frames, string? label = null)
+    {
+        var scene = Doc.Scene;
+        var picked = frames.Where(f => f >= 0 && f < scene.FrameCount).Distinct().OrderDescending().ToList();
+        if (picked.Count == 0 || scene.FrameCount <= 1) return 0;
+        var removed = 0;
+        Perform(doc =>
+        {
+            foreach (var f in picked)
+            {
+                if (doc.Scene.FrameCount <= 1) break;
+                foreach (var layer in doc.Scene.Layers)
+                {
+                    PadCels(layer, doc.Scene.FrameCount);
+                    if (f >= layer.Cels.Count) continue;
+                    if (layer.IsBackground && layer.Cels[f].Frame is { } paper
+                        && f + 1 < layer.Cels.Count && layer.Cels[f + 1].Frame is null)
+                    {
+                        layer.Cels[f + 1].Frame = paper;
+                    }
+                    layer.Cels.RemoveAt(f);
+                }
+                doc.Scene.FrameCount--;
+                RippleReferences(doc.Scene, f, -1);
+                removed++;
+            }
+        }, label: label ?? (picked.Count == 1 ? "Delete frame" : "Delete frames"));
+        return removed;
+    }
+
+    /// <summary>
+    /// <see cref="DeleteCels"/> over a selection on any number of layers: each
+    /// row loses its selected cels and pulls the rest back, padded with holds at
+    /// the tail so the scene keeps its length. One undo step. Returns the cels
+    /// removed.
+    /// </summary>
+    public int DeleteCelsAcross(IEnumerable<(string LayerId, int Index)> cels)
+    {
+        var byLayer = GroupByLayer(cels);
+        // ClearCelsAcross's rule: nothing to remove records nothing, so an
+        // unknown layer or a pick past the end costs no empty undo step.
+        var reachable = byLayer.Any(kv => FindLayer(kv.Key) is { } layer
+            && kv.Value.Any(i => i >= 0 && i < Math.Max(layer.Cels.Count, Doc.Scene.FrameCount)));
+        if (!reachable) return 0;
+        var removed = 0;
+        Perform(doc =>
+        {
+            foreach (var (layerId, indices) in byLayer)
+            {
+                if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) continue;
+                PadCels(layer, doc.Scene.FrameCount);
+                // From the end, so an earlier removal never shifts a later pick.
+                foreach (var i in indices.OrderDescending())
+                {
+                    if (i >= layer.Cels.Count) continue;
+                    layer.Cels.RemoveAt(i);
+                    removed++;
+                }
+                PadCels(layer, doc.Scene.FrameCount);
+            }
+        }, label: "Delete and pull");
+        return removed;
+    }
+
+    /// <summary>
+    /// <see cref="ClearCels"/> over a selection on any number of layers: every
+    /// drawing in it becomes a hold, every slot stays. One undo step. Returns
+    /// the drawings removed; nothing is recorded when there were none.
+    /// </summary>
+    public int ClearCelsAcross(IEnumerable<(string LayerId, int Index)> cels)
+    {
+        var byLayer = GroupByLayer(cels);
+        var drawn = byLayer.Sum(kv => FindLayer(kv.Key) is { } layer
+            ? kv.Value.Count(i => i < layer.Cels.Count && layer.Cels[i].Frame is not null)
+            : 0);
+        if (drawn == 0) return 0;
+        Perform(doc =>
+        {
+            foreach (var (layerId, indices) in byLayer)
+            {
+                if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) continue;
+                foreach (var i in indices)
+                {
+                    if (i < layer.Cels.Count) layer.Cels[i].Frame = null;
+                }
+            }
+        }, label: "Delete");
+        return drawn;
+    }
+
+    /// <summary>
+    /// Insert blank frames on the rows of a selection: each contiguous run of
+    /// <c>n</c> selected cels gets <c>n</c> holds inserted <b>at</b> the run's
+    /// first cel, on that layer only, so the run and everything after it move
+    /// right by <c>n</c> and the new cels show the drawing before them. One undo
+    /// step. Returns the holds inserted.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>At, not after.</b> A blank frame is always a hold of the previous
+    /// drawing — there is no other kind of blank cel in the record — so
+    /// inserting one in front of a key is how an artist says "wait here one
+    /// more frame before this drawing arrives". After would be Extend exposure,
+    /// which already exists.
+    /// </para>
+    /// <para>
+    /// <b>A run of n inserts n at its start</b> rather than one in front of each
+    /// selected cel: select three and you get "insert three blank frames", the
+    /// gap opening in one place. One in front of each would interleave holds
+    /// through the drawings, which is re-timing — a different command.
+    /// </para>
+    /// A row that runs past the end grows the scene, as
+    /// <see cref="ExtendExposure"/> does; references do not move, because the
+    /// other rows did not.
+    /// </remarks>
+    public int InsertHolds(IEnumerable<(string LayerId, int Index)> cels)
+    {
+        var byLayer = GroupByLayer(cels);
+        if (byLayer.Count == 0) return 0;
+        var inserted = 0;
+        Perform(doc =>
+        {
+            var scene = doc.Scene;
+            foreach (var (layerId, indices) in byLayer)
+            {
+                if (scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) continue;
+                PadCels(layer, scene.FrameCount);
+                foreach (var (start, count) in RunsDescending(indices))
+                {
+                    var at = Math.Min(start, layer.Cels.Count);
+                    for (var k = 0; k < count; k++) layer.Cels.Insert(at, new Cel());
+                    inserted += count;
+                }
+            }
+            var longest = scene.Layers.Count == 0 ? 0 : scene.Layers.Max(l => l.Cels.Count);
+            if (longest > scene.FrameCount) scene.FrameCount = longest;
+            foreach (var layer in scene.Layers) PadCels(layer, scene.FrameCount);
+        }, label: "Insert blank frame");
+        return inserted;
+    }
+
+    /// <summary>
+    /// Insert blank frames into the scene — a hold on every layer at each run
+    /// of <paramref name="frames"/>, the scene growing by as many. One undo
+    /// step. Returns the frames inserted.
+    /// </summary>
+    /// <remarks>
+    /// The column twin of <see cref="InsertHolds"/>, and it ripples references
+    /// as <see cref="AddFrameAfter"/> does: a whole frame of the scene moved,
+    /// so a reference that follows the timeline moves with it.
+    /// <para>
+    /// <b>The paper holds</b> (the rule <see cref="AddFrameAfter"/> states).
+    /// When the paper's cel at the insertion point is its drawing, the holds go
+    /// in after it rather than in front, so the paper is still on that frame
+    /// instead of the frame showing whatever came before — which at frame 0 is
+    /// nothing at all.
+    /// </para>
+    /// </remarks>
+    public int InsertHoldColumns(IEnumerable<int> frames)
+    {
+        var scene = Doc.Scene;
+        var picked = frames.Where(f => f >= 0 && f < scene.FrameCount).Distinct().ToList();
+        if (picked.Count == 0) return 0;
+        var inserted = 0;
+        Perform(doc =>
+        {
+            foreach (var (start, count) in RunsDescending(picked))
+            {
+                foreach (var layer in doc.Scene.Layers)
+                {
+                    PadCels(layer, doc.Scene.FrameCount);
+                    var at = Math.Min(start, layer.Cels.Count);
+                    if (layer.IsBackground && at < layer.Cels.Count && layer.Cels[at].Frame is not null) at++;
+                    for (var k = 0; k < count; k++) layer.Cels.Insert(at, new Cel());
+                }
+                doc.Scene.FrameCount += count;
+                for (var k = 0; k < count; k++) RippleReferences(doc.Scene, start, +1);
+                inserted += count;
+            }
+        }, label: "Insert blank frame");
+        return inserted;
+    }
+
+    private static Dictionary<string, HashSet<int>> GroupByLayer(IEnumerable<(string LayerId, int Index)> cels) =>
+        cels.Where(c => c.Index >= 0)
+            .GroupBy(c => c.LayerId)
+            .ToDictionary(g => g.Key, g => g.Select(c => c.Index).ToHashSet());
+
+    /// <summary>Indices as contiguous runs (start, length), latest run first.</summary>
+    private static List<(int Start, int Count)> RunsDescending(IEnumerable<int> indices)
+    {
+        var runs = new List<(int Start, int Count)>();
+        foreach (var i in indices.Distinct().Order())
+        {
+            if (runs.Count > 0 && runs[^1].Start + runs[^1].Count == i) runs[^1] = (runs[^1].Start, runs[^1].Count + 1);
+            else runs.Add((i, 1));
+        }
+        runs.Reverse();
+        return runs;
     }
 
     /// <summary>

@@ -529,6 +529,7 @@
                   ToolTip.Tip="Mark the frame at the playhead as a key drawing" />
         <MenuItem Header="Insert _breakdown" Click="OnMenuInsertBreakdown" />
         <MenuItem Header="Insert _inbetween frame" Click="OnMenuInsertInbetween" />
+        <MenuItem Header="Insert blank _frame" Click="OnMenuInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n — the playhead's cel, or the selection" />
         <Separator />
         <MenuItem Header="_Extend exposure (+1 hold)" Click="OnMenuExtendExposure"
                   ToolTip.Tip="Hold the drawing under the playhead one frame longer" />
@@ -537,10 +538,10 @@
         <MenuItem Header="_Copy cel" Click="OnMenuCopyCel" InputGesture="Ctrl+C" />
         <MenuItem Header="Cu_t cel" Click="OnMenuCutCel" InputGesture="Ctrl+X" />
         <MenuItem Header="Pa_ste cel" Click="OnMenuPasteCel" InputGesture="Ctrl+V" />
-        <MenuItem Header="C_lear cel" Click="OnMenuClearCel"
-                  ToolTip.Tip="The drawing under the playhead loses its content; the timing stays" />
-        <MenuItem Header="Delete cel" Click="OnMenuDeleteCel" />
-        <MenuItem Header="Delete column (this frame, every layer)" Click="OnMenuDeleteColumn" />
+        <MenuItem Header="De_lete" Click="OnMenuClearCel"
+                  ToolTip.Tip="The drawings go and the cels become holds; nothing after them moves (Delete over the X-sheet)" />
+        <MenuItem Header="Delete and p_ull" Click="OnMenuDeleteCel"
+                  ToolTip.Tip="Remove the cels and pull the rest of the row back; selected across every layer, the frames leave the scene (Shift+Delete over the X-sheet)" />
         <Separator />
         <MenuItem Header="_Onion skin" ToggleType="CheckBox"
                   IsChecked="{Binding OnionSkin, Mode=TwoWay}"
@@ -3349,11 +3350,10 @@
 
               <!-- Topmost layer first: visibility, then the name (double-click to rename).
                    Rows drag to reorder: a row's upper/lower half lands above/below it,
-                   a folder header files into the folder. -->
+                   a folder header files into the folder. The drag runs on a pointer
+                   captured by the list (MainWindow.Workspace.cs), not OS drag-and-drop. -->
               <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding LayerPanelItems}" Margin="4" DragDrop.AllowDrop="True"
-                              DragDrop.DragOver="OnLayerDragOver" DragDrop.Drop="OnLayerDrop"
-                              DragDrop.DragLeave="OnLayerDragLeave">
+                <ItemsControl x:Name="LayerList" ItemsSource="{Binding LayerPanelItems}" Margin="4">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                       <StackPanel Orientation="Vertical" Spacing="2" />
@@ -3367,9 +3367,9 @@
                       <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}"
                               Classes.lockedLayer="{Binding Locked}"
                               Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
-                              Classes.dropInto="{Binding DropInto}"
+                              Classes.dropInto="{Binding DropInto}" Classes.selected="{Binding IsSelected}"
+                              Focusable="True"
                               PointerPressed="OnGroupRowPressed"
-                              PointerMoved="OnGroupRowMoved" PointerReleased="OnGroupRowReleased"
                               BorderBrush="{Binding ColorBrush}" BorderThickness="4,0,0,0" CornerRadius="3">
                         <Border.ContextMenu>
                           <ContextMenu>
@@ -3441,11 +3441,12 @@
                               Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}" Classes.selected="{Binding IsSelected}"
                               Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
                               Focusable="True"
-                              PointerPressed="OnLayerRowPressed"
-                              PointerMoved="OnLayerRowMoved" PointerReleased="OnLayerRowReleased">
+                              PointerPressed="OnLayerRowPressed">
                         <Border.ContextMenu>
                           <ContextMenu>
                             <MenuItem Header="Rename" Click="OnLayerMenuRename" />
+                            <MenuItem Header="Copy layer" InputGesture="Ctrl+C" Click="OnLayerMenuCopy" />
+                            <MenuItem Header="Paste layer" InputGesture="Ctrl+V" Click="OnLayerMenuPaste" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasLayerClipboard}" />
                             <Separator />
                             <MenuItem Header="Move up" Click="OnLayerMenuMoveUp" />
                             <MenuItem Header="Move down" Click="OnLayerMenuMoveDown" />
@@ -3580,7 +3581,7 @@
                                         ToolTip.Tip="Lock the layer — refuses paint, fill, transform, delete and cel edits. It still renders and still exports."><Path /></ToggleButton>
                           <ToggleButton Classes="icon glyph alpha" DockPanel.Dock="Left" IsChecked="{Binding AlphaLocked}"
                                         ToolTip.Tip="Lock transparency — paint only lands where the layer already has content, so the silhouette cannot change"><Path /></ToggleButton>
-                          <Border DockPanel.Dock="Left" Margin="4,0,0,0" BorderBrush="#555" BorderThickness="1"
+                          <Border Classes="layerThumb" DockPanel.Dock="Left" Margin="4,0,0,0" BorderBrush="#555" BorderThickness="1"
                                   CornerRadius="2" Width="38" Height="22" VerticalAlignment="Center"
                                   Background="#111" PointerPressed="OnLayerThumbPressed"
                                   ToolTip.Tip="Layer content — Ctrl+click to select its visible pixels (Shift adds, Alt subtracts)">
@@ -4629,7 +4630,7 @@
               <Button Classes="icon" Command="{Binding DuplicateFrameCommand}" ToolTip.Tip="Duplicate current frame">
                 <Path Classes="icon" Data="{StaticResource IconDuplicate}" />
               </Button>
-              <Button Classes="icon" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete current frame">
+              <Button Classes="icon" Command="{Binding DeleteFrameCommand}" ToolTip.Tip="Delete the current frame from every layer — the scene gets one frame shorter">
                 <Path Classes="icon" Data="{StaticResource IconTrash}" />
               </Button>
               <Button Classes="icon" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)">
@@ -4729,7 +4730,7 @@
                                     RangeStart="{Binding PlaybackStartFrame, Mode=TwoWay}"
                                     RangeEnd="{Binding PlaybackEndFrame, Mode=TwoWay}"
                                     Markers="{Binding MarkersView}" PoseKeyed="{Binding PoseKeyedFrames}" />
-            <ItemsControl ItemsSource="{Binding LayerRows}">
+            <ItemsControl x:Name="XsheetLayerList" ItemsSource="{Binding LayerRows}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                   <StackPanel Orientation="Vertical" Spacing="2" />
@@ -4750,14 +4751,19 @@
                       <ToggleButton Classes="icon glyph onion" IsChecked="{Binding OnionEnabled}"
                                     ToolTip.Tip="Onion skinning for this layer"><Path /></ToggleButton>
                       <Panel Width="88" Height="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineRowHeight}">
-                        <Button Content="{Binding Name}" Width="88"
+                        <Button Classes="layerName" Content="{Binding Name}" Width="88"
                                 Height="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineRowHeight}"
                                 HorizontalContentAlignment="Left"
                                 IsVisible="{Binding !IsRenaming}"
                                 Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateLayerCommand}"
                                 CommandParameter="{Binding}"
                                 DoubleTapped="OnLayerNameDoubleTapped"
-                                ToolTip.Tip="Click to select, double-click to rename" />
+                                ToolTip.Tip="Click to select, double-click to rename. Ctrl+click adds a layer, Shift+click takes the range.">
+                          <Button.ContextMenu><ContextMenu>
+                            <MenuItem Header="Copy layer" InputGesture="Ctrl+C" Click="OnLayerMenuCopy" />
+                            <MenuItem Header="Paste layer" InputGesture="Ctrl+V" Click="OnLayerMenuPaste" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasLayerClipboard}" />
+                          </ContextMenu></Button.ContextMenu>
+                        </Button>
                         <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                  IsVisible="{Binding IsRenaming}" VerticalAlignment="Center"
                                  LostFocus="OnLayerNameLostFocus" KeyDown="OnLayerNameKeyDown" />
@@ -4795,6 +4801,7 @@
                                     <MenuItem Header="Insert breakdown frame" Click="OnInsertBreakdown" />
                                     <MenuItem Header="Insert inbetween frame" Click="OnInsertInbetweenFrame" />
                                   </MenuItem>
+                                  <MenuItem Header="Insert blank frame" Click="OnInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n" />
                                   <!-- Absent rather than disabled when there is no rig, the
                                        camera's rule: a document that never made an armature
                                        is not offered a bone command it cannot use. -->
@@ -4814,12 +4821,10 @@
                                             ToolTip.Tip="Re-space this cel's range to the pattern chosen on the timeline bar" />
                                   <MenuItem Header="Timing chart…" Click="OnEditTimingChart"
                                             ToolTip.Tip="The ladder on this extreme: where its inbetweens sit on the way to the next key" />
-                                  <MenuItem Header="Clear cel" Click="OnClearCel"
-                                            ToolTip.Tip="Blank the drawing, keep its slot on the timeline" />
-                                  <MenuItem Header="Delete cel" Click="OnDeleteCel"
-                                            ToolTip.Tip="Remove the cel and pull the rest of this layer's row back" />
-                                  <MenuItem Header="Delete column (this frame, every layer)" Click="OnDeleteColumn"
-                                            ToolTip.Tip="Remove this frame from the scene — every layer's cel at it — and pull the rest of the sheet back" />
+                                  <MenuItem Header="Delete" Click="OnClearCel" InputGesture="Delete"
+                                            ToolTip.Tip="The drawings go and the cels become holds; nothing after them moves" />
+                                  <MenuItem Header="Delete and pull" Click="OnDeleteCel" InputGesture="Shift+Delete"
+                                            ToolTip.Tip="Remove the cels and pull the rest of the row back; selected across every layer, the frames leave the scene" />
                                   <Separator />
                                   <MenuItem Header="Copy cel" Click="OnCopyCel" />
                                   <MenuItem Header="Cut cel" Click="OnCutCel" />

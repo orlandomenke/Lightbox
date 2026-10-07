@@ -40,6 +40,11 @@ remembered layer is never the reason a stroke goes nowhere.
 
 **Ctrl+click** a layer thumbnail to select its opaque pixels.
 
+**A new layer goes where you are working**: directly above the active layer,
+and into the active layer's folder if it is in one. Click a folder's header
+first and the new layer goes on top of that folder instead. (It used to land on
+top of the whole stack whatever was picked, outside every folder.)
+
 **The everyday layer verbs are on the Layer menu too**, addressed to the layer
 you are on: new layer, new folder, move up and down, merge down, the three
 checkboxes (visible, locked, lock transparency), select contents, blank
@@ -54,6 +59,18 @@ the selection — or Ctrl+click a selected one to drop it. **Shift+click** takes
 every row between the last one you picked and this one; Shift+click again
 somewhere else re-ranges from the same starting row rather than adding a second
 run, so overshooting is corrected with one more click.
+
+**Ctrl and Shift work anywhere on the row** — on the eye, the locks, the arrows
+or the name alike. With either key held, a click on a row's button selects the
+row instead of pressing the button. The one exception is Ctrl on the thumbnail,
+which still selects the layer's pixels.
+
+**The X-sheet picks layers the same way.** Ctrl+click or Shift+click a layer's name on the X-sheet to add it or take the range. It is the same selection the docker keeps, so a set picked in one place is still picked in the other, and a plain click on either goes back to one layer.
+
+**Clicking a folder's header picks the folder**: its header lights up, every
+layer in it is selected, and its top layer becomes the active one. Ctrl+click a
+header to add a folder's layers to what is already selected; Shift+click one to
+range up to it.
 
 The selected rows are tinted, and one of them — the last you clicked — is
 tinted more strongly. That one is the **active** layer, and it is where the next
@@ -73,6 +90,31 @@ undo step**:
 Anything you do to a row that is *not* in the selection is done to that row
 alone. Right-clicking a layer you have not selected is not a trap.
 
+### Copying a layer
+
+**Copy layer** and **Paste layer** are on the row's right-click menu in the
+docker and on a layer's name on the X-sheet, and **Ctrl+C / Ctrl+V** do the same
+when a layer row or a layer name on the X-sheet has keyboard focus. Right-clicking
+a layer that is already in the selection copies the whole selection.
+
+A paste is a **new layer** with everything on it: every drawing and hold, the
+mask, effects, blend mode and opacity, and the rig it follows. It lands directly
+above the active layer, in that layer's folder, named *Ink copy* (*Ink copy 2*
+and so on if that is taken). Several layers paste together in their original
+order, the pasted layers become the selection, and the whole paste is **one undo
+step**. Pasting twice gives two independent layers.
+
+What a copy does not keep is what tied the original to other layers: it does not
+join the original's link or fluid group, and it is never the paper.
+
+Two limits. A layer can only be pasted **into the document it was copied from**
+— pasting into another says so and does nothing. And the keys mean a layer only
+while a layer row or a layer name has focus: on a cel, **Ctrl+C is still the
+cel clipboard**, and with lines selected on the canvas it is still the lines.
+**Copy the selected layers** and **Paste the copied layers** are also in
+**Edit → Configure → Shortcuts**, unbound, for a key that is always a layer.
+
+
 ### Reordering by dragging
 
 Rows also **drag**: pick a layer up and drop it where it should go. Dropping on
@@ -82,16 +124,28 @@ members joins the folder, dropping beside a loose row leaves it — and the whol
 drop is one undo step. A drag moves the one row you picked up; the ▲/▼ buttons
 remain the way to move a multi-selection as a block.
 
+**Every part of the docker is a place to drop**, including the thin gaps between
+rows and the indent in front of a folder's layers: each belongs to the nearest
+row. Letting go outside the docker cancels the drag. A pen has to travel a
+little further than a mouse before a press becomes a drag, so a tap that wobbles
+stays a tap.
+
 **A folder header drags too, and takes the whole folder with it.** The block
 keeps its own order and lands above or below wherever you drop it. Folders do
-not go inside other folders, so a folder in your hand always lands *beside* what
-is under the pointer, never in it.
+not go inside other folders, so a folder in your hand always lands *beside*
+another folder, never in it — over the middle of another folder nothing is
+offered at all.
 
-**A folder header is three targets, not two.** Its middle files a layer into the
-folder — the common case, so it is the part you get by aiming at the row. The
-top and bottom quarters put the layer above or below the whole folder instead,
-which is how you get a layer to sit just outside a folder without hunting for
-whatever row happens to be next to it.
+**Dropping a layer on a folder header files it into the folder**, at the top.
+The top quarter of the header puts it just *above* the folder instead. On an
+open folder the rest of the header is "inside", because directly under the
+header is the top of the folder. On a collapsed folder, whose layers are hidden,
+the bottom quarter puts the layer just *below* the folder. And when a folder is
+the very last thing in the docker — a transparent document has no paper under
+it — the bottom quarter of its last layer takes a layer out below the folder.
+
+A drop that would leave everything where it is does nothing at all: it is not
+an undo step and does not mark the document changed.
 
 **While you drag, two things tell you what will happen**: a small label under
 the pointer naming what you picked up, and a line on the row you are over
@@ -169,6 +223,19 @@ Your lines are never changed by this. A rigged layer decides where marks are
 *drawn*; the drawing stays exactly as you made it, so unrigging the layer
 returns it untouched. **Baking** a drawing freezes the pose into it and leaves
 the layer rigged, so the drawings you make afterwards still follow.
+
+**Drawing on a posed layer puts the mark where your pen was.** The layer may
+be standing in a pose when you draw on it; the new line lands under the pen and
+stays there, and it follows the rig from then on like everything else on the
+layer. Under the hood the line is stored in the rest pose so the rig can move
+it — you never see that. On a layer bound to *the whole skeleton*, a line you
+draw keeps the weights it was drawn with, measured against where the bones
+stood at the time, so it does not re-weight itself when the pose changes. One
+consequence worth knowing: if you later take that layer off the rig, lines
+carrying their own weights keep following it while the rest of the layer stops
+— unbind them too (or bake first) if you want the whole drawing to let go.
+Shapes, fills, gradients and pen paths land where you made them in the same
+way; a pen path keeps its points and loses its curve handles in the process.
 
 A layer's own choice beats its link's, so you can rig the effects layer to a
 different bone from the lines it is linked to.
@@ -451,6 +518,21 @@ nothing is how you select everything.
 **A selection belongs to its document.** Switch tabs and it stays behind;
 switch back and it is where you left it. A new document starts with nothing
 selected.
+
+**Transforming a rigged drawing moves what you see.** With the character
+standing in a pose, **Ctrl+T** shows the posed drawing under the handles, a box
+drawn over a posed line catches that line, and confirming moves the posed
+picture by exactly what you did to it — a straight line stays straight across a
+joint. The drawing stays rigged afterwards and keeps following the pose. The
+skeleton itself does not move with the transform; to move a whole character,
+grab a bone in pose mode instead. Three small limits: a transformed line loses
+any curve handles it had (the points are still exact, and a later fit brings
+the handles back); the band scale adds no extra points on its dividers to a
+posed drawing; and a point sitting exactly in a joint folded almost flat stays
+where it is, because there is no rest position that would put it where you
+dragged it without throwing it off in every other pose. A line made of only a
+few points that spans a joint gains points when it is transformed, so that it
+keeps its shape between them; drawn strokes already have plenty.
 
 ### Copying lines out, and pasting them back
 

@@ -63,6 +63,7 @@ public partial class MainViewModel
     /// </summary>
     public void SelectLayer(LayerRow row, bool toggle, bool range)
     {
+        _selectedGroupId = null;
         var rows = SelectableLayerRows();
         var target = row.Layer.Id;
 
@@ -114,6 +115,81 @@ public partial class MainViewModel
         RefreshLayerSelectionHighlights();
     }
 
+    // ---- a folder picked by its header ----------------------------------------
+
+    /// <summary>The folder whose header was clicked last, while that is still the latest pick.</summary>
+    private string? _selectedGroupId;
+
+    /// <summary>
+    /// The folder picked on its header, or null. A new layer goes inside it.
+    /// </summary>
+    /// <remarks>
+    /// Cleared by anything that picks a layer instead — a row click, a cel
+    /// click, the arrow-key walk — so it only ever describes the latest pick.
+    /// </remarks>
+    public LayerGroup? SelectedGroup =>
+        _selectedGroupId is { } id ? Scene.LayerGroups.FirstOrDefault(g => g.Id == id) : null;
+
+    /// <summary>
+    /// A click on a folder header: the folder becomes the pick, and its members
+    /// the selection, so the docker's verbs (hide, delete, new layer) act on
+    /// the folder the artist pointed at.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A header used to do nothing when clicked.</b> So "pick the folder,
+    /// then add a layer" added the layer beside whatever layer had been active
+    /// before — usually not in the folder at all.
+    /// </para>
+    /// <para>
+    /// The topmost member becomes active rather than none: a stroke needs
+    /// somewhere to land, and the top of the folder is where a new layer in it
+    /// goes too. Ctrl adds the folder's members to the selection, Shift takes
+    /// the run from the anchor to the folder, as on a layer row.
+    /// </para>
+    /// </remarks>
+    public void SelectGroup(GroupRow header, bool toggle, bool range)
+    {
+        var members = Scene.Layers.Where(l => l.GroupId == header.Group.Id).ToList();
+        if (members.Count == 0) return;
+        var top = members[^1];
+
+        if (range && _layerAnchorId is { } anchorId)
+        {
+            var items = LayerPanelItems.ToList();
+            var from = items.FindIndex(i => i is LayerRow r && r.Layer.Id == anchorId);
+            var to = items.IndexOf(header);
+            if (from >= 0 && to >= 0)
+            {
+                _selectedLayerIds.Clear();
+                for (var i = Math.Min(from, to); i <= Math.Max(from, to); i++)
+                {
+                    if (items[i] is LayerRow r) _selectedLayerIds.Add(r.Layer.Id);
+                }
+                foreach (var m in members) _selectedLayerIds.Add(m.Id);
+                _selectedGroupId = null;
+                ActivateWithinSelection(Scene.Layers.IndexOf(top));
+                RefreshLayerSelectionHighlights();
+                return;
+            }
+        }
+
+        if (!toggle) _selectedLayerIds.Clear();
+        foreach (var m in members) _selectedLayerIds.Add(m.Id);
+        _selectedGroupId = toggle ? null : header.Group.Id;
+        _layerAnchorId = top.Id;
+        ActivateWithinSelection(Scene.Layers.IndexOf(top));
+        RefreshLayerSelectionHighlights();
+    }
+
+    private void RefreshGroupSelectionHighlights()
+    {
+        foreach (var header in LayerPanelItems.OfType<GroupRow>())
+        {
+            header.IsSelected = header.Group.Id == _selectedGroupId;
+        }
+    }
+
     private void ActivateWithinSelection(int sceneIndex)
     {
         _selectingLayers = true;
@@ -141,6 +217,7 @@ public partial class MainViewModel
             return;
         }
         var id = sceneIndex >= 0 && sceneIndex < Scene.Layers.Count ? Scene.Layers[sceneIndex].Id : null;
+        _selectedGroupId = null;
         _selectedLayerIds.Clear();
         if (id is not null) _selectedLayerIds.Add(id);
         _layerAnchorId = id;
@@ -160,6 +237,7 @@ public partial class MainViewModel
             _layerAnchorId ??= Scene.Layers[active].Id;
         }
         foreach (var row in LayerRows) row.IsSelected = _selectedLayerIds.Contains(row.Layer.Id);
+        RefreshGroupSelectionHighlights();
         OnPropertyChanged(nameof(SelectedLayerCount));
         OnPropertyChanged(nameof(HasMultiLayerSelection));
     }

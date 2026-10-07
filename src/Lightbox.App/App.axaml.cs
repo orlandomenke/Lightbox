@@ -23,6 +23,11 @@ public sealed class App : Application
             // and a no-op on every machine where the churn does not happen.
             SubmenuCloseGrace.Install();
 
+            // A pen double-click on a rename ended the edit the moment it
+            // began: the pen's release, routed to the label it pressed, handed
+            // focus to the row. See the guard for the whole mechanism.
+            TextEditFocusGuard.Install();
+
             // The GPU probe writes one line about what this machine can do, and
             // it lives in Raster now, which has no log to write to. Wired here
             // rather than moved: writing a log file is an application's job.

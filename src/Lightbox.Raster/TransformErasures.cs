@@ -302,9 +302,15 @@ public static class TransformErasures
     /// already decided both halves' clips, and mapping again would move the
     /// travelling half's stencil twice.
     /// </param>
+    /// <param name="mover">
+    /// How a stroke's geometry travels, or null for the plain map — B381's
+    /// pose-space write-back for a rigged drawing. Every stroke this method
+    /// moves goes through it, the travelling half of a split one included.
+    /// </param>
     public static int TransformFrame(
         Frame frame, TransformOps.PointMap map, double sizeScale, Func<Stroke, bool> filter,
-        Func<Stroke, RegionClips?>? split = null, Func<string, string>? mapClip = null)
+        Func<Stroke, RegionClips?>? split = null, Func<string, string>? mapClip = null,
+        TransformOps.StrokeMover? mover = null)
     {
         var strokes = TransformOps.StrokesOf(frame);
         // Every filter decision is taken before anything moves: the region
@@ -350,7 +356,7 @@ public static class TransformErasures
 
                 var moved = stroke.Clone();
                 moved.ClipId = clips.Moved;
-                TransformOps.TransformStroke(moved, map, sizeScale);
+                TransformOps.TransformStroke(moved, map, sizeScale, mover: mover);
                 result.Add(moved);
                 count++;
                 continue;
@@ -363,7 +369,7 @@ public static class TransformErasures
                 // and nothing laid after.
                 result.Add(stroke.Clone());
             }
-            TransformOps.TransformStroke(stroke, map, sizeScale, mapClip);
+            TransformOps.TransformStroke(stroke, map, sizeScale, mapClip, mover);
             result.Add(stroke);
             count++;
         }

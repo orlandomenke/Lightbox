@@ -173,6 +173,10 @@ public class TimelineBugTests : BrushStateIsolated
     public void DeleteCel_RipplesTheRest()
     {
         var vm = Vm();
+        // A second drawing layer, so deleting on one row is a row pull. With a
+        // single drawing layer every selection is a column, and Delete and pull
+        // shortens the scene instead (Q196) — XsheetDeleteAndInsertTests.
+        vm.AddPaintedLayerCommand.Execute(null);
         var layer = vm.PaintLayer();
         for (var i = 1; i < 4; i++)
         {

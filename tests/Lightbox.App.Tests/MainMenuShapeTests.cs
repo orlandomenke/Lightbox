@@ -169,10 +169,9 @@ public class MainMenuShapeTests(ITestOutputHelper output) : BrushStateIsolated
         output.WriteLine(string.Join(" | ", animation.Select(i => i.Header)));
         Assert.Equal(
             ["_Play / pause", "P_revious key drawing", "_Next key drawing",
-             "Insert _keyframe", "Insert _breakdown", "Insert _inbetween frame",
+             "Insert _keyframe", "Insert _breakdown", "Insert _inbetween frame", "Insert blank _frame",
              "_Extend exposure (+1 hold)", "Re_duce exposure (−1 hold)",
-             "_Copy cel", "Cu_t cel", "Pa_ste cel", "C_lear cel", "Delete cel",
-             "Delete column (this frame, every layer)",
+             "_Copy cel", "Cu_t cel", "Pa_ste cel", "De_lete", "Delete and p_ull",
              "_Onion skin", "Keyed dra_wings only", "_Motion trail",
              "Set start frame", "Set end frame", "Clear playback range"],
             animation.Select(i => i.Header as string).ToList());

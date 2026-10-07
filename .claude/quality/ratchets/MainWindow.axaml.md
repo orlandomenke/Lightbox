@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4907
+budget: 4912
 
 ## Why it is here despite being XAML
 
@@ -309,3 +309,11 @@ leaves a number nobody can account for. So every reason above stays, and
   share menu shipped with nothing that could feed them, and the whole chain was
   reachable only from tests until somebody noticed. Sixteen lines is what it
   costs not to repeat that.
+
+- **4,907 → 4,912** (2026-10-07): **Copy layer / Paste layer** on the layer docker's
+  row menu and on the X-sheet's layer names. Seven lines over main (4,905): two
+  menu items on the row, and a three-line menu on the name button. Menu items
+  have nowhere else to live — this file's standing exception — and the feature
+  was asked for in exactly those two places. Everything else (the clipboard,
+  the focus routing for Ctrl+C/V, the refusal across documents) is in
+  `MainViewModel.LayerClipboard.cs` and `MainWindow.Workspace.cs`.
