@@ -281,6 +281,14 @@ short of it is filled with empties.
 | **Delete** | Delete | The drawings in the selected cels go and the cels become **holds**. Every slot stays, so nothing after them moves. |
 | **Delete and pull** | Shift+Delete | The selected cels are **removed** and the rest of each row is pulled back, padded with holds at the end, so the scene keeps its length and the other layers do not move. |
 
+**Delete and pull on empty cells after a layer's last drawing ends the scene
+at its last drawing.** On their own those cells cannot be pulled back — every
+row runs to the end of the scene — so the scene is trimmed instead: it now ends
+one frame after the last drawing on any layer, and every layer's empty cells
+past that point go with it. One undo puts them all back. If another layer still
+has a drawing on the last frame there is nothing to trim, and the status line
+says which layer.
+
 **Select the same frames on every layer and Delete and pull takes them out of
 the scene.** Every layer loses its cel at those frames, the whole sheet is
 pulled back, and the scene gets that many frames shorter — what you want when
