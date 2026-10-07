@@ -27,31 +27,7 @@
     <Style Selector="DockPanel.animationRow">
       <Setter Property="Margin" Value="16,0,0,0" />
     </Style>
-    <Style Selector="Button.cel">
-      <Setter Property="Background" Value="{StaticResource CelBrush}" />
-    </Style>
-    <!-- Frame-role colors: key (default), breakdown, inbetween -->
-    <Style Selector="Button.cel.breakdown">
-      <Setter Property="Background" Value="{StaticResource CelBreakdownBrush}" />
-    </Style>
-    <Style Selector="Button.cel.tween">
-      <Setter Property="Background" Value="{StaticResource CelTweenBrush}" />
-    </Style>
-    <!-- Past the end of the scene: hatched, so "no frame here" cannot be read
-         as "a frame with no drawing". Q89. -->
-    <Style Selector="Button.cel.virtualCell">
-      <Setter Property="Opacity" Value="0.35" />
-      <Setter Property="Background" Value="{StaticResource CelVirtualHatchBrush}" />
-    </Style>
-    <Style Selector="Button.cel.dim">
-      <Setter Property="Opacity" Value="0.45" />
-    </Style>
-    <Style Selector="Button.cel.current">
-      <Setter Property="Background" Value="{StaticResource CelCurrentBrush}" />
-    </Style>
-    <Style Selector="Button.cel.sel">
-      <Setter Property="Background" Value="{StaticResource CelSelectedBrush}" />
-    </Style>
+    <StyleInclude Source="avares://Lightbox.App/Styles/XsheetCells.axaml" />
     <Style Selector="GridSplitter">
       <Setter Property="Background" Value="{StaticResource BackgroundPrimaryBrush}" />
     </Style>
@@ -529,7 +505,8 @@
                   ToolTip.Tip="Mark the frame at the playhead as a key drawing" />
         <MenuItem Header="Insert _breakdown" Click="OnMenuInsertBreakdown" />
         <MenuItem Header="Insert _inbetween frame" Click="OnMenuInsertInbetween" />
-        <MenuItem Header="Insert blank _frame" Click="OnMenuInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n — the playhead's cel, or the selection" />
+        <MenuItem Header="Insert empt_y cell" Click="OnMenuInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n — the playhead's cel, or the selection" />
+        <MenuItem Header="Insert blank key_frame" Click="OnMenuInsertBlankKeyframe" ToolTip.Tip="Empty cels become keyframes with nothing drawn on them (I over the X-sheet) — the playhead's cel, or the selection" />
         <Separator />
         <MenuItem Header="_Extend exposure (+1 hold)" Click="OnMenuExtendExposure"
                   ToolTip.Tip="Hold the drawing under the playhead one frame longer" />
@@ -4805,7 +4782,8 @@
                                     <MenuItem Header="Insert breakdown frame" Click="OnInsertBreakdown" />
                                     <MenuItem Header="Insert inbetween frame" Click="OnInsertInbetweenFrame" />
                                   </MenuItem>
-                                  <MenuItem Header="Insert blank frame" Click="OnInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n" />
+                                  <MenuItem Header="Insert empty cell" Click="OnInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n" />
+                                  <MenuItem Header="Insert blank keyframe" Click="OnInsertBlankKeyframe" ToolTip.Tip="Empty cels become keyframes with nothing drawn on them (I)" />
                                   <!-- Absent rather than disabled when there is no rig, the
                                        camera's rule: a document that never made an armature
                                        is not offered a bone command it cannot use. -->

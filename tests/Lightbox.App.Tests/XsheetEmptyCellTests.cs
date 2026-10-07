@@ -73,8 +73,13 @@ public class XsheetEmptyCellTests
         // The resource existing proves nothing on its own; the failure this
         // guards is a brush defined and never referenced, which looks correct
         // in the palette and changes nothing on screen.
-        var xaml = File.ReadAllText(
+        // The cel styles live in their own file, included by the window, so
+        // both halves are checked: the style, and the include that makes it apply.
+        var window = File.ReadAllText(
             Path.Combine(RepoRoot(), "src/Lightbox.App/Views/MainWindow.axaml"));
+        Assert.Contains("avares://Lightbox.App/Styles/XsheetCells.axaml", window);
+        var xaml = File.ReadAllText(
+            Path.Combine(RepoRoot(), "src/Lightbox.App/Styles/XsheetCells.axaml"));
         var style = Regex.Match(
             xaml,
             @"<Style Selector=""Button\.cel\.virtualCell"">(.*?)</Style>",

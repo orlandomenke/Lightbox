@@ -55,7 +55,7 @@ warns about.
 | Arrows | Nudge the selected lines a pixel, ten with Shift (Arrow tool only) |
 | Ctrl (hold) | Borrow the eyedropper; let go and your tool comes back |
 | B, E, F, V, I (hold) | Tap to switch tools as always; **hold** one, use it, and let go to land back where you were |
-| I | Eyedropper — anywhere except the timeline, where it inserts a key |
+| I | Eyedropper — except over the timeline, where it inserts a key, and over the X-sheet, where it makes the selected empty cels blank keyframes |
 | Ctrl+Z / Ctrl+Y | Undo, redo — also **Edit ▸ Undo / Redo**, where the entry names the step it would take back |
 | Ctrl+Shift+Z | Redo, on its other key — both bindings work, and each can be remapped on its own |
 | Ctrl+T | Transform |

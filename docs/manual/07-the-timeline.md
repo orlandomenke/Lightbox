@@ -5,10 +5,11 @@
 
 **The everyday frame verbs are also on the Animation menu**, each aimed at the
 drawing under the playhead on the layer you are on: play/pause and flipping to
-the neighbouring keys, inserting a keyframe, breakdown, inbetween or blank
-frame, extending and reducing an exposure, the cel clipboard, Delete and Delete
-and pull, onion skin and motion trail, and the playback range. Delete, Delete
-and pull and Insert blank frame take the **selection** when there is one,
+the neighbouring keys, inserting a keyframe, breakdown or inbetween, inserting
+an empty cell or a blank keyframe, extending and reducing an exposure, the cel
+clipboard, Delete and Delete and pull, onion skin and motion trail, and the
+playback range. Delete, Delete and pull, Insert empty cell and Insert blank
+keyframe take the **selection** when there is one,
 wherever the playhead is. The cel's right-click menu stays the way
 to aim any of them at a *particular* cel — and keeps the dialogs (re-time,
 timing chart, markers), which need one to aim at.
@@ -260,9 +261,18 @@ an end — "walk", "run", "idle". That is what an engine calls an animation clip
 it is what lets one sprite sheet hold several animations. A tag can carry a note
 too, for when the remark is about the whole cycle rather than one drawing.
 
-Right-click a cel for: insert frame, insert blank frame, extend or reduce
-exposure, Delete, Delete and pull, copy, cut, paste, markers, and the playback
+Right-click a cel for: insert frame, insert empty cell, insert blank keyframe,
+extend or reduce exposure, Delete, Delete and pull, copy, cut, paste, markers, and the playback
 range.
+
+**What a cel can be.** A frame on a row either has a cel or it does not.
+A cel is either **empty** — a hold, showing the drawing before it, the way
+Krita does it — or it carries a drawing, and a drawing with nothing on it yet
+is a **blank** keyframe, the white cel. A drawing can be a keyframe, a
+breakdown or an inbetween; an empty cel has no type of its own, since what it
+shows is borrowed. Where there is no cel at all — past the end of the scene —
+the sheet is hatched. Every row runs to the end of the scene; a row that stops
+short of it is filled with empties.
 
 **Two deletes, named for what they leave behind.**
 
@@ -282,7 +292,7 @@ locked or sits in a locked folder, because removing the frame from the others wo
 step with it; and a scene is never shorter than one frame. The 🗑 on the
 timeline bar does the same for the frame under the playhead.
 
-**Insert blank frame** puts a hold *at* the cel: the new cel shows the drawing
+**Insert empty cell** puts a hold *at* the cel: the new cel shows the drawing
 before it, and the cel you clicked and the rest of its row move one frame
 later — how you make a drawing arrive a frame late without touching anything
 else. Select a run of three cels and three holds go in at the start of the run.
@@ -290,9 +300,20 @@ If the row runs past the end, the scene grows to fit, as extending an exposure
 does. Select the same frames on every layer and it is a column insert: every
 layer moves along, the paper stays put, and reference strips move with the
 frames. It has no default key; give it one in **Edit → Configure →
-Shortcuts**, where all three are listed under Timeline.
+Shortcuts**, where all four are listed under Timeline. (Before, this was
+called *Insert blank frame*; a key you gave it then still works.)
 
-Each of the three is one undo step, however many cels and layers it reached.
+**Insert blank keyframe — I over the X-sheet** — turns the selected empty
+cels into blank keyframes, in place: white cels with nothing drawn on them,
+ready for the next drawing, and nothing else on the row moves. Cels that
+already hold a drawing are left as they are; to start one of those blank,
+Delete it first. Past the end of the scene it grows the scene to reach the
+cel, as drawing there does. Over the Timeline docker I still inserts a key at
+the playhead, and everywhere else it is still the eyedropper. Drawing on an
+empty cel makes a blank keyframe for you on the first mark, with the setting
+**Drawing on a held cel** at its default.
+
+Each of the four is one undo step, however many cels and layers it reached.
 The keys answer only with the pointer over the X-sheet: over the canvas Delete
 still clears the selection, and over the Layers docker it still deletes a
 layer.
@@ -313,7 +334,7 @@ aimed at a cel that is *not* in the selection takes that cel alone, so
 right-clicking somewhere else is never a trap.
 
 The ones that change the length of a row — extend, reduce, Delete and pull,
-insert blank frame — work from
+insert empty cell — work from
 the **end of the row backwards**, so the frames they add or remove never shift
 the cels you picked further along. The re-timing commands treat a picked-out
 selection as **runs** rather than as one span: select cels 1, 2 and 5 and you

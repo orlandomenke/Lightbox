@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4917
+budget: 4894
 
 ## Why it is here despite being XAML
 
@@ -329,3 +329,8 @@ leaves a number nobody can account for. So every reason above stays, and
   extraction instead (the grid-mode dispatch moved to
   `CanvasControl.TransformCage.cs`), which is possible there and is not for a
   button that has to sit on the page an artist finds it on.
+- **4,917 → 4,894** when the X-sheet's cel styles (`Button.cel` and its role,
+  hatch, current and selected states) moved whole to `Styles/XsheetCells.axaml`,
+  included from the window's own styles so their precedence is unchanged. It
+  paid for the two *Insert blank keyframe* menu lines, which have to sit on the
+  Animation menu and the cel menu where an artist looks for them.

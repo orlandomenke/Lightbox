@@ -500,6 +500,10 @@ public partial class MainWindow
                 _vm.InsertBlankFrameAtPlayhead();
                 e.Handled = true;
                 break;
+            case "xsheet.insertBlankKeyframe":
+                _vm.InsertBlankKeyframeAtPlayhead();
+                e.Handled = true;
+                break;
             case "timeline.copyKeys":
                 _vm.CopySelectedTimelineKeys();
                 e.Handled = true;
