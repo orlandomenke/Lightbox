@@ -178,6 +178,13 @@ public sealed class ComposeRing : IDisposable
             foreach (var other in _buffers)
             {
                 if (!Behind(other)) continue;
+                // A buffer never drawn has no surface yet. Made here, so its
+                // first use is a copy of the composite rather than a whole
+                // recomposite: B402 removed the second publish per edit that
+                // used to prime it, and the first dab after an edit then paid
+                // the full canvas instead (DrawingRegionBaselineTests).
+                other.Surface ??= SKSurface.Create(_info)
+                    ?? throw new InvalidOperationException("Could not create compose surface.");
                 CopyForward(
                     other.Surface!, fresh, other.NeedsFull ? null : other.Stale, scale, transform, _origin);
                 other.Stale = null;
@@ -193,7 +200,6 @@ public sealed class ComposeRing : IDisposable
 
         bool Behind(Buffer b) =>
             !ReferenceEquals(b, _current)
-            && b.Surface is not null
             && b.IsFree
             && (b.NeedsFull || b.Stale is not null);
     }

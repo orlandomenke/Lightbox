@@ -739,6 +739,7 @@ public partial class MainViewModel
     private void AddFrame()
     {
         using var perf = PerfLog.Begin("frame.add");
+        using var held = HoldPublishes(); // the edit and the playhead it moves, one picture
         _editor.AddFrameAfter(CurrentFrameIndex);
         CurrentFrameIndex++;
     }
@@ -746,6 +747,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void DuplicateFrame()
     {
+        using var held = HoldPublishes();
         _editor.DuplicateFrame(CurrentFrameIndex);
         CurrentFrameIndex++;
     }

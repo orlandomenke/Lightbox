@@ -743,6 +743,7 @@ public partial class MainViewModel
     /// </remarks>
     public void DeleteCelAt(FrameCell cell)
     {
+        using var held = HoldPublishes(); // B402: the edit, the playhead and the layer it lands on, one picture
         var picks = OpPicks(cell);
         if (picks.Count == 0) return;
         if (DocumentEditor.ColumnsOf(Scene, picks.Select(p => (p.Layer.Id, p.Index))) is { } columns)
@@ -838,6 +839,7 @@ public partial class MainViewModel
     /// </summary>
     public void ClearCelAt(FrameCell cell)
     {
+        using var held = HoldPublishes();
         var picks = OpPicks(cell);
         // One cel and no drawing on it is worth saying so; a selection with a
         // hold or two in it is not, because deleting the rest still did something.
@@ -865,6 +867,7 @@ public partial class MainViewModel
     /// </remarks>
     public void InsertBlankFrameAt(FrameCell cell)
     {
+        using var held = HoldPublishes();
         var picks = OpPicks(cell);
         if (picks.Count == 0)
         {
@@ -908,6 +911,7 @@ public partial class MainViewModel
     /// </remarks>
     public void InsertBlankKeyframeAt(FrameCell cell)
     {
+        using var held = HoldPublishes();
         var picks = new List<(Layer Layer, int Index)>();
         foreach (var layerIndex in OpLayersFor(cell))
         {
@@ -981,6 +985,7 @@ public partial class MainViewModel
 
     public void CutCel(FrameCell cell)
     {
+        using var held = HoldPublishes();
         if (LayerOfCell(cell) is not { } layer) return;
         if (!CanEdit(layer, "cut a cel from it")) return;
         var cels = OpCelsOn(cell, cell.LayerIndex);
@@ -997,6 +1002,7 @@ public partial class MainViewModel
     /// <summary>Paste the copied cel(s) starting at the cell (holds paste as holds).</summary>
     public void PasteCel(FrameCell cell)
     {
+        using var held = HoldPublishes();
         if (_celClipboard is not { } clip)
         {
             AiStatus = "The cel clipboard is empty.";
@@ -1324,6 +1330,7 @@ public partial class MainViewModel
     /// </remarks>
     private void ForEachSelectedCel(FrameCell cell, string verb, Action<Layer, int> apply)
     {
+        using var held = HoldPublishes(); // extend and reduce exposure, across every picked cel
         foreach (var layerIndex in OpLayersFor(cell))
         {
             if (LayerAt(layerIndex) is not { } layer) continue;

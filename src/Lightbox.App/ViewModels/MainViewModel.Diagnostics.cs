@@ -95,6 +95,8 @@ public partial class MainViewModel
 
     private void OnDocumentChanged()
     {
+        // One publish for the whole listener, however many of its parts ask (B402).
+        using var held = HoldPublishes();
         // First, and above the scoped-edit return below: a stroke commit takes
         // that fast path and is exactly the edit the Edit menu must not miss.
         RefreshUndoRedo();

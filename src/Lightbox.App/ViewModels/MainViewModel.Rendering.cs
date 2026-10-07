@@ -1271,10 +1271,57 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Every publish since this view model was made. Each is a full-canvas
+    /// composite after a structural edit (~200 ms on the owner-shaped document),
+    /// so how many one edit pays is a number worth guarding.
+    /// </summary>
+    internal int PublishCount { get; private set; }
+
+    private int _publishHolds;
+    private bool _publishOwed;
+
+    /// <summary>
+    /// Until disposed, a publish only notes that the canvas is owed one; the
+    /// last hold to go makes it, once.
+    /// </summary>
+    /// <remarks>
+    /// An edit reaches the canvas through several hands — the listener on the
+    /// record, the playhead it moves, the active layer it picks — and each used
+    /// to publish. After a structural edit every publish composites the whole
+    /// canvas (~200 ms on the owner-shaped document, the performance lab), so an
+    /// X-sheet verb paid two or three and adding a frame three, for one picture.
+    /// Never during playback: a tick's publish is the frame, and holding it
+    /// would be a dropped frame.
+    /// </remarks>
+    internal PublishHold HoldPublishes()
+    {
+        _publishHolds++;
+        return new PublishHold(this);
+    }
+
+    internal readonly struct PublishHold(MainViewModel vm) : IDisposable
+    {
+        public void Dispose() => vm.ReleasePublishes();
+    }
+
+    private void ReleasePublishes()
+    {
+        if (--_publishHolds > 0 || !_publishOwed) return;
+        _publishOwed = false;
+        PublishSnapshot();
+    }
+
     public void PublishSnapshot(
         [System.Runtime.CompilerServices.CallerMemberName] string publisher = "")
     {
+        if (_publishHolds > 0 && !IsPlaying)
+        {
+            _publishOwed = true;
+            return;
+        }
         using var perf = PerfLog.Begin(IsPlaying ? "publish.play" : "publish", publisher);
+        PublishCount++;
         // B178: publishing outran drawing 1.5× in the field capture — 757
         // published against 339 ticks — and which of PublishSnapshot's 45 call
         // sites supply the surplus is a question for a counter, not a grep.
