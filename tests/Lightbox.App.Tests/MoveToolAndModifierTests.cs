@@ -138,6 +138,51 @@ public class MoveToolAndModifierTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void ACtrlDragDoesNotLeaveTheNextTransformOnTheWholeLayer()
+    {
+        // B403. The Ctrl-drag wrote its scope into the setting and nothing put
+        // it back, so the Ctrl+T after it moved every drawing on the layer
+        // while the artist was looking at one.
+        var vm = Vm();
+        vm.AddFrameCommand.Execute(null);
+        vm.CurrentFrameIndex = 0;
+        Draw(vm, 100, 100, 140, 120);
+        vm.CurrentFrameIndex = 1;
+        Draw(vm, 200, 200, 240, 220);
+        var layer = vm.PaintLayer();
+        var first = (Frame)layer.Cels[0].Frame!;
+        var second = (Frame)layer.Cels[1].Frame!;
+
+        vm.BeginMove(210, 210, wholeLayer: true);
+        vm.UpdateMove(260, 210, axisLock: false);
+        vm.EndMove();
+        var a = first.Strokes[^1].Points[0].X;
+        var b = second.Strokes[^1].Points[0].X;
+
+        Assert.Equal(TransformScope.ActiveCel, vm.TransformScope);
+        Assert.True(vm.BeginTransform());
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 30, 0);
+
+        Near(a, first.Strokes[^1].Points[0].X);       // frame 0: not on screen, not moved
+        Near(b + 30, second.Strokes[^1].Points[0].X);  // frame 1: the one in front of the artist
+    }
+
+    [AvaloniaFact]
+    public void APlainDragKeepsTheScopeTheArtistChose()
+    {
+        // B403's other half: a plain drag reset the setting to "this cel".
+        var vm = Vm();
+        Draw(vm, 100, 100, 140, 120);
+        vm.TransformScope = TransformScope.ActiveLayerAllFrames;
+
+        vm.BeginMove(120, 110, wholeLayer: false);
+        vm.UpdateMove(150, 110, axisLock: false);
+        vm.EndMove();
+
+        Assert.Equal(TransformScope.ActiveLayerAllFrames, vm.TransformScope);
+    }
+
+    [AvaloniaFact]
     public void MovingOneDrawingLeavesTheOthersWhereTheyAre()
     {
         var vm = Vm();
