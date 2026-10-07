@@ -483,7 +483,7 @@ public sealed partial class MainViewModel
             return null;
         }
         if (!CanEdit(ActiveLayer, "make a symbol")) return null;
-        if (PaintTargetOrKey() is not Frame source)
+        if (PaintTargetOrKey(editsWhatTheHoldShows: true) is not Frame source)
         {
             AiStatus = "Symbols can only be made on a painted layer.";
             return null;
@@ -1296,7 +1296,7 @@ public sealed partial class MainViewModel
         if (_placementDragKeyed is false && (Math.Abs(dx) > 1e-9 || Math.Abs(dy) > 1e-9))
         {
             _placementDragKeyed = true;
-            PaintTargetOrKey();
+            PaintTargetOrKey(editsWhatTheHoldShows: true);
         }
         // Moved live on the record, and put back by the undo step at the end if
         // the drag is abandoned. A placement is two numbers, so there is

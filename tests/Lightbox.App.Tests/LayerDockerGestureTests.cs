@@ -126,6 +126,38 @@ public class LayerDockerGestureTests(ITestOutputHelper output) : BrushStateIsola
         Assert.True(row.Layer.Visible, "the Ctrl+click flipped the eye instead of selecting");
     }
 
+    /// <summary>
+    /// B391: a pen Ctrl+tap that Windows Ink delivers twice — the pen, then its
+    /// emulated mouse — adds the row once rather than adding and removing it.
+    /// </summary>
+    /// <remarks>
+    /// Every test above clicks with one mouse, and was green while the artist,
+    /// on a pen, saw a Ctrl+click leave one row lit. The pen half is raised by
+    /// hand (the headless platform has no pen); the echo is the headless mouse,
+    /// so it takes the real route. The echo's clock is pinned so a slow runner
+    /// cannot stretch the pair apart.
+    /// </remarks>
+    [AvaloniaFact]
+    public void APenCtrlTapEchoedAsAMouseClickSelectsTheRowOnce()
+    {
+        var (window, vm) = Open();
+        window._selectionClickEcho = new Lightbox.App.Services.PenClickEcho(() => 0);
+        var row = ControlOf(window, RowOf(vm, "a"));
+        var at = Centre(window, row);
+
+        row.RaiseEvent(new PointerPressedEventArgs(
+            row, new Pointer(7, PointerType.Pen, true), window, at, 0,
+            new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed),
+            KeyModifiers.Control));
+        Pump();
+        output.WriteLine($"after the pen: {vm.SelectedLayerCount}");
+        Click(window, at, RawInputModifiers.Control);
+
+        output.WriteLine($"after its mouse echo: {vm.SelectedLayerCount}");
+        Assert.Equal(2, vm.SelectedLayerCount);
+        Assert.Contains(RowOf(vm, "a").Layer.Id, vm.SelectedLayerIds);
+    }
+
     [AvaloniaFact]
     public void ShiftClickOnTheReorderArrowsTakesTheRange()
     {

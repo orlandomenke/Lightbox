@@ -151,13 +151,16 @@ public class ScrubPastTheEndTests : BrushStateIsolated
         Draw(vm);
         Assert.Equal(9, vm.Doc.Scene.FrameCount);
         var keyed = (Frame)vm.PaintLayer().Cels[8].Frame!;
-        // B204 still holds out here: the cel this growth keyed carries what the
-        // gap was holding, so the mark is the only visible difference.
-        Assert.Equal(carried + 1, keyed.Strokes.Count);
+        // Q197: the cel this growth keyed is a hold, so under the default it
+        // starts blank — which is also what the canvas showed out here, so the
+        // mark is still the only visible difference. (Under "Start from a
+        // copy" it would carry the `carried` strokes the gap was holding, B204.)
+        Assert.Single(keyed.Strokes);
 
         vm.UndoCommand.Execute(null);
         Assert.Equal(9, vm.Doc.Scene.FrameCount);
-        Assert.Equal(carried, ((Frame)vm.PaintLayer().Cels[8].Frame!).Strokes.Count);
+        Assert.Empty(((Frame)vm.PaintLayer().Cels[8].Frame!).Strokes);
+        Assert.True(carried > 0, "the gap was holding a drawing, so blank is a real difference");
 
         vm.UndoCommand.Execute(null);   // the key
         vm.UndoCommand.Execute(null);   // the growth
