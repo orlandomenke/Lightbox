@@ -100,7 +100,7 @@ public static partial class Catalog
 
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("110,6,*") };
         grid.Children.Add(categories);
-        var scroll = new ScrollViewer { Content = page };
+        var scroll = new ScrollViewer { Content = page, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         Grid.SetColumn(scroll, 2);
         grid.Children.Add(scroll);
         return grid;
@@ -285,7 +285,7 @@ public static partial class Catalog
 
         var body = new Grid { ColumnDefinitions = new ColumnDefinitions("170,16,*,16,220"), Height = 420 };
         body.Children.Add(options);
-        var panelScroll = new ScrollViewer { Content = panel };
+        var panelScroll = new ScrollViewer { Content = panel, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         Grid.SetColumn(panelScroll, 2);
         body.Children.Add(panelScroll);
         Grid.SetColumn(scratch, 4);
