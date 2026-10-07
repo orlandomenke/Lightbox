@@ -1,0 +1,81 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Lightbox.App.Controls;assembly=Lightbox.App">
+  <!--
+    The corner set (Q203), and the ONE list of who gets which radius. Every
+    rounded thing names a role, never a number: container, control, control
+    inner, container inner, pill (Look.cs defines the five). A shape that is
+    not listed here, in a look file through a role key, or in Fluent's two
+    radius resources does not follow the set — the "Corners" story shows one
+    of everything side by side so a stray is visible at a glance.
+
+    Artwork stays square in every set: thumbnails, swatches, the canvas.
+  -->
+
+  <!-- ===== Containers ===== -->
+  <Style Selector="controls|Docker /template/ Border#PART_Frame">
+    <Setter Property="CornerRadius" Value="{StaticResource LookContainerRadius}" />
+  </Style>
+  <Style Selector="controls|CanvasOverlayBar /template/ Border#PART_Bar">
+    <Setter Property="CornerRadius" Value="{StaticResource LookContainerRadius}" />
+  </Style>
+  <Style Selector="FlyoutPresenter, MenuFlyoutPresenter, ContextMenu, ToolTip">
+    <Setter Property="CornerRadius" Value="{StaticResource LookContainerRadius}" />
+  </Style>
+
+  <!-- ===== Controls ===== -->
+  <Style Selector="Button, ToggleButton, TextBox, ComboBox, NumericUpDown">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+  </Style>
+  <Style Selector="Button /template/ ContentPresenter, ToggleButton /template/ ContentPresenter">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+  </Style>
+  <Style Selector="NumericUpDown /template/ TextBox">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+  </Style>
+  <Style Selector="NumericUpDown /template/ TextBox /template/ Border#PART_BorderElement">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+  </Style>
+  <Style Selector="Border.layerRow, Border.groupRow">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+  </Style>
+  <Style Selector="ListBox:not(.segmented):not(.tabs):not(.sectiontabs) > ListBoxItem">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+  </Style>
+  <Style Selector="ListBox:not(.segmented):not(.tabs):not(.sectiontabs) > ListBoxItem /template/ ContentPresenter">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+  </Style>
+
+  <!-- ===== Inside a control ===== -->
+  <Style Selector="CheckBox /template/ Border#NormalRectangle">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlInnerRadius}" />
+  </Style>
+
+  <!-- ===== Inside a container ===== -->
+  <Style Selector="MenuItem /template/ Border#PART_LayoutRoot">
+    <Setter Property="CornerRadius" Value="{StaticResource LookContainerInnerRadius}" />
+  </Style>
+  <Style Selector="ComboBoxItem">
+    <Setter Property="CornerRadius" Value="{StaticResource LookContainerInnerRadius}" />
+  </Style>
+  <Style Selector="ComboBoxItem /template/ ContentPresenter">
+    <Setter Property="CornerRadius" Value="{StaticResource LookContainerInnerRadius}" />
+  </Style>
+  <!-- The canvas bar's buttons sit inside the bar: see Lit.Styles. -->
+  <Style Selector="controls|CanvasOverlayBar Button /template/ ContentPresenter, controls|CanvasOverlayBar ToggleButton /template/ ContentPresenter">
+    <Setter Property="CornerRadius" Value="{StaticResource LookContainerInnerRadius}" />
+  </Style>
+
+  <!-- ===== Pills ===== -->
+  <!-- Badges are controls here, not pills (owner, 2026-10-07): they follow the
+       set with everything else, square in Square. -->
+  <Style Selector="Border.badge">
+    <Setter Property="CornerRadius" Value="{StaticResource LookControlRadius}" />
+  </Style>
+  <Style Selector="ToggleSwitch /template/ Border#OuterBorder, ToggleSwitch /template/ Border#SwitchKnobBounds">
+    <Setter Property="CornerRadius" Value="{StaticResource LookPillRadius}" />
+  </Style>
+  <Style Selector="Slider /template/ Thumb">
+    <Setter Property="CornerRadius" Value="{StaticResource LookPillRadius}" />
+  </Style>
+</Styles>

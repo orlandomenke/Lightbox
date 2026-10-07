@@ -2,6 +2,9 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Lightbox.App.Tests" />
+    <!-- The component gallery's app snapshot (docs/DESIGN-tokens.md) isolates
+         settings the way the tests do, through the same internal hooks. -->
+    <InternalsVisibleTo Include="Lightbox.Gallery" />
   </ItemGroup>
 
   <!--

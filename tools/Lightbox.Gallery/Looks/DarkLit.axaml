@@ -1,0 +1,94 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Dark, lit (Q203). Graphite islands on a near-black ground, no tint in the
+    greys, and no colour for "on": state is value and light. Same keys as
+    Palette.axaml, so this is a retune, not a new vocabulary. The six track
+    accents are left alone; they are data.
+
+    Brushes are restated beside their colours because Palette.axaml builds each
+    brush from its colour at load, inside its own file — overriding the colour
+    alone would leave the brush on the old value.
+  -->
+  <Color x:Key="BackgroundPrimary">#161618</Color>
+  <Color x:Key="BackgroundSecondary">#1A1A1C</Color>
+  <Color x:Key="SurfacePanel">#222225</Color>
+  <Color x:Key="SurfaceElevated">#2E2E32</Color>
+  <Color x:Key="TextPrimary">#ECECEA</Color>
+  <Color x:Key="TextSecondary">#9A9A97</Color>
+  <Color x:Key="TextOnAccent">#F2F2F0</Color>
+  <Color x:Key="AccentVioletDeep">#3C3C41</Color>
+
+  <SolidColorBrush x:Key="BackgroundPrimaryBrush" Color="#161618" />
+  <SolidColorBrush x:Key="BackgroundSecondaryBrush" Color="#1A1A1C" />
+  <SolidColorBrush x:Key="SurfacePanelBrush" Color="#222225" />
+  <SolidColorBrush x:Key="SurfaceElevatedBrush" Color="#2E2E32" />
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="#ECECEA" />
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="#9A9A97" />
+  <SolidColorBrush x:Key="TextOnAccentBrush" Color="#F2F2F0" />
+  <SolidColorBrush x:Key="AccentVioletDeepBrush" Color="#3C3C41" />
+  <SolidColorBrush x:Key="BorderBrush" Color="#232326" />
+  <SolidColorBrush x:Key="BorderStrongBrush" Color="#2E2E33" />
+
+  <!-- The primary action is plain full contrast; the gradient is the logo's. -->
+  <SolidColorBrush x:Key="AccentGradientBrush" Color="#ECECEA" />
+  <SolidColorBrush x:Key="LookPrimaryForegroundBrush" Color="#111112" />
+
+  <SolidColorBrush x:Key="SelectionBrush" Color="#FFFFFF" Opacity="0.08" />
+  <SolidColorBrush x:Key="SelectionWeakBrush" Color="#FFFFFF" Opacity="0.04" />
+  <SolidColorBrush x:Key="PressTintBrush" Color="#FFFFFF" Opacity="0.06" />
+  <!-- Hover is the active fill at half strength, in the same shape. -->
+  <SolidColorBrush x:Key="HoverTintBrush" Color="#FFFFFF" Opacity="0.065" />
+  <SolidColorBrush x:Key="GroupRowBrush" Color="#222225" />
+  <SolidColorBrush x:Key="CelBrush" Color="#2E2E32" />
+  <SolidColorBrush x:Key="FieldGroundBrush" Color="#161618" />
+  <SolidColorBrush x:Key="FieldGroundHoverBrush" Color="#1A1A1D" />
+
+  <!-- Light from above: the top edge of anything raised. -->
+  <SolidColorBrush x:Key="LookRimBrush" Color="#FFFFFF" Opacity="0.075" />
+  <SolidColorBrush x:Key="LookRimStrongBrush" Color="#FFFFFF" Opacity="0.14" />
+  <SolidColorBrush x:Key="LookGroundBrush" Color="#0B0B0C" />
+  <!-- The "on" fill inside the canvas bar: a lighter pane of the bar itself. -->
+  <SolidColorBrush x:Key="LookBarActiveBrush" Color="#FFFFFF" Opacity="0.13" />
+
+  <!-- Fluent's leaves, which do not follow the palette by themselves. -->
+  <StaticResource x:Key="TextControlBackground" ResourceKey="FieldGroundBrush" />
+  <StaticResource x:Key="TextControlBackgroundFocused" ResourceKey="FieldGroundBrush" />
+  <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent" />
+  <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#FFFFFF" Opacity="0.10" />
+  <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#FFFFFF" Opacity="0.22" />
+  <SolidColorBrush x:Key="ComboBoxBackground" Color="Transparent" />
+  <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="Transparent" />
+  <SolidColorBrush x:Key="SliderTrackFill" Color="#161618" />
+  <SolidColorBrush x:Key="SliderTrackValueFill" Color="#8E8E8B" />
+  <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#ACACA9" />
+  <SolidColorBrush x:Key="SliderThumbBackground" Color="#ECECEA" />
+  <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="#FFFFFF" />
+  <!--
+    Theme.axaml's aliases, restated. They were resolved against the shipped
+    palette when Theme.axaml loaded, so without these a hover still lit up in
+    the old violet-blue — the tint the first snapshots showed.
+  -->
+  <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#1C1C1F" />
+  <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#FFFFFF" Opacity="0.03" />
+  <StaticResource x:Key="TextControlPlaceholderForeground" ResourceKey="TextSecondaryBrush" />
+  <!-- A dropdown is text at rest, like the canvas bar: no well, no border;
+       hover gives it ground, open gives it the active fill. -->
+  <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#FFFFFF" Opacity="0.065" />
+  <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#FFFFFF" Opacity="0.13" />
+  <StaticResource x:Key="ButtonBackground" ResourceKey="SurfaceElevatedBrush" />
+  <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#37373C" />
+  <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#28282B" />
+  <SolidColorBrush x:Key="ButtonBorderBrush" Color="Transparent" />
+  <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+  <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+  <StaticResource x:Key="ToggleButtonBackground" ResourceKey="SurfaceElevatedBrush" />
+  <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#37373C" />
+  <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="Transparent" />
+  <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#2E2E32" />
+  <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="#2E2E32" />
+  <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#2E2E32" />
+  <!-- Menu items follow the same rule: hover half, active full, one shape. -->
+  <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#FFFFFF" Opacity="0.065" />
+  <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="#FFFFFF" Opacity="0.13" />
+</ResourceDictionary>
