@@ -380,6 +380,24 @@ public class FolderTreeTests
     }
 
     [Fact]
+    public void AFolderCannotBeMovedIntoItsOwnDescendantPastTheDepthCap_NorNestedPastIt()
+    {
+        var scene = Stack("paper", "a");
+        for (var i = 0; i <= 40; i++) Folder(scene, $"f{i}", parent: i == 0 ? null : $"f{i - 1}");
+        var before = FolderTree.Signature(scene);
+
+        Assert.NotNull(FolderTree.Move(scene, [Ref("f0", true)], Ref("f40", true), StackDrop.Into));
+        Assert.Equal(before, FolderTree.Signature(scene));
+
+        var shallow = Stack("paper", "a");
+        Folder(shallow, "deep0");
+        for (var i = 1; i < FolderTree.MaxDepth; i++) Folder(shallow, $"deep{i}", parent: $"deep{i - 1}");
+        Folder(shallow, "loose");
+        Assert.NotNull(FolderTree.Move(shallow, [Ref("loose", true)], Ref($"deep{FolderTree.MaxDepth - 1}", true), StackDrop.Into));
+        Assert.Null(FolderTree.Move(shallow, [Ref("a")], Ref($"deep{FolderTree.MaxDepth - 1}", true), StackDrop.Into));
+    }
+
+    [Fact]
     public void UngroupLeavesTheContentsInTheFoldersPlace_DeleteTakesThemWithIt()
     {
         var scene = Stack("paper", "a", "b");

@@ -416,6 +416,46 @@ public static class FolderTree
         ? Folder(scene, item.Id)
         : scene.Layers.FirstOrDefault(l => l.Id == item.Id);
 
+    /// <summary>
+    /// <paramref name="folder"/> and every folder above it, followed to the end
+    /// of the chain (a loop stops it) rather than to <see cref="MaxDepth"/>.
+    /// Only for the refusals in <see cref="Move"/>, which must not be fooled by
+    /// a chain longer than the cap.
+    /// </summary>
+    private static HashSet<LayerGroup> ChainOf(Scene scene, LayerGroup folder)
+    {
+        var find = Indexed(scene);
+        var chain = new HashSet<LayerGroup>(ReferenceEqualityComparer.Instance);
+        for (var f = folder; f is not null && chain.Add(f); f = find(f.ParentId)) { }
+        return chain;
+    }
+
+    /// <summary>How many folders deep anything put directly inside <paramref name="container"/> would be.</summary>
+    private static int Nesting(Scene scene, LayerGroup? container) =>
+        container is null ? 0 : ChainOf(scene, container).Count;
+
+    /// <summary>How many levels an item takes up: a layer none, a folder one plus its deepest content.</summary>
+    private static int Height(Scene scene, object item)
+    {
+        if (item is not LayerGroup folder) return 0;
+        var find = Indexed(scene);
+        var height = 1;
+        foreach (var g in scene.LayerGroups)
+        {
+            var d = 1;
+            var seen = new HashSet<LayerGroup>(ReferenceEqualityComparer.Instance);
+            for (var p = g; p is not null && seen.Add(p); p = find(p.ParentId), d++)
+            {
+                if (ReferenceEquals(p, folder))
+                {
+                    height = Math.Max(height, d);
+                    break;
+                }
+            }
+        }
+        return height;
+    }
+
     private static bool Inside(Scene scene, object item, LayerGroup folder) => item switch
     {
         Layer l => IsWithin(scene, l, folder),
@@ -454,7 +494,18 @@ public static class FolderTree
             .Distinct()
             .ToList();
         if (roots.Contains(onto)) return "";
-        if (folders.Any(f => Inside(scene, onto, f))) return "A folder can't go inside itself.";
+        // Walked to the end, not to MaxDepth: past the cap the bounded walk
+        // would not see a folder's own descendant, and the move would write
+        // a real loop into the file (the adversary's 41-deep case).
+        var destination = where == StackDrop.Into ? (LayerGroup)onto : ContainerOf(scene, onto);
+        if (destination is not null && folders.Any(f => ChainOf(scene, destination).Contains(f)))
+        {
+            return "A folder can't go inside itself.";
+        }
+        if (Nesting(scene, destination) + roots.Select(r => Height(scene, r)).DefaultIfEmpty(0).Max() > MaxDepth)
+        {
+            return $"Folders nest at most {MaxDepth} deep \u2014 that would go deeper.";
+        }
 
         var run = scene.Layers
             .Where(l => roots.Contains(l) || roots.OfType<LayerGroup>().Any(f => IsWithin(scene, l, f)))
