@@ -146,7 +146,11 @@ sealed class TransformSession
     /// there. The preview is not an edit (invariant 1), so an abandoned
     /// transform has to leave the document exactly as it found it.
     /// </remarks>
-    internal string? HeldFrameIdToKey { get; set; }
+    /// <remarks>
+    /// One entry per layer: with several layers picked, each can be standing on
+    /// a hold of its own, and each is keyed on its own row.
+    /// </remarks>
+    internal List<(string LayerId, string FrameId)> HeldToKey { get; } = [];
 
     /// <summary>Take the scope for a new gesture, replacing any previous one.</summary>
     internal void Begin(IEnumerable<Frame> frames, Func<Stroke, bool>? filter)
@@ -163,7 +167,7 @@ sealed class TransformSession
         Filter = null;
         MovingBounds = null;
         SnapBounds = null;
-        HeldFrameIdToKey = null;
+        HeldToKey.Clear();
         ClearPreview();
     }
 

@@ -733,9 +733,10 @@ public partial class MainViewModel
             case TransformScope.ActiveCel:
                 // The frame the drag SHOWS, which on a hold is the drawing the
                 // cel borrows. Where the commit WRITES is a different question,
-                // answered at commit time by HeldCelNeedingKey — see
-                // KeyHeldCelForCommit.
-                Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex));
+                // answered at commit time by HeldCelsNeedingKey — see
+                // KeyHeldCelsForCommit. Several layers picked in the docker
+                // means this frame on each of them, as Krita does.
+                foreach (var layer in CelScopeLayers()) Add(ExposureSheet.ExposedFrame(layer, CurrentFrameIndex));
                 break;
             case TransformScope.AllLayersAtFrame:
                 foreach (var layer in Scene.Layers)
@@ -1397,45 +1398,120 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// The drawing a single-cel gesture is borrowing, when a commit here must
-    /// key the cel instead of writing through to it. Null when the cel has a
-    /// drawing of its own, when the scope covers more than this cel, or when
-    /// the artist has asked to edit the held drawing.
+    /// The layers a "this cel" transform covers: the active layer, and — when
+    /// several are picked in the layers docker — every picked layer that is
+    /// visible and editable.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The owner's request, after Krita:</b> pick two layers, Ctrl+T, and the
+    /// box goes round both drawings at this frame and moves them together. It is
+    /// the same frame on each layer and nothing else — not animation-aware
+    /// (yet); <see cref="TransformScope.ActiveLayerAllFrames"/> and the cel range
+    /// are the scopes that reach across time.
+    /// </para>
+    /// <para>
+    /// The active layer is always one of the picks — the docker keeps it so —
+    /// and it moves whatever else is true of it, because the session already
+    /// refused to open on one that cannot be edited.
+    /// <b>Hidden and locked picks stay where they are</b> — a hidden layer moved
+    /// would be a change nobody saw, and a locked one refuses every edit — and
+    /// the status line names how many were left out
+    /// (<see cref="SayWhichSelectedLayersStayed"/>).
+    /// </para>
+    /// </remarks>
+    private List<Layer> CelScopeLayers()
+    {
+        if (ActiveLayer is not { } active) return [];
+        if (!HasMultiLayerSelection) return [active];
+        return SelectedLayers
+            .Where(l => ReferenceEquals(l, active) || (Scene.IsLayerVisible(l) && Scene.IsLayerEditable(l)))
+            .ToList();
+    }
+
+    /// <summary>Say so when picked layers were left out of a transform.</summary>
+    private void SayWhichSelectedLayersStayed()
+    {
+        if (TransformScope is not TransformScope.ActiveCel || ScopeIsPinnedToThisCel) return;
+        if (!HasMultiLayerSelection) return;
+        var left = SelectedLayerCount - CelScopeLayers().Count;
+        if (left > 0)
+        {
+            AiStatus = $"{left} picked layer{(left == 1 ? " is" : "s are")} hidden or locked and will not move.";
+        }
+    }
+
+    /// <summary>
+    /// The drawings a single-frame gesture is borrowing, one per layer, when a
+    /// commit here must key those cels instead of writing through to them.
+    /// Empty when every cel has a drawing of its own, when the scope covers more
+    /// than this frame, or when the artist has asked to edit the held drawing.
     /// </summary>
     /// <remarks>
     /// Asked when the session opens, because that is when the answer is true
     /// of what the artist is looking at; acted on at the commit, because that
     /// is when the record is allowed to change.
     /// </remarks>
-    private string? HeldCelNeedingKey()
+    private List<(string LayerId, string FrameId)> HeldCelsNeedingKey()
     {
-        if (TransformScope is not (TransformScope.ActiveCel or TransformScope.CelRange)) return null;
-        if (TransformScope is TransformScope.CelRange && CelSelection.Count > 0) return null;
-        if (DrawingOnAHold == HoldDrawing.EditTheHeldDrawing) return null;
-        if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
-        var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
-        if (layer.Cels[here].Frame is not null) return null; // a drawing of its own
-        return ExposureSheet.ExposedFrame(layer, here)?.Id;
+        if (TransformScope is not (TransformScope.ActiveCel or TransformScope.CelRange)) return [];
+        if (TransformScope is TransformScope.CelRange && CelSelection.Count > 0) return [];
+        if (DrawingOnAHold == HoldDrawing.EditTheHeldDrawing) return [];
+        // Pinned to the active cel by a line selection, whatever is picked.
+        List<Layer> layers = ScopeIsPinnedToThisCel || TransformScope is TransformScope.CelRange
+            ? [ActiveLayer]
+            : CelScopeLayers();
+        var held = new List<(string, string)>();
+        foreach (var layer in layers)
+        {
+            if (layer.Cels.Count == 0) continue;
+            var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
+            if (layer.Cels[here].Frame is not null) continue; // a drawing of its own
+            if (ExposureSheet.ExposedFrame(layer, here) is { } exposed) held.Add((layer.Id, exposed.Id));
+        }
+        return held;
     }
 
     /// <summary>
-    /// Key the held cel this gesture opened on and hand back the drawing the
-    /// commit should write to — the copy — or null when nothing needs keying.
+    /// Key the held cels this gesture opened on and hand back, by the id of the
+    /// drawing each was borrowing, the copy the commit should write to.
     /// </summary>
     /// <remarks>
     /// Re-checked rather than trusted: the playhead can move while a gizmo
     /// session is open, and keying a cel the artist has since left would put a
     /// drawing where they are standing now and still transform the one they
-    /// are not.
+    /// are not. The active layer keys through <c>PaintTargetOrKey</c>, as it
+    /// always did; another picked layer gets the same copy on its own row.
     /// </remarks>
-    private Frame? KeyHeldCelForCommit()
+    private Dictionary<string, Frame> KeyHeldCelsForCommit()
     {
-        if (_transform.HeldFrameIdToKey is not { } heldId) return null;
-        if (ActiveLayer is not { } layer || layer.Cels.Count == 0) return null;
-        var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
-        if (layer.Cels[here].Frame is not null) return null;                    // keyed since
-        if (ExposureSheet.ExposedFrame(layer, here)?.Id != heldId) return null; // a different hold
-        return PaintTargetOrKey(editsWhatTheHoldShows: true);
+        var keyed = new Dictionary<string, Frame>();
+        foreach (var (layerId, heldId) in _transform.HeldToKey)
+        {
+            if (Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { Cels.Count: > 0 } layer) continue;
+            var here = Math.Clamp(CurrentFrameIndex, 0, layer.Cels.Count - 1);
+            if (layer.Cels[here].Frame is not null) continue;                         // keyed since
+            if (ExposureSheet.ExposedFrame(layer, here) is not { } exposed || exposed.Id != heldId) continue;
+            if (ReferenceEquals(layer, ActiveLayer))
+            {
+                if (PaintTargetOrKey(editsWhatTheHoldShows: true) is { } own) keyed[heldId] = own;
+                continue;
+            }
+            var copy = KeyedCopyOf(exposed);
+            var index = here;
+            _editor.PerformDelta(
+                apply: doc =>
+                {
+                    if (CelIn(doc, layerId, index) is { } cel) cel.Frame = copy;
+                },
+                revert: doc =>
+                {
+                    if (CelIn(doc, layerId, index) is { } cel) cel.Frame = null;
+                },
+                label: "New drawing");
+            if (CelIn(Doc, layerId, index)?.Frame is { } landed) keyed[heldId] = landed;
+        }
+        return keyed;
     }
 
     /// <param name="baselineResample">
@@ -1456,12 +1532,10 @@ public partial class MainViewModel
         // The one point where a held cel becomes a drawing of its own. Before
         // this line the gesture has changed nothing — which is what lets Ctrl+T
         // followed by Escape leave the timeline as it was.
-        if (KeyHeldCelForCommit() is { } keyed)
+        var keyed = KeyHeldCelsForCommit();
+        for (var i = 0; i < frames.Count; i++)
         {
-            for (var i = 0; i < frames.Count; i++)
-            {
-                if (frames[i].Id == _transform.HeldFrameIdToKey) frames[i] = keyed;
-            }
+            if (keyed.TryGetValue(frames[i].Id, out var copy)) frames[i] = copy;
         }
         var filter = _transform.Filter;
         // The preview goes first, and not only for tidiness: it borrows the

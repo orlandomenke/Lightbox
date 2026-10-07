@@ -1027,7 +1027,8 @@ public partial class MainViewModel
         // guide. Set from the same value the gizmo is raised with below, so the
         // box that snaps and the box on screen cannot disagree.
         _transform.SnapBounds = bounds.Value;
-        _transform.HeldFrameIdToKey = HeldCelNeedingKey();
+        _transform.HeldToKey.AddRange(HeldCelsNeedingKey());
+        SayWhichSelectedLayersStayed();
         _transformLayers = [.. Scene.Layers];
         TransformActive = true;
         // The session's controls live in the Tool options docker now (Q70), so
@@ -1114,5 +1115,7 @@ public partial class MainViewModel
         : HasSelection ? "the selection"
         : HasStrokeSelection ? (Selection.SelectedStrokeIds.Count == 1
             ? "the selected line" : $"{Selection.SelectedStrokeIds.Count} selected lines")
+        : CelScopeLayers() is { Count: > 1 } layers && TransformScope is TransformScope.ActiveCel
+            ? $"{layers.Count} layers"
         : "this drawing";
 }

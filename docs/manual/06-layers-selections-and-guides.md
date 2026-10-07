@@ -779,6 +779,16 @@ document, and the box was drawn round this one.
 **Scope** decides what moves: this cel, all layers at this frame, a marked cel
 range, or the whole animation.
 
+**Pick several layers in the Layers docker first and Ctrl+T moves them
+together** — the box goes round the drawing at this frame on each picked layer,
+and one drag, scale or rotation moves them all, as in Krita. It is this frame
+only: the same drawing on each layer, not the frames before or after it. A
+picked layer that is hidden or locked stays where it is, and the status line
+says how many did. A picked layer that is holding an earlier drawing at this
+frame gets a drawing of its own when you apply, exactly as the layer you are
+on does, so the frames that borrowed it are left alone. The Move tool follows
+the same picks.
+
 **With a selection up, only what is inside it moves.** Draw a box across half a
 line, drag, and half the line goes — the half you boxed. The other half stays
 exactly where it was. It works with any of the selection shapes, and however
