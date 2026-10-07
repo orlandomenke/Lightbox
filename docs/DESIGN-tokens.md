@@ -80,6 +80,31 @@ status line masked: it carries live readings. The comparison must first catch a
 deliberate one-pixel break in a token the area introduced; for the dockers,
 `SizeDockerLabel` at 91 showed in 15 of the 44.
 
+**What the pixels do not reach, and what covers it.** The snapshot shows each
+docker and tool page in its default state on a fresh document. A selected bone,
+an armature, a populated effect stack, a camera, a text selection, an expanded
+section, a popup or a hover is never on screen. Those lines are covered by the
+second half of the evidence: every changed line pairs one-for-one with its old
+form, and differs only in an attribute value replaced by a token holding the same
+number and the same type. A static resource resolves to that number whether or
+not its element is visible. The adversary review checks the pairing by script,
+302 pairs for the dockers, and found no mismatch.
+
+## Left for step 3, from the docker review
+
+These are decisions rather than mechanics, so they stay literal and counted
+until the look sets them:
+
+- **One docker label width.** Two widths are in use today: `SizeDockerLabel` (90)
+  and `SizeDockerLabelWide` (100).
+- **One fixed field width.** 56, 68 and 72 are still literal, and EffectsPanel's
+  rows use 86-wide labels and 52-wide values (`EffectsPanel.axaml` ColumnDefinitions).
+- **Fewer icon sizes.** 8, 9, 10 and 11 are all in use.
+- **9 px text** (EffectsPanel shelf names and warnings) is below DESIGN.md's floor
+  of 10. It is a question, not a token.
+- **ScenePanel's depth row** (`*,58,90`) needs a role for its diagram and field
+  columns.
+
 ## What a hostile file could do
 
 Nothing new. Tokens are compiled resources in the app's own assembly, and no

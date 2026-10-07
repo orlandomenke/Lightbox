@@ -132,7 +132,7 @@
                         Background="{Binding Swatch}" VerticalAlignment="Center"
                         BorderBrush="{DynamicResource TextSecondaryBrush}" BorderThickness="1" />
                 <TextBox Grid.Column="2" Text="{Binding Value, Mode=TwoWay}"
-                         FontSize="{StaticResource TypeHint}" Margin="4,0" VerticalAlignment="Center" />
+                         FontSize="{StaticResource TypeHint}" Margin="{StaticResource RowColumnGap}" VerticalAlignment="Center" />
               </Grid>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
