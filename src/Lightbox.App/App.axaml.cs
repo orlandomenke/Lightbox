@@ -39,6 +39,11 @@ public sealed class App : Application
             Lightbox.Raster.Tips.TipCatalogue.Warm();
 
             var splash = new SplashWindow();
+            // Thumbnails render off the UI thread in the app (the performance lab
+            // measured 5.9 s of them inline on opening a 64-drawing document). The
+            // worker posts back through this window's dispatcher, captured here on
+            // the UI thread, never the ambient static from its own thread (B93).
+            Services.ThumbnailWorker.Post = action => splash.Dispatcher.Post(action);
             splash.Show();
             // Deliberately not desktop.MainWindow — see Startup.HandOffAsync.
 

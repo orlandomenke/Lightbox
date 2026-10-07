@@ -438,6 +438,7 @@ public partial class MainViewModel
         }
         _tileFrames.Invalidate(frameId);
         _thumbs.Invalidate(frameId);
+        _thumbWorker?.Invalidate(frameId);
         _stackBake.NoteFrameChanged(frameId);
     }
 
@@ -889,6 +890,7 @@ public partial class MainViewModel
         // worth of viewports across a document switch.
         _tileFlats.Clear();
         _thumbs.Clear();
+        _thumbWorker?.Flush();
         _stackBake.Reset();
         _prewarm.Flush();
         // Every bitmap a saved patch could be swapped into has just gone, so the

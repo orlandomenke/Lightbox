@@ -76,6 +76,19 @@ public sealed class ThumbnailCache
         return made;
     }
 
+    /// <summary>Whether a drawing's thumbnail is held.</summary>
+    public bool Holds(string frameId) => _thumbs.ContainsKey(frameId);
+
+    /// <summary>Hold a thumbnail made elsewhere — the background worker's. Returns it.</summary>
+    public Bitmap Put(string frameId, Bitmap made)
+    {
+        Renders++;
+        if (!_thumbs.ContainsKey(frameId)) _order.Enqueue(frameId);
+        _thumbs[frameId] = made;
+        while (_order.Count > MaxEntries) _thumbs.Remove(_order.Dequeue());
+        return made;
+    }
+
     /// <summary>Drop one drawing's thumbnail — its pixels changed.</summary>
     public void Invalidate(string frameId) => _thumbs.Remove(frameId);
 

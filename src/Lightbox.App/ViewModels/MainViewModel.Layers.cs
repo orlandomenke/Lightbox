@@ -1799,6 +1799,77 @@ public partial class MainViewModel
             outputScale: ThumbSourceScale(Scene.Width, Scene.Height),
             celIndex: celIndex);
 
+    private ThumbnailWorker? _thumbWorker;
+
+    /// <summary>
+    /// The background thumbnail renderer, when the app has turned it on — null in
+    /// the headless suite, which keeps the synchronous path.
+    /// </summary>
+    internal ThumbnailWorker? ThumbWorker =>
+        ThumbnailWorker.Post is { } post
+            ? _thumbWorker ??= new ThumbnailWorker(post, InstallThumbSource, () => QueueThumbRefresh(post))
+            : null;
+
+    private bool _thumbRefreshQueued;
+
+    /// <summary>One thumbnail refresh after the current batch of arrivals, however many asked.</summary>
+    private void QueueThumbRefresh(Action<Action> post)
+    {
+        if (_thumbRefreshQueued) return;
+        _thumbRefreshQueued = true;
+        post(() =>
+        {
+            _thumbRefreshQueued = false;
+            RefreshThumbnails();
+        });
+    }
+
+    /// <summary>
+    /// Whether a drawing's thumbnail source has to be made, and has been sent to
+    /// the worker instead — true means "not yet, it is on its way".
+    /// </summary>
+    /// <remarks>
+    /// Opening the owner-shaped document replayed 64 drawings for their
+    /// thumbnails on the UI thread, 5.9 s in one call (the performance lab).
+    /// A source already in the frame cache is still used at once.
+    /// </remarks>
+    private bool DeferThumbSource(Frame frame, int celIndex)
+    {
+        if (ThumbWorker is not { } worker || _thumbs.Holds(frame.Id)) return false;
+        var scale = ThumbSourceScale(Scene.Width, Scene.Height);
+        if (_cache.Holds(frame, Scene.Width, Scene.Height, scale, celIndex)) return false;
+        if (!FrameBitmapCache.CanCache(frame)) return false; // samples live: never cached, never deferred
+        worker.Request(frame, Scene.Width, Scene.Height, scale, celIndex);
+        return true;
+    }
+
+    /// <summary>
+    /// A source the worker made, still current: give every cell and layer row that
+    /// shows this drawing its picture, and offer the bitmap to the frame cache.
+    /// </summary>
+    private bool InstallThumbSource(ThumbnailWorker.Made made)
+    {
+        var id = made.Frame.Id;
+        var cellThumb = _thumbs.Put(id, ThumbnailRenderer.Render(made.Bitmap));
+        foreach (var row in LayerRows)
+        {
+            foreach (var cell in row.Cells)
+            {
+                if (ExposureSheet.FrameAtExactIndex(row.Layer, cell.Index)?.Id != id) continue;
+                cell.Thumb = cellThumb;
+                cell.ThumbFrameId = id;
+            }
+            if (ExposureSheet.ExposedFrame(row.Layer, CurrentFrameIndex)?.Id == id)
+            {
+                row.Thumb = ThumbnailRenderer.RenderChecker(made.Bitmap, 44, 26);
+                row.ThumbFrameId = id;
+                LayerThumbRenders++;
+            }
+        }
+        _dirtyThumbIds.Remove(id);
+        return _cache.InsertWarm(made.Frame, made.Width, made.Height, made.Scale, made.Cel, made.Bitmap);
+    }
+
     /// <summary>How the thumbnail cache is doing — B202's guard reads this.</summary>
     internal (int Hits, int Renders, int Count) ThumbnailTraffic =>
         (_thumbs.Hits, _thumbs.Renders, _thumbs.Count);
@@ -1834,6 +1905,14 @@ public partial class MainViewModel
                     && !_dirtyThumbIds.Contains(frame.Id)) continue;
 
                 var index = cell.Index;
+                // Off the UI thread when the app has turned that on: a cell whose
+                // source is not ready keeps the picture it has, or shows none,
+                // until the worker hands it back (InstallThumbSource).
+                if (DeferThumbSource(frame, index))
+                {
+                    if (cell.ThumbFrameId != frame.Id) cell.Thumb = null;
+                    continue;
+                }
                 cell.Thumb = _thumbs.Get(
                     frame.Id, () => ThumbnailRenderer.Render(ThumbSource(frame, index)));
                 cell.ThumbFrameId = frame.Id;
@@ -1881,6 +1960,11 @@ public partial class MainViewModel
                         || row.ThumbFrameId != frame.Id
                         || _dirtyThumbIds.Contains(frame.Id);
             if (!stale && row.Thumb is not null) continue;
+            if (DeferThumbSource(frame, CurrentFrameIndex))
+            {
+                if (row.ThumbFrameId != frame.Id) row.Thumb = null;
+                continue;
+            }
 
             var bmp = ThumbSource(frame, CurrentFrameIndex);
             row.Thumb = ThumbnailRenderer.RenderChecker(bmp, 44, 26);
