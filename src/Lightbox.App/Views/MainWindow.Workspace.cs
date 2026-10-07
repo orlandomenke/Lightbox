@@ -1103,6 +1103,16 @@ public partial class MainWindow
             e.Handled = true;
             return;
         }
+        // A right-click on a row that is already part of the selection opens its
+        // menu on the whole selection, as it does everywhere else; picking the row
+        // alone first would throw the rest away before the menu could use it.
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed
+            && e.KeyModifiers == KeyModifiers.None
+            && _vm.SelectedLayerIds.Contains(row.Layer.Id))
+        {
+            (sender as Control)?.Focus();
+            return;
+        }
         _vm.SelectLayer(
             row,
             toggle: e.KeyModifiers.HasFlag(KeyModifiers.Control),
@@ -1148,11 +1158,24 @@ public partial class MainWindow
     /// activate the layer alone and throw the rest of the selection away. A
     /// plain click is left to that button, as before.
     /// </remarks>
+    /// <summary>
+    /// Whether keyboard focus is somewhere only a layer can be meant: a row of the
+    /// layer docker, or the name of a layer on the X-sheet. A cel on the sheet is
+    /// not one, and neither is anywhere else.
+    /// </summary>
+    private bool LayerSurfaceHasFocus()
+    {
+        if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is not Visual focused) return false;
+        if (ReferenceEquals(focused, LayerList) || LayerList.IsVisualAncestorOf(focused)) return true;
+        return XsheetLayerList.IsVisualAncestorOf(focused)
+            && focused.FindAncestorOfType<Button>(includeSelf: true) is { } button
+            && button.Classes.Contains("layerName");
+    }
+
     private void OnXsheetLayerPressedTunnel(object? sender, PointerPressedEventArgs e)
     {
         var mods = e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift);
-        if (mods == KeyModifiers.None) return;
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        var point = e.GetCurrentPoint(this).Properties;
         if ((e.Source as Visual)?.FindAncestorOfType<Button>(includeSelf: true) is not { } button
             || !button.Classes.Contains("layerName")
             || button.DataContext is not LayerRow row)
@@ -1160,6 +1183,20 @@ public partial class MainWindow
             return;
         }
 
+        // A right-click picks the layer it is on unless that layer is already in
+        // the selection, in which case the menu that opens covers the lot. Not
+        // handled: the menu still has to open.
+        if (point.IsRightButtonPressed)
+        {
+            if (mods == KeyModifiers.None && !_vm.SelectedLayerIds.Contains(row.Layer.Id))
+            {
+                _vm.SelectLayer(row, toggle: false, range: false);
+            }
+            (button as Control).Focus();
+            return;
+        }
+
+        if (mods == KeyModifiers.None || !point.IsLeftButtonPressed) return;
         _vm.SelectLayer(row, toggle: mods.HasFlag(KeyModifiers.Control), range: mods.HasFlag(KeyModifiers.Shift));
         e.Handled = true;
     }

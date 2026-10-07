@@ -403,6 +403,14 @@ public sealed class ShortcutMap
             new("edit.cutLines", "Cut selected lines (never the cel)", "Edit", null),
             new("edit.pasteLines", "Paste lines onto a new layer", "Edit", null),
 
+            // No default gesture either, and for a different reason: Ctrl+C/V
+            // already reach these when a layer row or an X-sheet layer name has
+            // focus, because that is the one place the key can only mean a
+            // layer. Anywhere else the same keys are the cel's and the lines',
+            // so a default here would be a second owner of the gesture.
+            new("edit.copyLayers", "Copy the selected layers", "Edit", null),
+            new("edit.pasteLayers", "Paste the copied layers above the active one", "Edit", null),
+
             // No default gesture, for the reason the three above have none: it
             // is a one-way door, and a destructive act does not get a key
             // nobody asked for. It is here because until now it was in no

@@ -558,13 +558,18 @@ public partial class MainWindow
             // a reason the artist cannot see. Copying a cel while a marquee is
             // up is Ctrl+D first, or the timeline's own right-click menu, which
             // is always the cel whatever is selected.
+            // A layer row or an X-sheet layer name having focus is the one case
+            // where the key can only mean a layer, so it is checked first — the
+            // focus is the artist's own statement of what they are working on.
             case "timeline.copyCel":
+                if (LayerSurfaceHasFocus() && _vm.CopyLayers()) break;
                 if (!_vm.CopySelectedLines()) _vm.CopyCurrentCel();
                 break;
             case "timeline.cutCel":
                 if (!_vm.CutSelectedLines()) _vm.CutCurrentCel();
                 break;
             case "timeline.pasteCel":
+                if (LayerSurfaceHasFocus() && _vm.HasLayerClipboard && _vm.PasteLayers()) break;
                 // Paste asks which clipboard is NEWER rather than which has
                 // content: both can hold something at once, and the artist
                 // means the last thing they copied.
@@ -572,6 +577,12 @@ public partial class MainWindow
                 {
                     _vm.PasteCurrentCel();
                 }
+                break;
+            case "edit.copyLayers":
+                _vm.CopyLayers();
+                break;
+            case "edit.pasteLayers":
+                _vm.PasteLayers();
                 break;
             case "edit.copyLines":
                 _vm.CopySelectedLines();
