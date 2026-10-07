@@ -1281,9 +1281,21 @@ public partial class MainWindow : IFollowsUiScale
         }
 
         if (mods == KeyModifiers.None || !point.IsLeftButtonPressed) return;
-        _vm.SelectLayer(row, toggle: mods.HasFlag(KeyModifiers.Control), range: mods.HasFlag(KeyModifiers.Shift));
+        // B391: handled either way, so the echo cannot reach the button and
+        // activate the layer alone either.
+        if (!_selectionClickEcho.IsEcho(e.Pointer.Type, row.Layer.Id, mods))
+        {
+            _vm.SelectLayer(row, toggle: mods.HasFlag(KeyModifiers.Control), range: mods.HasFlag(KeyModifiers.Shift));
+        }
         e.Handled = true;
     }
+
+    /// <summary>
+    /// One for both lists: a pen tap on the docker is never echoed onto the
+    /// X-sheet, and sharing it costs nothing. Settable for a test that needs a
+    /// clock it controls.
+    /// </summary>
+    internal Services.PenClickEcho _selectionClickEcho = new();
 
 
     /// <summary>
@@ -1337,6 +1349,22 @@ public partial class MainWindow : IFollowsUiScale
         }
         if (row is null) return;
         if (onThumb && mods.HasFlag(KeyModifiers.Control)) return;
+
+        var selectionMods = mods & (KeyModifiers.Control | KeyModifiers.Shift);
+        var targetId = row.DataContext switch
+        {
+            LayerRow layerRow => layerRow.Layer.Id,
+            GroupRow groupRow => groupRow.Group.Id,
+            _ => null,
+        };
+        // B391: a pen tap arriving a second time as Windows Ink's mouse would
+        // toggle the row straight back out. Handled, so the row's own buttons
+        // do not take the echo instead.
+        if (targetId is not null && _selectionClickEcho.IsEcho(e.Pointer.Type, targetId, selectionMods))
+        {
+            e.Handled = true;
+            return;
+        }
 
         switch (row.DataContext)
         {
