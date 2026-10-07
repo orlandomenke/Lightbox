@@ -1249,6 +1249,7 @@ public sealed partial class CanvasControl : Control
             if (_txPerspective == value) return;
             if (value) { SeedQuadFromCorners(); TxDropGridModes(); }
             _txPerspective = value;
+            TxSettle();
             InvalidateVisual();
         }
     }
@@ -1264,6 +1265,7 @@ public sealed partial class CanvasControl : Control
         TxResetGridModes();
         _txDrag = TxDrag.None;
         SeedQuadFromCorners();
+        TxStartHistory();
         InvalidateVisual();
     }
 
@@ -1272,39 +1274,6 @@ public sealed partial class CanvasControl : Control
         _txActive = false;
         _txDrag = TxDrag.None;
         TxDropGridModes();
-        InvalidateVisual();
-    }
-
-    /// <summary>Flip in place around the (draggable) pivot — no translation.</summary>
-    public void MirrorTransformGizmo(bool horizontal)
-    {
-        if (!_txActive) return;
-        if (_txPerspective)
-        {
-            for (var i = 0; i < 4; i++)
-            {
-                if (horizontal) _txQuad[i * 2] = 2 * _txPivotX - _txQuad[i * 2];
-                else _txQuad[i * 2 + 1] = 2 * _txPivotY - _txQuad[i * 2 + 1];
-            }
-        }
-        else if (horizontal)
-        {
-            _txScaleX = -_txScaleX;
-        }
-        else
-        {
-            _txScaleY = -_txScaleY;
-        }
-        TransformGizmoChanged?.Invoke();
-        InvalidateVisual();
-    }
-
-    /// <summary>Back to identity (bounds, pivot and mode stay).</summary>
-    public void ResetTransformGizmo()
-    {
-        _txScaleX = 1; _txScaleY = 1; _txAngle = 0; _txDx = 0; _txDy = 0;
-        TxReseedShapes();
-        TransformGizmoChanged?.Invoke();
         InvalidateVisual();
     }
 
@@ -3413,6 +3382,7 @@ public sealed partial class CanvasControl : Control
         if (_txActive && _txDrag != TxDrag.None)
         {
             _txDrag = TxDrag.None;
+            TxSettle();
             e.Pointer.Capture(null);
             e.Handled = true;
             return;
@@ -3648,6 +3618,7 @@ public sealed partial class CanvasControl : Control
     public void CancelPointerGestures()
     {
         _panning = false;
+        TxEndHeldGesture();
         if (EndSymmetryDragIfAny()) return; // END rather than abandon — CanvasControl.Symmetry.cs says why
         if (_movingGuides)
         {

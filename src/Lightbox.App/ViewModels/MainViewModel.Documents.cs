@@ -47,6 +47,14 @@ public partial class MainViewModel
     private DocumentTab? _activeTab;
 
 
+    /// <summary>
+    /// Leaving the document is leaving the session's drawing: apply it while
+    /// the tab, editor, frame and layer are still the ones it was opened on.
+    /// From the Changing half because the edit marks the active tab dirty, and
+    /// by the Changed half that is already the tab being arrived at.
+    /// </summary>
+    partial void OnActiveTabChanging(DocumentTab? value) => ConfirmTransformBeforeLeaving();
+
     partial void OnActiveTabChanged(DocumentTab? value)
     {
         // Before the null return: a last tab closing must clear the docker's
