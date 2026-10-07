@@ -105,6 +105,7 @@ sealed class ReferenceViewImages(FrameBitmapCache frames)
     /// </remarks>
     internal string Render(ReferenceView view, int longEdge)
     {
+        using var hold = frames.HoldFetches(); // B392
         var passes = new List<RenderPass>();
         for (var layerIndex = 0; layerIndex < view.Layers.Count; layerIndex++)
         {

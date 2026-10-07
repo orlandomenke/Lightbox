@@ -200,69 +200,48 @@ public partial class MainViewModel
 
     private Bitmap ComposeNavigatorThumb(Scene scene, List<(Layer Layer, Frame Frame)> exposed)
     {
-        var held = new List<SKBitmap>(exposed.Count);
-        try
+        // Every cached bitmap the compose will read is pinned — the pass cels
+        // AND the shape masks, because a later fetch in this same loop can
+        // evict an earlier one. Pinned inside the fetch (B392): pinning after
+        // LayerShapes.Resolve returned left a masked, clipped layer's first
+        // mask free to be evicted by its second.
+        using var hold = _cache.HoldFetches();
+        var passes = new List<RenderPass>(exposed.Count);
+        for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {
-            var passes = new List<RenderPass>(exposed.Count);
-            void Hold(SKBitmap bmp)
+            var layer = scene.Layers[layerIndex];
+            if (!scene.IsLayerVisible(layer)) continue;
+            if (layer.IsAdjustment)
             {
-                _cache.Pin(bmp);
-                held.Add(bmp);
-            }
-            // Every cached bitmap the compose will read is pinned — the pass
-            // cels AND the shape masks, because a later fetch in this same
-            // loop can evict an earlier one, which is the whole reason the
-            // pin protocol exists.
-            void HoldShapes(IReadOnlyList<PassShape>? shapes)
-            {
-                if (shapes is null) return;
-                foreach (var shape in shapes) Hold(shape.Mask);
-            }
-            for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
-            {
-                var layer = scene.Layers[layerIndex];
-                if (!scene.IsLayerVisible(layer)) continue;
-                if (layer.IsAdjustment)
+                if (EffectPasses.AdjustmentPass(scene, layerIndex, CurrentFrameIndex, _cache) is { } adj)
                 {
-                    if (EffectPasses.AdjustmentPass(scene, layerIndex, CurrentFrameIndex, _cache) is { } adj)
-                    {
-                        HoldShapes(adj.Shapes);
-                        passes.Add(adj);
-                    }
-                    continue;
+                    passes.Add(adj);
                 }
-                if (Lightbox.Core.Timeline.ExposureSheet.ExposedFrame(layer, CurrentFrameIndex)
-                    is not { } frame)
-                {
-                    continue;
-                }
-                var shapes = LayerShapes.For(scene, layerIndex, CurrentFrameIndex);
-                if (shapes is { Count: 0 }) continue;
-                var bmp = _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex);
-                Hold(bmp);
-                var resolved = LayerShapes.Resolve(
-                    shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex);
-                HoldShapes(resolved);
-                passes.Add(new RenderPass(
-                    bmp, null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
-                    Shapes: resolved,
-                    Effect: EffectPasses.SelfFilter(layer, CurrentFrameIndex),
-                    Style: EffectPasses.SelfStyle(layer, CurrentFrameIndex)));
+                continue;
             }
-            if (EffectPasses.SceneStackPass(scene, CurrentFrameIndex) is { } grade) passes.Add(grade);
+            if (Lightbox.Core.Timeline.ExposureSheet.ExposedFrame(layer, CurrentFrameIndex)
+                is not { } frame)
+            {
+                continue;
+            }
+            var shapes = LayerShapes.For(scene, layerIndex, CurrentFrameIndex);
+            if (shapes is { Count: 0 }) continue;
+            passes.Add(new RenderPass(
+                _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex),
+                null, layer.Opacity, SceneRenderer.ToSkia(layer.BlendMode),
+                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex),
+                Effect: EffectPasses.SelfFilter(layer, CurrentFrameIndex),
+                Style: EffectPasses.SelfStyle(layer, CurrentFrameIndex)));
+        }
+        if (EffectPasses.SceneStackPass(scene, CurrentFrameIndex) is { } grade) passes.Add(grade);
 
-            using var image = SceneRenderer.Compose(
-                scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));
-            using var bitmap = SKBitmap.FromImage(image);
-            var scale = NavigatorLongEdge / (double)Math.Max(1, Math.Max(scene.Width, scene.Height));
-            return ThumbnailRenderer.RenderChecker(
-                bitmap,
-                Math.Max(1, (int)Math.Round(scene.Width * scale)),
-                Math.Max(1, (int)Math.Round(scene.Height * scale)));
-        }
-        finally
-        {
-            foreach (var bmp in held) _cache.Unpin(bmp);
-        }
+        using var image = SceneRenderer.Compose(
+            scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));
+        using var bitmap = SKBitmap.FromImage(image);
+        var scale = NavigatorLongEdge / (double)Math.Max(1, Math.Max(scene.Width, scene.Height));
+        return ThumbnailRenderer.RenderChecker(
+            bitmap,
+            Math.Max(1, (int)Math.Round(scene.Width * scale)),
+            Math.Max(1, (int)Math.Round(scene.Height * scale)));
     }
 }

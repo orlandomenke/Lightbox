@@ -333,6 +333,9 @@ public static class SceneRenderer
     public static void DrawOne(
         SKSurface surface, SKCanvas canvas, RenderPass pass, double scale, SKMatrix? transform)
     {
+        // Every arm below reads the pass's pixels or masks natively, the
+        // adjustment and mesh arms included (B392).
+        RequireLive(pass);
         // An adjustment pass reads the surface it is being drawn onto, so
         // only a caller that owns the surface can draw it.
         if (pass.AdjustStack is not null)
@@ -480,6 +483,35 @@ public static class SceneRenderer
             Shader = shader,
         };
         canvas.DrawVertices(SKVertexMode.Triangles, mesh.Positions, mesh.Texs, null, mesh.Indices, paint);
+    }
+
+    /// <summary>
+    /// Refuse a pass whose pixels have already been freed.
+    /// </summary>
+    /// <remarks>
+    /// <b>B392: a disposed bitmap has a zero handle, and Skia dereferences it
+    /// natively.</b> That is an access violation, which ends the process before
+    /// any of the app's own crash reporting runs — the owner saw a freeze, then
+    /// nothing, and lost unsaved work. A managed exception here costs one
+    /// comparison per pass and turns the same bug into one that is reported,
+    /// and that a test can catch without taking the test host down with it.
+    /// </remarks>
+    public static void RequireLive(RenderPass pass)
+    {
+        if (pass.Bitmap is { } bmp && bmp.Handle == IntPtr.Zero)
+        {
+            throw new ObjectDisposedException(
+                nameof(RenderPass.Bitmap), "A render pass's bitmap was freed before it was drawn.");
+        }
+        if (pass.Shapes is not { } shapes) return;
+        for (var i = 0; i < shapes.Count; i++)
+        {
+            if (shapes[i].Mask.Handle == IntPtr.Zero)
+            {
+                throw new ObjectDisposedException(
+                    nameof(PassShape.Mask), "A render pass's mask was freed before it was drawn.");
+            }
+        }
     }
 
     private static void DrawPass(SKCanvas canvas, RenderPass pass)
@@ -988,6 +1020,7 @@ public static class SceneRenderer
                 "B309: a shaped or filtered pass reached the tiled compositor, "
                 + "which cannot draw one — the tile-native gate has regressed.");
             if (pass.Bitmap is null && pass.SourceFrame is null) continue;
+            RequireLive(pass); // B392: this route runs on the render thread, after the publish
 
             var alpha = (byte)Math.Round(Math.Clamp(pass.Opacity, 0, 1) * 255);
             using var paint = new SKPaint

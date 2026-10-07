@@ -890,6 +890,7 @@ public partial class MainViewModel
             return;
         }
 
+        using var hold = _cache.HoldFetches(); // B392
         var passes = new List<RenderPass>(below.Count);
         foreach (var b in below)
         {
@@ -1425,6 +1426,9 @@ public partial class MainViewModel
     public string RenderFramePng(int frameIndex, int longEdge)
     {
         var scene = Scene;
+        // B392: the MCP render_frame tool can arrive mid-playback, when each
+        // fetch below would free the one before it.
+        using var hold = _cache.HoldFetches();
         var passes = new List<RenderPass>();
         for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {

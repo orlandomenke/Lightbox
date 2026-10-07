@@ -782,6 +782,7 @@ public static class SpriteSheetExporter
     private static SKImage ComposeFrame(
         Scene scene, FrameBitmapCache cache, int index, HashSet<string> skipLayerIds)
     {
+        using var hold = cache.HoldFetches(); // B392
         var passes = new List<RenderPass>();
         for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {
