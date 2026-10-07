@@ -62,11 +62,14 @@ public partial class MainViewModel
         // grabbed — the same way it is in Photoshop.
         if (!wholeLayer && BeginPlacementMove(x, y)) return true;
 
-        var scope = wholeLayer ? TransformScope.ActiveLayerAllFrames : TransformScope.ActiveCel;
-        // Assigned before the session starts, so the property's change handler
-        // has no live session to restart and simply records the scope.
-        TransformScope = scope;
-        if (!BeginTransform(gizmo: false)) return false;
+        // B403: the gesture's scope, not the artist's setting — it ends with
+        // the session (OnTransformActiveChanged) and the setting is untouched.
+        _moveScope = wholeLayer ? TransformScope.ActiveLayerAllFrames : TransformScope.ActiveCel;
+        if (!BeginTransform(gizmo: false))
+        {
+            _moveScope = null;
+            return false;
+        }
         _moveAnchor = (x, y);
         _moveDelta = default;
         AiStatus = wholeLayer
@@ -728,7 +731,7 @@ public partial class MainViewModel
             Add(ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex));
             return frames;
         }
-        switch (TransformScope)
+        switch (EffectiveTransformScope)
         {
             case TransformScope.ActiveCel:
                 // The frame the drag SHOWS, which on a hold is the drawing the
@@ -864,7 +867,13 @@ public partial class MainViewModel
     }
 
     /// <summary>The Edit menu's two entries say which history they step.</summary>
-    partial void OnTransformActiveChanged(bool value) => RefreshUndoRedo();
+    partial void OnTransformActiveChanged(bool value)
+    {
+        // However the session ended — release, Esc, a tool switch, a frame
+        // change — a move's own scope ends with it (B403).
+        if (!value) _moveScope = null;
+        RefreshUndoRedo();
+    }
 
     partial void OnCurrentFrameIndexChanging(int value) => ConfirmTransformBeforeLeaving();
 
@@ -1432,7 +1441,7 @@ public partial class MainViewModel
     /// <summary>Say so when picked layers were left out of a transform.</summary>
     private void SayWhichSelectedLayersStayed()
     {
-        if (TransformScope is not TransformScope.ActiveCel || ScopeIsPinnedToThisCel) return;
+        if (EffectiveTransformScope is not TransformScope.ActiveCel || ScopeIsPinnedToThisCel) return;
         if (!HasMultiLayerSelection) return;
         var left = SelectedLayerCount - CelScopeLayers().Count;
         if (left > 0)
@@ -1454,11 +1463,12 @@ public partial class MainViewModel
     /// </remarks>
     private List<(string LayerId, string FrameId)> HeldCelsNeedingKey()
     {
-        if (TransformScope is not (TransformScope.ActiveCel or TransformScope.CelRange)) return [];
-        if (TransformScope is TransformScope.CelRange && CelSelection.Count > 0) return [];
+        var scope = EffectiveTransformScope;
+        if (scope is not (TransformScope.ActiveCel or TransformScope.CelRange)) return [];
+        if (scope is TransformScope.CelRange && CelSelection.Count > 0) return [];
         if (DrawingOnAHold == HoldDrawing.EditTheHeldDrawing) return [];
         // Pinned to the active cel by a line selection, whatever is picked.
-        List<Layer> layers = ScopeIsPinnedToThisCel || TransformScope is TransformScope.CelRange
+        List<Layer> layers = ScopeIsPinnedToThisCel || scope is TransformScope.CelRange
             ? [ActiveLayer]
             : CelScopeLayers();
         var held = new List<(string, string)>();

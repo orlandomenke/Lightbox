@@ -795,7 +795,9 @@ docker cancels the transform instead — a row is a different state of the
 document, and the box was drawn round this one.
 
 **Scope** decides what moves: this cel, all layers at this frame, a marked cel
-range, or the whole animation.
+range, or the whole animation. The **Move** tool does not read or change it — a
+plain drag moves this drawing and a **Ctrl**-drag every drawing on the layer,
+for that drag only — so the scope you set is the scope your next Ctrl+T gets.
 
 **Pick several layers in the Layers docker first and Ctrl+T moves them
 together** — the box goes round the drawing at this frame on each picked layer,
