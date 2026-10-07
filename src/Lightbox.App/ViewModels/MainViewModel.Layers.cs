@@ -1918,6 +1918,14 @@ public partial class MainViewModel
     /// </summary>
     private void RefreshThumbnails()
     {
+        // Inside a publish hold, after the canvas: the lab's A/B of B402 found
+        // the held publish waiting behind this, so the picture came ~100 ms
+        // later than when each verb published first. Several asks become one.
+        if (_publishHolds > 0)
+        {
+            _thumbsOwed = true;
+            return;
+        }
         using var perf = PerfLog.Begin("thumbnails");
         foreach (var row in LayerRows)
         {

@@ -1280,6 +1280,7 @@ public partial class MainViewModel
 
     private int _publishHolds;
     private bool _publishOwed;
+    private bool _thumbsOwed;
 
     /// <summary>
     /// Until disposed, a publish only notes that the canvas is owed one; the
@@ -1307,9 +1308,19 @@ public partial class MainViewModel
 
     private void ReleasePublishes()
     {
-        if (--_publishHolds > 0 || !_publishOwed) return;
-        _publishOwed = false;
-        PublishSnapshot();
+        if (--_publishHolds > 0) return;
+        // The canvas first, then the thumbnails: the picture the artist is
+        // waiting for is not made to queue behind the docker's.
+        if (_publishOwed)
+        {
+            _publishOwed = false;
+            PublishSnapshot();
+        }
+        if (_thumbsOwed)
+        {
+            _thumbsOwed = false;
+            RefreshThumbnails();
+        }
     }
 
     public void PublishSnapshot(
