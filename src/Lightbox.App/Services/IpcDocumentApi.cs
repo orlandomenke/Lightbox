@@ -70,6 +70,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 "create_folder" => CreateFolder(request),
                 "move_to_folder" => MoveToFolder(request),
                 "group_layers" => GroupLayers(request),
+                "set_folder_shape" => SetFolderShape(request),
                 _ => Lab?.Invoke(request) ?? IpcProtocol.Response.Fail($"Unknown op \"{request.Op}\"."),
             };
         }
@@ -185,6 +186,9 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 g.Visible,
                 g.Locked,
                 Empty = !holding.Contains(g.Id),
+                // The layer the folder keeps the layers above inside (Q215);
+                // absent on a folder that keeps nothing inside.
+                g.ShapeLayerId,
             })
             .ToList();
     }
@@ -243,6 +247,23 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         if (id is null) return IpcProtocol.Response.Fail(refusal ?? "Those could not be grouped.");
         var folder = FolderTree.Folder(Vm.Doc.Scene, id)!;
         return IpcProtocol.Response.Success(new { FolderId = id, folder.Name, ParentId = folder.ParentId, Reordered = reordered });
+    }
+
+    /// <summary><c>set_folder_shape</c>: keep the layers above one inside it, or stop.</summary>
+    private IpcProtocol.Response SetFolderShape(IpcProtocol.Request request)
+    {
+        var p = Payload<FolderShapeRef>(request);
+        if (p.LayerId.Length == 0) return IpcProtocol.Response.Fail("Give the id of the layer to make the shape.");
+        if (Vm.ExternalSetFolderShape(p.LayerId, p.KeepInside, out var folderId) is { } refusal)
+            return IpcProtocol.Response.Fail(refusal);
+        var folder = FolderTree.Folder(Vm.Doc.Scene, folderId)!;
+        return IpcProtocol.Response.Success(new { FolderId = folderId, folder.ShapeLayerId });
+    }
+
+    private sealed class FolderShapeRef
+    {
+        public string LayerId { get; set; } = "";
+        public bool KeepInside { get; set; } = true;
     }
 
     private class FrameRef

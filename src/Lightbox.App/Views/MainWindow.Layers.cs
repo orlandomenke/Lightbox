@@ -258,6 +258,11 @@ public partial class MainWindow
         }
     }
 
+    private void OnLayerMenuFolderShape(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.SetFolderShape(row.Layer, !row.IsFolderShape);
+    }
+
     /// <summary>
     /// The Layers menu's pointer at the effects docker: add the adjustment
     /// layer through the docker's own command, and open the docker so its

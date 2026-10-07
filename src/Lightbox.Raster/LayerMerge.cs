@@ -42,8 +42,14 @@ public static class LayerMerge
     /// turn any drawing into pixels? Feeds the Q52 warning, which is shown
     /// before the merge and only when AI is enabled.
     /// </summary>
-    public static bool WouldBakePixels(Layer upper, Layer lower)
+    /// <remarks>
+    /// Pass <paramref name="scene"/> to count a folder's shape (Q215): an upper
+    /// layer carved by one that the lower is not carved by keeps its look
+    /// only by baking the carve in.
+    /// </remarks>
+    public static bool WouldBakePixels(Layer upper, Layer lower, Scene? scene = null)
     {
+        var folderCarved = scene is not null && FolderCarveIsLost(scene, upper, lower);
         var count = CelSpan(upper, lower);
         for (var t = 0; t < count; t++)
         {
@@ -51,7 +57,7 @@ public static class LayerMerge
             var below = ExposureSheet.ExposedFrame(lower, t);
             var above = ExposureSheet.ExposedFrame(upper, t);
             if (above is null && below is null) continue;
-            if (!PairIsLossless(upper, lower, below, above)) return true;
+            if (!PairIsLossless(upper, lower, below, above, folderCarved)) return true;
         }
         return false;
     }
@@ -63,6 +69,7 @@ public static class LayerMerge
     /// </summary>
     public static void MergeDown(Scene scene, Layer upper, Layer lower)
     {
+        var folderCarved = FolderCarveIsLost(scene, upper, lower);
         var count = CelSpan(upper, lower);
         var merged = new List<Cel>(count);
         for (var t = 0; t < count; t++)
@@ -74,7 +81,7 @@ public static class LayerMerge
             }
             var below = ExposureSheet.ExposedFrame(lower, t);
             var above = ExposureSheet.ExposedFrame(upper, t);
-            merged.Add(new Cel { Frame = MergedFrame(scene, upper, lower, below, above, t) });
+            merged.Add(new Cel { Frame = MergedFrame(scene, upper, lower, below, above, t, folderCarved) });
         }
         lower.Cels = merged;
         // An applying mask on the lower layer was baked into every merged
@@ -87,6 +94,67 @@ public static class LayerMerge
         // stack would apply it twice. A fully disabled stack was not baked
         // and stays, like a disabled mask.
         if (LiveStack(lower) is not null) lower.Effects = null;
+        // The shape layer merged into the one below: the folder's shape is the
+        // same pixels, now on the surviving layer, so the folder follows it.
+        foreach (var folder in scene.LayerGroups)
+        {
+            if (folder.ShapeLayerId == upper.Id) folder.ShapeLayerId = lower.Id;
+        }
+    }
+
+    /// <summary>
+    /// Is <paramref name="upper"/> kept inside a folder's shape (Q215) that
+    /// <paramref name="lower"/> is not — the upper layer merging into the shape
+    /// layer itself? Then the carve has to be baked, because the merged layer
+    /// is part of the shape and nothing carves it any more.
+    /// </summary>
+    /// <remarks>
+    /// Compares the innermost shaping folder only. An upper layer inside two
+    /// shapes merging into one inside just the outer bakes the inner one and
+    /// keeps the outer live — which is what the pair looked like.
+    /// </remarks>
+    private static bool FolderCarveIsLost(Scene scene, Layer upper, Layer lower)
+    {
+        var u = scene.Layers.IndexOf(upper);
+        var l = scene.Layers.IndexOf(lower);
+        if (u < 0 || l < 0) return false;
+        return LayerShapes.FolderShapingOf(scene, u) is { } folder
+            && !ReferenceEquals(LayerShapes.FolderShapingOf(scene, l), folder);
+    }
+
+    /// <summary>
+    /// The folder shape carving <paramref name="upper"/> at <paramref name="t"/>,
+    /// rendered: every member's drawing, each carved by its own mask, unioned —
+    /// what the compositor builds live.
+    /// </summary>
+    private static SKBitmap FolderUnion(Scene scene, Layer upper, int t)
+    {
+        var union = NewCanvas(scene);
+        var index = scene.Layers.IndexOf(upper);
+        if (LayerShapes.FolderShapingOf(scene, index) is not { } folder
+            || LayerShapes.FolderShapeOf(scene, folder, t) is not { } shape)
+        {
+            return union; // nothing shows in the shape: nothing of upper shows either
+        }
+        using var canvas = new SKCanvas(union);
+        Add(shape);
+        if (shape.Or is { } members)
+        {
+            foreach (var member in members) Add(member);
+        }
+        canvas.Flush();
+        return union;
+
+        void Add(LayerShapes.ShapeSpec member)
+        {
+            using var coverage = FrameRasterizer.Materialize(member.Frame, scene.Width, scene.Height, celIndex: t);
+            if (member.Carve is { } mask)
+            {
+                using var carve = FrameRasterizer.Materialize(mask, scene.Width, scene.Height);
+                Carve(coverage, carve, member.CarveInverted);
+            }
+            canvas.DrawBitmap(coverage, 0, 0);
+        }
     }
 
     /// <summary>Cels to walk: every index either layer keys, and at least one.</summary>
@@ -105,19 +173,20 @@ public static class LayerMerge
         || ExposureSheet.FrameAtExactIndex(lower, t) is not null;
 
     private static Frame? MergedFrame(
-        Scene scene, Layer upper, Layer lower, Frame? below, Frame? above, int t)
+        Scene scene, Layer upper, Layer lower, Frame? below, Frame? above, int t, bool folderCarved)
     {
         if (above is null && below is null) return null;
-        return PairIsLossless(upper, lower, below, above)
+        return PairIsLossless(upper, lower, below, above, folderCarved)
             ? ConcatenatedFrame(below, above)
-            : BakedFrame(scene, upper, lower, below, above, t);
+            : BakedFrame(scene, upper, lower, below, above, t, folderCarved);
     }
 
     /// <summary>
     /// Can this pair merge by appending the upper drawing's strokes after the
     /// lower's, with the render staying identical?
     /// </summary>
-    private static bool PairIsLossless(Layer upper, Layer lower, Frame? below, Frame? above)
+    private static bool PairIsLossless(
+        Layer upper, Layer lower, Frame? below, Frame? above, bool folderCarved)
     {
         // A mask on the lower layer is baked into every merged drawing —
         // including the ones the upper layer leaves untouched — because the
@@ -129,6 +198,9 @@ public static class LayerMerge
         // which runs the content → filter → carve → style pipeline (B286).
         if (LiveStack(upper) is not null || LiveStack(lower) is not null) return false;
         if (above is null) return true; // the lower drawing carries over untouched
+        // A folder's shape carved the upper drawing, and strokes cannot carry
+        // that carve onto a layer the shape no longer touches (Q215).
+        if (folderCarved) return false;
         // The upper layer's mask carves its render, and its clip carves it by
         // the lower's alpha; strokes carry neither. (A pair clipped to the
         // same deeper base keeps clipping after the merge, so that carve is
@@ -229,8 +301,11 @@ public static class LayerMerge
     /// and opacity, kept as the merged frame's pixel baseline.
     /// </summary>
     private static Frame BakedFrame(
-        Scene scene, Layer upper, Layer lower, Frame? below, Frame? above, int t)
+        Scene scene, Layer upper, Layer lower, Frame? below, Frame? above, int t, bool folderCarved)
     {
+        // Rendered before anything is merged: the shape includes the lower
+        // drawing as it stands, exactly as the compositor read it.
+        using var folderUnion = folderCarved && above is not null ? FolderUnion(scene, upper, t) : null;
         using var bitmap = below is null
             ? NewCanvas(scene)
             : FrameRasterizer.Materialize(below, scene.Width, scene.Height, celIndex: t);
@@ -271,6 +346,10 @@ public static class LayerMerge
             if (clipBase is not null)
             {
                 Carve(top, clipBase, inverted: false);
+            }
+            if (folderUnion is not null)
+            {
+                Carve(top, folderUnion, inverted: false);
             }
             ApplyFilter(top, Effects.EffectRegistry.StyleFor(LiveStack(upper), t));
             using var canvas = new SKCanvas(bitmap);

@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.ShapeBracket"
+             x:DataType="vm:LayerRow">
+  <!--
+    The folder-shape bracket (Q215): a line from the layers kept inside a
+    folder's shape down to the shape layer, where it lands on a dot. Krita's
+    inherit alpha has no picture at all, which is most of why it confuses —
+    here what carves what is drawn, and named in the tooltip.
+
+    Beside it, the warning a carve that is showing nothing owes the artist:
+    a clip with nothing below it in its folder, or a shape that is hidden.
+
+    A collaborator rather than more lines of MainWindow.axaml, for the reason
+    LinkBracket.axaml gives: the monolith ratchet, and self-contained chrome.
+  -->
+  <StackPanel Orientation="Horizontal">
+    <Panel Width="11" Margin="1,0,1,0" IsVisible="{Binding HasShapeMark}"
+           Background="Transparent" ToolTip.Tip="{Binding ShapeTip}">
+      <Path Stroke="{DynamicResource AccentAmberBrush}" StrokeThickness="1.5" IsVisible="{Binding IsKeptTop}"
+            Data="M 9,7 L 4,7 L 4,22" />
+      <Path Stroke="{DynamicResource AccentAmberBrush}" StrokeThickness="1.5" IsVisible="{Binding IsKeptMiddle}"
+            Data="M 4,0 L 4,22" />
+      <Panel IsVisible="{Binding IsFolderShape}">
+        <Path Stroke="{DynamicResource AccentAmberBrush}" StrokeThickness="1.5" Data="M 4,0 L 4,11" />
+        <Ellipse Width="6" Height="6" Margin="1,8,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                 Fill="{DynamicResource AccentAmberBrush}" />
+      </Panel>
+    </Panel>
+    <TextBlock Text="!" FontWeight="Bold" Margin="1,0,2,0" VerticalAlignment="Center"
+               Foreground="{DynamicResource StatusWarningBrush}"
+               IsVisible="{Binding HasShapeWarning}" ToolTip.Tip="{Binding ShapeWarning}" />
+  </StackPanel>
+</UserControl>

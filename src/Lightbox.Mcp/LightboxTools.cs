@@ -51,7 +51,7 @@ public static class LightboxTools
         "and the carve/effect state: hasMask, clipped, isAdjustment, " +
         "hasEffects — render_frame already shows all of them applied), and, " +
         "when there are any, the folders topmost first (id, name, parentId, " +
-        "visible, locked, empty). " +
+        "visible, locked, empty, and shapeLayerId when the folder keeps its layers inside one). " +
         "Call this first to orient yourself. It also reports which builds you " +
         "are talking to: appBuild is the running Lightbox, mcpBuild is this " +
         "server. If they disagree, or mcpBuild is missing entirely, this server " +
@@ -324,6 +324,20 @@ public static class LightboxTools
         [Description("Folder name; omit for the next free \"Folder n\"")] string? name = null,
         [Description("Allow gathering items that are apart (changes the picture); default false")] bool reorder = false) =>
         Text("group_layers", new { ids, name, reorder }, ct);
+
+    [McpServerTool(Name = "set_folder_shape"), Description(
+        "Make a layer its folder's shape: every layer ABOVE it in the same folder then " +
+        "shows only where it and the layers UNDER it in that folder have content, so " +
+        "shading and highlights stay inside the flat colours (Krita's inherit alpha, set " +
+        "once on the folder). The shape is everything up to and including that layer. " +
+        "keepInside=false releases the folder. The strokes are never cut: releasing " +
+        "shows them all again. Refused for a layer in no folder, or in a locked one. " +
+        "Returns folderId and shapeLayerId (absent once released). One undo step.")]
+    public static Task<string> SetFolderShape(
+        [Description("Layer id from get_scene; it must be inside a folder")] string layerId,
+        CancellationToken ct,
+        [Description("true to keep the layers above inside it (default), false to release the folder")] bool keepInside = true) =>
+        Text("set_folder_shape", new { layerId, keepInside }, ct);
 
     [McpServerTool(Name = "list_reference_views"), Description(
         "List the document's character sheets and their views (id, name, size). " +

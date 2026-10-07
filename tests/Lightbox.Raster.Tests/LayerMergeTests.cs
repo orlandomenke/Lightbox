@@ -274,6 +274,55 @@ public class LayerMergeTests
         Assert.True(second.GetPixel(100, 100).Alpha > 0, "the held lower bar still shows");
     }
 
+    [Fact]
+    public void ALayerKeptInsideAFolderShapeBakesCarvedWhenMergedIntoTheShape()
+    {
+        // Q215: skin (y 160) and hair (y 100, the shape) under a shade with bars
+        // at 100, 160 and 40. Merging the shade into the hair ends the carve —
+        // the merged layer is the shape now — so it is baked: the bars over
+        // either flat survive and the one over nothing goes.
+        var scene = TestScene();
+        var folder = new LayerGroup { Id = "group-character" };
+        scene.LayerGroups.Add(folder);
+        var skin = LayerOf(Key(Bar(160, "#2040c0")));
+        var hair = LayerOf(Key(Bar(100, "#2040c0")));
+        var shade = LayerOf(Key(Bar(100, "#c02040"), Bar(160, "#c02040"), Bar(40, "#c02040")));
+        foreach (var l in new[] { skin, hair, shade }) l.GroupId = folder.Id;
+        scene.Layers.AddRange([skin, hair, shade]);
+        folder.ShapeLayerId = hair.Id;
+
+        Assert.True(LayerMerge.WouldBakePixels(shade, hair, scene));
+        Assert.False(LayerMerge.WouldBakePixels(shade, hair), "without the scene, the folder cannot be seen");
+        LayerMerge.MergeDown(scene, shade, hair);
+        scene.Layers.Remove(shade);
+
+        using var merged = Render(hair, 0);
+        var overHair = merged.GetPixel(100, 100);
+        var overSkin = merged.GetPixel(100, 160);
+        Assert.True(overHair.Red > overHair.Blue, $"the shade over the hair survives ({overHair})");
+        Assert.True(overSkin.Alpha > 0 && overSkin.Red > overSkin.Blue, $"and over the skin, the other half of the union ({overSkin})");
+        Assert.Equal(0, merged.GetPixel(100, 40).Alpha); // over nothing: carved away
+        Assert.Equal(hair.Id, folder.ShapeLayerId);
+    }
+
+    [Fact]
+    public void MergingTheShapeLayerDownMovesTheFolderShapeWithIt()
+    {
+        var scene = TestScene();
+        var folder = new LayerGroup { Id = "group-character" };
+        scene.LayerGroups.Add(folder);
+        var skin = LayerOf(Key(Bar(160, "#2040c0")));
+        var hair = LayerOf(Key(Bar(100, "#2040c0")));
+        foreach (var l in new[] { skin, hair }) l.GroupId = folder.Id;
+        scene.Layers.AddRange([skin, hair]);
+        folder.ShapeLayerId = hair.Id;
+
+        // Both are the shape, so nothing is carved and nothing has to bake.
+        Assert.False(LayerMerge.WouldBakePixels(hair, skin, scene));
+        LayerMerge.MergeDown(scene, hair, skin);
+        Assert.Equal(skin.Id, folder.ShapeLayerId);
+    }
+
     private static Lightbox.Core.Effects.EffectStack StackOf(
         string kind, params (string Key, double Value)[] values)
     {

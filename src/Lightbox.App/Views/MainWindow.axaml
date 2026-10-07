@@ -3497,6 +3497,11 @@
                                       ToolTip.Tip="Composite this layer only where the layer below has content (Ctrl+Alt+G). Consecutive clipped layers share the first unclipped base — an animated matte is exactly this." />
                             <MenuItem Header="Release clipping" IsVisible="{Binding IsClipped}"
                                       Click="OnLayerMenuClip" />
+                            <MenuItem Header="Keep layers above inside this" IsVisible="{Binding !IsFolderShape}"
+                                      Click="OnLayerMenuFolderShape"
+                                      ToolTip.Tip="Every layer above this one in its folder shows only where this layer and the ones under it have content — paint shading and highlights without leaving the flats (Ctrl+Alt+Shift+G)." />
+                            <MenuItem Header="Stop keeping layers inside" IsVisible="{Binding IsFolderShape}"
+                                      Click="OnLayerMenuFolderShape" />
                             <Separator />
                             <MenuItem Header="In exports">
                               <MenuItem Header="Decide automatically" Click="OnLayerMenuExportAuto"
@@ -3542,6 +3547,7 @@
                         </Border.ContextMenu>
                         <DockPanel>
                           <views:LinkBracket DockPanel.Dock="Left" />
+                          <views:ShapeBracket DockPanel.Dock="Left" />
                           <Border Classes="clipBar" DockPanel.Dock="Left" IsVisible="{Binding IsClipped}"
                                   Background="Transparent"
                                   ToolTip.Tip="Clipped to the layer below — this layer shows only where that one has content">

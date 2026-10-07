@@ -37,6 +37,33 @@ public sealed class IpcFolderTests(ITestOutputHelper output) : BrushStateIsolate
     }
 
     [AvaloniaFact]
+    public void AnAgentCanKeepAFoldersLayersInsideAShape()
+    {
+        // Q215 over the agent surface: refused on a loose layer, said in
+        // get_scene once set, one undo step, absent again once released.
+        var (vm, api, a, b) = Open();
+        var loose = api.Handle(Req("set_folder_shape", new { layerId = a }));
+        Assert.False(loose.Ok);
+        Assert.Contains("no folder", loose.Error);
+        Assert.DoesNotContain("\"shapeLayerId\"", Scene(api));
+
+        var grouped = api.Handle(Req("group_layers", new { ids = new[] { a, b }, name = "Hero" }));
+        Assert.True(grouped.Ok, grouped.Error);
+        var set = api.Handle(Req("set_folder_shape", new { layerId = a }));
+        Assert.True(set.Ok, set.Error);
+        Assert.Equal(a, set.Payload!.Value.GetProperty("shapeLayerId").GetString());
+        Assert.Contains($"\"shapeLayerId\":\"{a}\"", Scene(api));
+        Assert.StartsWith("Agent:", vm.UndoHistory.Rows.Single(r => r.IsCurrent).Label);
+
+        var released = api.Handle(Req("set_folder_shape", new { layerId = a, keepInside = false }));
+        Assert.True(released.Ok, released.Error);
+        Assert.DoesNotContain("\"shapeLayerId\"", Scene(api));
+
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(a, vm.Doc.Scene.LayerGroups.Single().ShapeLayerId);
+    }
+
+    [AvaloniaFact]
     public void ADocumentWithoutFoldersReadsAsItAlwaysDid()
     {
         var (_, api, _, _) = Open();

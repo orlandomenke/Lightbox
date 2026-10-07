@@ -1015,8 +1015,18 @@ public partial class MainViewModel
             // after the publish's own fetch holds are gone.
             if (passes[i].Shapes is { } shapes)
             {
-                for (var s = 0; s < shapes.Count; s++) Hold(shapes[s].Mask);
+                for (var s = 0; s < shapes.Count; s++) HoldShape(shapes[s]);
             }
+        }
+
+        // A folder's shape (Q215) draws from every member and each member's
+        // mask, and all of them are cache bitmaps the snapshot reads late.
+        void HoldShape(PassShape shape)
+        {
+            Hold(shape.Mask);
+            if (shape.Carve is { } carve) Hold(carve);
+            if (shape.Or is not { } members) return;
+            for (var m = 0; m < members.Count; m++) HoldShape(members[m]);
         }
 
         void Hold(SKBitmap bmp)

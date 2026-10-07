@@ -141,9 +141,20 @@ public sealed record StrokeOverlay(
 /// look is what it reveals or hides. <paramref name="ScratchErases"/> is the
 /// eraser's half: the dabs remove coverage instead of adding it.
 /// </param>
+/// <param name="Carve">
+/// A mask carving <paramref name="Mask"/> before it counts as coverage — a
+/// member of a folder's shape whose layer has a mask of its own.
+/// </param>
+/// <param name="Or">
+/// More coverage unioned with this shape's before it carves the pass (Q215):
+/// a folder's shape is every layer beneath, so it is this one <em>or</em> any
+/// of these. Members' own <see cref="Inverted"/> is not read.
+/// </param>
 public sealed record PassShape(
     SKBitmap Mask, bool Inverted = false,
-    SKBitmap? Scratch = null, bool ScratchErases = false);
+    SKBitmap? Scratch = null, bool ScratchErases = false,
+    SKBitmap? Carve = null, bool CarveInverted = false,
+    IReadOnlyList<PassShape>? Or = null);
 
 /// <param name="Shapes">
 /// Alpha shapes carving this pass — a layer mask, a clipping base — or null
@@ -504,14 +515,18 @@ public static class SceneRenderer
                 nameof(RenderPass.Bitmap), "A render pass's bitmap was freed before it was drawn.");
         }
         if (pass.Shapes is not { } shapes) return;
-        for (var i = 0; i < shapes.Count; i++)
+        for (var i = 0; i < shapes.Count; i++) RequireLive(shapes[i]);
+    }
+
+    private static void RequireLive(PassShape shape)
+    {
+        if (shape.Mask.Handle == IntPtr.Zero || shape.Carve is { Handle: 0 })
         {
-            if (shapes[i].Mask.Handle == IntPtr.Zero)
-            {
-                throw new ObjectDisposedException(
-                    nameof(PassShape.Mask), "A render pass's mask was freed before it was drawn.");
-            }
+            throw new ObjectDisposedException(
+                nameof(PassShape.Mask), "A render pass's mask was freed before it was drawn.");
         }
+        if (shape.Or is not { } members) return;
+        for (var i = 0; i < members.Count; i++) RequireLive(members[i]);
     }
 
     private static void DrawPass(SKCanvas canvas, RenderPass pass)
@@ -651,6 +666,21 @@ public static class SceneRenderer
             {
                 BlendMode = shape.Inverted ? SKBlendMode.DstOut : SKBlendMode.DstIn,
             };
+            if (shape.Or is not null || shape.Carve is not null)
+            {
+                // A folder's shape (Q215): the members' coverage unions first,
+                // each carved by its own mask, and the union carves the pass —
+                // inside the same clip as everything else here, so the work
+                // is bounded by the region being drawn.
+                canvas.SaveLayer(carve);
+                DrawCoverage(canvas, shape);
+                if (shape.Or is { } members)
+                {
+                    for (var i = 0; i < members.Count; i++) DrawCoverage(canvas, members[i]);
+                }
+                canvas.Restore();
+                continue;
+            }
             if (shape.Scratch is null)
             {
                 DrawLayer(canvas, shape.Mask, carve);
@@ -668,6 +698,24 @@ public static class SceneRenderer
             DrawLayer(canvas, shape.Scratch, dabs);
             canvas.Restore();
         }
+    }
+
+    /// <summary>One member's coverage, added to the union being built: its render, carved by its own mask.</summary>
+    private static void DrawCoverage(SKCanvas canvas, PassShape member)
+    {
+        if (member.Carve is null)
+        {
+            DrawLayer(canvas, member.Mask, null);
+            return;
+        }
+        canvas.SaveLayer();
+        DrawLayer(canvas, member.Mask, null);
+        using var carve = new SKPaint
+        {
+            BlendMode = member.CarveInverted ? SKBlendMode.DstOut : SKBlendMode.DstIn,
+        };
+        DrawLayer(canvas, member.Carve, carve);
+        canvas.Restore();
     }
 
     /// <summary>
