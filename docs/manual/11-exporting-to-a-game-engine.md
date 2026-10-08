@@ -376,6 +376,17 @@ frame number.** Drag a socket while parked on a held frame and it moves the
 drawing being held — the hold stays a hold. Re-time the sequence afterwards and
 every mark travels with its own drawing.
 
+**Transforming a drawing takes its marks along.** Move, scale or rotate a whole
+drawing — Ctrl+T, the Move tool, every frame of a layer, a ramp — and its
+sockets go exactly where the drawing goes, an aimed socket turning with it, and
+its collision rectangles scale and move with it. A rectangle cannot turn, so
+under a rotation it becomes the upright rectangle around where its corners went,
+a little larger than before; the status line says so when it happens, so check
+the hurtboxes. A transform limited to a selection moves lines, not the drawing,
+and leaves the marks where they are. A held frame that becomes a drawing of its
+own — transformed there, or drawn on with *Start from a copy* — keeps the
+sockets and rectangles it was showing through the hold.
+
 Handles stay the same size to your hand at every zoom, and an anchor has a
 slightly larger catch radius than a corner, because a point has no body to grab.
 

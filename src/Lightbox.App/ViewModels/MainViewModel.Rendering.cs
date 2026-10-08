@@ -306,18 +306,34 @@ public partial class MainViewModel
     /// picture because source-over is associative and every ghost of a layer
     /// is carved by the same mask.
     /// </remarks>
-    private SKBitmap? GhostSheetFor(Layer layer, IReadOnlyList<ScenePassBuilder.PassSpec> ghosts)
+    /// <param name="keepMatrices">
+    /// Draw each ghost through its own matrix into the sheet — the ramp's far
+    /// ghosts, which each stand at their own settled share and are drawn as an
+    /// untransformed sheet. False for the whole-layer drag, whose sheet is drawn
+    /// through the one shared matrix instead.
+    /// </param>
+    private SKBitmap? GhostSheetFor(Layer layer, IReadOnlyList<ScenePassBuilder.PassSpec> ghosts) =>
+        GhostSheetFor(layer, ghosts, keepMatrices: false);
+
+    private SKBitmap? GhostSheetFor(Layer layer, IReadOnlyList<ScenePassBuilder.PassSpec> ghosts, bool keepMatrices)
     {
         var hash = new HashCode();
+        hash.Add(keepMatrices);
         foreach (var g in ghosts)
         {
             hash.Add(g.CelFrame?.Id);
             hash.Add(g.CelIndex);
             hash.Add(g.Tint);
             hash.Add(g.Opacity);
+            if (keepMatrices && g.Matrix is { } m)
+            {
+                hash.Add(m.ScaleX); hash.Add(m.SkewX); hash.Add(m.TransX);
+                hash.Add(m.SkewY); hash.Add(m.ScaleY); hash.Add(m.TransY);
+            }
         }
         var key = hash.ToHashCode();
-        if (_transform.GhostSheet(layer.Id, key) is { } have) return have;
+        var slot = keepMatrices ? layer.Id + "|far" : layer.Id;
+        if (_transform.GhostSheet(slot, key) is { } have) return have;
 
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         var sheet = new SKBitmap(info);
@@ -328,11 +344,12 @@ public partial class MainViewModel
             foreach (var g in ghosts)
             {
                 passes.Add(ScenePassBuilder.Materialize(
-                    g with { Matrix = null, Shapes = null }, _cache, Scene.Width, Scene.Height));
+                    keepMatrices ? g with { Shapes = null } : g with { Matrix = null, Shapes = null },
+                    _cache, Scene.Width, Scene.Height));
             }
             SceneRenderer.ComposeInto(surface, passes, SKColors.Transparent);
         }
-        _transform.RememberGhostSheet(layer.Id, key, sheet);
+        _transform.RememberGhostSheet(slot, key, sheet);
         return sheet;
     }
 
@@ -456,6 +473,7 @@ public partial class MainViewModel
         // land on top of the repair. Flushing first removes the question.
         _prewarm.Flush();
         _idleWarmFull = false;
+        _holdTilesAfterStop = false;
         if (TryRestoreFrameRegion(frameId, repaintBounds, revision))
         {
             FrameRegionRestores++;
@@ -938,6 +956,7 @@ public partial class MainViewModel
         _stackBake.Reset();
         _prewarm.Flush();
         _idleWarmFull = false;
+        _holdTilesAfterStop = false;
         // Every bitmap a saved patch could be swapped into has just gone, so the
         // patches describe nothing (Q167).
         _markSnapshots.Clear();
@@ -980,6 +999,7 @@ public partial class MainViewModel
         // free here: warms are only ever requested while playing.
         _prewarm.Flush();
         _idleWarmFull = false;
+        _holdTilesAfterStop = false;
         _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
         var bitmap = _cache.Get(target, Scene.Width, Scene.Height);
         // Q167, and the ordering is the whole of it: this is the last moment the
@@ -1462,6 +1482,7 @@ public partial class MainViewModel
         // install a frame one publish after the one that needed it, which is the
         // whole of the benefit gone.
         TakeWarmedFrames();
+        ReleaseHeldTilesIfStillsReady();
 
         // B165, second half: if this frame would compose to exactly the pixels
         // already on screen, do not compose it.
@@ -1507,10 +1528,14 @@ public partial class MainViewModel
             IsPlaying, IsLightTable,
             HaveViewport: _publish.Viewport is { Width: > 0, Height: > 0 },
             Onion,
-            IsScrubbing,
+            // A stop holding the playback tiles composes as a scrub does
+            // (phase 3, Q218) — the only thing IsScrubbing changes in the
+            // builder is that tile mode is on.
+            IsScrubbing || _holdTilesAfterStop,
             // Depth answers to a camera move, so it applies exactly when the
             // composite is about to be drawn under the camera's matrix.
-            ThroughCamera: ViewThroughCamera);
+            ThroughCamera: ViewThroughCamera,
+            GhostsLater: _holdTilesAfterStop);
         var live = new ScenePassBuilder.LiveEdit(
             _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedPoints,
             _liveShape, _liveGradient, LiveTextPaint, _strokeBuilder.Current,
@@ -1536,7 +1561,13 @@ public partial class MainViewModel
             // Q216: whole drawings move, so their ghosts can move with them.
             GhostsFollow: _transform.Filter is null,
             TransformFrameIds: _transform.FrameIds,
-            GhostSheet: _passGhostSheet ??= GhostSheetFor);
+            GhostSheet: _passGhostSheet ??= GhostSheetFor,
+            // Q216: a ramp gives each drawing its own share of the box.
+            RampPreview: RampApplies ? _passRampPreview ??= RampPreviewAt : null,
+            // The owner's "near live, rest on pause": the far ghosts at the
+            // last pause's box, as one sheet between pauses.
+            RampSettledPreview: RampApplies ? _passRampSettledPreview ??= RampSettledPreviewAt : null,
+            RampFarSheet: RampApplies ? _passRampFarSheet ??= RampFarSheetFor : null);
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;
@@ -1972,8 +2003,107 @@ public partial class MainViewModel
         {
             Interlocked.Exchange(ref _prewarmDrainQueued, 0);
             TakeWarmedFrames();
+            if (ReleaseHeldTilesIfStillsReady()) PublishSnapshot();
             WarmAtIdle();
         });
+    }
+
+    // ---- stopping on the playback tiles (phase 3, Q218) -----------------------
+
+    /// <summary>
+    /// After Stop, the stopped frame keeps composing from the playback tiles
+    /// until the still canvas's own images of it are ready.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why.</b> Playback composes from tiles and the paused canvas from
+    /// document-sized bitmaps, so Stop used to render every drawing of the
+    /// stopped frame on the UI thread before showing it: 5.7-8.8 s on the
+    /// owner-shaped document (the lab, 2026-10-08). The tiles are already
+    /// there; the idle warm makes the stills behind them.
+    /// </para>
+    /// <para>
+    /// <b>The exception to "never leave a tiled still on screen", and its size.</b>
+    /// The two routes give identical bytes from 50% zoom up (measured on the
+    /// same frame at 100, 75, 60 and 50%). Further out the mip level resamples
+    /// differently: about 2-3% of pixel values at stroke edges, at most 64/255,
+    /// for the moment until the stills arrive — then the swap publishes the
+    /// exact still. The owner chose instant at every zoom over a brief
+    /// pause below 50% (Q218).
+    /// </para>
+    /// <para>
+    /// Held only when every tileable drawing of the frame is in the tile cache,
+    /// and only when there is a way to hand the stills back while idle
+    /// (<see cref="Services.ThumbnailWorker.Post"/>): without one nothing would
+    /// ever swap, and the tiled still would stay. Ended by the swap, an edit, a
+    /// stroke starting, the playhead moving, or play.
+    /// </para>
+    /// </remarks>
+    private bool _holdTilesAfterStop;
+
+    internal bool HoldingTilesAfterStop => _holdTilesAfterStop;
+
+    private bool CanHoldTilesOnStop()
+    {
+        if (Services.ThumbnailWorker.Post is null) return false;
+        if (Scene.Camera is not null || _publish.Viewport is not { Width: > 0, Height: > 0 }) return false;
+        if (Lightbox.Raster.EffectPasses.AnyLive(Scene)) return false;
+        foreach (var layer in Scene.Layers)
+        {
+            if (!Scene.IsLayerVisible(layer)) continue;
+            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
+            // A drawing the tiles cannot hold is composed from its bitmap either
+            // way, so it neither blocks the hold nor changes under it.
+            if (!TileFrameCache.CanTileFrame(frame, _cache.Rig.IsPosed(frame))) continue;
+            if (!_tileFrames.Holds(frame.Id)) return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// End the hold if the still canvas now has every image the paused picture
+    /// will draw — the frame and its onion ghosts (Q219) — true when it did.
+    /// </summary>
+    private bool ReleaseHeldTilesIfStillsReady()
+    {
+        if (!_holdTilesAfterStop || IsPlaying) return false;
+        var scene = Scene;
+        foreach (var (frame, cel) in StillImagesNeeded())
+        {
+            if (!_cache.Holds(frame, scene.Width, scene.Height, 1.0, cel)) return false;
+        }
+        _holdTilesAfterStop = false;
+        // The navigator kept its picture through the hold; the still is here now.
+        RefreshNavigatorThumb();
+        return true;
+    }
+
+    /// <summary>
+    /// The full-size images the paused picture at the playhead draws: each
+    /// visible layer's drawing, and its onion ghosts as the pass builder itself
+    /// would ask for them — asked of <see cref="ScenePassBuilder.GhostSpecsFor"/>
+    /// rather than restated, so the two cannot disagree about which ghosts.
+    /// </summary>
+    private IEnumerable<(Frame Frame, int Cel)> StillImagesNeeded()
+    {
+        var scene = Scene;
+        var still = new ScenePassBuilder.State(
+            CurrentFrameIndex, scene.Layers.Count > 0 ? ActiveLayer.Id : null,
+            IsPlaying: false, IsLightTable,
+            HaveViewport: _publish.Viewport is { Width: > 0, Height: > 0 },
+            Onion);
+        foreach (var layer in scene.Layers)
+        {
+            if (!scene.IsLayerVisible(layer)) continue;
+            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is { } frame && FrameBitmapCache.CanCache(frame))
+            {
+                yield return (frame, CurrentFrameIndex);
+            }
+            foreach (var ghost in ScenePassBuilder.GhostSpecsFor(layer, scene, still))
+            {
+                if (ghost.CelFrame is { } g && FrameBitmapCache.CanCache(g)) yield return (g, ghost.CelIndex);
+            }
+        }
     }
 
     /// <summary>The playback range from the playhead to its end, then from its start round to the playhead.</summary>
@@ -1999,6 +2129,17 @@ public partial class MainViewModel
             jobs ??= [];
             jobs.Add(new Services.WarmRequest(
                 frame, scene.Width, scene.Height, CurrentFrameIndex, Services.WarmProduct.Bitmap));
+        }
+
+        // Then the onion ghosts (Q219): the still picture draws them, so a
+        // stop's swap — and the next stroke — would otherwise render them on
+        // the UI thread. After the drawings, which a stroke needs first.
+        foreach (var (frame, cel) in StillImagesNeeded())
+        {
+            if (cel == CurrentFrameIndex) continue; // the drawings, queued above
+            if (_cache.Holds(frame, scene.Width, scene.Height, 1.0, cel)) continue;
+            jobs ??= [];
+            jobs.Add(new Services.WarmRequest(frame, scene.Width, scene.Height, cel, Services.WarmProduct.Bitmap));
         }
         return jobs;
     }

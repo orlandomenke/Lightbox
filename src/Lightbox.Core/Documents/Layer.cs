@@ -440,6 +440,16 @@ public sealed class Layer
     /// <summary>Whether this layer follows the rig at all. Derived; never serialized.</summary>
     [JsonIgnore] public bool IsRigged => BoneId is not null;
 
+    /// <summary>
+    /// A layer that follows the whole skeleton is weighted by joint (Q217):
+    /// rigid along each bone, blending only near where bones meet. True on
+    /// a layer bound to the whole skeleton by a build that has joint
+    /// weighting; null, and absent, on every layer bound before it — which
+    /// keeps the inverse-square weighting it was authored with, because the
+    /// owner chose that nothing already rigged poses differently.
+    /// </summary>
+    public bool? JointWeights { get; set; }
+
     /// <summary>Whether this layer follows the whole skeleton rather than one bone.</summary>
     [JsonIgnore] public bool FollowsWholeSkeleton => BoneId is { Length: 0 };
 

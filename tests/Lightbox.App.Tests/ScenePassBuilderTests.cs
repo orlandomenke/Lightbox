@@ -138,6 +138,118 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// <b>Q216's ramp:</b> each ghost shows the share of the cel it stands at,
+    /// so ghosts carry different matrices — and therefore are not merged into
+    /// one sheet, which would put them all at one share.
+    /// </summary>
+    [Fact]
+    public void UnderARampEachGhostShowsItsOwnShare()
+    {
+        var ink = LayerWith("Ink", 3);
+        var scene = SceneWith(ink);
+        using var cache = new FrameBitmapCache();
+        using var sheet = new SkiaSharp.SKBitmap(64, 48);
+        var live = new ScenePassBuilder.LiveEdit(
+            TransformPreview: SkiaSharp.SKMatrix.CreateTranslation(100, 0),
+            TransformFrames: [.. ink.Cels.Select(c => c.Frame!)], GhostsFollow: true,
+            TransformFrameIds: ink.Cels.Select(c => c.Frame!.Id).ToHashSet(),
+            GhostSheet: (_, _) => sheet,
+            RampPreview: (_, index) => SkiaSharp.SKMatrix.CreateTranslation(50 * index, 0));
+
+        var plan = ScenePassBuilder.Describe(scene, StateFor(scene, ink), cache, new TileFallbackTally(), live);
+        var ghosts = plan.Specs.Where(s => s.Tint is not null).ToList();
+
+        Assert.DoesNotContain(plan.Specs, s => ReferenceEquals(s.Bitmap, sheet));
+        Assert.Equal([0f, 100f], ghosts.Select(g => g.Matrix!.Value.TransX).Order().ToArray());
+    }
+
+    // ---- the owner's pick for the ramp's ghost cost: near live, rest on pause ----
+
+    /// <summary>
+    /// Five cels, playhead on the last, two ghosts back: the nearest (cel 3) is
+    /// one step away and the far one (cel 2) two.
+    /// </summary>
+    private static (Layer Ink, Scene Scene, ScenePassBuilder.State State) TwoBack()
+    {
+        var ink = LayerWith("Ink", 5);
+        var scene = new Scene { Width = 64, Height = 48, FrameCount = 5 };
+        scene.Layers.Add(ink);
+        return (ink, scene, StateFor(scene, ink, o => { o.Before = 2; o.After = 0; }, frame: 4));
+    }
+
+    private static ScenePassBuilder.LiveEdit RampEdit(
+        Layer ink, SkiaSharp.SKBitmap? farSheet, Action<IReadOnlyList<ScenePassBuilder.PassSpec>>? handed = null) => new(
+        TransformPreview: SkiaSharp.SKMatrix.CreateTranslation(100, 0),
+        TransformFrames: [.. ink.Cels.Select(c => c.Frame!)], GhostsFollow: true,
+        TransformFrameIds: ink.Cels.Select(c => c.Frame!.Id).ToHashSet(),
+        RampPreview: (_, index) => SkiaSharp.SKMatrix.CreateTranslation(10 * index, 0),
+        RampSettledPreview: (_, index) => SkiaSharp.SKMatrix.CreateTranslation(1000 + index, 0),
+        RampFarSheet: (_, far) =>
+        {
+            handed?.Invoke(far);
+            return farSheet;
+        });
+
+    /// <summary>
+    /// The nearest ghost each side follows every drag event at its own share;
+    /// the farther ones arrive as one sheet, drawn untransformed — the resample
+    /// they cost was paid once, when the sheet was made at the last pause.
+    /// </summary>
+    [Fact]
+    public void UnderARampOnlyTheNearestGhostIsResampledPerEvent()
+    {
+        var (ink, scene, state) = TwoBack();
+        using var cache = new FrameBitmapCache();
+        using var sheet = new SkiaSharp.SKBitmap(64, 48);
+
+        var plan = ScenePassBuilder.Describe(scene, state, cache, new TileFallbackTally(), RampEdit(ink, sheet));
+        var sheetPasses = plan.Specs.Where(s => ReferenceEquals(s.Bitmap, sheet)).ToList();
+        var loose = plan.Specs.Where(s => s.Tint is not null).ToList();
+
+        Assert.Single(sheetPasses);
+        Assert.Null(sheetPasses[0].Matrix);                        // a plain blit, not a resample
+        Assert.Single(loose);                                      // the nearest ghost alone
+        Assert.Equal(30f, loose[0].Matrix!.Value.TransX);          // at its live share (cel 3)
+        Assert.True(plan.Specs.IndexOf(sheetPasses[0]) < plan.Specs.IndexOf(loose[0]),
+            "the far ghosts must sit beneath the near one, as their order always had them");
+    }
+
+    /// <summary>
+    /// What goes into the sheet is the far ghosts at the box as it was at the
+    /// last pause — not the live box, which is the point of the sheet.
+    /// </summary>
+    [Fact]
+    public void TheFarGhostsAreHandedOverAtTheSettledShare()
+    {
+        var (ink, scene, state) = TwoBack();
+        using var cache = new FrameBitmapCache();
+        using var sheet = new SkiaSharp.SKBitmap(64, 48);
+        IReadOnlyList<ScenePassBuilder.PassSpec>? far = null;
+
+        ScenePassBuilder.Describe(scene, state, cache, new TileFallbackTally(), RampEdit(ink, sheet, f => far = f));
+
+        Assert.NotNull(far);
+        Assert.Single(far!);                                       // cel 2 only
+        Assert.Equal(1002f, far![0].Matrix!.Value.TransX);         // the settled share, not the live one
+    }
+
+    /// <summary>
+    /// With no sheet to hand (none made yet, or no resolver), the far ghosts are
+    /// drawn one by one at the settled share — still right, only not cheap.
+    /// </summary>
+    [Fact]
+    public void WithoutASheetTheFarGhostsAreDrawnAtTheSettledShare()
+    {
+        var (ink, scene, state) = TwoBack();
+        using var cache = new FrameBitmapCache();
+
+        var plan = ScenePassBuilder.Describe(scene, state, cache, new TileFallbackTally(), RampEdit(ink, farSheet: null));
+        var ghosts = plan.Specs.Where(s => s.Tint is not null).Select(s => s.Matrix!.Value.TransX).Order().ToArray();
+
+        Assert.Equal([30f, 1002f], ghosts);
+    }
+
+    /// <summary>
     /// A region-limited transform moves part of each drawing, and a ghost is one
     /// bitmap — moving it would show strokes moving that are going to stay.
     /// </summary>

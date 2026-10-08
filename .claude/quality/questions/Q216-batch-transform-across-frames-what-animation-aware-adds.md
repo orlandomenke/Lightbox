@@ -48,3 +48,22 @@ page).
 (recommended, accepted). The gizmo sets the end state; an ease picker shapes the
 ramp. Declined: whole layer only, which cannot travel over part of a shot
 without splitting the layer.
+
+## Asked when the ramp was built — answered 2026-10-08
+
+**4. What the box controls — the end state** (recommended, accepted). The box
+is the transform the last drawing gets; the drawing at the playhead shows its
+own share and every onion ghost shows its own, so the ramp is read from the
+ghosts while dragging. Declined: opening the session on the range's last
+drawing so the box and drawing move together, which moves the playhead unasked
+and shows a ramp started from frame 1 somewhere else. The cost accepted: on the
+first frame the drawing under the box does not move while you drag.
+
+**5. A drawing exposed in more than one place — split into copies**
+(recommended, accepted). Each later place gets its own copy and its own share,
+which is what makes "turn a looping cycle into a walk that travels" work; and a
+drawing also shown outside the range is copied at every place inside it, so
+nothing outside a ramp ever changes. Declined: *first exposure wins* (no copies,
+but a loop's last frame lands back at the start, so the cycle does not travel)
+and *refuse* (safe, but blocks the main use). The cost accepted: the layer gains
+drawings, and editing the original no longer edits its former reuses.

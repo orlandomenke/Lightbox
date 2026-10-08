@@ -458,6 +458,20 @@ public sealed class Scene
         return null;
     }
 
+    /// <summary>
+    /// Whether the binding <see cref="RiggedBoneOf"/> found weights by joint
+    /// (Q217) — read from the layer that supplied it, own before link, so a
+    /// linked layer follows the weighting its binding was made with.
+    /// </summary>
+    public bool UsesJointWeights(Layer layer)
+    {
+        if (layer.BoneId is not null) return layer.JointWeights == true;
+        if (LinkOf(layer) is not { CarriesBones: true }) return false;
+        foreach (var mate in LinkedWith(layer))
+            if (mate.BoneId is not null) return mate.JointWeights == true;
+        return false;
+    }
+
     /// <summary>Whether this layer's strokes follow the rig, by its own binding or its link's.</summary>
     public bool IsLayerRigged(Layer layer) => RiggedBoneOf(layer) is not null;
 

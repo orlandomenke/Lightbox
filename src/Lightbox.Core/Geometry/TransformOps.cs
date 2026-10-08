@@ -221,7 +221,105 @@ public static class TransformOps
             TransformStroke(stroke, map, sizeScale, mapClip, mover);
             count++;
         }
+        // B406: whole drawings carry what they own. Under a filter only some
+        // lines move, and that says nothing about where the drawing's socket
+        // or hurtbox went, so they stay.
+        if (filter is null) CarryMarks(frame, map);
         return count;
+    }
+
+    /// <summary>
+    /// Move a drawing's anchors and collision boxes through <paramref name="map"/>
+    /// (B406): an anchor exactly, its direction turned with the drawing; a box
+    /// to the upright box around its mapped corners, since a box cannot turn.
+    /// </summary>
+    /// <remarks>
+    /// The map is the document-space one, not the rig's pose mover: anchors and
+    /// boxes are stored where the export reads them, in document space. A mark
+    /// the map sends to infinity — a perspective near its horizon — is left
+    /// where it was rather than written as nonsense. Absent stays absent: no
+    /// empty dictionary is created, so the file gains no key.
+    /// </remarks>
+    public static void CarryMarks(Frame frame, PointMap map)
+    {
+        if (frame.Anchors is { Count: > 0 } anchors)
+        {
+            foreach (var id in anchors.Keys.ToList())
+            {
+                var a = anchors[id];
+                var (x, y) = map(a.X, a.Y);
+                if (!double.IsFinite(x) || !double.IsFinite(y)) continue;
+                double? angle = a.AngleDeg;
+                if (a.AngleDeg is { } deg)
+                {
+                    // The direction as a unit step from the anchor, mapped: what
+                    // the drawing's turn (or mirror) does to it, read off the map.
+                    var rad = deg * Math.PI / 180;
+                    var (tx, ty) = map(a.X + Math.Cos(rad), a.Y + Math.Sin(rad));
+                    angle = double.IsFinite(tx) && double.IsFinite(ty) && (tx != x || ty != y)
+                        ? Math.Atan2(ty - y, tx - x) * 180 / Math.PI
+                        : deg;
+                }
+                anchors[id] = a with { X = x, Y = y, AngleDeg = angle };
+            }
+        }
+        if (frame.Shapes is { Count: > 0 } shapes)
+        {
+            foreach (var id in shapes.Keys.ToList())
+            {
+                if (MappedBox(shapes[id], map) is { } box) shapes[id] = box;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether carrying <paramref name="frame"/>'s collision boxes through
+    /// <paramref name="map"/> widens any of them — a turn that is not a quarter
+    /// turn makes a box an approximation, and the artist should be told.
+    /// </summary>
+    /// <remarks>
+    /// Judged by area against the exact image of the box: a scale, a mirror or a
+    /// quarter turn maps a box onto a box, and anything else gives a larger one.
+    /// </remarks>
+    public static bool WidensBoxes(PointMap map, Frame frame)
+    {
+        if (frame.Shapes is not { Count: > 0 } shapes) return false;
+        foreach (var s in shapes.Values)
+        {
+            if (MappedBox(s, map) is not { } box) continue;
+            var corners = Corners(s, map);
+            // The mapped quadrilateral's area, by the shoelace formula.
+            var area = 0.0;
+            for (var i = 0; i < 4; i++)
+            {
+                var (x0, y0) = corners[i];
+                var (x1, y1) = corners[(i + 1) % 4];
+                area += (x0 * y1) - (x1 * y0);
+            }
+            area = Math.Abs(area) / 2;
+            if (box.W * box.H > area * (1 + 1e-6) + 1e-6) return true;
+        }
+        return false;
+    }
+
+    private static (double X, double Y)[] Corners(ShapeBox s, PointMap map) =>
+    [
+        map(s.X, s.Y), map(s.X + s.W, s.Y), map(s.X + s.W, s.Y + s.H), map(s.X, s.Y + s.H),
+    ];
+
+    private static ShapeBox? MappedBox(ShapeBox s, PointMap map)
+    {
+        var corners = Corners(s, map);
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var (x, y) in corners)
+        {
+            if (!double.IsFinite(x) || !double.IsFinite(y)) return null;
+            minX = Math.Min(minX, x);
+            minY = Math.Min(minY, y);
+            maxX = Math.Max(maxX, x);
+            maxY = Math.Max(maxY, y);
+        }
+        return new ShapeBox(minX, minY, maxX - minX, maxY - minY);
     }
 
     /// <summary>The frame's editable stroke list.</summary>

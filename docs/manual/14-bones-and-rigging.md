@@ -436,14 +436,29 @@ each part of it.
 - **Assign to bone**: select strokes, and assign them wholly to the selected
   bone. This is the cutout workflow — each body part follows one bone — and it
   covers most rigs.
-- **Auto-bind**: weight the selected strokes against the whole skeleton by
-  distance. It gets a character most of the way; the last stretch — armpits,
-  hips, anywhere two bones share one drawing — is what the heat view and the
-  weight brush are for. Every point's weights add up to the whole, so a
-  drawing keeps up with the rig however far it moves. A straight line drawn
-  with the line tool bends along with the bones like any other line; on a
-  layer that follows the whole skeleton it poses exactly as the same line
-  drawn freehand.
+- **Auto-bind**: weight the selected strokes against the whole skeleton,
+  **by joint**. Each part of a line follows the bone it is on *rigidly* and
+  blends with the neighbouring bone only near where the two meet — so a
+  straight line along an arm stays straight when the forearm turns, and bends
+  at the elbow. It gets a character most of the way; the last stretch —
+  armpits, hips, anywhere two bones share one drawing — is what the heat view
+  and the weight brush are for. Every point's weights add up to the whole, so
+  a drawing keeps up with the rig however far it moves. A line drawn with the
+  line tool is given the extra points it needs where a joint crosses it, so
+  it bends at the joint too; freehand lines already have them.
+- **Joint** (in the Bone tool's options, for a bone with a parent) sets how
+  far either side of that joint a drawing blends, in pixels. The default is a
+  quarter of the shorter of the two bones — 25 px where a 100 px upper arm
+  meets a 100 px forearm. Wider reads softer and rubbery, **0** is a hinge with
+  no blend at all, and **Reset** goes back to the default. It applies when
+  weights are made: to the next Auto-bind, and at once to a layer that
+  follows the whole skeleton. Strokes already bound keep the weights they were
+  given — select them and Auto-bind again to take a new zone.
+- **Rigs made before joint weighting keep posing as they did.** Strokes that
+  were auto-bound earlier keep their weights, and a layer bound to *the whole
+  skeleton* earlier keeps the softer distance weighting it was made with,
+  where every bone pulls a little on every line. Choose **Follows the rig →
+  The whole skeleton** on that layer again to move it to joint weighting.
 - The **heat view** shows the selected bone's influence over the current
   drawing, blue (none) through red (owned), while the **weight brush is
   armed** — in Bind and Pose the ink stays clean. The dots sit on the

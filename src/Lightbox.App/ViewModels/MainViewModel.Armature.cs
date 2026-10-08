@@ -85,6 +85,9 @@ public sealed partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(SelectedBone))]
     [NotifyPropertyChangedFor(nameof(SelectedBoneName))]
     [NotifyPropertyChangedFor(nameof(SelectedBoneLength))]
+    [NotifyPropertyChangedFor(nameof(SelectedBoneJointZone))]
+    [NotifyPropertyChangedFor(nameof(SelectedBoneHasJoint))]
+    [NotifyPropertyChangedFor(nameof(SelectedBoneJointZoneIsSet))]
     [NotifyPropertyChangedFor(nameof(HasSelectedBone))]
     [NotifyPropertyChangedFor(nameof(PointerIntent))]
     private string? _selectedBoneId;
@@ -757,6 +760,9 @@ public sealed partial class MainViewModel
         OnPropertyChanged(nameof(SelectedBone));
         OnPropertyChanged(nameof(SelectedBoneName));
         OnPropertyChanged(nameof(SelectedBoneLength));
+        OnPropertyChanged(nameof(SelectedBoneJointZone));
+        OnPropertyChanged(nameof(SelectedBoneHasJoint));
+        OnPropertyChanged(nameof(SelectedBoneJointZoneIsSet));
         OnPropertyChanged(nameof(SelectedBoneJiggles));
         OnPropertyChanged(nameof(SelectedBoneJiggleStiffness));
         OnPropertyChanged(nameof(SelectedBoneJiggleDamping));
@@ -830,6 +836,52 @@ public sealed partial class MainViewModel
             NotifyArmatureSurface();
             InvalidateRiggedFrames();
         }
+    }
+
+    /// <summary>
+    /// How far either side of the selected bone's joint with its parent a
+    /// drawing blends (Q217) — the derived default until the artist sets one.
+    /// </summary>
+    /// <remarks>
+    /// Read when weights are computed: by Auto-bind, and on every render of a
+    /// layer that follows the whole skeleton by joint. A stroke already
+    /// auto-bound keeps the weights it was given; Auto-bind it again to take
+    /// the new zone.
+    /// </remarks>
+    public double SelectedBoneJointZone
+    {
+        get => SelectedBone is { } bone && EditingRig is { } rig ? Skinning.JointZoneOf(rig, bone) : 0;
+        set
+        {
+            if (SelectedBoneId is not { } id || SelectedBone is null) return;
+            var wanted = Math.Max(0, value);
+            if (Math.Abs(SelectedBoneJointZone - wanted) < 1e-9) return;
+            SetSelectedBoneJointZone(id, wanted);
+        }
+    }
+
+    /// <summary>Only a bone with a parent has a joint to blend across.</summary>
+    public bool SelectedBoneHasJoint => SelectedBone?.ParentId is not null;
+
+    /// <summary>The zone is the artist's, not the derived default — the reset is offered.</summary>
+    public bool SelectedBoneJointZoneIsSet => SelectedBone?.JointZone is not null;
+
+    /// <summary>Back to the default the bone's length implies; the key leaves the file.</summary>
+    [RelayCommand]
+    private void ResetSelectedBoneJointZone()
+    {
+        if (SelectedBoneId is { } id && SelectedBoneJointZoneIsSet) SetSelectedBoneJointZone(id, null);
+    }
+
+    private void SetSelectedBoneJointZone(string boneId, double? zone)
+    {
+        var rigId = EditingRig?.Id;   // captured, not read at replay time (Q182)
+        _editor.Perform(doc =>
+        {
+            if (doc.RigById(rigId)?.BoneById(boneId) is { } target) target.JointZone = zone;
+        });
+        NotifyArmatureSurface();
+        InvalidateRiggedFrames();
     }
 
     /// <summary>
@@ -1350,7 +1402,11 @@ public sealed partial class MainViewModel
     public int AutoBindSelectedStrokes()
     {
         if (EditingRig is not { Bones.Count: > 0 } armature) return 0;
-        return EditSelectedStrokes(stroke => Skinning.AutoBind(stroke, armature));
+        // A corrected stroke keeps its points, or its corrective would stop
+        // applying (sensitivity on Q217); it is still weighted by joint.
+        var frame = ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex);
+        return EditSelectedStrokes(stroke => Skinning.AutoBind(
+            stroke, armature, keepPoints: frame is not null && Skinning.IsCorrected(frame, stroke.Id)));
     }
 
     /// <summary>
@@ -1376,7 +1432,8 @@ public sealed partial class MainViewModel
             if (target is null) return;
             baked = Skinning.BakeFrame(
                 target, armature, ArmatureOps.EffectivePoseAt(armature, doc.Scene.PoseTrack, index),
-                doc.Scene.RiggedBoneOf(doc.Scene.Layers[ActiveLayerIndex]));
+                doc.Scene.RiggedBoneOf(doc.Scene.Layers[ActiveLayerIndex]),
+                doc.Scene.UsesJointWeights(doc.Scene.Layers[ActiveLayerIndex]));
         });
         if (baked > 0)
         {
@@ -1498,7 +1555,7 @@ public sealed partial class MainViewModel
                 baked = Skinning.BakeFrame(
                     target, armature,
                     ArmatureOps.EffectivePoseAt(armature, doc.Scene.PoseTrack, index),
-                    doc.Scene.RiggedBoneOf(layer));
+                    doc.Scene.RiggedBoneOf(layer), doc.Scene.UsesJointWeights(layer));
             }
         });
 

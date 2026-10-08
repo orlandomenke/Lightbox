@@ -291,6 +291,9 @@ public partial class MainViewModel
         // Both caches: playback publishes through the tile store since Q62,
         // so the scan protection has to follow the frames wherever they live
         // (B182 — the tile half went unflipped for a while, and thrashed).
+        // Stopping holds the playback tiles until the stills are ready (phase 3).
+        _holdTilesAfterStop = !value && CanHoldTilesOnStop();
+
         var order = value
             ? FrameBitmapCache.EvictionOrder.MostRecent
             : FrameBitmapCache.EvictionOrder.LeastRecent;
@@ -1055,6 +1058,13 @@ public partial class MainViewModel
     /// cross their cached renders; placement ids survive the copy
     /// (<see cref="SymbolPlacement.Clone"/>), which is what lets a drag that
     /// keyed the cel keep hold of the placement it grabbed.
+    /// <para>
+    /// <b>B406: and its sockets and collision boxes.</b> The frame was showing
+    /// them through the hold, and an export read them there; a key that left
+    /// them behind took them off this frame under the first touch — a transform,
+    /// a mark, a pose bake — with nothing on screen to say so. Both are records
+    /// of immutable values, so a new dictionary over them is a whole copy.
+    /// </para>
     /// </remarks>
     private static Frame KeyedCopyOf(Frame? held) => held is null ? new Frame() : new Frame
     {
@@ -1062,6 +1072,8 @@ public partial class MainViewModel
         PngBase64 = held.PngBase64,
         Strokes = held.Strokes.Select(s => s.Clone()).ToList(),
         Placements = held.Placements?.Select(p => p.Clone()).ToList(),
+        Anchors = held.Anchors is null ? null : new Dictionary<string, AnchorPoint>(held.Anchors),
+        Shapes = held.Shapes is null ? null : new Dictionary<string, ShapeBox>(held.Shapes),
     };
 
     /// <summary>
@@ -1792,6 +1804,8 @@ public partial class MainViewModel
         // the render in hand: the cores are the stroke's now (phase 2b). Its
         // finished work is kept; the commit's flush decides what is still good.
         if (!IsPlaying && _prewarm.IsBusy) _prewarm.Request([], 1);
+        // A stroke draws on the still canvas: no held tiles under it.
+        _holdTilesAfterStop = false;
         _strokeBuilder.Begin(
             IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,
             ColorHex,

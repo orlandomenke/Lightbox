@@ -870,7 +870,11 @@ public partial class MainViewModel
     {
         // However the session ended — release, Esc, a tool switch, a frame
         // change — a move's own scope ends with it (B403).
-        if (!value) SetGestureScope(null);
+        if (!value)
+        {
+            SetGestureScope(null);
+            EndRamp();
+        }
         RefreshUndoRedo();
     }
 
@@ -1031,7 +1035,7 @@ public partial class MainViewModel
         // where a full recomposite is slow, exactly where a brush stroke
         // stays live. Whole-canvas remains the fallback when the moving
         // pixels cannot be bounded from the stroke record.
-        if (PreviewDirtyRegion(before, matrix) is { } dirty)
+        if ((RampDirtyRegion() ?? PreviewDirtyRegion(before, matrix)) is { } dirty)
         {
             _publish.MarkDirty(dirty);
         }
@@ -1257,6 +1261,21 @@ public partial class MainViewModel
         double offsetX, double offsetY)
     {
         if (!TransformActive) return;
+        // Q216: with the ramp on, the box is the last drawing's transform and
+        // every other drawing takes its share of it.
+        if (RampOverFrames && RampAvailable)
+        {
+            var box = new AffineParts(pivotX, pivotY, scaleX, scaleY, angleRadians, offsetX, offsetY);
+            if (box.Mirrors)
+            {
+                // Refused rather than applied in full: the artist asked for a
+                // ramp, and a whole-layer mirror is not a smaller version of one.
+                AiStatus = "A mirror cannot be ramped — it would pass through a flat line on the way. Turn the ramp off to mirror.";
+                return;
+            }
+            CommitTransformRamp(box);
+            return;
+        }
         var map = TransformOps.Affine(pivotX, pivotY, scaleX, scaleY, angleRadians, offsetX, offsetY);
         var sizeScale = Math.Sqrt(Math.Abs(scaleX * scaleY));
         var m = SKMatrix.CreateTranslation((float)-pivotX, (float)-pivotY);
@@ -1548,6 +1567,9 @@ public partial class MainViewModel
             if (keyed.TryGetValue(frames[i].Id, out var copy)) frames[i] = copy;
         }
         var filter = _transform.Filter;
+        // B406: asked before the edit, while the boxes are still the ones the
+        // map is about to turn. Only whole drawings carry their boxes.
+        var widened = filter is null && frames.Exists(f => TransformOps.WidensBoxes(map, f));
         // The preview goes first, and not only for tidiness: it borrows the
         // cache's own bitmaps, and the invalidation below disposes them.
         _transform.ClearPreview();
@@ -1640,6 +1662,10 @@ public partial class MainViewModel
         AiStatus = HasStrokeSelection && !HasSelection
             ? $"Transformed {TransformSubject}."
             : $"Transformed {frames.Count} drawing{(frames.Count == 1 ? "" : "s")}.";
+        if (widened)
+        {
+            AiStatus += " A collision box cannot turn, so the boxes are now the upright boxes around them — check the hurtboxes.";
+        }
     }
 
     /// <summary>
