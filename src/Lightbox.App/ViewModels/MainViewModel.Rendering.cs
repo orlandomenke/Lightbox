@@ -306,18 +306,34 @@ public partial class MainViewModel
     /// picture because source-over is associative and every ghost of a layer
     /// is carved by the same mask.
     /// </remarks>
-    private SKBitmap? GhostSheetFor(Layer layer, IReadOnlyList<ScenePassBuilder.PassSpec> ghosts)
+    /// <param name="keepMatrices">
+    /// Draw each ghost through its own matrix into the sheet — the ramp's far
+    /// ghosts, which each stand at their own settled share and are drawn as an
+    /// untransformed sheet. False for the whole-layer drag, whose sheet is drawn
+    /// through the one shared matrix instead.
+    /// </param>
+    private SKBitmap? GhostSheetFor(Layer layer, IReadOnlyList<ScenePassBuilder.PassSpec> ghosts) =>
+        GhostSheetFor(layer, ghosts, keepMatrices: false);
+
+    private SKBitmap? GhostSheetFor(Layer layer, IReadOnlyList<ScenePassBuilder.PassSpec> ghosts, bool keepMatrices)
     {
         var hash = new HashCode();
+        hash.Add(keepMatrices);
         foreach (var g in ghosts)
         {
             hash.Add(g.CelFrame?.Id);
             hash.Add(g.CelIndex);
             hash.Add(g.Tint);
             hash.Add(g.Opacity);
+            if (keepMatrices && g.Matrix is { } m)
+            {
+                hash.Add(m.ScaleX); hash.Add(m.SkewX); hash.Add(m.TransX);
+                hash.Add(m.SkewY); hash.Add(m.ScaleY); hash.Add(m.TransY);
+            }
         }
         var key = hash.ToHashCode();
-        if (_transform.GhostSheet(layer.Id, key) is { } have) return have;
+        var slot = keepMatrices ? layer.Id + "|far" : layer.Id;
+        if (_transform.GhostSheet(slot, key) is { } have) return have;
 
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         var sheet = new SKBitmap(info);
@@ -328,11 +344,12 @@ public partial class MainViewModel
             foreach (var g in ghosts)
             {
                 passes.Add(ScenePassBuilder.Materialize(
-                    g with { Matrix = null, Shapes = null }, _cache, Scene.Width, Scene.Height));
+                    keepMatrices ? g with { Shapes = null } : g with { Matrix = null, Shapes = null },
+                    _cache, Scene.Width, Scene.Height));
             }
             SceneRenderer.ComposeInto(surface, passes, SKColors.Transparent);
         }
-        _transform.RememberGhostSheet(layer.Id, key, sheet);
+        _transform.RememberGhostSheet(slot, key, sheet);
         return sheet;
     }
 
@@ -1536,7 +1553,13 @@ public partial class MainViewModel
             // Q216: whole drawings move, so their ghosts can move with them.
             GhostsFollow: _transform.Filter is null,
             TransformFrameIds: _transform.FrameIds,
-            GhostSheet: _passGhostSheet ??= GhostSheetFor);
+            GhostSheet: _passGhostSheet ??= GhostSheetFor,
+            // Q216: a ramp gives each drawing its own share of the box.
+            RampPreview: RampApplies ? _passRampPreview ??= RampPreviewAt : null,
+            // The owner's "near live, rest on pause": the far ghosts at the
+            // last pause's box, as one sheet between pauses.
+            RampSettledPreview: RampApplies ? _passRampSettledPreview ??= RampSettledPreviewAt : null,
+            RampFarSheet: RampApplies ? _passRampFarSheet ??= RampFarSheetFor : null);
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;
