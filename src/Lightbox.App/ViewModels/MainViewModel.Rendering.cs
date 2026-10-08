@@ -1325,6 +1325,8 @@ public partial class MainViewModel
             }
         }
 
+        NoteMemory();
+
         // The whole build, in its parts, for the headroom band's advice: it
         // names a cause only from these (the compose time alone, which is all
         // it had, could never see a drawing being rendered).

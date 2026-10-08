@@ -128,6 +128,9 @@ public sealed class DocumentEditor
     public long NextRevision => _nextRevision + 1;
 
     public bool CanUndo => _undo.Count > 0;
+
+    /// <summary>Steps on the undo and redo stacks — for the memory report, which counts what they keep.</summary>
+    public (int Undo, int Redo) Depth => (_undo.Count, _redo.Count);
     public bool CanRedo => _redo.Count > 0;
 
     /// <summary>
