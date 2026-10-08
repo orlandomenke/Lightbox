@@ -25,6 +25,7 @@ Commands
     ids             ids only: unique, allocated once, none lost. No index, instant
     ids --fix       move the entry that took a number twice, citations included
     selftest        prove ids --fix moves this branch's entry and not the other's
+    selftest on-base    only the scenario where the branch filed neither entry
     new <domain> "<title>"    file a bug with an allocated id
     freeid [bug|question]     print the next free id and nothing else
     next            highest-priority open bugs, for a loop to pick from
@@ -537,7 +538,11 @@ def added_lines(base: str) -> dict[str, list[tuple[int, str]]]:
     moment ago and not yet committed is exactly the one most likely to need
     renumbering, and it is the author's own line just as much as a committed one.
     """
-    diff = _git("diff", "--unified=0", "--no-color", "--no-renames", base, "--")
+    return _added_in(_git("diff", "--unified=0", "--no-color", "--no-renames", base, "--"))
+
+
+def _added_in(diff: str | None) -> dict[str, list[tuple[int, str]]]:
+    """path -> [(line number, exact text)] for every line a unified diff adds."""
     if not diff:
         return {}
     found: dict[str, list[tuple[int, str]]] = {}
@@ -660,26 +665,110 @@ def _files_added(base: str, folder: Path) -> set[str]:
     return {Path(line.split("\t")[-1]).name for line in (listed or "").splitlines() if line}
 
 
+@dataclass
+class Filed:
+    """The commit that first held an entry, and when — or that none does yet."""
+
+    spot: Occurrence
+    sha: str | None
+    when: float         # commit time; an entry no commit holds is newer than all
+    stamp: str          # the same, as a person reads it
+
+    @property
+    def said(self) -> str:
+        return f"filed {self.stamp} by {self.sha[:8]}" if self.sha else "not committed yet"
+
+
+@dataclass
+class ByHistory:
+    """An id whose entries this branch cannot tell apart, settled by when each was filed.
+
+    Carried from the choice of who moves to the citation pass, because the two
+    have to agree: an entry picked by its filing commit can only take with it
+    the citations that commit wrote.
+    """
+
+    keeping: list[Filed]
+    moving: list[Filed]
+
+
+def _filed(ledger: Ledger, spot: Occurrence) -> Filed:
+    """Ask the history which commit ADDED an entry.
+
+    A question is a file, so this is the commit that added the file — followed
+    through renames, since an entry renumbered once before was filed when its
+    first name was. A bug is a line in a file every branch edits, and a line has
+    no identity git can follow: `sync` rewrites its checkbox and `relocate`
+    moves it. What does not change under either is the title, so the filing
+    commit is taken to be the oldest one that changed how often that exact title
+    occurs. **That is an approximation and it errs in one direction**: a bug
+    retitled since it was filed dates from its retitle, so it can read as newer
+    than it is. The report prints the commit and date each entry was dated by
+    for exactly that reason — the choice can be checked rather than trusted.
+    """
+    nothing = Filed(spot, None, float("inf"), "")
+    if not ledger.path.is_relative_to(ROOT):
+        return nothing
+    rel = ledger.path.relative_to(ROOT).as_posix()
+    if ledger.path.is_dir():
+        log = _git("log", "--diff-filter=A", "--follow", "--format=%H %ct %cI",
+                   "--", f"{rel}/{spot.where}")
+    else:
+        log = _git("log", "--format=%H %ct %cI", f"-S{spot.title}", "--", rel)
+    # Newest first, so the last line is the first commit to hold it.
+    rows = [line.split() for line in (log or "").splitlines() if line.strip()]
+    if not rows or len(rows[-1]) != 3 or not rows[-1][1].isdigit():
+        return nothing
+    sha, when, stamp = rows[-1]
+    return Filed(spot, sha, float(when), stamp)
+
+
 def _occurrences_to_move(ledger: Ledger, duplicated: dict[str, list[str]],
-                         clashed: dict[str, str], base: str | None) -> list[Occurrence]:
-    """Which entry gives up the number — the one this branch wrote, every time.
+                         clashed: dict[str, str], base: str | None,
+                         by_history: dict[str, ByHistory] | None = None) -> list[Occurrence]:
+    """Which entry gives up the number.
 
-    The other one is older. It is on the default branch, or on a branch that
-    pushed first, and every citation of it out in the tree already means it; the
-    entry that has to move is the one whose citations are all still on this
-    branch, where they can be moved with it.
+    **The one this branch wrote, when the branch wrote exactly some of them.**
+    The other is older: it is on the default branch, or on a branch that pushed
+    first, and every citation of it out in the tree already means it; the entry
+    that has to move is the one whose citations are all still on this branch,
+    where they can be moved with it.
 
-    Without a repository to ask — a fixture, a clone with no default branch — the
-    first occurrence keeps the id. That is arbitrary, and it is the only part of
-    this that is: it decides which of two entries renumbers, never whether both
-    survive.
+    **Otherwise the later one, by the date of the commit that filed it** — which
+    is the rule the branching notes have always stated ("both entries survive;
+    the later one is renumbered") and which this did not implement. It fell back
+    to "all but the first", and first meant first *by filename*. On 2026-10-08
+    two questions reached the default branch under one number, filed 43 seconds
+    apart, and the repair was run from a branch cut after both: neither was this
+    branch's, so the one whose slug sorted second moved. That was the earlier
+    one. "Otherwise" covers both ways ownership fails to discriminate — the
+    branch wrote none of them, as there, or all of them, as on a branch whose
+    base is stale.
+
+    Ties — two entries filed by one commit, or two commits in the same second —
+    and entries no commit holds yet fall back to ledger order: the one later in
+    the file, or later by filename, moves. That is arbitrary and it is
+    deterministic, and with no repository to ask (a fixture) it is the only
+    rule there is. It decides which of two entries renumbers, never whether
+    both survive.
+
+    `by_history` is filled with every id settled the second way, because the
+    citation pass has to treat those differently — see `move_ids_filed_with`.
     """
     spots = _occurrences(ledger, base)
     moving: list[Occurrence] = []
     for entry_id in duplicated:
         same = [s for s in spots if s.id == entry_id]
         ours = [s for s in same if s.ours]
-        moving.extend(ours if 0 < len(ours) < len(same) else same[1:])
+        if 0 < len(ours) < len(same):
+            moving.extend(ours)
+            continue
+        # `sorted` is stable, so entries filed at the same moment keep the order
+        # the ledger lists them in — that is the whole tie-break.
+        dated = sorted((_filed(ledger, s) for s in same), key=lambda f: f.when)
+        moving.extend(f.spot for f in dated[1:])
+        if by_history is not None:
+            by_history[entry_id] = ByHistory(dated[:1], dated[1:])
     for entry_id in clashed:
         # Every occurrence, and that is safe *because* the repair refuses to run
         # mid-merge (see cmd_ids). Outside a merge this only ever finds one: the
@@ -725,6 +814,90 @@ def _keeping_spots(ledger: Ledger, moving: list[Occurrence],
     rel = ledger.path.relative_to(ROOT).as_posix()
     return frozenset((rel, int(spot.where)) for spot in keeping
                      if isinstance(spot.where, int))
+
+
+def _lines_filed_with(sha: str, old: str) -> dict[str, set[str]]:
+    """path -> the exact lines citing `old` that one commit added."""
+    diff = _git("show", "--format=", "--unified=0", "--no-color", "--no-renames", sha, "--")
+    cite = re.compile(rf"\b{re.escape(old)}\b")
+    return {rel: texts for rel, additions in _added_in(diff).items()
+            if (texts := {text for _, text in additions if cite.search(text)})}
+
+
+def move_ids_filed_with(old: str, new: str, settled: ByHistory,
+                        protect: frozenset[tuple[str, int]] = frozenset()) -> list[str]:
+    """Move the citations the moving entry's own filing commit wrote, and no others.
+
+    **A bare id cannot say which of two same-numbered entries it means**, so when
+    the branch running the repair filed neither — or both — "the lines this
+    branch added" is not an answer to anything. `move_ids` applied it anyway.
+    On 2026-10-08 that took a branch's citations of one question and pointed
+    them at the other, in three files, while leaving every other citation of
+    either where it was: a subset, chosen by where the tool happened to be run.
+
+    What *is* known is the commit that filed the entry being moved, and a line
+    that commit added citing the number means the entry it was filing. So those
+    lines move, found by their exact text, wherever they now sit in the file.
+    Narrower than "every citation in a file that commit touched" on purpose: a
+    roadmap or a manual page is touched by both filing commits, and a whole-file
+    replace there would take the keeper's lines too.
+
+    Two things are left out deliberately. A line the keeper's filing commit
+    added with the same text is ambiguous again, and stays. And a citation
+    written by any later commit stays — it may well mean the moving entry, but
+    nothing here can know that. `citations_left` prints every one of them, and
+    that list is the part a person has to read.
+    """
+    theirs: dict[str, set[str]] = {}
+    for kept in settled.keeping:
+        if kept.sha:
+            for rel, texts in _lines_filed_with(kept.sha, old).items():
+                theirs.setdefault(rel, set()).update(texts)
+    mine: dict[str, set[str]] = {}
+    for filed in settled.moving:
+        if filed.sha:
+            for rel, texts in _lines_filed_with(filed.sha, old).items():
+                mine.setdefault(rel, set()).update(texts)
+
+    cite = re.compile(rf"\b{re.escape(old)}\b")
+    touched: list[str] = []
+    for rel, texts in sorted(mine.items()):
+        texts = texts - theirs.get(rel, set())
+        path = ROOT / rel
+        if not texts or not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+        except (UnicodeDecodeError, OSError):
+            continue
+        changed = False
+        for n, current in enumerate(lines, 1):
+            if (rel, n) in protect or current.rstrip("\r\n") not in texts:
+                continue
+            lines[n - 1] = cite.sub(new, current)
+            changed = True
+            touched.append(f"{rel}:{n}")
+        if changed:
+            path.write_text("".join(lines), encoding="utf-8")
+    return touched
+
+
+def citations_left(old: str, skip_files: set[str],
+                   skip_lines: frozenset[tuple[str, int]]) -> list[str]:
+    """Every `path:line` still citing an id, the keeping entry's own record aside.
+
+    Untracked files included: a citation in a file not yet added is still one a
+    person has to look at. Binary files are not searched.
+    """
+    found = _git("grep", "-n", "-I", "-w", "--untracked", "--no-color", "-e", old, "--", ".")
+    left: list[str] = []
+    for line in (found or "").splitlines():
+        rel, _, rest = line.partition(":")
+        number = rest.partition(":")[0]
+        if not number.isdigit() or rel in skip_files or (rel, int(number)) in skip_lines:
+            continue
+        left.append(f"{rel}:{number}")
+    return left
 
 
 def move_in_file(path: Path, moves: dict[str, str],
@@ -856,13 +1029,23 @@ def clashing_ids(ledger: Ledger, mine: list[tuple[str, str]],
 
 def renumber(ledger: Ledger, moving: list[Occurrence],
              elsewhere: list[str], base: str | None,
-             protect: frozenset[tuple[str, int]] = frozenset()) -> list[str]:
+             protect: frozenset[tuple[str, int]] = frozenset(),
+             by_history: dict[str, ByHistory] | None = None) -> list[str]:
     """Move each occurrence to a fresh id, and take its citations with it.
 
     The new ids clear every ref rather than just the ledger being repaired —
     renumbering into a number the *next* branch is about to take would be a busy
     way of achieving nothing.
+
+    **Which citations go with it depends on how the entry was chosen**, and the
+    report says which happened. An entry this branch filed takes the citations
+    this branch wrote (`move_ids`). An entry chosen by its filing date — because
+    the branch filed neither, or both — takes only the citations its filing
+    commit wrote (`move_ids_filed_with`), and every other mention of the old
+    number is printed as left alone, since each one is a question only a reader
+    can answer.
     """
+    by_history = by_history or {}
     n = len(ledger.prefix)
     taken = ids_everywhere(ledger, elsewhere) | {s.id for s in moving}
     moves: dict[str, str] = {}
@@ -872,11 +1055,203 @@ def renumber(ledger: Ledger, moving: list[Occurrence],
         taken.add(moves[spot.id])
 
     said: list[str] = []
-    if base is not None:
+    owned = {old: new for old, new in moves.items() if old not in by_history}
+    if base is not None and owned:
         said += [f"    moved a citation at {where}"
-                 for where in move_ids(moves, base, protect)]
+                 for where in move_ids(owned, base, protect)]
+        said.append("    citations on lines this branch did not add were left alone — "
+                    "they mean the entry keeping " + ", ".join(owned))
+    settled_here = {old: s for old, s in by_history.items() if old in moves}
+    for old, settled in settled_here.items():
+        everyone = settled.keeping + settled.moving
+        said.append(f"    {old}: this branch filed "
+                    + ("every one" if all(f.spot.ours for f in everyone) else "none")
+                    + " of these, so the later one moves")
+        said += [f"      keeps {old}: {f.spot.title[:50]} — {f.said}" for f in settled.keeping]
+        said += [f"      moves: {f.spot.title[:50]} — {f.said}" for f in settled.moving]
+        if len({f.when for f in everyone}) == 1:
+            said.append("      a tie — settled by ledger order, which is arbitrary")
+        said += [f"    moved a citation at {where} (written by the commit that filed it)"
+                 for where in move_ids_filed_with(old, moves[old], settled, protect)]
     said += ledger.move(moves, moving, base)
+
+    for old, settled in settled_here.items():
+        folder = (ledger.path.relative_to(ROOT).as_posix()
+                  if ledger.path.is_dir() and ledger.path.is_relative_to(ROOT) else None)
+        keepers = {f"{folder}/{f.spot.where}" for f in settled.keeping} if folder else set()
+        left = citations_left(old, keepers, protect)
+        if left:
+            said.append(f"    {len(left)} citation(s) of {old} left alone — check by hand. "
+                        f"A bare {old} cannot say which entry it means;")
+            said.append(f"    any that mean the entry that moved must become {moves[old]}:")
+            said += [f"      left alone — check by hand: {where}" for where in left]
+        else:
+            said.append(f"    no other citation of {old} is left in the tree")
     return [f"  RENUMBERED {old} -> {new}" for old, new in moves.items()] + said
+
+
+def _selftest_both_on_the_base(failures: list[str]) -> None:
+    """Scenario 5: both entries were already on the base when this branch was cut.
+
+    B410, observed on 2026-10-08. Two sessions filed a question 43 seconds apart
+    and both reached `main` under one number. The repair was then run from a
+    third branch — one that had added neither file — and did two wrong things at
+    once: it renamed the EARLIER question, and it moved that branch's own
+    citations, which meant the other question, onto the new number.
+
+    The fixture is built so that each wrong answer is the easy one:
+
+    - the later file sorts FIRST by name, so "all but the first" keeps the wrong
+      entry — as it did for real, where the later question's slug began with `i`
+      and the earlier one's with `o`;
+    - the branch running the repair cites the id on a line of its own, so "every
+      line this branch added" has something to rewrite that belongs to neither;
+    - both filing commits wrote to one shared document, so "every citation in a
+      file the filing commit touched" would take the earlier entry's line too.
+
+    The commit dates are set rather than left to the clock: two commits made
+    inside the same second tie, and the tie-break is filename order — which is
+    the wrong answer here on purpose, so a fixture that tied would fail for a
+    reason that is not the one under test.
+    """
+    import shutil
+    import subprocess
+    import tempfile
+
+    tag = "Q" + "7"
+    bug = "B" + "12"
+
+    def run(cwd, *args, when: str | None = None):
+        env = dict(os.environ)
+        if when:
+            env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = when
+        subprocess.run(args, cwd=cwd, check=True, env=env,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp)
+        run(repo, "git", "init", "-q", "-b", "main")
+        run(repo, "git", "config", "user.email", "t@t")
+        run(repo, "git", "config", "user.name", "t")
+        qdir = repo / ".claude" / "quality" / "questions"
+        qdir.mkdir(parents=True)
+        (repo / "scripts").mkdir()
+        here = Path(__file__).resolve().parent
+        for module in ("bugs.py", "evidence.py"):
+            shutil.copy2(here / module, repo / "scripts" / module)
+        (repo / "seed.md").write_text("seed\n", encoding="utf-8")
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "seed", when="2026-01-01T10:00:00+00:00")
+
+        # The earlier question. Its name sorts LAST.
+        (qdir / f"{tag}-zebra-earlier.md").write_text(f"# {tag} - earlier\n", encoding="utf-8")
+        (repo / "earlier-doc.md").write_text(f"see {tag}\n", encoding="utf-8")
+        (repo / "shared-doc.md").write_text(f"earlier means {tag}\n", encoding="utf-8")
+        # The same pair again in the bug ledger, where an entry is a line and the
+        # later one is listed FIRST — so "all but the first" is wrong there too.
+        earlier_bug = f"- [ ] **{bug}** `P2` `brush` the earlier bug `evidence: manual`\n"
+        later_bug = f"- [ ] **{bug}** `P1` `ui` the later bug `evidence: manual`\n"
+        ledger = repo / ".claude" / "quality" / "BUGS.md"
+        ledger.write_text("# Bugs\n\n" + earlier_bug, encoding="utf-8")
+        (repo / "earlier-bug-doc.md").write_text(f"see {bug}\n", encoding="utf-8")
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "earlier", when="2026-01-01T11:00:17+00:00")
+
+        # The later one, 43 seconds on. Its name sorts FIRST.
+        (qdir / f"{tag}-apple-later.md").write_text(f"# {tag} - later\n", encoding="utf-8")
+        (repo / "later-doc.md").write_text(f"see {tag}\n", encoding="utf-8")
+        (repo / "shared-doc.md").write_text(
+            f"earlier means {tag}\nlater means {tag}\n", encoding="utf-8")
+        ledger.write_text("# Bugs\n\n" + later_bug + earlier_bug, encoding="utf-8")
+        (repo / "later-bug-doc.md").write_text(f"see {bug}\n", encoding="utf-8")
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "later", when="2026-01-01T11:01:00+00:00")
+
+        # A branch cut after both landed. It files nothing and cites the number.
+        run(repo, "git", "checkout", "-q", "-b", "mine")
+        (repo / "mine-doc.md").write_text(f"see {tag}\n", encoding="utf-8")
+        run(repo, "git", "add", "-A")
+        run(repo, "git", "commit", "-qm", "mine", when="2026-01-01T12:00:00+00:00")
+
+        said = subprocess.run(
+            [sys.executable, str(repo / "scripts" / "bugs.py"), "ids", "--fix"],
+            cwd=repo, capture_output=True, text=True,
+            encoding="utf-8", errors="replace").stdout
+
+        def read(name):
+            return (repo / name).read_text(encoding="utf-8").strip()
+
+        names = sorted(p.name for p in qdir.glob("*.md"))
+        moved = next((n for n in names if n.endswith("-apple-later.md")), "")
+        new_id = moved.split("-", 1)[0]
+
+        if f"{tag}-zebra-earlier.md" not in names:
+            failures.append(f"the EARLIER entry gave up the number: {names}")
+        if not moved or new_id == tag:
+            failures.append(f"the later entry kept the number: {names}")
+        elif not read(f".claude/quality/questions/{moved}").startswith(f"# {new_id} "):
+            failures.append("the moved question's heading does not carry its new id")
+
+        # The citations its filing commit wrote go with it …
+        if read("later-doc.md") != f"see {new_id}":
+            failures.append(
+                f"the moved entry's own citation did not follow it: {read('later-doc.md')!r}")
+        if read("shared-doc.md").splitlines() != [f"earlier means {tag}", f"later means {new_id}"]:
+            failures.append(
+                "in a file both filing commits wrote, only the moved entry's line may "
+                f"change: {read('shared-doc.md')!r}")
+        # … and nothing else does, least of all this branch's own.
+        if read("earlier-doc.md") != f"see {tag}":
+            failures.append(
+                f"the keeper's citation was rewritten: {read('earlier-doc.md')!r}")
+        if read("mine-doc.md") != f"see {tag}":
+            failures.append(
+                "this branch's own citation was moved, though the branch filed neither "
+                f"entry and nothing says which it means: {read('mine-doc.md')!r}")
+
+        # And it has to say so. A repair that silently leaves citations behind is
+        # the same mistake as one that silently moves them.
+        for name in ("mine-doc.md", "earlier-doc.md"):
+            if not re.search(rf"left alone.*{re.escape(name)}", said):
+                failures.append(
+                    f"the repair did not report {name} as a citation it left alone:\n{said}")
+        if re.search(r"left alone.*later-doc\.md", said):
+            failures.append("the repair reported a citation it had moved as left alone")
+
+        # The bug ledger, by the same rule: the later line moves although it is
+        # listed first, and takes its filing commit's citation and no other.
+        entries = re.findall(r"\*\*(B\d+)\*\* `P\d` `[a-z]+` the (\w+) bug",
+                             read(".claude/quality/BUGS.md"))
+        now = {which: entry_id for entry_id, which in entries}
+        if now.get("earlier") != bug or now.get("later") in (None, bug):
+            failures.append(
+                f"in the bug ledger the later entry must move and the earlier keep: {entries}")
+        elif (read("later-bug-doc.md"), read("earlier-bug-doc.md")) != (
+                f"see {now['later']}", f"see {bug}"):
+            failures.append(
+                "the bug citations did not follow their own entries: later "
+                f"{read('later-bug-doc.md')!r}, earlier {read('earlier-bug-doc.md')!r}")
+        if not re.search(r"left alone.*earlier-bug-doc\.md", said):
+            failures.append(
+                f"the repair did not report earlier-bug-doc.md as left alone:\n{said}")
+
+        print(f"  on-base:    {', '.join(names)} — mine cites {read('mine-doc.md')!r}, "
+              f"later cites {read('later-doc.md')!r}")
+
+
+def cmd_selftest_on_base() -> int:
+    """`selftest on-base` — scenario 5 alone, so a test can be named for it.
+
+    The ledger closes a bug when the regression test it names exists, and the
+    index that resolves those names reads the C# suites, not this file. Running
+    the whole selftest a second time to give one scenario a name of its own
+    would cost every run of the suite the other five again.
+    """
+    failures: list[str] = []
+    _selftest_both_on_the_base(failures)
+    for line in failures:
+        print(f"  FAILED  {line}")
+    return 1 if failures else 0
 
 
 def cmd_selftest() -> int:
@@ -1032,7 +1407,7 @@ def cmd_selftest() -> int:
         run(repo, "git", "add", "-A")
         run(repo, "git", "commit", "-qm", "both filed")
 
-        repair(repo)
+        said = repair(repo)
         after = (ledger_dir / "BUGS.md").read_text(encoding="utf-8")
         ids = re.findall(r"\*\*(B\d+)\*\*", after)
 
@@ -1044,6 +1419,20 @@ def cmd_selftest() -> int:
             failures.append(f"both entries moved — one must keep the number: {ids}")
         else:
             print(f"  in-range:   {ids[0]} / {ids[1]} — one kept the number, one moved")
+
+        # The citations, which this scenario used not to look at. One commit
+        # filed both entries, so nothing in the history says which of the two a
+        # bare id means — and the repair used to rewrite both documents anyway,
+        # pointing the keeper's at the entry that moved. Neither may change, and
+        # the report has to name both as left for a person.
+        cites = {name: (repo / name).read_text(encoding="utf-8").strip()
+                 for name in ("first-doc.md", "second-doc.md")}
+        if any(text != f"see {bug}" for text in cites.values()):
+            failures.append(
+                f"a citation nothing could attribute was rewritten anyway: {cites}")
+        if any(not re.search(rf"left alone.*{re.escape(name)}", said) for name in cites):
+            failures.append(
+                "the repair did not list the citations it could not attribute:\n" + said)
 
     # ---- 4. a stacked branch that RETITLES an inherited entry ----------------
     #
@@ -1136,6 +1525,8 @@ def cmd_selftest() -> int:
         else:
             print(f"  allocated:  {inherited} taken twice off main — still a clash")
 
+    _selftest_both_on_the_base(failures)
+
     for line in failures:
         print(f"  FAILED  {line}")
     print("  ids --fix repairs this branch and leaves the other alone" if not failures
@@ -1205,9 +1596,10 @@ def cmd_ids(argv: list[str]) -> int:
         clashed = clashing_ids(ledger, now, elsewhere, base)
 
         if fix and (duplicated or clashed):
-            moving = _occurrences_to_move(ledger, duplicated, clashed, base)
+            by_history: dict[str, ByHistory] = {}
+            moving = _occurrences_to_move(ledger, duplicated, clashed, base, by_history)
             for line in renumber(ledger, moving, elsewhere, base,
-                                 _keeping_spots(ledger, moving, base)):
+                                 _keeping_spots(ledger, moving, base), by_history):
                 print(line)
             now = ledger.reader(ledger.now())
             duplicated, clashed = duplicates_in(now), {}
@@ -1714,7 +2106,7 @@ def main() -> None:
             sys.exit("usage: bugs.py mine <domain>")
         cmd_mine(sys.argv[2])
     elif cmd == "selftest":
-        return cmd_selftest()
+        return cmd_selftest_on_base() if "on-base" in sys.argv[2:] else cmd_selftest()
     elif cmd == "stats":
         cmd_stats()
     else:

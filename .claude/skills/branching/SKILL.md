@@ -107,6 +107,19 @@ from `main`. So:
   anywhere, and rewrites the citations *this branch wrote* for it. Not the
   others: the id it collided with is older, and every mention of it in the tree
   already means the entry keeping the number.
+- **When the branch filed neither entry — or both — the later one moves**, by
+  the date of the commit that filed it, and the report prints both commits so
+  the choice can be checked. This is the duplicate that is already on `main`
+  when the branch is cut. It used to fall through to filename order and to move
+  whatever lines the branch running it had added: on 2026-10-08 that renamed the
+  *earlier* of two Q219s and pointed another question's citations at it (B410).
+  A bare id cannot say which of two same-numbered entries it means, so only the
+  citations the moving entry's own filing commit wrote go with it. **Every other
+  mention is printed as `left alone — check by hand`, and that list is work, not
+  noise**: citations written after the filing commit are in it, including your
+  own. A tie on the date falls back to ledger order and says so. For a bug the
+  filing commit is found by its title, so a retitled bug can read as newer than
+  it is — read the two dates before accepting the renumber.
 - **The pre-push hook runs the fix for you** and still refuses the push, because
   a repair made during a push is not in the commits being pushed. It stands down
   mid-merge, and never touches a *lost* id — putting an entry back is a judgement
