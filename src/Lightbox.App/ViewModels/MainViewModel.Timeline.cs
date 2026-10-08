@@ -140,6 +140,11 @@ public partial class MainViewModel
         // count keeps reporting lines nothing can show, which reads as the
         // arrow having stopped working.
         PruneStrokeSelection();
+        // The bucket's preview traced the drawing on the frame just left; on
+        // this one it is a ghost of a region that is not there — the owner saw
+        // the last fill's tint sitting on other frames (B418). Re-traced if
+        // the bucket is still over the canvas, cleared otherwise.
+        ForgetFillPreviewRegion();
 
         // Arriving at a frame by hand (a click, a key) in named parts for the
         // lab (Q209): the 2026-10-07 jump runs found ~870 ms between the
