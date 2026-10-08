@@ -66,7 +66,7 @@ internal static class Impasto
     /// <param name="rgba">Unpremultiplied RGBA8888, <paramref name="w"/> × <paramref name="h"/>.</param>
     /// <param name="body">0..1 paint thickness. At 0 this returns untouched.</param>
     /// <param name="relief">0..1 shading strength. At 0 this returns untouched.</param>
-    public static void Shade(byte[] rgba, int w, int h, double body, double relief)
+    public static void Shade(Span<byte> rgba, int w, int h, double body, double relief)
     {
         var thickness = (float)Math.Clamp(body, 0, 1) * Steepness;
         var strength = (float)Math.Clamp(relief, 0, 1);
@@ -74,8 +74,22 @@ internal static class Impasto
 
         // Read heights from a copy of the alpha channel, so a shaded cell does
         // not become the neighbour of the next one. Sampling the buffer being
-        // written would smear the relief toward +x/+y.
-        var height = new float[w * h];
+        // written would smear the relief toward +x/+y. Rented: stroke-sized, so
+        // over the large-object threshold (playback phase 2a); written in full
+        // just below before anything reads it.
+        var rented = System.Buffers.ArrayPool<float>.Shared.Rent(w * h);
+        try
+        {
+            ShadeFrom(rented.AsSpan(0, w * h), rgba, w, h, thickness, strength);
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<float>.Shared.Return(rented);
+        }
+    }
+
+    private static void ShadeFrom(Span<float> height, Span<byte> rgba, int w, int h, float thickness, float strength)
+    {
         for (int i = 0, o = 3; i < height.Length; i++, o += 4) height[i] = rgba[o] * (1f / 255f);
 
         for (var y = 0; y < h; y++)

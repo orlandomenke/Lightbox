@@ -3050,11 +3050,9 @@ public static class BrushEngine
             canvas.RotateDegrees((float)rotation);
             var scale = radius * 2 / Math.Max(tip.Width, tip.Height);
             canvas.Scale(scale, (float)(scale * roundness));
-            using var paint = new SKPaint
-            {
-                IsAntialias = brush.AntiAlias,
-                ColorFilter = SKColorFilter.CreateBlendMode(dabColor, SKBlendMode.SrcIn),
-            };
+            using var tint = SKColorFilter.CreateBlendMode(dabColor, SKBlendMode.SrcIn);
+            var paint = DabPaint(ref t_tipPaint, brush.AntiAlias);
+            paint.ColorFilter = tint;
             // DrawBitmap with no sampling options is nearest-neighbour, and
             // IsAntialias does not change that — it smooths the edge of the
             // drawn shape, not the resampling of what is inside it. So an
@@ -3080,11 +3078,12 @@ public static class BrushEngine
             {
                 canvas.DrawBitmap(tip, -tip.Width / 2f, -tip.Height / 2f, paint);
             }
+            paint.ColorFilter = null;
             canvas.Restore();
             return;
         }
 
-        using var round = new SKPaint { IsAntialias = brush.AntiAlias };
+        var round = DabPaint(ref t_roundPaint, brush.AntiAlias);
         var hardness = HardnessAt(brush, pressure);
 
         // Only a squashed dab needs the transform. Rotating a circle is a
@@ -3110,6 +3109,7 @@ public static class BrushEngine
             {
                 SetRoundPaint(round, SKPoint.Empty, radius, hardness, dabColor);
                 canvas.DrawCircle(SKPoint.Empty, radius, round);
+                ReleaseShader(round);
             }
             canvas.Restore();
             if (footprint is not null)
@@ -3128,8 +3128,55 @@ public static class BrushEngine
         {
             SetRoundPaint(round, pos, radius, hardness, dabColor);
             canvas.DrawCircle(pos, radius, round);
+            ReleaseShader(round);
         }
         if (footprint is not null) StampFootprint(footprint, pos, radius, hardness, brush.AntiAlias);
+    }
+
+    // ---- the dab's paints, one per thread (playback phase 2a, step 2) --------
+    //
+    // A new SKPaint per dab, and a gradient built from two new arrays, was most
+    // of what a stroke render left for the garbage collector: 350-1050 bytes a
+    // dab on the shipped presets, and SkiaSharp tracks every SKObject it makes in
+    // a shared table, so the renders of a parallel warm stood in line for it.
+    // The calls into Skia are unchanged, argument for argument: Reset() returns
+    // the paint to exactly what `new SKPaint()` makes, and the arrays are copied
+    // into the shader when it is built. `brushalloc --check` holds every shipped
+    // preset to the bytes it drew before. Per thread, because renders run on the
+    // prewarmer's worker as well as the UI thread.
+
+    [ThreadStatic] private static SKPaint? t_roundPaint;
+    [ThreadStatic] private static SKPaint? t_tipPaint;
+    [ThreadStatic] private static SKPaint? t_footprintPaint;
+    [ThreadStatic] private static SKColor[]? t_stopColors;
+    [ThreadStatic] private static float[]? t_stopPositions;
+
+    private static SKPaint DabPaint(ref SKPaint? slot, bool antiAlias)
+    {
+        var paint = slot ??= new SKPaint();
+        paint.Reset();
+        paint.IsAntialias = antiAlias;
+        return paint;
+    }
+
+    /// <summary>Dispose the dab's gradient now rather than leave it to a finalizer.</summary>
+    private static void ReleaseShader(SKPaint paint)
+    {
+        var shader = paint.Shader;
+        if (shader is null) return;
+        paint.Shader = null;
+        shader.Dispose();
+    }
+
+    private static SKShader TwoStopRadial(SKPoint centre, float radius, SKColor inner, SKColor outer, float innerStop)
+    {
+        var colors = t_stopColors ??= new SKColor[2];
+        var positions = t_stopPositions ??= new float[2];
+        colors[0] = inner;
+        colors[1] = outer;
+        positions[0] = innerStop;
+        positions[1] = 1f;
+        return SKShader.CreateRadialGradient(centre, radius, colors, positions, SKShaderTileMode.Clamp);
     }
 
     /// <summary>
@@ -3176,14 +3223,11 @@ public static class BrushEngine
         var widthByte = (byte)Math.Clamp((int)MathF.Round(width), 0, 255);
         var core = new SKColor(255, 255, widthByte);
         var rim = new SKColor(0, 255, widthByte);
-        using var paint = new SKPaint
-        {
-            IsAntialias = antiAlias,
-            BlendMode = SKBlendMode.Lighten,
-            Shader = SKShader.CreateRadialGradient(
-                centre, radius, [core, rim], [hardness, 1f], SKShaderTileMode.Clamp),
-        };
+        var paint = DabPaint(ref t_footprintPaint, antiAlias);
+        paint.BlendMode = SKBlendMode.Lighten;
+        paint.Shader = TwoStopRadial(centre, radius, core, rim, hardness);
         footprint.DrawCircle(centre, radius, paint);
+        ReleaseShader(paint);
     }
 
     /// <summary>
@@ -3210,8 +3254,7 @@ public static class BrushEngine
             paint.Color = color;
             return;
         }
-        paint.Shader = SKShader.CreateRadialGradient(
-            centre, radius, [color, color.WithAlpha(0)], [hardness, 1f], SKShaderTileMode.Clamp);
+        paint.Shader = TwoStopRadial(centre, radius, color, color.WithAlpha(0), hardness);
     }
 
     /// <summary>
@@ -3426,38 +3469,48 @@ public static class BrushEngine
 
         var w = Math.Max(1, rect.Width);
         var h = Math.Max(1, rect.Height);
-        var height = new float[w * h];
-
-        if (imported is not null) FillFromImage(height, w, h, rect.Left, rect.Top, imported, brush.TextureScale);
-        else Media.PaperField.Fill(height, w, h, rect.Left, rect.Top, brush.TextureSurface!.Value, brush.TextureScale);
-
-        var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Unpremul);
-        using var mask = new SKBitmap(info);
-
-        // Filled as bytes and installed once. SetPixel per pixel bounds-checks
-        // and repacks an SKColor each time, which over a stroke-sized region
-        // is millions of calls for what is a two-instruction write.
-        var rgba = new byte[w * h * 4];
-        for (var i = 0; i < height.Length; i++)
+        // Stroke-sized, so over the large-object threshold for any real mark:
+        // rented rather than allocated, because a large-object allocation is
+        // collected only by the most expensive GCs (playback phase 2a). Both
+        // fills write every element of the span they are given.
+        var rented = System.Buffers.ArrayPool<float>.Shared.Rent(w * h);
+        try
         {
-            // A' = 1 - depth * (1 - height): the tooth keeps paint, the
-            // valleys let it through, and depth decides how deep the bite.
-            var keep = 1f - depth * (1f - height[i]);
-            var o = i * 4;
-            rgba[o] = 255;
-            rgba[o + 1] = 255;
-            rgba[o + 2] = 255;
-            rgba[o + 3] = (byte)Math.Round(Math.Clamp(keep, 0, 1) * 255);
-        }
-        System.Runtime.InteropServices.Marshal.Copy(rgba, 0, mask.GetPixels(), rgba.Length);
+            var height = rented.AsSpan(0, w * h);
+            if (imported is not null) FillFromImage(height, w, h, rect.Left, rect.Top, imported, brush.TextureScale);
+            else Media.PaperField.Fill(height, w, h, rect.Left, rect.Top, brush.TextureSurface!.Value, brush.TextureScale);
 
-        using var image = SKImage.FromBitmap(mask);
-        using var paint = new SKPaint { BlendMode = SKBlendMode.DstIn };
-        canvas.DrawImage(
-            image,
-            new SKRect(0, 0, local.Width, local.Height),
-            new SKSamplingOptions(SKFilterMode.Linear),
-            paint);
+            var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+            using var mask = new SKBitmap(info);
+
+            // Written straight into the mask's own pixels. SetPixel per pixel
+            // bounds-checks and repacks an SKColor each time; a managed copy of
+            // the bytes was a second stroke-sized array, then a copy.
+            var rgba = mask.GetPixelSpan();
+            for (var i = 0; i < height.Length; i++)
+            {
+                // A' = 1 - depth * (1 - height): the tooth keeps paint, the
+                // valleys let it through, and depth decides how deep the bite.
+                var keep = 1f - depth * (1f - height[i]);
+                var o = i * 4;
+                rgba[o] = 255;
+                rgba[o + 1] = 255;
+                rgba[o + 2] = 255;
+                rgba[o + 3] = (byte)Math.Round(Math.Clamp(keep, 0, 1) * 255);
+            }
+
+            using var image = SKImage.FromBitmap(mask);
+            using var paint = new SKPaint { BlendMode = SKBlendMode.DstIn };
+            canvas.DrawImage(
+                image,
+                new SKRect(0, 0, local.Width, local.Height),
+                new SKSamplingOptions(SKFilterMode.Linear),
+                paint);
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<float>.Shared.Return(rented);
+        }
     }
 
     /// <param name="symmetry">

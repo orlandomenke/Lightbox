@@ -259,7 +259,7 @@ public static class TileMemory
     }
 
     /// <summary>The runtime's sampled allocation events, summed by type.</summary>
-    private sealed class AllocationTicks : System.Diagnostics.Tracing.EventListener
+    internal sealed class AllocationTicks : System.Diagnostics.Tracing.EventListener
     {
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, long> _bytes = new();
 
