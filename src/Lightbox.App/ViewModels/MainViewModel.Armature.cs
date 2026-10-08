@@ -1355,16 +1355,21 @@ public sealed partial class MainViewModel
         // The record already holds the after-state — the dabs painted it live —
         // so apply is idempotent by construction and PerformDelta's immediate
         // apply(Doc) is a no-op that records the step.
+        // By id each time it runs (B413): after an undone structural edit the
+        // strokes this gesture painted are not the ones in the document.
+        var frameId = _weightGestureFrameId;
+        Stroke? Live(Doc d, Stroke painted) =>
+            frameId is null ? null : StrokeIn(d, frameId, painted.Id);
         _editor.PerformDelta(
-            apply: _ =>
+            apply: d =>
             {
                 foreach (var (stroke, _, after) in steps)
-                    stroke.Weights = after?.Select(b => b.Clone()).ToList();
+                    if (Live(d, stroke) is { } live) live.Weights = after?.Select(b => b.Clone()).ToList();
             },
-            revert: _ =>
+            revert: d =>
             {
                 foreach (var (stroke, before, _) in steps)
-                    stroke.Weights = before?.Select(b => b.Clone()).ToList();
+                    if (Live(d, stroke) is { } live) live.Weights = before?.Select(b => b.Clone()).ToList();
             },
             affectedFrameId: _weightGestureFrameId,
             label: "Paint weights");
