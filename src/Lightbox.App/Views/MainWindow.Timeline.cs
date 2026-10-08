@@ -87,7 +87,8 @@ public partial class MainWindow
     {
         if (_layerRevealQueued) return;
         _layerRevealQueued = true;
-        Avalonia.Threading.Dispatcher.UIThread.Post(
+        // The window's own dispatcher, not the ambient one (B93).
+        Dispatcher.Post(
             () =>
             {
                 _layerRevealQueued = false;
@@ -105,11 +106,8 @@ public partial class MainWindow
         {
             RevealVertically(sheetRow, 0, sheetRow.Bounds.Height);
         }
-        if (TimelineTrackView.Tracks is { } tracks)
-        {
-            var row = TimelineRowOfActiveLayer(_vm, tracks.Count);
-            RevealVertically(TimelineTrackView, TrackView.RulerHeight + row * TrackView.RowPitch, TrackView.RowPitch);
-        }
+        var row = TimelineRowOfActiveLayer(_vm);
+        RevealVertically(TimelineTrackView, TrackView.RulerHeight + row * TrackView.RowPitch, TrackView.RowPitch);
     }
 
     /// <summary>The active layer's place in <see cref="MainViewModel.LayerRows"/>, or -1.</summary>
@@ -126,20 +124,17 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// The timeline row the active layer is drawn on.
+    /// The timeline row the active layer is drawn on, or -1.
     /// </summary>
     /// <remarks>
     /// The timeline's first rows are not layers — the camera, then the
     /// armature and its bones — and the layers follow in the order of
-    /// <see cref="MainViewModel.LayerRows"/>. So the rows that are not layers
-    /// are whatever the track list holds beyond the layer rows, and they are
-    /// counted rather than re-derived: asking the view model for its track
-    /// list builds a fresh one every time.
+    /// <see cref="MainViewModel.LayerRows"/>. How many come first is
+    /// <see cref="MainViewModel.TracksAboveLayers"/>, the one place that
+    /// counts them; a second count here would be free to disagree with it.
     /// </remarks>
-    internal static int TimelineRowOfActiveLayer(MainViewModel vm, int trackCount) =>
-        ActiveLayerRowIndex(vm) is var index and >= 0
-            ? Math.Max(0, trackCount - vm.LayerRows.Count) + index
-            : -1;
+    internal static int TimelineRowOfActiveLayer(MainViewModel vm) =>
+        ActiveLayerRowIndex(vm) is var index and >= 0 ? vm.TracksAboveLayers + index : -1;
 
     /// <summary>
     /// Scroll every list above <paramref name="control"/> just far enough to
@@ -157,21 +152,30 @@ public partial class MainWindow
     /// Vertical only. The sheet scrolls along the frames as well, and finding
     /// a layer must not cost the artist their place in time.
     /// </para>
+    /// <para>
+    /// <b>What an inner list was just scrolled by is carried outward.</b> A
+    /// new offset does not move anything until the next layout, so the row's
+    /// position in an outer list is still the old one; it is corrected by the
+    /// amount already scrolled rather than read back stale.
+    /// </para>
     /// </remarks>
-    private static void RevealVertically(Control control, double y, double height)
+    internal static void RevealVertically(Control control, double y, double height)
     {
         if (!control.IsEffectivelyVisible || height <= 0) return;
+        var alreadyScrolled = 0.0;
         foreach (var scroller in control.GetVisualAncestors().OfType<ScrollViewer>())
         {
             if (scroller.VerticalScrollBarVisibility == ScrollBarVisibility.Disabled) continue;
             if (control.TranslatePoint(new Point(0, y), scroller) is not { } inView) continue;
 
             var offset = scroller.Offset.Y;
-            var top = inView.Y + offset;
+            var top = inView.Y - alreadyScrolled + offset;
             var furthest = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
             var target = Math.Clamp(
                 Input.ScrollReveal.Offset(offset, scroller.Viewport.Height, top, top + height), 0, furthest);
-            if (Math.Abs(target - offset) > 0.5) scroller.Offset = scroller.Offset.WithY(target);
+            if (Math.Abs(target - offset) <= 0.5) continue;
+            scroller.Offset = scroller.Offset.WithY(target);
+            alreadyScrolled += target - offset;
         }
     }
 

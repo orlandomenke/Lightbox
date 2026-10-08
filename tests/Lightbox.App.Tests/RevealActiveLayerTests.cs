@@ -120,7 +120,10 @@ public class RevealActiveLayerTests(Xunit.ITestOutputHelper output) : BrushState
     private void AssertTimelineRowShowing(MainWindow window, MainViewModel vm, string what)
     {
         var view = window.FindControl<TrackView>("TimelineTrackView")!;
-        var row = MainWindow.TimelineRowOfActiveLayer(vm, view.Tracks!.Count);
+        var row = MainWindow.TimelineRowOfActiveLayer(vm);
+        // Held to the track list itself, not only to the function that counted:
+        // the row it names has to be the active layer's own track.
+        Assert.Equal(vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Name, view.Tracks![row].Name);
         AssertShowing(view, TrackView.RulerHeight + row * TrackView.RowPitch, TrackView.RowPitch, $"{what} (timeline row {row})");
     }
 
@@ -235,15 +238,57 @@ public class RevealActiveLayerTests(Xunit.ITestOutputHelper output) : BrushState
     }
 
     [AvaloniaFact]
-    public void TheCameraAndArmatureRowsAreCountedBeforeTheLayers()
+    public void WithACameraTheLayersRowIsOneFurtherDown()
     {
-        // The timeline's first rows are not layers; a row index that forgot
-        // them would reveal the wrong row by exactly that many.
-        var (_, vm) = Open(Lightbox.App.Docking.DockPanelId.Timeline);
+        // The camera's track is the timeline's first row. A row index that
+        // forgot it would reveal the layer above the one chosen.
+        var (window, vm) = Open(Lightbox.App.Docking.DockPanelId.Timeline);
+        vm.AddCameraCommand.Execute(null);
+        Pump();
+        var view = window.FindControl<TrackView>("TimelineTrackView")!;
+        Assert.Equal("Camera", view.Tracks![0].Name);
         vm.ActiveLayerIndex = Layers - 1;
-        var topLayerRow = vm.LayerRows.ToList().FindIndex(r => ReferenceEquals(r.Layer, vm.Doc.Scene.Layers[^1]));
+        Pump();
 
-        Assert.Equal(topLayerRow, MainWindow.TimelineRowOfActiveLayer(vm, vm.LayerRows.Count));
-        Assert.Equal(topLayerRow + 3, MainWindow.TimelineRowOfActiveLayer(vm, vm.LayerRows.Count + 3));
+        vm.ActiveLayerIndex = 3;
+        Pump();
+
+        var index = vm.LayerRows.ToList().FindIndex(r => ReferenceEquals(r.Layer, vm.Doc.Scene.Layers[3]));
+        Assert.Equal(index + 1, MainWindow.TimelineRowOfActiveLayer(vm));
+        AssertTimelineRowShowing(window, vm, "layer 3 under a camera");
+    }
+
+    [AvaloniaFact]
+    public void WhenTwoListsAboveARowBothScrollBothAreMovedRight()
+    {
+        // Today's dockers never have this — the inner list is handed all the
+        // height it asks for — but nothing forbids it, and the arithmetic has
+        // a trap in it: scrolling the inner list does not move the row until
+        // the next layout, so the outer one would be worked out from where the
+        // row used to be.
+        var row = new Border { Height = 20 };
+        var innerContent = new StackPanel();
+        innerContent.Children.Add(new Border { Height = 900 });
+        innerContent.Children.Add(row);
+        innerContent.Children.Add(new Border { Height = 300 });
+        var inner = new ScrollViewer { Height = 200, Content = innerContent };
+        var outerContent = new StackPanel();
+        outerContent.Children.Add(new Border { Height = 700 });
+        outerContent.Children.Add(inner);
+        outerContent.Children.Add(new Border { Height = 700 });
+        var outer = new ScrollViewer { Content = outerContent };
+        var window = new Window { Width = 300, Height = 150, Content = outer };
+        window.Show();
+        Pump();
+
+        MainWindow.RevealVertically(row, 0, 20);
+        Pump();
+
+        foreach (var (name, scroller) in new[] { ("inner", inner), ("outer", outer) })
+        {
+            var top = row.TranslatePoint(new Point(0, 0), scroller)!.Value.Y;
+            output.WriteLine($"{name}: row at {top:0.#}..{top + 20:0.#} of {scroller.Viewport.Height:0.#}, offset {scroller.Offset.Y:0.#}");
+            Assert.True(top >= -0.5 && top + 20 <= scroller.Viewport.Height + 0.5, $"{name}: {top:0.#}");
+        }
     }
 }
