@@ -806,6 +806,22 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         }
     }
 
+    /// <summary>Drop every entry whose drawing <paramref name="drop"/> names.</summary>
+    /// <remarks>
+    /// For the paused canvas on tiles (docs/DESIGN-one-picture-cache.md): the
+    /// stills of drawings the tiles already serve, except the ones on screen.
+    /// A pinned bitmap is deferred, not freed, as every eviction is (B130).
+    /// </remarks>
+    public void DropWhere(Func<string, bool> drop)
+    {
+        for (var node = _lru.First; node is not null;)
+        {
+            var next = node.Next;
+            if (drop(node.Value.FrameId)) RemoveNode(node);
+            node = next;
+        }
+    }
+
     public void Clear()
     {
         // Deferring here too, not just on eviction: closing a document while a

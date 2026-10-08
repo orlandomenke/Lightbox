@@ -488,6 +488,10 @@ public class PlaybackPrewarmTests(ITestOutputHelper output) : BrushStateIsolated
     {
         var vm = VmWithInkedFrames(4);
         var ahead = vm.PaintedCel(2);
+        // The paused canvas showed each frame as it was drawn, and keeps them as
+        // tiles; start cold, so there is something ahead of the tick to warm.
+        Assert.True(vm.Prewarm.WaitForIdle(TimeSpan.FromSeconds(20)));
+        vm.TileFrames.Clear();
 
         vm.TogglePlaybackCommand.Execute(null);
         // The publish that shows frame 0 also queues 1, 2 and 3.
@@ -522,13 +526,20 @@ public class PlaybackPrewarmTests(ITestOutputHelper output) : BrushStateIsolated
     public void APausedCanvasWarmsNothing()
     {
         var vm = VmWithInkedFrames(4);
+        // The still route's rule. On tiles the paused canvas warms the frame on
+        // screen's stills for the next stroke: PausedOnTilesTests.
+        vm.PausedOnTiles = false;
+        // Drawing the fixture happened on the paused canvas too; count from here.
+        Assert.True(vm.Prewarm.WaitForIdle(TimeSpan.FromSeconds(20)));
+        var rendered = vm.Prewarm.Rendered;
+        var installed = vm.Prewarm.Installed;
 
         vm.PublishSnapshot();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.False(vm.Prewarm.IsBusy);
-        Assert.Equal(0, vm.Prewarm.Rendered);
-        Assert.Equal(0, vm.Prewarm.Installed);
+        Assert.Equal(rendered, vm.Prewarm.Rendered);
+        Assert.Equal(installed, vm.Prewarm.Installed);
     }
 
     /// <summary>

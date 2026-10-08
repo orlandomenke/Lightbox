@@ -1551,8 +1551,9 @@ public partial class MainViewModel
             Onion,
             // A stop holding the playback tiles composes as a scrub does
             // (phase 3, Q218) — the only thing IsScrubbing changes in the
-            // builder is that tile mode is on.
-            IsScrubbing || _holdTilesAfterStop,
+            // builder is that tile mode is on. So does a paused canvas on
+            // tiles (docs/DESIGN-one-picture-cache.md, phase 1).
+            IsScrubbing || _holdTilesAfterStop || (_lastPublishPausedOnTiles = PausedTilesNow),
             // Depth answers to a camera move, so it applies exactly when the
             // composite is about to be drawn under the camera's matrix.
             ThroughCamera: ViewThroughCamera,
@@ -1747,8 +1748,18 @@ public partial class MainViewModel
             // phase 1 measured at roughly two thirds of Compose, moves to the
             // draw op where the graphics context is.
             var vp = _publish.Viewport!.Value;
+            // The ring keeps its buffers between publishes and patches only
+            // what went stale. A publish it did not see — this one — changes
+            // what is on screen behind its back, so the next ring publish must
+            // rebuild rather than patch (the paused canvas now takes this route
+            // between strokes; WindowedRingPixelTests found the stale window).
+            _composeRing.InvalidateAll();
             flattenedOwned = [];
-            passes = FlattenTilePasses(passes, scene, vp, renderScale, flattenedOwned);
+            // Level 0 unless playing or scrubbing: the paused canvas must be
+            // the still's bytes at every zoom, and the nearest pyramid level
+            // is not below 50% (Q218). Playback keeps its level.
+            var exact = !IsPlaying && !IsScrubbing && !_holdTilesAfterStop;
+            passes = FlattenTilePasses(passes, scene, vp, renderScale, flattenedOwned, exact);
             deferred = new DeferredCompose(
                 passes, background, renderScale, info, vp, Tiled: true);
             image = null;
@@ -1918,6 +1929,7 @@ public partial class MainViewModel
         // is what the prewarmer already does for the playhead, and unlike every
         // other attempt on this entry it has NO visible trade: nothing stale is
         // shown, because nothing is shown at all until the pixels exist.
+        ReleaseStillsLeftBehind();
         WarmAtIdle();
 
         // Last, and after the frame is on its way to the screen: the worker
@@ -2029,7 +2041,17 @@ public partial class MainViewModel
             var refusedBefore = _prewarm.Refused;
             var installedBefore = _prewarm.Installed;
             TakeWarmedFrames();
-            if (ReleaseHeldTilesIfStillsReady()) PublishSnapshot();
+            // A stop's hold, or a paused frame shown from tiles, whose stills
+            // are now all in: publish through the still route, which leaves the
+            // ring and the layer-stack bake current for the next stroke.
+            if (ReleaseHeldTilesIfStillsReady() | StillsArrivedForTiledPause())
+            {
+                // This publish is for the next stroke: bake the stacks around
+                // the active layer now rather than at pen-down.
+                _stackBake.Eager = true;
+                try { PublishSnapshot(); }
+                finally { _stackBake.Eager = false; }
+            }
             // A drain that installed nothing and was refused never asks again on
             // its own: asking again is how a refusal became a loop (B408). The
             // next publish — an edit, a frame change — asks afresh.
@@ -2069,6 +2091,91 @@ public partial class MainViewModel
     /// stroke starting, the playhead moving, or play.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// The paused canvas composes from the tiles playback holds, rather than
+    /// from a full-canvas still per layer per drawing
+    /// (docs/DESIGN-one-picture-cache.md, phase 1).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Tiles until the frame on screen has its stills, then the stills.</b>
+    /// A frame just arrived at — a step, a jump, a stop — is shown from tiles at
+    /// once instead of rendering its stills on the UI thread; they are warmed in
+    /// the background, and their arrival publishes through the still route. The
+    /// next stroke needs them anyway: the ring and the layer-stack bake compose
+    /// from them, and shown from tiles until pen-down the first dab rebuilt
+    /// both — measured 3.7 → 47 ms at 1080p and 11 → 186 ms at 4K, seven layers.
+    /// </para>
+    /// <para>
+    /// Off for any edit in progress: a stroke, shape, gradient, text or
+    /// transform preview composes through the routes that carry live passes. A
+    /// test seam as well as a switch: the identity gate renders the same frame
+    /// both ways.
+    /// </para>
+    /// </remarks>
+    internal bool PausedOnTiles { get; set; } = true;
+
+    /// <summary>
+    /// While the paused canvas is on tiles, drop the stills of every drawing
+    /// the tiles already serve, except the ones on screen
+    /// (docs/DESIGN-one-picture-cache.md, phase 1).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The frame on screen keeps its stills, warmed in the background: the
+    /// next stroke composes from them, and a pen-down that had to render them
+    /// would stall. A frame left behind does not need them, and kept they are
+    /// exactly the full-canvas copies this phase exists to stop holding —
+    /// paging through forty drawings would otherwise leave forty sets behind.
+    /// </para>
+    /// <para>
+    /// <b>Only drawings with tiles.</b> A drawing the tiled route cannot draw
+    /// (a mask, an effect, a placement…) is shown and played from its still;
+    /// dropping it would have the idle warm make it again on every publish —
+    /// B408's loop.
+    /// </para>
+    /// <para>
+    /// Undo is safe across the drop: a still that is gone makes the undo-pixel
+    /// swap refuse, and B412 sends that step to the replay.
+    /// </para>
+    /// </remarks>
+    private void ReleaseStillsLeftBehind()
+    {
+        if (!PausedIdle) return;
+        var here = StillImagesNeeded().Select(s => s.Frame.Id).ToHashSet();
+        _cache.DropWhere(id => !here.Contains(id) && _tileFrames.Holds(id));
+    }
+
+
+    /// <summary>Whether this publish shows the paused canvas from tiles.</summary>
+    internal bool PausedTilesNow => PausedIdle && StrokeWarmJobs() is not null;
+
+    /// <summary>Whether the last publish showed the paused canvas from tiles.</summary>
+    private bool _lastPublishPausedOnTiles;
+
+    /// <summary>
+    /// The frame shown from tiles has its stills now. Once true it clears, so a
+    /// drain publishes once for it, not on every arrival after.
+    /// </summary>
+    private bool StillsArrivedForTiledPause()
+    {
+        if (!_lastPublishPausedOnTiles || !PausedIdle || StrokeWarmJobs() is not null) return false;
+        _lastPublishPausedOnTiles = false;
+        return true;
+    }
+
+    /// <summary>
+    /// Paused, with no edit in progress: when stills of drawings off screen
+    /// may go (<see cref="ReleaseStillsLeftBehind"/>).
+    /// </summary>
+    private bool PausedIdle =>
+        PausedOnTiles && !IsPlaying
+        // The paint scratch is pooled across strokes, so it is never null once
+        // anything has been drawn; the builder being active is the gesture.
+        && _live.Composite is null && !_strokeBuilder.IsActive
+        && _liveShape is null && _liveGradient is null && LiveTextPaint is null
+        && _transform.Preview is null;
+
     private bool _holdTilesAfterStop;
 
     internal bool HoldingTilesAfterStop => _holdTilesAfterStop;
@@ -2389,7 +2496,7 @@ public partial class MainViewModel
     /// </remarks>
     private List<RenderPass> FlattenTilePasses(
         List<RenderPass> passes, Scene scene, SKRectI viewport, double renderScale,
-        List<SKBitmap> owned)
+        List<SKBitmap> owned, bool exact = false)
     {
         List<RenderPass>? flattened = null;
         for (var i = 0; i < passes.Count; i++)
@@ -2405,7 +2512,7 @@ public partial class MainViewModel
             // intermediate is bounded by the surface however many document pixels
             // the viewport spans.
             var (_, pyramid) = _tileFrames.Get(tileSrc, scene.Width, scene.Height);
-            var level = Lightbox.Raster.TilePyramid.LevelFor(renderScale);
+            var level = exact ? 0 : Lightbox.Raster.TilePyramid.LevelFor(renderScale);
             var step = Lightbox.Raster.TilePyramid.StepOf(level);
             var lvp = SKRectI.Create(
                 FloorDiv(viewport.Left, step),

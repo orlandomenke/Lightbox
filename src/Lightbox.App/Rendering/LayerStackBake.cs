@@ -113,6 +113,18 @@ public sealed class LayerStackBake : IDisposable
     private readonly HeldSegment _held = new();
     private List<PassKey>? _pendingHeld;
     private bool _servedHeld;
+    /// <summary>
+    /// Bake on the first sighting of a key rather than the second.
+    /// </summary>
+    /// <remarks>
+    /// The second-sighting rule keeps a key seen once from paying a full
+    /// composite it may never reuse. The publish made when a paused frame's
+    /// stills arrive (docs/DESIGN-one-picture-cache.md, phase 1) is the one
+    /// that exists to prepare the next stroke: without this its key is first
+    /// seen there and baked at pen-down — 25 ms of the first dab at 1080p.
+    /// </remarks>
+    internal bool Eager { get; set; }
+
     private List<ScenePassBuilder.PassSpec>? _pendingBelow;
     private List<ScenePassBuilder.PassSpec>? _pendingAbove;
     private bool _servedBelow;
@@ -346,7 +358,7 @@ public sealed class LayerStackBake : IDisposable
         if (pending is null || !SameKey(pending, specs, start, end))
         {
             pending = specs.GetRange(start, count);
-            return null;
+            if (!Eager) return null;
         }
 
         RetireSegment(segment);

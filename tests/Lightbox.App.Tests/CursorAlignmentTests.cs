@@ -247,13 +247,16 @@ public class CursorAlignmentTests(ITestOutputHelper output)
         using var bmp = SKBitmap.FromImage(composed);
         Assert.NotNull(bmp);
 
-        // Where did the ink actually land? Centroid of everything dark.
+        // Where did the ink actually land? Centroid of everything dark and
+        // opaque: a tiled image covers the whole viewport, pasteboard included,
+        // and the pasteboard is transparent rather than ink.
         double sumX = 0, sumY = 0;
         var n = 0;
         for (var y = 0; y < bmp!.Height; y++)
         for (var x = 0; x < bmp.Width; x++)
         {
-            if (bmp.GetPixel(x, y).Red >= 100) continue;
+            var px = bmp.GetPixel(x, y);
+            if (px.Alpha == 0 || px.Red >= 100) continue;
             sumX += x; sumY += y; n++;
         }
 

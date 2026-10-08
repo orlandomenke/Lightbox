@@ -160,15 +160,24 @@ public class TileFallbackReasonTests(ITestOutputHelper output) : BrushStateIsola
     }
 
     [AvaloniaFact]
-    public void APausedCanvasOffersNothingToTheTilePath()
+    public void APausedCanvasOffersFramesToTheTilePathOnlyWhenItTakesIt()
     {
-        // Rest is canonical: the still picture never goes through tiles, so a
-        // report written without playing must not claim the path was fine.
+        // The report must say what the publish did. The still route never goes
+        // through tiles, so a report from it must not claim the path was fine;
+        // the paused canvas on tiles (one-picture-cache phase 1) does, and the
+        // report counts it.
         var vm = Playing();
+        vm.PausedOnTiles = false;
         vm.ReportTileFallbacks.Reset();
         vm.PublishSnapshot();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-
         Assert.Equal(0, vm.ReportTileFallbacks.Considered);
+
+        vm.PausedOnTiles = true;
+        vm.FrameCache.Clear(); // a frame arrived at: shown from tiles until its stills are in
+        vm.ReportTileFallbacks.Reset();
+        vm.PublishSnapshot();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.ReportTileFallbacks.Considered > 0, "the tiled paused canvas offered nothing");
     }
 }

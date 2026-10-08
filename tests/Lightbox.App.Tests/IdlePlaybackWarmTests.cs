@@ -105,10 +105,17 @@ public sealed class IdlePlaybackWarmTests : BrushStateIsolated
     public void WithTheSwitchOffNothingIsPrepared()
     {
         var vm = Vm(warm: false);
+        // Drawing the fixture showed every frame it drew on, and the paused
+        // canvas keeps what it showed as tiles; start from none.
+        vm.TileFrames.Clear();
         vm.PublishSnapshot();
         Settle(vm);
 
-        Assert.DoesNotContain(Drawings(vm), f => vm.TileFrames.Holds(f.Id));
+        // Nothing beyond the frame on screen, which the paused canvas now shows
+        // from tiles (one-picture-cache phase 1).
+        var onScreen = vm.Doc.Scene.Layers
+            .Select(l => ExposureSheet.ExposedFrame(l, vm.CurrentFrameIndex)?.Id).ToHashSet();
+        Assert.DoesNotContain(Drawings(vm), f => !onScreen.Contains(f.Id) && vm.TileFrames.Holds(f.Id));
     }
 
     /// <summary>The cores are the stroke's the moment it begins.</summary>

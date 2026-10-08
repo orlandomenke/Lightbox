@@ -29,8 +29,11 @@ namespace Lightbox.App.Tests;
 [Collection("BrushState")]
 public class ViewportCullingPerformanceTests(ITestOutputHelper output) : BrushStateIsolated
 {
+    // The still route's geometry, which drawing still takes: pinned to it, as
+    // the paused canvas otherwise composes from tiles (one-picture-cache phase 1).
     private static MainViewModel PinnedVm() => new(null)
     {
+        PausedOnTiles = false,
         SmoothStrokes = false,
         ColorHex = "#000000",
         BrushSize = 20,

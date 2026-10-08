@@ -150,8 +150,16 @@ public sealed class StopOnTilesTests : BrushStateIsolated
         Settle(vm);
         Assert.False(vm.HoldingTilesAfterStop);
         Assert.NotNull(still);
-        Assert.False(still!.Deferred?.Tiled == true, "the swap did not reach the still route");
-        using var final = Pixels(still);
+        using var final = Pixels(still!);
+        // What it settles on is the exact picture: since one-picture-cache
+        // phase 1 that is the paused canvas on level-0 tiles rather than the
+        // still route, and it must be the still route's bytes all the same.
+        vm.PausedOnTiles = false;
+        RenderSnapshot? reference = null;
+        vm.SnapshotChanged += s => reference = s;
+        vm.PublishSnapshot();
+        using var exact = Pixels(reference!);
+        Assert.True(final.Bytes.AsSpan().SequenceEqual(exact.Bytes), $"at {zoom:P0} the settled frame is not the still's bytes");
 
         _output.WriteLine($"zoom {zoom:P0}: still-image misses during the stop publish {missesAtStop}");
         Assert.Equal(0, missesAtStop);

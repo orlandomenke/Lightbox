@@ -64,6 +64,9 @@ public class PlaybackThroughTilesTests : BrushStateIsolated
     public void PlaybackHoldsFramesAsTilesOnABoundedDocument()
     {
         var vm = VmWithTwoInkedFrames();
+        // The paused canvas holds the frame on screen as tiles too now
+        // (one-picture-cache phase 1); start from none so the count is playback's.
+        vm.TileFrames.Clear();
         Assert.Equal(0, vm.TileFrames.CachedFrames);
 
         vm.TogglePlaybackCommand.Execute(null);
