@@ -87,6 +87,13 @@ Each panel's header is three things at once:
   panel.
 - **A close button.**
 
+**A list scrolls under a drag.** Whatever you are dragging — a layer, a swatch,
+a cel, a symbol, a project row — holding it within a row's height of the top or
+bottom of a list longer than its panel scrolls that list, for as long as you
+hold it there. There is a short pause first, so a drag that is only crossing a
+list on its way somewhere else leaves it where it was. *Not yet in the project window or in a panel floated out into
+its own window, apart from the Layers panel, whose drag carries it everywhere.*
+
 **Panels share a slot by being dragged onto each other's headers.** Drop a panel
 on another panel's header and the two become tabs in one slot; drop it on the
 body, or on an edge, and it gets a slot of its own as before. Dragging the last
