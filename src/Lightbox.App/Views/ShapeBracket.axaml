@@ -16,7 +16,9 @@
     LinkBracket.axaml gives: the monolith ratchet, and self-contained chrome.
   -->
   <StackPanel Orientation="Horizontal">
-    <Panel Width="11" Margin="1,0,1,0" IsVisible="{Binding HasShapeMark}"
+    <!-- Sized by tokens, and the dot drawn as geometry, so nothing here is a
+         literal size (TokenRatchetTests). -->
+    <Panel Width="{StaticResource SizeIcon11}" IsVisible="{Binding HasShapeMark}"
            Background="Transparent" ToolTip.Tip="{Binding ShapeTip}">
       <Path Stroke="{DynamicResource AccentAmberBrush}" StrokeThickness="1.5" IsVisible="{Binding IsKeptTop}"
             Data="M 9,7 L 4,7 L 4,22" />
@@ -24,11 +26,11 @@
             Data="M 4,0 L 4,22" />
       <Panel IsVisible="{Binding IsFolderShape}">
         <Path Stroke="{DynamicResource AccentAmberBrush}" StrokeThickness="1.5" Data="M 4,0 L 4,11" />
-        <Ellipse Width="6" Height="6" Margin="1,8,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
-                 Fill="{DynamicResource AccentAmberBrush}" />
+        <Path Fill="{DynamicResource AccentAmberBrush}"
+              Data="M 4,8 A 3,3 0 1 1 4,14 A 3,3 0 1 1 4,8 Z" />
       </Panel>
     </Panel>
-    <TextBlock Text="!" FontWeight="Bold" Margin="1,0,2,0" VerticalAlignment="Center"
+    <TextBlock Text="!" FontWeight="Bold" Margin="{StaticResource GapAfter}" VerticalAlignment="Center"
                Foreground="{DynamicResource StatusWarningBrush}"
                IsVisible="{Binding HasShapeWarning}" ToolTip.Tip="{Binding ShapeWarning}" />
   </StackPanel>
