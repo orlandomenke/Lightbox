@@ -40,6 +40,23 @@ public class PausedOnTilesTests : BrushStateIsolated
         return vm;
     }
 
+    /// <summary>
+    /// The frame on screen's tiles, made as playback or the idle warm would make
+    /// them: the paused canvas shows tiles only when they are already there.
+    /// </summary>
+    internal static void PrepareTiles(MainViewModel vm)
+    {
+        var scene = vm.Doc.Scene;
+        foreach (var layer in scene.Layers)
+        {
+            if (Lightbox.Core.Timeline.ExposureSheet.ExposedFrame(layer, vm.CurrentFrameIndex) is { } f
+                && TileFrameCache.CanTileFrame(f))
+            {
+                vm.TileFrames.Get(f, scene.Width, scene.Height);
+            }
+        }
+    }
+
     private static RenderSnapshot Publish(MainViewModel vm)
     {
         RenderSnapshot? latest = null;
@@ -76,6 +93,7 @@ public class PausedOnTilesTests : BrushStateIsolated
         // arriving at it.
         Assert.True(vm.Prewarm.WaitForIdle(TimeSpan.FromSeconds(20)));
         vm.FrameCache.Clear();
+        PrepareTiles(vm);
         Assert.True(vm.PausedTilesNow, "an edit is still counted as in progress");
         var snapshot = Publish(vm);
         Assert.True(snapshot.Deferred?.Tiled == true, "the paused frame was not composed from tiles");
@@ -111,6 +129,7 @@ public class PausedOnTilesTests : BrushStateIsolated
             Assert.True(vm.Prewarm.WaitForIdle(TimeSpan.FromSeconds(20)));
             while (posted.TryDequeue(out var stale)) stale();
             vm.FrameCache.Clear(); // arriving at the frame
+            PrepareTiles(vm);
             Assert.True(Publish(vm).Deferred?.Tiled == true, "the frame was not shown from tiles on arrival");
             for (var i = 0; i < 20 && vm.PausedTilesNow; i++)
             {
@@ -156,6 +175,7 @@ public class PausedOnTilesTests : BrushStateIsolated
             while (posted.TryDequeue(out var stale)) stale();
 
             vm.FrameCache.Clear(); // arriving at the frame
+            PrepareTiles(vm);
             Publish(vm);
             Assert.True(vm.PausedTilesNow, "not vacuous: the stills have not arrived");
             var misses = vm.FrameCache.Misses;
@@ -170,6 +190,28 @@ public class PausedOnTilesTests : BrushStateIsolated
         {
             Lightbox.App.Services.ThumbnailWorker.Post = null;
         }
+    }
+
+    /// <summary>
+    /// A frame arrived at whose tiles nobody has made takes the still route, as
+    /// on main. The lab's jump-to-frame A/B (2026-10-08) found the tiled route
+    /// rendering a cold frame's tiles on the UI thread while the warm rendered
+    /// its stills beside it: a jump went from 290 ms to 4.3 s at the median.
+    /// Tiles are only worth showing when they are already there.
+    /// </summary>
+    [AvaloniaFact]
+    public void AFrameWithNoTilesYetIsShownFromItsStills()
+    {
+        var vm = Vm(1.0, onion: false);
+        vm.PausedOnTiles = true;
+        Assert.True(vm.Prewarm.WaitForIdle(TimeSpan.FromSeconds(20)));
+        vm.TileFrames.Clear();
+        vm.FrameCache.Clear();
+
+        var snapshot = Publish(vm);
+
+        Assert.False(snapshot.Deferred?.Tiled == true, "a cold frame was shown by rendering its tiles");
+        Assert.Equal(0, vm.TileFrames.CachedFrames);
     }
 
     /// <summary>
@@ -224,6 +266,7 @@ public class PausedOnTilesTests : BrushStateIsolated
         vm.PausedOnTiles = true;
         Assert.True(vm.Prewarm.WaitForIdle(TimeSpan.FromSeconds(20)));
         vm.FrameCache.Clear();
+        PrepareTiles(vm);
         before = vm.FrameCache.Misses;
         Publish(vm);
 

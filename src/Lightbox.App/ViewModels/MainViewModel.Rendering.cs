@@ -2152,7 +2152,31 @@ public partial class MainViewModel
 
 
     /// <summary>Whether this publish shows the paused canvas from tiles.</summary>
-    internal bool PausedTilesNow => PausedIdle && StrokeWarmJobs() is not null;
+    internal bool PausedTilesNow => PausedIdle && StrokeWarmJobs() is not null && TilesHeldForHere();
+
+    /// <summary>
+    /// Whether every drawing on screen that the tiled route can draw already
+    /// has its tiles — made by playback or the idle warm.
+    /// </summary>
+    /// <remarks>
+    /// Tiles are only worth showing when they are already there. The lab's
+    /// jump-to-frame A/B (2026-10-08, owner-shaped document) found the tiled
+    /// route rendering a cold frame's tiles on the UI thread while the warm
+    /// rendered its stills beside it: a jump went from 290 ms to 4.3 s at the
+    /// median. A frame without them takes the still route, as on main.
+    /// </remarks>
+    private bool TilesHeldForHere()
+    {
+        var scene = Scene;
+        foreach (var layer in scene.Layers)
+        {
+            if (!scene.IsLayerVisible(layer)) continue;
+            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
+            if (!TileFrameCache.CanTileFrame(frame)) continue;
+            if (!_tileFrames.Holds(frame.Id)) return false;
+        }
+        return true;
+    }
 
     /// <summary>
     /// A stroke begun on a frame shown from tiles, before its stills arrived:

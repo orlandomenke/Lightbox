@@ -175,6 +175,7 @@ public class TileFallbackReasonTests(ITestOutputHelper output) : BrushStateIsola
 
         vm.PausedOnTiles = true;
         vm.FrameCache.Clear(); // a frame arrived at: shown from tiles until its stills are in
+        PausedOnTilesTests.PrepareTiles(vm); // tiles playback or the idle warm made
         vm.ReportTileFallbacks.Reset();
         vm.PublishSnapshot();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
