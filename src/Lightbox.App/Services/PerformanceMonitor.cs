@@ -86,9 +86,50 @@ public sealed partial class PerformanceMonitor : ObservableObject
         Recompute();
     }
 
+    /// <summary>
+    /// One whole repaint, in the parts the view model times: describing the
+    /// frame (where a drawing missing from the cache is rendered), compositing
+    /// it, and handing it over — plus how many drawings it had to render and how
+    /// many the cache threw out to make room.
+    /// </summary>
+    public readonly record struct BuildSample(
+        double TotalMs, double DescribeMs, double ComposeMs, double HandoffMs,
+        long Misses, long Evictions, double AtSeconds);
+
+    /// <summary>A repaint longer than this is a pause the artist sees, not a slow frame.</summary>
+    public const double FreezeMs = 100;
+
+    private const double WindowSeconds = 60;
+    private const int WindowCap = 600;
+    private readonly Queue<BuildSample> _builds = new();
+
+    /// <summary>
+    /// The advice reads these, never a guess about the document (the owner's
+    /// report, 2026-10-07: "11 layers at 2.1 MP — merging finished layers frees
+    /// the most" on a document whose time, measured, went on re-rendering
+    /// drawings — which merging would not have touched).
+    /// </summary>
+    public void RecordBuild(BuildSample sample)
+    {
+        _builds.Enqueue(sample);
+        while (_builds.Count > WindowCap
+               || (_builds.Count > 0 && sample.AtSeconds - _builds.Peek().AtSeconds > WindowSeconds))
+        {
+            _builds.Dequeue();
+        }
+        FreezesLastMinute = _builds.Count(b => b.TotalMs > FreezeMs);
+        Recompute();
+    }
+
+    /// <summary>Repaints over <see cref="FreezeMs"/> in the last minute — what "it stalls" counts.</summary>
+    [ObservableProperty]
+    private int _freezesLastMinute;
+
     /// <summary>Forget the timings — call when the document changes size.</summary>
     public void Reset()
     {
+        _builds.Clear();
+        FreezesLastMinute = 0;
         _count = 0;
         _next = 0;
         _frameCount = 0;
@@ -157,36 +198,78 @@ public sealed partial class PerformanceMonitor : ObservableObject
             >= 20 => ("Heavy", true),
             _ => ("Struggling", true),
         };
-        Advice = NeedsAttention ? AdviceForDocument() : "";
+        // Pauses are worth the artist's attention whatever the median says: the
+        // median is what most repaints cost, and a pause is the one that is not.
+        if (FreezesLastMinute >= 3) NeedsAttention = true;
+        Advice = NeedsAttention ? MeasuredAdvice() : "";
     }
 
-    private string AdviceForDocument()
+    /// <summary>
+    /// What the time went on, from measurements only — and a remedy only where
+    /// it is known to help that cause.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>It used to guess.</b> More than six layers meant "merge finished
+    /// layers", whatever was actually slow — and it was fed the compositing
+    /// time alone, so a repaint that spent seconds rendering drawings the cache
+    /// did not hold reached it as a few milliseconds of compositing, and the
+    /// only fact left to blame was the layer count.
+    /// </para>
+    /// <para>
+    /// Now each cause is named by its share of the slow repaints of the last
+    /// minute: <b>displaying</b> (the frame time, rescaling the canvas to the
+    /// window), <b>re-rendering drawings</b> (describe time with cache misses in
+    /// it), <b>compositing</b> (compose time). A cause under half the time is not
+    /// named; the honest answer then is how slow, and where to look.
+    /// </para>
+    /// </remarks>
+    private string MeasuredAdvice()
     {
         var megapixels = _width * (double)_height / 1_000_000;
+        var pauses = FreezesLastMinute > 0
+            ? $"{FreezesLastMinute} pause{(FreezesLastMinute == 1 ? "" : "s")} over {FreezeMs / 1000:0.#} s in the last minute. "
+            : "";
+
         // Presenting the canvas costs more than composing it: the document is
-        // being rescaled to the window on every frame, which no amount of
-        // editing efficiency can offset.
+        // rescaled to the window on every frame, which no amount of editing
+        // efficiency can offset. Measured on the render thread.
         if (FrameMs > PublishMs * 2 && FrameMs > FrameBudgetMs)
         {
-            return $"Displaying a {megapixels:0.#} MP canvas costs {FrameMs:0} ms a frame — " +
+            return pauses + $"Displaying the {megapixels:0.#} MP canvas costs {FrameMs:0} ms a frame — " +
                    "lower Canvas quality while drawing, or zoom in to work on part of it.";
         }
-        if (_layerCount > 6)
+
+        var slow = _builds.Where(b => b.TotalMs > FrameBudgetMs).ToList();
+        if (slow.Count == 0)
         {
-            return $"{_layerCount} layers at {megapixels:0.#} MP — merging finished layers frees the most.";
+            return pauses + $"Repaints take {PublishMs:0} ms — Help ▸ Write a render report shows where.";
         }
-        if (megapixels > 8)
+        var total = slow.Sum(b => b.TotalMs);
+        var rendering = slow.Where(b => b.Misses > 0).Sum(b => b.DescribeMs);
+        var compositing = slow.Sum(b => b.ComposeMs);
+
+        if (rendering >= total / 2)
         {
-            return $"{megapixels:0.#} MP canvas is large for this machine — work at a smaller size and scale up on export.";
+            var drawings = slow.Sum(b => b.Misses);
+            var evicted = _builds.Sum(b => b.Evictions);
+            var what = $"{pauses}{rendering / 1000:0.#} s went on rendering {drawings} drawing{(drawings == 1 ? "" : "s")} " +
+                       "the cache did not hold";
+            // Only a full cache has a remedy: a cold one is the first view of
+            // those drawings, which idle time already prepares.
+            return evicted > 0
+                ? what + " — the frame cache is full; raising it in Configure ▸ Performance keeps them."
+                : what + " — the first look at them; pausing lets Lightbox prepare the rest.";
         }
-        if (_bytes > 600L * 1024 * 1024)
+
+        if (compositing >= total / 2)
         {
-            return $"{_bytes / (1024.0 * 1024 * 1024):0.0} GB of frames cached — close other documents or shorten the scene.";
+            var median = Median(slow.Select(b => b.ComposeMs).ToArray(), slow.Count);
+            return pauses + $"Compositing {_layerCount} layers takes {median:0} ms a repaint — " +
+                   "merging finished layers or a lower Canvas quality cuts it.";
         }
-        if (_drawingCount > 200)
-        {
-            return $"{_drawingCount} drawings in memory — closing other documents frees room.";
-        }
-        return "Merging layers or reducing the canvas size will help.";
+
+        return pauses + $"Repaints take {Median(slow.Select(b => b.TotalMs).ToArray(), slow.Count):0} ms when slow, " +
+               "with no single cause — Help ▸ Write a render report shows where.";
     }
 }

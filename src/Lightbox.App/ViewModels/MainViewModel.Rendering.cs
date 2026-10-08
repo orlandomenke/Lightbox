@@ -1255,6 +1255,7 @@ public partial class MainViewModel
     private double _buildStartComposeMs;
     private double _buildStartHandoffMs;
     private long _buildStartMisses;
+    private long _buildStartEvictions;
 
     /// <summary>
     /// The single worst frame build, broken into the phases IT spent its time
@@ -1323,6 +1324,19 @@ public partial class MainViewModel
                     BuildDescribeMs - _buildStartDescribeMs));
             }
         }
+
+        // The whole build, in its parts, for the headroom band's advice: it
+        // names a cause only from these (the compose time alone, which is all
+        // it had, could never see a drawing being rendered).
+        Performance.RecordBuild(new Services.PerformanceMonitor.BuildSample(
+            ms,
+            BuildDescribeMs - _buildStartDescribeMs,
+            BuildComposeMs - _buildStartComposeMs,
+            BuildHandoffMs - _buildStartHandoffMs,
+            _cache.Misses - _buildStartMisses,
+            _cache.Evictions - _buildStartEvictions,
+            (System.Diagnostics.Stopwatch.GetTimestamp() - AppStartedTicks)
+                / (double)System.Diagnostics.Stopwatch.Frequency));
 
         if (ms > WorstBuild.TotalMs)
         {
@@ -1470,6 +1484,7 @@ public partial class MainViewModel
         _buildStartComposeMs = BuildComposeMs;
         _buildStartHandoffMs = BuildHandoffMs;
         _buildStartMisses = _cache.Misses;
+        _buildStartEvictions = _cache.Evictions;
 
         // Belt to the release at the end of this method: if an exception left
         // holds behind, the next publish must not stack a second set on top.
