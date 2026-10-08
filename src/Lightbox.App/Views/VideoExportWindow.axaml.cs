@@ -232,6 +232,10 @@ public partial class VideoExportWindow : Window
         ExportButton.Content = "Stop";
         CloseButton.IsEnabled = false;
         Progress.IsVisible = true;
+        // Escape closes this window, and closing cancels a render. A stray key
+        // must not throw away twenty minutes of encoding, so while one is
+        // running the button has to be pressed on purpose.
+        CloseButton.IsCancel = false;
         Progress.Value = 0;
         StatusText.Text = "Rendering…";
 
@@ -269,6 +273,7 @@ public partial class VideoExportWindow : Window
         ExportButton.Content = "Export";
         CloseButton.IsEnabled = true;
         Progress.IsVisible = false;
+        CloseButton.IsCancel = true;
         StatusText.Text = error
             ?? VideoExportReport.Done(target, settings, doc.Scene)
                + (soundWasAskedForAndLost

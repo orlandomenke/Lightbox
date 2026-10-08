@@ -35,7 +35,7 @@ namespace Lightbox.App.Rendering;
 /// a fallback, not a failure: correctness first, sparsity where it is sound.
 /// </para>
 /// </remarks>
-public sealed class TileFrameCache : IDisposable
+public sealed class TileFrameCache : IDisposable, Lightbox.Raster.IPictureStore
 {
     /// <summary>
     /// Tile bytes held before the least recently used frame is evicted. The
@@ -123,6 +123,9 @@ public sealed class TileFrameCache : IDisposable
     private readonly Dictionary<string, LinkedListNode<(string Id, Entry Entry)>> _map = [];
     private readonly LinkedList<(string Id, Entry Entry)> _lru = [];
 
+    /// <summary>When each frame's tiles were last fetched or put in (Q221).</summary>
+    private readonly Dictionary<string, long> _used = [];
+
     public int CachedFrames => _lru.Count;
 
     /// <summary>Tile bytes currently held, across every cached frame.</summary>
@@ -159,6 +162,7 @@ public sealed class TileFrameCache : IDisposable
         {
             _lru.Remove(node);
             _lru.AddFirst(node);
+            _used[frame.Id] = Lightbox.Raster.PictureMemory.Clock();
             return (node.Value.Entry.Store, node.Value.Entry.Pyramid);
         }
 
@@ -272,6 +276,7 @@ public sealed class TileFrameCache : IDisposable
             entry.Store.Dispose();
         }
         _lru.Clear();
+        _used.Clear();
         _map.Clear();
         AllocatedBytes = 0;
     }
@@ -296,8 +301,30 @@ public sealed class TileFrameCache : IDisposable
         }
     }
 
+    // ---- the overall limit (Q221) -----------------------------------------------
+
+    long Lightbox.Raster.IPictureStore.Bytes => AllocatedBytes;
+
+    /// <summary>The least recently used frame's tiles, keeping at least one frame.</summary>
+    long? Lightbox.Raster.IPictureStore.OldestEvictable =>
+        _lru.Count > 1 && _lru.Last is { } last ? UsedOf(last.Value.Id) : null;
+
+    long Lightbox.Raster.IPictureStore.EvictOldest()
+    {
+        if (_lru.Count <= 1 || _lru.Last is not { } last) return 0;
+        var bytes = last.Value.Entry.Store.AllocatedBytes;
+        Remove(last);
+        return bytes;
+    }
+
+    // An entry put in before the clock was read (InsertWarm, Get's miss) is
+    // stamped on first sight: as recent as it can be, which errs towards keeping it.
+    private long UsedOf(string id) =>
+        _used.TryGetValue(id, out var t) ? t : _used[id] = Lightbox.Raster.PictureMemory.Clock();
+
     private void Remove(LinkedListNode<(string Id, Entry Entry)> node)
     {
+        _used.Remove(node.Value.Id);
         AllocatedBytes -= node.Value.Entry.Store.AllocatedBytes;
         node.Value.Entry.Pyramid.Dispose();
         node.Value.Entry.Store.Dispose();

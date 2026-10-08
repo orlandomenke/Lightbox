@@ -81,8 +81,9 @@ public static class MemoryBudget
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Named rather than inlined because the artist's setting clamps against
-    /// the ceiling too</b> (<c>MainViewModel.FrameCacheBudgetMb</c>). Two ceilings
+    /// <b>Named rather than inlined because the artist's setting clamped against
+    /// the ceiling too</b> — until Q221, when one figure for every picture cache
+    /// replaced it and <see cref="PicturesCeilingBytes"/> took the role. Two ceilings
     /// that disagree is how a preference ends up offering a value the cache will
     /// not honour: the setting reads back something other than what was typed,
     /// with nothing to explain why.
@@ -191,5 +192,37 @@ public static class MemoryBudget
     /// residency never survives a frame and the feature is pure overhead.
     /// </remarks>
     public static long LayerTextures() =>
-        Share(1.0 / 16, 64L * 1024 * 1024, 1L * 1024 * 1024 * 1024);
+        Share(1.0 / 16, LayerTexturesFloorBytes, 1L * 1024 * 1024 * 1024);
+
+    /// <summary>The least the layer textures get, from the machine or from a slice of the picture limit.</summary>
+    public const long LayerTexturesFloorBytes = 64L * 1024 * 1024;
+
+    /// <summary>
+    /// Every picture the application holds, together: an eighth of the machine
+    /// (Q221) — 1 GB on the minimum spec, 4 GB on a 32 GB machine. The separate
+    /// caps below summed to a third of it, and nothing held them to that sum.
+    /// </summary>
+    public static long Pictures() =>
+        Share(1.0 / 8, PicturesFloorBytes, PicturesCeilingBytes);
+
+    /// <summary>The least the artist's setting may go to: below it a 1080p frame's layers do not fit.</summary>
+    public const long PicturesFloorBytes = 512L * 1024 * 1024;
+
+    public const long PicturesCeilingBytes = 16L * 1024 * 1024 * 1024;
+
+    /// <summary>
+    /// The most the artist's setting may ask for on this machine: half of it, at
+    /// most <see cref="PicturesCeilingBytes"/>. Past half, idle warming would
+    /// fill memory the rest of the computer needs — and a figure set on a bigger
+    /// machine arrives in the settings file unchanged.
+    /// </summary>
+    public static long PicturesCeiling() =>
+        Math.Max(PicturesFloorBytes, Math.Min(PicturesCeilingBytes, Available / 2));
+
+    /// <summary>
+    /// A figure for the setting, held to the floor and this machine's ceiling.
+    /// The one place both the Configure field and the settings file go through.
+    /// </summary>
+    public static long ClampPictures(long bytes) =>
+        Math.Clamp(bytes, PicturesFloorBytes, PicturesCeiling());
 }

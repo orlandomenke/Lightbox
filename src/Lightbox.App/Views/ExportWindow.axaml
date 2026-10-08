@@ -6,12 +6,12 @@
         Width="440" SizeToContent="Height" MaxHeight="700"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
-  <StackPanel Margin="{StaticResource PagePadding}" Spacing="{StaticResource Space10}">
+  <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space10}">
 
     <!-- The preset row first, because the whole point of this window is that an
          artist visits it once per project and presses Export after that. -->
     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
-      <TextBlock Grid.Column="0" Text="Preset" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Preset" VerticalAlignment="Center" />
       <ComboBox Grid.Column="1" x:Name="PresetBox" HorizontalAlignment="Stretch"
                 SelectionChanged="OnPresetChanged" />
       <Button Grid.Column="2" Classes="text" Content="Delete" x:Name="DeletePresetButton"
@@ -20,7 +20,7 @@
     </Grid>
 
     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
-      <TextBlock Grid.Column="0" Text="Save as" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Save as" VerticalAlignment="Center" />
       <TextBox Grid.Column="1" x:Name="PresetNameBox"
                PlaceholderText="Name — e.g. Knight atlas"
                ToolTip.Tip="Keep these settings under a name, so the next export is one click." />
@@ -29,30 +29,41 @@
 
     <Separator />
 
-    <Grid ColumnDefinitions="120,*" RowSpacing="8" ColumnSpacing="8"
-          RowDefinitions="Auto,Auto,Auto,Auto,Auto">
-      <TextBlock Grid.Row="0" Grid.Column="0" Text="Format" VerticalAlignment="Center" />
-      <ComboBox Grid.Row="0" Grid.Column="1" x:Name="TargetBox" HorizontalAlignment="Stretch"
-                SelectionChanged="OnTargetChanged" />
+    <!--
+      A stack of rows, each its own grid, and the code-behind hides a ROW. As
+      one grid with row spacing, hiding a row's two controls left its spacing
+      behind: 24 px between Trim and Background on a strip, and 32 px of
+      nothing under Format on a PNG sequence.
+    -->
+    <StackPanel x:Name="SheetRows" Spacing="{StaticResource Space8}">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Format" VerticalAlignment="Center" />
+        <ComboBox Grid.Column="1" x:Name="TargetBox" HorizontalAlignment="Stretch"
+                  SelectionChanged="OnTargetChanged" />
+      </Grid>
 
-      <TextBlock Grid.Row="1" Grid.Column="0" Text="Trim" VerticalAlignment="Center"
-                 x:Name="TrimLabel" />
-      <ComboBox Grid.Row="1" Grid.Column="1" x:Name="TrimBox" HorizontalAlignment="Stretch" />
+      <Grid x:Name="TrimRow" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Trim" VerticalAlignment="Center" x:Name="TrimLabel" />
+        <ComboBox Grid.Column="1" x:Name="TrimBox" HorizontalAlignment="Stretch" />
+      </Grid>
 
-      <TextBlock Grid.Row="2" Grid.Column="0" Text="Layout" VerticalAlignment="Center"
-                 x:Name="PackLabel" />
-      <ComboBox Grid.Row="2" Grid.Column="1" x:Name="PackBox" HorizontalAlignment="Stretch" />
+      <Grid x:Name="PackRow" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Layout" VerticalAlignment="Center" x:Name="PackLabel" />
+        <ComboBox Grid.Column="1" x:Name="PackBox" HorizontalAlignment="Stretch" />
+      </Grid>
 
-      <TextBlock Grid.Row="3" Grid.Column="0" Text="Padding" VerticalAlignment="Center"
-                 x:Name="PaddingLabel" />
-      <TextBox Grid.Row="3" Grid.Column="1" x:Name="PaddingBox" Width="{StaticResource SizeDialogField}"
-               HorizontalAlignment="Left"
-               ToolTip.Tip="Transparent gutter around each cell, in pixels. Stops an engine's bilinear filtering bleeding one sprite into the next." />
+      <Grid x:Name="PaddingRow" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Padding" VerticalAlignment="Center" x:Name="PaddingLabel" />
+        <TextBox Grid.Column="1" x:Name="PaddingBox" Width="{StaticResource SizeDialogField}"
+                 HorizontalAlignment="Left"
+                 ToolTip.Tip="Transparent gutter around each cell, in pixels. Stops an engine's bilinear filtering bleeding one sprite into the next." />
+      </Grid>
 
-      <TextBlock Grid.Row="4" Grid.Column="0" Text="Background" VerticalAlignment="Center"
-                 x:Name="BackgroundLabel" />
-      <ComboBox Grid.Row="4" Grid.Column="1" x:Name="BackgroundBox" HorizontalAlignment="Stretch" />
-    </Grid>
+      <Grid x:Name="BackgroundRow" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Background" VerticalAlignment="Center" x:Name="BackgroundLabel" />
+        <ComboBox Grid.Column="1" x:Name="BackgroundBox" HorizontalAlignment="Stretch" />
+      </Grid>
+    </StackPanel>
 
     <TextBlock x:Name="BackgroundHint" TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6" />
 
@@ -60,19 +71,19 @@
       <CheckBox x:Name="NormalMapBox" Content="Also write a normal map"
                 IsCheckedChanged="OnNormalMapChanged"
                 ToolTip.Tip="A tangent-space normal map beside the sheet, as &lt;name&gt;_normal.png, so an engine can light the sprite." />
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8" RowSpacing="6"
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" RowSpacing="6"
             RowDefinitions="Auto,Auto,Auto" x:Name="NormalRows">
-        <TextBlock Grid.Row="0" Grid.Column="0" Text="Bevel" VerticalAlignment="Center" />
+        <TextBlock Grid.Row="0" Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Bevel" VerticalAlignment="Center" />
         <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Space6}">
           <TextBox x:Name="BevelBox" Width="{StaticResource SizeDialogField}" />
           <TextBlock Text="px in from the edge" VerticalAlignment="Center" Opacity="0.7" />
         </StackPanel>
 
-        <TextBlock Grid.Row="1" Grid.Column="0" Text="Strength" VerticalAlignment="Center" />
+        <TextBlock Grid.Row="1" Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Strength" VerticalAlignment="Center" />
         <TextBox Grid.Row="1" Grid.Column="1" x:Name="NormalStrengthBox" Width="{StaticResource SizeDialogField}"
                  HorizontalAlignment="Left" />
 
-        <TextBlock Grid.Row="2" Grid.Column="0" Text="Green points" VerticalAlignment="Center" />
+        <TextBlock Grid.Row="2" Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Green points" VerticalAlignment="Center" />
         <ComboBox Grid.Row="2" Grid.Column="1" x:Name="GreenBox" HorizontalAlignment="Stretch"
                   ToolTip.Tip="Get this backwards and lighting looks inverted — every bevel reads as a groove. Unity wants OpenGL; Unreal wants DirectX." />
       </Grid>
@@ -82,8 +93,8 @@
          teaches an artist that the controls lie. -->
     <StackPanel x:Name="EnginePanel" Spacing="{StaticResource Space8}" IsVisible="False">
       <Separator />
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8">
-        <TextBlock Grid.Column="0" Text="Canvas height" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Canvas height" VerticalAlignment="Center" />
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Space6}">
           <TextBox x:Name="WorldHeightBox" Width="{StaticResource SizeDialogField}" />
           <!-- Metres, not "world units": Unity's unit is a metre and Unreal's is a
@@ -100,9 +111,18 @@
 
     <Separator />
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}">
-      <Button Content="Cancel" Click="OnCancel" />
-      <Button Classes="primary" Content="Export…" Click="OnExport" IsDefault="True" />
-    </StackPanel>
+    <!--
+      A uniform grid, so both buttons take the width of the wider label; a
+      MinWidth alone leaves them different. Dismissing is the quiet one.
+      DialogGeometryTests measures the pair.
+    -->
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="8" HorizontalAlignment="Right">
+      <Button x:Name="CancelButton" Classes="tertiary" Content="Cancel" Click="OnCancel" IsCancel="True"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+      <Button x:Name="ExportButton" Classes="primary" Content="Export…" Click="OnExport" IsDefault="True"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+    </UniformGrid>
   </StackPanel>
 </Window>

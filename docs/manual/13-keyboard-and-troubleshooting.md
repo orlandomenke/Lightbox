@@ -594,9 +594,12 @@ Two lines to read first:
   the memory you actually have rather than a figure fixed in advance, which is
   why the same scene can play smoothly on one computer and re-render on another
   with no setting different between them. Edit ▸ Configure ▸ Performance ▸
-  *Frame cache* overrides it in either direction: raise it if you have memory
-  spare and long scenes, lower it if something else on the machine needs the
-  room.
+  *Memory for pictures* overrides it in either direction: raise it if you have
+  memory spare and long scenes, lower it if something else on the machine needs
+  the room. It is one limit for everything Lightbox keeps drawn — still frames,
+  playback, onion skin and undo pixels — and the pictures used longest ago make
+  room first, whichever kind they are. It starts at an eighth of the computer's
+  memory.
 - **reused a flatten** — while a sequence plays, most drawings are not changing:
   a layer on 2s shows the same drawing two frames running, and a background may
   not change all scene. Lightbox keeps the assembled picture of a drawing so it

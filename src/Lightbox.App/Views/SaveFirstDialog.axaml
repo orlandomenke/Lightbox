@@ -17,10 +17,13 @@
   -->
   <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
     <TextBlock x:Name="Message" TextWrapping="Wrap" />
-    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space8}" HorizontalAlignment="Right">
-      <Button Classes="primary" x:Name="SaveButton" Content="Save file as…" IsDefault="True"
-              Click="OnSaveAsClicked" MinWidth="110" />
-      <Button Classes="tertiary" x:Name="RevertButton" IsCancel="True" Click="OnRevertClicked" MinWidth="140" />
-    </StackPanel>
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="8" HorizontalAlignment="Right">
+      <Button Classes="tertiary" x:Name="RevertButton" IsCancel="True" Click="OnRevertClicked"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="primary" x:Name="SaveButton" Content="Save file as…" IsDefault="True" Click="OnSaveAsClicked"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  MinWidth="{StaticResource SizeDialogButton}" />
+    </UniformGrid>
   </StackPanel>
 </Window>

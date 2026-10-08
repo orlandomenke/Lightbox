@@ -9,9 +9,13 @@
 
   <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space10}">
     <views:NewProjectPanel x:Name="Fields" />
-    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space8}" HorizontalAlignment="Right" Margin="{StaticResource SectionGap}">
-      <Button Classes="primary" Content="Create" IsDefault="True" Click="OnCreateClicked" MinWidth="{StaticResource SizeDialogButton}" />
-      <Button Classes="tertiary" Content="Cancel" IsCancel="True" Click="OnCancelClicked" MinWidth="{StaticResource SizeDialogButton}" />
-    </StackPanel>
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="8" HorizontalAlignment="Right" Margin="{StaticResource SectionGap}">
+      <Button Classes="tertiary" Content="Cancel" IsCancel="True" Click="OnCancelClicked"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="primary" Content="Create" IsDefault="True" Click="OnCreateClicked"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  MinWidth="{StaticResource SizeDialogButton}" />
+    </UniformGrid>
   </StackPanel>
 </Window>

@@ -9,7 +9,7 @@ namespace Lightbox.Raster;
 /// thread only. Invalidate a frame after mutating it (e.g. committing a
 /// stroke); invalidate everything after undo/redo or document load.
 /// </summary>
-public sealed class FrameBitmapCache : IDisposable
+public sealed class FrameBitmapCache : IDisposable, IPictureStore
 {
     /// <summary>
     /// Frames are held by total bytes, not by count: 96 cached frames is
@@ -75,7 +75,11 @@ public sealed class FrameBitmapCache : IDisposable
     /// <param name="Height">Document height, likewise.</param>
     /// <param name="OutputScale">Surface pixels per document unit, likewise.</param>
     private readonly record struct Entry(
-        string Key, string FrameId, SKBitmap Bmp, int Width, int Height, double OutputScale);
+        string Key, string FrameId, SKBitmap Bmp, int Width, int Height, double OutputScale)
+    {
+        /// <summary>When it was last fetched or put in, on <see cref="PictureMemory.Clock"/> (Q221).</summary>
+        public long Used { get; init; } = PictureMemory.Clock();
+    }
 
     private readonly Dictionary<string, LinkedListNode<Entry>> _map = [];
     private readonly LinkedList<Entry> _lru = [];
@@ -445,6 +449,7 @@ public sealed class FrameBitmapCache : IDisposable
         {
             Hits++;
             _lru.Remove(node);
+            node.Value = node.Value with { Used = PictureMemory.Clock() };
             _lru.AddFirst(node);
             return Held(node.Value.Bmp);
         }
@@ -820,6 +825,35 @@ public sealed class FrameBitmapCache : IDisposable
         _lru.Remove(node);
         CachedBytes -= BytesOf(node.Value.Bmp);
         DisposeOrDefer(node.Value.Bmp);
+    }
+
+    // ---- the overall limit (Q221) -----------------------------------------------
+
+    long IPictureStore.Bytes => CachedBytes;
+
+    /// <summary>
+    /// The least recently used frame that may go: not pinned (a pinned bitmap
+    /// leaving frees nothing until the render thread lets go), and never below
+    /// the cache's own floor.
+    /// </summary>
+    long? IPictureStore.OldestEvictable => OldestEvictableNode()?.Value.Used;
+
+    long IPictureStore.EvictOldest()
+    {
+        if (OldestEvictableNode() is not { } node) return 0;
+        var bytes = BytesOf(node.Value.Bmp);
+        RemoveNode(node);
+        return bytes;
+    }
+
+    private LinkedListNode<Entry>? OldestEvictableNode()
+    {
+        if (_lru.Count <= MinFrames) return null;
+        for (var node = _lru.Last; node is not null; node = node.Previous)
+        {
+            if (!_pins.ContainsKey(node.Value.Bmp)) return node;
+        }
+        return null;
     }
 
     public void Dispose() => Clear();

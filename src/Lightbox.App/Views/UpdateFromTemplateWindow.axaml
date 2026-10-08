@@ -43,9 +43,13 @@
       </StackPanel>
     </StackPanel>
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}" Margin="{StaticResource SubsectionGap}">
-      <Button Content="Cancel" Click="OnCancel" />
-      <Button Classes="primary" x:Name="ApplyButton" Content="Update" Click="OnApply" IsDefault="True" />
-    </StackPanel>
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="8" HorizontalAlignment="Right" Margin="{StaticResource SubsectionGap}">
+      <Button Classes="tertiary" Content="Cancel" Click="OnCancel" IsCancel="True"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="primary" x:Name="ApplyButton" Content="Update" Click="OnApply" IsDefault="True"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  MinWidth="{StaticResource SizeDialogButton}" />
+    </UniformGrid>
   </StackPanel>
 </Window>

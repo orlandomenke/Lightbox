@@ -1093,7 +1093,9 @@ public partial class ConfigureWindow : Window
         PlaybackQualityBox.ItemsSource = _vm.PlaybackQualityChoices;
         PlaybackQualityBox.SelectedItem = _vm.PlaybackQualityChoice;
         UndoDepthBox.Value = _vm.UndoDepth;
-        CacheBudgetBox.Value = _vm.FrameCacheBudgetMb;
+        // This machine's ceiling, not the fixed one in the markup (Q221).
+        CacheBudgetBox.Maximum = Lightbox.Raster.MemoryBudget.PicturesCeiling() / (1024 * 1024);
+        CacheBudgetBox.Value = _vm.MemoryForPicturesMb;
         RasterCheckpointsBox.IsChecked = _vm.RasterCheckpoints;
         WarmPlaybackBox.IsChecked = _vm.WarmPlaybackAtIdle;
         GpuCompositeBox.ItemsSource = _vm.GpuCompositingChoices;
@@ -1439,7 +1441,7 @@ public partial class ConfigureWindow : Window
     private void OnCacheBudgetChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
         if (_loadingPerformance || _vm is null || e.NewValue is not { } value) return;
-        _vm.FrameCacheBudgetMb = (int)value;
+        _vm.MemoryForPicturesMb = (int)value;
         RefreshMeasured();
     }
 

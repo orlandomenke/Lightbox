@@ -136,6 +136,21 @@ public class LedgerGateTests(ITestOutputHelper output)
     /// still be. A fix that only satisfied the first would have widened the
     /// guard into silence.
     /// </para>
+    /// <para>
+    /// <b>What B410 was</b>, and why <c>on-base:</c> is in the list below. Two
+    /// questions reached <c>main</c> under one number, filed 43 seconds apart,
+    /// and <c>ids --fix</c> was run from a branch cut after both. Neither file
+    /// was "the one this branch added", so the choice fell through to filename
+    /// order and the <em>earlier</em> question was renamed; the citation pass
+    /// then moved the lines that branch had added — which meant the other
+    /// question — onto the new number. The scenario commits two same-numbered
+    /// questions on the base at set dates, with the later one sorting first by
+    /// name, and runs the repair from a branch that filed neither: the later
+    /// one must move, only the citations its filing commit wrote may go with
+    /// it, and every other citation must be printed as left alone.
+    /// <c>in-range:</c> holds the same rule for the bug ledger, where one
+    /// commit filed both entries and no citation can be attributed at all.
+    /// </para>
     /// </remarks>
     [Fact]
     public void TheAllocatorsOwnScenariosStillHold()
@@ -149,13 +164,45 @@ public class LedgerGateTests(ITestOutputHelper output)
 
         // Named individually, so a scenario silently disappearing from the
         // script cannot leave this passing on the ones that remain.
-        foreach (var scenario in new[] { "mid-merge:", "committed:", "in-range:", "retitled:", "allocated:" })
+        foreach (var scenario in new[] { "mid-merge:", "committed:", "in-range:", "retitled:", "allocated:", "on-base:",
+                     "copied:", "endings:", "thrice:", "undated:", "symlink:" })
         {
             Assert.True(
                 said.Contains(scenario, StringComparison.Ordinal),
                 $"the selftest no longer runs the '{scenario}' scenario, so this test is "
                 + "green over less than it was written to cover");
         }
+    }
+
+    /// <summary>
+    /// B410: when the branch running <c>ids --fix</c> filed neither of two
+    /// same-numbered entries, the later one moves and the branch's own
+    /// citations stay where they are.
+    /// </summary>
+    /// <remarks>
+    /// The scenario is already inside <see cref="TheAllocatorsOwnScenariosStillHold"/>;
+    /// it has a test of its own because the ledger closes a bug on the name of
+    /// its regression test, and because what is asserted here is the outcome
+    /// rather than that a scenario ran. The file names are the fixture's: the
+    /// earlier question is <c>zebra</c> so that it sorts last, which is what
+    /// made "all but the first by name" pick the wrong one on 2026-10-08.
+    /// </remarks>
+    [Fact]
+    public void TheRepairMovesTheLaterEntryWhenTheBranchFiledNeither()
+    {
+        var (code, said) = Bugs("selftest on-base");
+
+        Assert.True(code == 0, "bugs.py selftest on-base reported a failure:\n" + said);
+
+        var line = said.Split('\n').FirstOrDefault(l => l.Contains("on-base:", StringComparison.Ordinal));
+        Assert.True(line is not null, "the on-base scenario printed no result line:\n" + said);
+
+        // The earlier entry kept the number and the later one gave it up …
+        Assert.Contains("Q7-zebra-earlier.md", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("Q7-apple-later.md", line, StringComparison.Ordinal);
+        Assert.Contains("-apple-later.md", line, StringComparison.Ordinal);
+        // … and the branch's own citation, which could mean either, did not move.
+        Assert.Contains("mine cites 'see Q7'", line, StringComparison.Ordinal);
     }
 
     /// <summary>A ledger holding exactly the entries given, and nothing else.</summary>

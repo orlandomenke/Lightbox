@@ -101,7 +101,17 @@ internal sealed class ComposeCache(long budgetBytes)
     /// <summary>Entries the cache has let go of but whose last reader has not.</summary>
     private readonly List<Entry> _orphans = [];
 
-    internal long BudgetBytes { get; } = budgetBytes;
+    /// <summary>
+    /// Its own cap, or an eighth of the overall picture limit when that is less
+    /// (Q221) — the render thread holds this cache, so the limit cannot evict it
+    /// and it keeps to a slice instead. Read live. The slice never goes below
+    /// <see cref="SliceFloorBytes"/>, where a loop stops fitting at all.
+    /// </summary>
+    internal long BudgetBytes => Math.Min(
+        budgetBytes, Math.Max(SliceFloorBytes, Lightbox.Raster.PictureMemory.RenderSlice));
+
+    /// <summary>The least a slice of the picture limit leaves this cache.</summary>
+    internal const long SliceFloorBytes = 128L * 1024 * 1024;
 
     /// <summary>Bytes of composites the cache is holding.</summary>
     internal long CachedBytes { get; private set; }

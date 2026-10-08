@@ -15,14 +15,17 @@
                TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                Text="{Binding Status}" />
 
-    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
-                HorizontalAlignment="Right" Spacing="{StaticResource Space8}" Margin="{StaticResource SectionGap}">
-      <Button Content="Close" Click="OnClose" IsCancel="True" />
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="8" HorizontalAlignment="Right" DockPanel.Dock="Bottom" Margin="{StaticResource SectionGap}">
+      <Button Classes="tertiary" Content="Close" Click="OnClose" IsCancel="True"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  MinWidth="{StaticResource SizeDialogButton}" />
       <Button Classes="primary" Content="Revert to selected"
               Command="{Binding RevertCommand}"
               CommandParameter="{Binding Selected}"
-              IsEnabled="{Binding Selected.CanRevert, FallbackValue=False}" />
-    </StackPanel>
+              IsEnabled="{Binding Selected.CanRevert, FallbackValue=False}"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  MinWidth="{StaticResource SizeDialogButton}" />
+    </UniformGrid>
 
     <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold"
                Text="Versions, newest first" />
