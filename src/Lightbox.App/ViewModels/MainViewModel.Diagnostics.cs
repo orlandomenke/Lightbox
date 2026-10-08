@@ -650,7 +650,9 @@ public partial class MainViewModel
         using var self = System.Diagnostics.Process.GetCurrentProcess();
         PerfLog.Mark("memory", string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"stills={Mb(_cache.CachedBytes)}/{_cache.CachedFrames} tiles={Mb(_tileFrames.AllocatedBytes)}/{_tileFrames.CachedFrames} " +
-            $"ring={Mb(_composeRing.AllocatedBytes)} marks={Mb(_markSnapshots.Bytes)} undo={undo} redo={redo} " +
+            $"ring={Mb(_composeRing.AllocatedBytes)} marks={Mb(_markSnapshots.Bytes)} " +
+            $"composed={Mb(Rendering.ComposeCacheHost.Shared.CachedBytes)} flats={Mb(_tileFlats.CachedBytes + _tileFlats.AwaitingUnpinBytes)} " +
+            $"undo={undo} redo={redo} " +
             $"heap={Mb(GC.GetTotalMemory(false))} private={Mb(self.PrivateMemorySize64)}"));
     }
 
