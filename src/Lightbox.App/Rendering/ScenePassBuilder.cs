@@ -225,7 +225,10 @@ internal static class ScenePassBuilder
         SKBitmap? TipScratch = null,
         SKRectI? TipBounds = null,
         double TipScale = 1.0,
-        SKRectI? PostUsed = null)
+        SKRectI? PostUsed = null,
+        bool GhostsFollow = false,
+        IReadOnlySet<string>? TransformFrameIds = null,
+        Func<Layer, IReadOnlyList<PassSpec>, SKBitmap?>? GhostSheet = null)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -423,7 +426,9 @@ internal static class ScenePassBuilder
             // sit under it, exactly as its own earlier frames would.
             // Ghosts ride their layer's plane — a ghost is the same drawing at
             // another time, so it parallaxes exactly as the drawing does.
-            var ghosts = GhostSpecsFor(layer, scene, state, parallax);
+            var ghostDrag = GhostDrag(live);
+            var ghosts = GhostSpecsFor(layer, scene, state, parallax, ghostDrag);
+            if (ghostDrag is { } gd) ghosts = AsOneSheet(layer, ghosts, gd.FrameIds, live.GhostSheet);
             if (!state.Onion.DrawOver) passes.AddRange(ghosts);
 
             // Past the end of the scene the canvas shows no drawing (Q103).
@@ -775,7 +780,8 @@ internal static class ScenePassBuilder
     /// that mode ghosts other layers rather than other frames.
     /// </summary>
     internal static IReadOnlyList<PassSpec> GhostSpecsFor(
-        Layer layer, Scene scene, State state, SKMatrix? parallax = null)
+        Layer layer, Scene scene, State state, SKMatrix? parallax = null,
+        (SKMatrix Preview, IReadOnlySet<string> FrameIds)? drag = null)
     {
         var onion = state.Onion;
         // Ghosts are a drawing aid. During playback they are noise, and the
@@ -819,7 +825,7 @@ internal static class ScenePassBuilder
             passes.Add(new PassSpec(
                 pinned, index, null,
                 index < state.FrameIndex ? previous : next,
-                onion.Opacity, Matrix: parallax, Shapes: ghostShapes));
+                onion.Opacity, Matrix: GhostMatrix(pinned, parallax, drag), Shapes: ghostShapes));
         }
 
         // Furthest first so the nearest ghost ends up on top of the others,
@@ -834,9 +840,81 @@ internal static class ScenePassBuilder
                 ghost.Frame, ghost.Index, null,
                 ghost.Before ? previous : next,
                 OnionSkin.OpacityAt(ghost.Steps, onion.Opacity, onion.Falloff),
-                Matrix: parallax, Shapes: ghostShapes));
+                Matrix: GhostMatrix(ghost.Frame, parallax, drag), Shapes: ghostShapes));
         }
         return passes;
+    }
+
+    /// <summary>
+    /// The drag the ghosts should follow, or null when they stay put.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Q216.</b> Scaling every drawing on a layer while the ghosts of those
+    /// same drawings sit at the old size is a preview of one frame and a guess
+    /// about the rest — and the rest is the point of the operation. So a ghost
+    /// whose drawing the session is moving is drawn through the same matrix as
+    /// the drawing under the gizmo: what the onion shows during the drag is what
+    /// the commit will leave.
+    /// </para>
+    /// <para>
+    /// Only when whole drawings move (<see cref="LiveEdit.GhostsFollow"/>) and
+    /// the drag is one matrix. A region-limited transform moves part of each
+    /// drawing and a ghost is one bitmap, so moving it would show strokes moving
+    /// that will stay; bands and the cage are per-region too. In those cases the
+    /// ghosts stay where they are, which is what they always did.
+    /// </para>
+    /// <para>
+    /// Costs nothing new in pixels: a ghost is already a cached bitmap drawn
+    /// through a matrix (the parallax one), so this changes which matrix. The
+    /// repaint stays bounded because the session's moving bounds are the union
+    /// over every drawing in scope, ghosts' drawings included.
+    /// </para>
+    /// </remarks>
+    private static (SKMatrix Preview, IReadOnlySet<string> FrameIds)? GhostDrag(in LiveEdit live) =>
+        live.GhostsFollow
+        && live.TransformPreview is { } preview
+        && live.TransformBands is not { Count: > 0 }
+        && live.TransformMesh is null
+        && live.TransformFrameIds is { Count: > 0 } ids
+            ? (preview, ids)
+            : null;
+
+    /// <summary>
+    /// A layer's ghosts as one pass when every one of them follows the drag,
+    /// else unchanged.
+    /// </summary>
+    /// <remarks>
+    /// They share one matrix, so the view model composites them once into a
+    /// sheet and the sheet is resampled once per event instead of once per
+    /// ghost (Q216; measured at ~2 ms per ghost per event at 960×540). Mixed
+    /// layers — some ghosts in the session, some not — keep their passes,
+    /// because their order interleaves and a sheet would put the static ones
+    /// in the wrong place.
+    /// </remarks>
+    private static IReadOnlyList<PassSpec> AsOneSheet(
+        Layer layer, IReadOnlyList<PassSpec> ghosts, IReadOnlySet<string> moving,
+        Func<Layer, IReadOnlyList<PassSpec>, SKBitmap?>? sheetFor)
+    {
+        if (sheetFor is null || ghosts.Count < 2) return ghosts;
+        for (var i = 0; i < ghosts.Count; i++)
+        {
+            if (ghosts[i].CelFrame is not { } f || !moving.Contains(f.Id)) return ghosts;
+        }
+        if (sheetFor(layer, ghosts) is not { } sheet) return ghosts;
+        var first = ghosts[0];
+        return [new PassSpec(
+            null, first.CelIndex, sheet, null, 1.0,
+            Matrix: first.Matrix, Shapes: first.Shapes)];
+    }
+
+    private static SKMatrix? GhostMatrix(
+        Frame ghost, SKMatrix? parallax, (SKMatrix Preview, IReadOnlySet<string> FrameIds)? drag)
+    {
+        // A set built once per session, not a scan: this is per ghost per
+        // publish, and a whole layer's session can hold hundreds of drawings.
+        if (drag is not { } d || !d.FrameIds.Contains(ghost.Id)) return parallax;
+        return parallax is { } pm ? SKMatrix.Concat(pm, d.Preview) : d.Preview;
     }
 
     private static IReadOnlyList<int> PinnedGhostIndices(Scene scene) =>

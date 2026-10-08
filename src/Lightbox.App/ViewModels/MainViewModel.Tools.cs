@@ -971,7 +971,7 @@ public partial class MainViewModel
     public IReadOnlyList<TransformScope> TransformScopeChoices { get; } = Enum.GetValues<TransformScope>();
 
     /// <summary>
-    /// The scope a Move drag carries for as long as its session is open, or
+    /// The scope a gesture carries for as long as its session is open, or
     /// null when the session is the artist's own.
     /// </summary>
     /// <remarks>
@@ -981,12 +981,110 @@ public partial class MainViewModel
     /// left the setting on the whole layer and the next Ctrl+T moved every
     /// drawing while the artist looked at one; and a plain drag quietly reset a
     /// scope they had chosen. A gesture's scope is the gesture's, so it lives
-    /// here and ends with the session.
+    /// here and ends with the session. <see cref="BeginLayerTransform"/> is the
+    /// second gesture that carries one (Q216).
     /// </remarks>
-    private TransformScope? _moveScope;
+    private TransformScope? _gestureScope;
 
-    /// <summary>What the open session actually collects: the move's scope, else the setting.</summary>
-    internal TransformScope EffectiveTransformScope => _moveScope ?? TransformScope;
+    private void SetGestureScope(TransformScope? scope)
+    {
+        if (_gestureScope == scope) return;
+        _gestureScope = scope;
+        OnPropertyChanged(nameof(SessionTransformScope));
+    }
+
+    /// <summary>
+    /// What the open session actually collects: this drawing while picked lines
+    /// pin it there (B223), else the gesture's scope, else the setting.
+    /// </summary>
+    /// <remarks>
+    /// The pin is folded in here rather than left to <c>CollectTransformFrames</c>
+    /// alone, because the Scope combo reads this: without it the page said
+    /// "This layer, every frame" over a session holding one drawing.
+    /// </remarks>
+    internal TransformScope EffectiveTransformScope =>
+        ScopeIsPinnedToThisCel ? TransformScope.ActiveCel : _gestureScope ?? TransformScope;
+
+    /// <summary>
+    /// What the Scope combo shows and sets: the scope the open session is
+    /// really using, so a whole-layer gesture reads as one on the page.
+    /// </summary>
+    /// <remarks>
+    /// Bound to <see cref="TransformScope"/> directly, the combo said "This
+    /// drawing" while a Ctrl-drag moved every drawing on the layer — the page
+    /// contradicting the canvas. Picking a scope here is the artist taking the
+    /// session over, so it drops the gesture's scope and becomes the setting.
+    /// </remarks>
+    public TransformScope SessionTransformScope
+    {
+        get => EffectiveTransformScope;
+        set
+        {
+            if (value == EffectiveTransformScope) return;
+            var restartHere = TransformScope == value; // no change event will restart it
+            _gestureScope = null;
+            TransformScope = value;
+            if (restartHere && TransformActive) BeginTransform();
+            OnPropertyChanged();
+        }
+    }
+
+    partial void OnTransformScopeChanged(TransformScope oldValue, TransformScope newValue) =>
+        OnPropertyChanged(nameof(SessionTransformScope));
+
+    /// <summary>
+    /// Transform every drawing on the active layer at once — one box round all
+    /// of them, one pivot, one undo step. Returns whether a session opened.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Q216.</b> The scope has existed all along; what was missing was a way
+    /// to it that did not start with a transform on the wrong drawings and a
+    /// trip to a combo on a page that only exists while one is open. Resizing a
+    /// character across a cycle is the job: one shared pivot scales the drawing
+    /// <i>and its motion</i>, so a jump keeps its proportion to the figure.
+    /// </para>
+    /// <para>
+    /// The scope is the gesture's, like Move's Ctrl-drag, so the Ctrl+T after it
+    /// is back on whatever the setting says.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// Say how many drawings an open session will change, when it reaches
+    /// past the one on screen.
+    /// </summary>
+    /// <remarks>
+    /// Q216. A scope that spans frames changes drawings the artist cannot see
+    /// while they drag, which is exactly what B403 did silently; the count is
+    /// what keeps the deliberate version from feeling like that one. Distinct
+    /// drawings, not cels — a cycle on 2s held across 24 frames is 12.
+    /// </remarks>
+    private void SayHowManyDrawingsMove(string verb)
+    {
+        var scope = EffectiveTransformScope;
+        if (scope is TransformScope.ActiveCel || ScopeIsPinnedToThisCel) return;
+        var n = _transform.Frames.Count;
+        var drawings = n == 1 ? "1 drawing" : $"{n} drawings";
+        AiStatus = scope is TransformScope.ActiveLayerAllFrames
+            ? $"{verb} {drawings} on {ActiveLayer.Name}"
+            : $"{verb} {drawings} — {TransformScopeText.Label(scope).ToLowerInvariant()}";
+    }
+
+    public bool BeginLayerTransform()
+    {
+        if (TransformActive) return false;
+        // Picked lines live on one drawing, so the session would quietly hold
+        // that one and nothing else — a command doing less than it says.
+        if (ScopeIsPinnedToThisCel)
+        {
+            AiStatus = "Lines are picked on this drawing — deselect them (Ctrl+D) to transform every frame of the layer.";
+            return false;
+        }
+        SetGestureScope(TransformScope.ActiveLayerAllFrames);
+        if (BeginTransform()) return true;
+        SetGestureScope(null);
+        return false;
+    }
 
     /// <summary>Pixel solver for raster baselines (strokes never resample).</summary>
     [ObservableProperty]
@@ -1064,6 +1162,7 @@ public partial class MainViewModel
         // box that snaps and the box on screen cannot disagree.
         _transform.SnapBounds = bounds.Value;
         _transform.HeldToKey.AddRange(HeldCelsNeedingKey());
+        SayHowManyDrawingsMove("Transforming");
         SayWhichSelectedLayersStayed();
         _transformLayers = [.. Scene.Layers];
         TransformActive = true;

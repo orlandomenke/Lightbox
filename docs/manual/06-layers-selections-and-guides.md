@@ -837,10 +837,50 @@ moved applies nothing and leaves no step. Picking a row in the **History**
 docker cancels the transform instead — a row is a different state of the
 document, and the box was drawn round this one.
 
-**Scope** decides what moves: this cel, all layers at this frame, a marked cel
-range, or the whole animation. The **Move** tool does not read or change it — a
-plain drag moves this drawing and a **Ctrl**-drag every drawing on the layer,
-for that drag only — so the scope you set is the scope your next Ctrl+T gets.
+**Scope** decides what moves:
+
+| Scope | What moves |
+| --- | --- |
+| This drawing | The drawing at the playhead on this layer (the default) |
+| This frame, every layer | The drawing at the playhead on every visible layer |
+| This layer, every frame | Every drawing on this layer, whatever frame it is on |
+| Marked cels | The cels marked on the timeline, holes and all |
+| Everything | Every drawing on every layer |
+
+A drawing held across several frames is moved once, not once per frame.
+Whenever the scope reaches past the drawing in front of you, the status line
+says how many drawings will change — *Transforming 12 drawings on Walk* — since
+most of them are on frames you cannot see while you drag.
+
+#### Every frame of a layer at once
+
+**The character is too small, on every frame of the cycle.** Press
+**Ctrl+Shift+Alt+T** (or **Edit ▸ Transform ▸ Every frame of this layer**) and
+one box goes round every drawing on the layer. Scale, move or rotate it once and
+every drawing follows; Enter applies it as one undo step.
+
+There is **one pivot for all of them**, and that is the point: drag the pivot to
+the feet, scale, and the figure grows *and so does its motion* — a jump keeps
+its height in proportion to the jumper and the feet stay on the ground line.
+Scaling each drawing round its own middle would grow the figure while the jump
+stayed the size it was. Line weight scales with the drawing, as with any
+transform.
+
+**Turn on onion skin to see the rest of the cycle while you drag.** The ghosts
+of the drawings in the box move with it, so the frames either side show the
+size they are about to become, not the size they were. That holds for any
+transform that moves whole drawings across frames; with a selection up, only
+part of each drawing moves, so the ghosts stay where they are rather than show
+lines moving that will not.
+
+This is a gesture, like the Move tool's Ctrl-drag: the Scope control reads
+*This layer, every frame* while it is open, and the next Ctrl+T is back on
+whatever scope you had set. Pick another scope while it is open and that one
+takes over. With lines picked it does nothing and says so — a picked line lives
+on one drawing, so deselect first (**Ctrl+D**).
+
+The **Move** tool does not read or change the scope either — a plain drag moves
+this drawing and a **Ctrl**-drag every drawing on the layer, for that drag only.
 
 **Pick several layers in the Layers docker first and Ctrl+T moves them
 together** — the box goes round the drawing at this frame on each picked layer,

@@ -339,6 +339,11 @@ public sealed class ShortcutMap
             // band mode's Ctrl+Shift+T, so the family is found from one letter.
             new("canvas.transformCage", "Transform: cage mode (bend with a lattice)", "Tools",
                 G(Key.T, KeyModifiers.Control | KeyModifiers.Alt)),
+            // Q216. Every drawing on the layer in one box — resizing a character
+            // across a whole cycle. The fourth of the T family, on all three
+            // modifiers, so it is found from the same letter as the others.
+            new("canvas.transformLayer", "Transform: every frame of this layer", "Tools",
+                G(Key.T, KeyModifiers.Control | KeyModifiers.Shift | KeyModifiers.Alt)),
             new("canvas.mirror", "Mirror view", "Canvas", G(Key.M)),
             // Shift+M: the other mirror. M flips what you SEE and leaves the
             // document alone; Shift+M makes the next mark land twice. Beside

@@ -85,6 +85,79 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// <b>Q216: a ghost whose drawing the transform is moving follows the drag.</b>
+    /// Scaling every drawing on a layer while their ghosts sit at the old size
+    /// previews one frame and guesses the rest. A ghost of a drawing outside the
+    /// session stays where it is.
+    /// </summary>
+    [Fact]
+    public void GhostsOfDrawingsInTheTransformFollowTheDrag()
+    {
+        var ink = LayerWith("Ink", 3);
+        var scene = SceneWith(ink);
+        using var cache = new FrameBitmapCache();
+        var drag = SkiaSharp.SKMatrix.CreateScale(2, 2);
+        var live = new ScenePassBuilder.LiveEdit(
+            TransformPreview: drag, TransformFrames: [ink.Cels[0].Frame!, ink.Cels[1].Frame!], GhostsFollow: true,
+            TransformFrameIds: new HashSet<string> { ink.Cels[0].Frame!.Id, ink.Cels[1].Frame!.Id });
+        var built = ScenePassBuilder.Build(scene, StateFor(scene, ink), cache, new TileFallbackTally(), live);
+        var ghosts = built.Passes.Where(IsGhost).ToList();
+
+        Assert.Equal(2, ghosts.Count);
+        Assert.Contains(ghosts, g => g.Matrix is { } m && m.ScaleX == 2);  // frame 0: in the session
+        Assert.Contains(ghosts, g => g.Matrix is null);                     // frame 2: not
+    }
+
+    /// <summary>
+    /// <b>The perf-warden's measurement:</b> each following ghost resampled a
+    /// whole-canvas bitmap per pointer event. When every ghost of a layer
+    /// follows, they share a matrix, so they arrive as one composited sheet
+    /// drawn through it — one resample however deep the onion is.
+    /// </summary>
+    [Fact]
+    public void FollowingGhostsArriveAsOneSheetThroughTheDrag()
+    {
+        var ink = LayerWith("Ink", 3);
+        var scene = SceneWith(ink);
+        using var cache = new FrameBitmapCache();
+        using var sheet = new SkiaSharp.SKBitmap(64, 48);
+        var asked = 0;
+        var live = new ScenePassBuilder.LiveEdit(
+            TransformPreview: SkiaSharp.SKMatrix.CreateScale(2, 2),
+            TransformFrames: [.. ink.Cels.Select(c => c.Frame!)], GhostsFollow: true,
+            TransformFrameIds: ink.Cels.Select(c => c.Frame!.Id).ToHashSet(),
+            GhostSheet: (_, ghosts) => { asked = ghosts.Count; return sheet; });
+
+        var plan = ScenePassBuilder.Describe(scene, StateFor(scene, ink), cache, new TileFallbackTally(), live);
+        var sheets = plan.Specs.Where(s => ReferenceEquals(s.Bitmap, sheet)).ToList();
+
+        Assert.Equal(2, asked);                                // both ghosts went into it
+        Assert.Single(sheets);                                 // and came out as one pass
+        Assert.Equal(2, sheets[0].Matrix!.Value.ScaleX);       // drawn through the drag
+        Assert.DoesNotContain(plan.Specs, s => s.Tint is not null); // no loose ghosts left
+    }
+
+    /// <summary>
+    /// A region-limited transform moves part of each drawing, and a ghost is one
+    /// bitmap — moving it would show strokes moving that are going to stay.
+    /// </summary>
+    [Fact]
+    public void GhostsStayWhenOnlyPartOfEachDrawingMoves()
+    {
+        var ink = LayerWith("Ink", 3);
+        var scene = SceneWith(ink);
+        using var cache = new FrameBitmapCache();
+
+        var live = new ScenePassBuilder.LiveEdit(
+            TransformPreview: SkiaSharp.SKMatrix.CreateScale(2, 2),
+            TransformFrames: [.. ink.Cels.Select(c => c.Frame!)], GhostsFollow: false,
+            TransformFrameIds: ink.Cels.Select(c => c.Frame!.Id).ToHashSet());
+        var built = ScenePassBuilder.Build(scene, StateFor(scene, ink), cache, new TileFallbackTally(), live);
+
+        Assert.All(built.Passes.Where(IsGhost), g => Assert.Null(g.Matrix));
+    }
+
+    /// <summary>
     /// Draw-over lifts them above instead — for checking, when a line you have
     /// just made would otherwise hide the one you are comparing it to.
     /// </summary>

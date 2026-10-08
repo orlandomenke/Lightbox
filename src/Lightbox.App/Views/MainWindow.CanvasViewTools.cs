@@ -413,6 +413,9 @@ public partial class MainWindow
             case "canvas.transform":
                 if (!_vm.TransformActive) _vm.BeginTransform();
                 break;
+            case "canvas.transformLayer":
+                _vm.BeginLayerTransform();
+                break;
             case "canvas.transformBands":
                 // Begins a session if there is not one, so the key is one press
                 // rather than two — Ctrl+T then Ctrl+Shift+B is the sequence
