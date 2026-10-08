@@ -139,6 +139,48 @@ public class FramePrewarmTests(ITestOutputHelper output)
     /// away, not installed. This is the difference between a prewarm being
     /// wasted and a prewarm being wrong.
     /// </summary>
+    /// <summary>
+    /// Phase 2b: an idle warm runs several workers. Every job is rendered once,
+    /// the results are the bytes this thread makes, and the prewarmer says when
+    /// it has settled so an idle drain can be posted.
+    /// </summary>
+    [Fact]
+    public void SeveralWorkersRenderEveryJobOnceAndSayWhenTheyAreDone()
+    {
+        using var warmer = new FramePrewarmer();
+        var settled = 0;
+        warmer.Changed = () => { if (!warmer.IsBusy) Interlocked.Increment(ref settled); };
+        var frames = Enumerable.Range(0, 12).Select(i => { var f = JitteryFrame(i); f.Id = $"f{i}"; return f; }).ToList();
+
+        warmer.Request(frames.Select(f => new WarmRequest(f, W, H, 0, WarmProduct.Bitmap)).ToList(), workers: 4);
+        Assert.True(warmer.WaitForIdle(TimeSpan.FromSeconds(30)));
+        Thread.Sleep(200); // the settle notice is queued to the thread pool
+
+        var got = new Dictionary<string, byte[]>();
+        warmer.Drain(w => { got[w.Request.Frame.Id] = BytesOf(w.Bitmap!); return false; });
+        Assert.Equal(12, warmer.Rendered);
+        Assert.Equal(12, got.Count);
+        foreach (var f in frames)
+        {
+            using var here = FrameBitmapCache.RenderDetached(f, W, H, celIndex: 0);
+            Assert.Equal(BytesOf(here), got[f.Id]);
+        }
+        Assert.True(settled > 0, "the prewarmer never said it had settled");
+    }
+
+    /// <summary>Asking for one worker, as pressing play does, lets the others stop after the render in hand.</summary>
+    [Fact]
+    public void AskingForOneWorkerStopsTheRest()
+    {
+        using var warmer = new FramePrewarmer();
+        var frames = Enumerable.Range(0, 40).Select(i => { var f = JitteryFrame(i); f.Id = $"f{i}"; return f; }).ToList();
+        warmer.Request(frames.Select(f => new WarmRequest(f, W, H, 0, WarmProduct.Bitmap)).ToList(), workers: 4);
+        warmer.Request([], workers: 1);
+
+        Assert.True(warmer.WaitForIdle(TimeSpan.FromSeconds(30)));
+        Assert.True(warmer.Rendered < 40, $"all {warmer.Rendered} were rendered after the queue was dropped");
+    }
+
     [Fact]
     public void AWarmThatWasSupersededIsNeverInstalled()
     {
@@ -470,9 +512,11 @@ public class PlaybackPrewarmTests(ITestOutputHelper output) : BrushStateIsolated
     }
 
     /// <summary>
-    /// Nothing is warmed while the artist is drawing. A prediction is only worth
-    /// making when the playhead moves on its own; guessing where a hand is going
-    /// would spend a core filling the cache with frames nobody asked for.
+    /// A paused canvas with no way to hand results back while idle warms nothing
+    /// for playback. With one — the app's <c>ThumbnailWorker.Post</c> — idle time
+    /// prepares the playback range (Q214, <c>IdlePlaybackWarmTests</c>); a headless
+    /// view model like this one has none, so the suite's timing budgets never
+    /// share their cores with a warm they did not ask for.
     /// </summary>
     [AvaloniaFact]
     public void APausedCanvasWarmsNothing()

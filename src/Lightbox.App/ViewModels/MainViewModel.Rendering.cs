@@ -455,6 +455,7 @@ public partial class MainViewModel
         // *patched* entry is still there to be overwritten — so a stale warm could
         // land on top of the repair. Flushing first removes the question.
         _prewarm.Flush();
+        _idleWarmFull = false;
         if (TryRestoreFrameRegion(frameId, repaintBounds, revision))
         {
             FrameRegionRestores++;
@@ -936,6 +937,7 @@ public partial class MainViewModel
         _thumbWorker?.Flush();
         _stackBake.Reset();
         _prewarm.Flush();
+        _idleWarmFull = false;
         // Every bitmap a saved patch could be swapped into has just gone, so the
         // patches describe nothing (Q167).
         _markSnapshots.Clear();
@@ -977,6 +979,7 @@ public partial class MainViewModel
         // install a version of the drawing missing its newest line. Flushing is
         // free here: warms are only ever requested while playing.
         _prewarm.Flush();
+        _idleWarmFull = false;
         _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
         var bitmap = _cache.Get(target, Scene.Width, Scene.Height);
         // Q167, and the ordering is the whole of it: this is the last moment the
@@ -1863,7 +1866,7 @@ public partial class MainViewModel
         // is what the prewarmer already does for the playhead, and unlike every
         // other attempt on this entry it has NO visible trade: nothing stale is
         // shown, because nothing is shown at all until the pixels exist.
-        WarmWhatTheNextStrokeWillNeed();
+        WarmAtIdle();
 
         // Last, and after the frame is on its way to the screen: the worker
         // starts on the frames after this one while the artist is looking at
@@ -1905,10 +1908,85 @@ public partial class MainViewModel
     /// arrival.
     /// </para>
     /// </remarks>
-    private void WarmWhatTheNextStrokeWillNeed()
+    /// <summary>
+    /// What idle time is for: first the frames the next stroke will ask for,
+    /// then — when idle warming is on — the playback range, so that pressing
+    /// play finds it rendered (playback phase 2b, Q214).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The range in the order it will play</b>: from the playhead to the end,
+    /// then from the start back round to it. Where a window is all the tile
+    /// budget allows (4K on the minimum spec, phase 1), it is the window play
+    /// reaches first.
+    /// </para>
+    /// <para>
+    /// <b>It stops when a cache refuses a warm for room</b> and starts again at
+    /// the next edit: <c>InsertWarm</c> never evicts, so a full cache would
+    /// otherwise have the workers render the rest of the range only to throw it
+    /// away, after every publish.
+    /// </para>
+    /// <para>
+    /// <b>Off without a way to hand results back while idle.</b> The app sets
+    /// <see cref="Services.ThumbnailWorker.Post"/> at start; a headless test
+    /// that does not leaves this off, so the suite's own timing budgets never
+    /// share their cores with a warm they did not ask for.
+    /// </para>
+    /// </remarks>
+    private void WarmAtIdle()
     {
         if (IsPlaying || _strokeBuilder.IsActive || _prewarm.IsBusy) return;
+        _prewarm.Changed ??= OnPrewarmChanged;
 
+        var jobs = StrokeWarmJobs() ?? [];
+        var idle = IdleWarmingActive && !_idleWarmFull;
+        if (idle)
+        {
+            var tileNative = Scene.Camera is null
+                && _publish.Viewport is { Width: > 0, Height: > 0 }
+                && !Lightbox.Raster.EffectPasses.AnyLive(Scene);
+            jobs.AddRange(PlaybackWarmJobs(PlaybackRangeInPlayOrder(), tileNative, ComposeScale));
+        }
+        if (jobs.Count > 0) _prewarm.Request(jobs, idle ? FramePrewarmer.IdleWorkers : 1);
+    }
+
+    /// <summary>Whether idle time renders the playback range: the artist's switch, and a UI to deliver to.</summary>
+    internal bool IdleWarmingActive => Settings.WarmPlaybackAtIdle && Services.ThumbnailWorker.Post is not null;
+
+    /// <summary>Set when a cache refused an idle warm for room; cleared by the next edit's flush.</summary>
+    private bool _idleWarmFull;
+
+    private int _prewarmDrainQueued;
+
+    /// <summary>
+    /// On a worker thread: a result is ready or the workers have stopped. One
+    /// drain is posted to the UI thread however many arrive, and it asks for
+    /// more when the workers are idle — which is how the warm restarts after
+    /// an edit flushed it mid-run.
+    /// </summary>
+    private void OnPrewarmChanged()
+    {
+        if (Services.ThumbnailWorker.Post is not { } post) return;
+        if (Interlocked.Exchange(ref _prewarmDrainQueued, 1) == 1) return;
+        post(() =>
+        {
+            Interlocked.Exchange(ref _prewarmDrainQueued, 0);
+            TakeWarmedFrames();
+            WarmAtIdle();
+        });
+    }
+
+    /// <summary>The playback range from the playhead to its end, then from its start round to the playhead.</summary>
+    private IEnumerable<int> PlaybackRangeInPlayOrder()
+    {
+        int start = EffectiveStartFrame, end = EffectiveEndFrame;
+        var from = Math.Clamp(CurrentFrameIndex, start, end);
+        for (var i = from; i <= end; i++) yield return i;
+        for (var i = start; i < from; i++) yield return i;
+    }
+
+    private List<Services.WarmRequest>? StrokeWarmJobs()
+    {
         var scene = Scene;
         List<Services.WarmRequest>? jobs = null;
         foreach (var layer in scene.Layers)
@@ -1922,20 +2000,29 @@ public partial class MainViewModel
             jobs.Add(new Services.WarmRequest(
                 frame, scene.Width, scene.Height, CurrentFrameIndex, Services.WarmProduct.Bitmap));
         }
-
-        if (jobs is { Count: > 0 }) _prewarm.Request(jobs);
+        return jobs;
     }
 
     private void TakeWarmedFrames() => _prewarm.Drain(warmed =>
     {
         var want = warmed.Request;
+        bool taken, held;
         if (want.Want == WarmProduct.Tiles)
         {
-            return warmed is { Store: { } store, Pyramid: { } pyramid }
+            taken = warmed is { Store: { } store, Pyramid: { } pyramid }
                 && _tileFrames.InsertWarm(want.Frame, store, pyramid);
+            held = _tileFrames.Holds(want.Frame.Id);
         }
-        return warmed.Bitmap is { } bmp
-            && _cache.InsertWarm(want.Frame, want.Width, want.Height, 1.0, want.CelIndex, bmp);
+        else
+        {
+            taken = warmed.Bitmap is { } bmp
+                && _cache.InsertWarm(want.Frame, want.Width, want.Height, 1.0, want.CelIndex, bmp);
+            held = _cache.Holds(want.Frame, want.Width, want.Height, 1.0, want.CelIndex);
+        }
+        // Refused and still not held: there was no room. The idle warm stops
+        // here rather than render the rest of the range into a full cache.
+        if (!taken && !held) _idleWarmFull = true;
+        return taken;
     });
 
     /// <summary>
@@ -1962,13 +2049,27 @@ public partial class MainViewModel
     {
         if (!IsPlaying) return;
 
-        var scene = Scene;
-        var last = Math.Max(0, scene.FrameCount - 1);
         var ahead = FramePrewarmer.Upcoming(
             CurrentFrameIndex, _playDirection,
             EffectiveStartFrame, EffectiveEndFrame, LoopPlayback, FramePrewarmer.Lookahead);
         if (ahead.Count == 0) return;
 
+        // An empty list still supersedes: everything the playhead was going to
+        // need is already held, so anything still queued is a frame it has
+        // passed.
+        _prewarm.Request(PlaybackWarmJobs(ahead, tileNativeDoc, renderScale));
+    }
+
+    /// <summary>
+    /// The drawings these frames need for playback, as the publish will ask for
+    /// them — tiles where the tiled route will take them, bitmaps where it will
+    /// not, one job per drawing. Shared by the playing lookahead and the idle
+    /// warm (phase 2b), so the two cannot disagree about what playback wants.
+    /// </summary>
+    private List<WarmRequest> PlaybackWarmJobs(IEnumerable<int> frames, bool tileNativeDoc, double renderScale)
+    {
+        var scene = Scene;
+        var last = Math.Max(0, scene.FrameCount - 1);
         var level = TilePyramid.LevelFor(renderScale);
         var jobs = new List<WarmRequest>();
 
@@ -1979,7 +2080,7 @@ public partial class MainViewModel
         // at six warms where four were wanted on a two-layer document, which is
         // the smallest document there is.
         var queued = new HashSet<string>();
-        foreach (var index in ahead)
+        foreach (var index in frames)
         {
             var celIndex = Math.Clamp(index, 0, last);
             for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
@@ -2025,10 +2126,7 @@ public partial class MainViewModel
             }
         }
 
-        // An empty list still supersedes: everything the playhead was going to
-        // need is already held, so anything still queued is a frame it has
-        // passed.
-        _prewarm.Request(jobs);
+        return jobs;
     }
 
     /// <summary>

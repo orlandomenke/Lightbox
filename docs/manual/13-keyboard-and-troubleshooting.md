@@ -139,6 +139,24 @@ playback: the onion ghosts are up and you are reading individual drawings, so
 it keeps the drawing quality. The same full-resolution promise holds — exports
 and the file on disk never read either setting.
 
+### Playback is prepared while you are idle
+
+**Edit → Configure → Performance → Prepare playback while idle**, on by default.
+
+Every drawing is a list of strokes, so before a scene can play, each drawing has
+to be painted once into the form playback reads. Lightbox does that **in the
+background while you are not drawing or playing**: after you open a document,
+and again a moment after each change, it works through the playback range in the
+order it will play, starting from the playhead. By the time you press play the
+drawings are usually ready, and the first loop runs at full speed instead of
+painting each frame as it reaches it.
+
+It gets out of the way on its own: it stops the moment you start a stroke or press
+play, and picks up again when you pause. On a large document on a machine with
+little memory it prepares only as much of the range as fits, nearest the playhead
+first. The cost is the processor working for a few seconds after each change —
+turn it off on a laptop running on battery.
+
 ### Blending layers on the graphics card
 
 **Edit → Configure → Performance → Composite layers on the GPU.**

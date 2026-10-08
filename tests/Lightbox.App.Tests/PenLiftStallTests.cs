@@ -24,7 +24,7 @@ namespace Lightbox.App.Tests;
 /// <para>
 /// <b>B332 is marked fixed and this is its mechanism, still live.</b> The fix
 /// warms the frames the next stroke needs during the idle
-/// (<c>WarmWhatTheNextStrokeWillNeed</c>) — but it warms only
+/// (<c>StrokeWarmJobs</c>, via <c>WarmAtIdle</c>) — but it warms only
 /// <c>CurrentFrameIndex</c>, bails while <c>_prewarm.IsBusy</c>, and cannot
 /// cover a lookup at a cel index the canvas never publishes.
 /// </para>

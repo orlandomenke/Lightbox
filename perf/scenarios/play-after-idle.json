@@ -1,0 +1,15 @@
+{
+  "name": "play-after-idle",
+  "about": "Q214's promise: after a pause, play finds the range prepared. Open, leave the app alone for ten seconds, then play for three seconds and stop. Against first-playback, which presses play about a second after opening, this measures what idle time buys.",
+  "fixture": "owner-shape",
+  "window": "maximised",
+  "steps": [
+    {"do": "hover", "at": [0.5, 0.5]},
+    {"do": "wait", "ms": 10000},
+    {"do": "phase", "name": "play"},
+    {"do": "key", "keys": "space", "measure": "play", "after_ms": 3000},
+    {"do": "key", "keys": "space", "measure": "stop", "after_ms": 300},
+    {"do": "phase", "name": "stopped"},
+    {"do": "settle", "quiet_s": 1.0}
+  ]
+}

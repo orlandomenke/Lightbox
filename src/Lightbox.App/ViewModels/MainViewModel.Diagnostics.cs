@@ -547,6 +547,23 @@ public partial class MainViewModel
     /// for the thing the box describes.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Render the playback range in the background at idle (playback phase 2b,
+    /// Q214). Turning it off stops a warm in progress at the render in hand.
+    /// </summary>
+    public bool WarmPlaybackAtIdle
+    {
+        get => Settings.WarmPlaybackAtIdle;
+        set
+        {
+            if (Settings.WarmPlaybackAtIdle == value) return;
+            Settings.WarmPlaybackAtIdle = value;
+            Settings.Save();
+            if (!value && !IsPlaying) _prewarm.Request([], 1);
+            OnPropertyChanged();
+        }
+    }
+
     public bool RasterCheckpoints
     {
         get => Settings.RasterCheckpoints;
