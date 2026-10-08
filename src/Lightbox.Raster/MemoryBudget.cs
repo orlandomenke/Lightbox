@@ -206,4 +206,20 @@ public static class MemoryBudget
     public const long PicturesFloorBytes = 512L * 1024 * 1024;
 
     public const long PicturesCeilingBytes = 16L * 1024 * 1024 * 1024;
+
+    /// <summary>
+    /// The most the artist's setting may ask for on this machine: half of it, at
+    /// most <see cref="PicturesCeilingBytes"/>. Past half, idle warming would
+    /// fill memory the rest of the computer needs — and a figure set on a bigger
+    /// machine arrives in the settings file unchanged.
+    /// </summary>
+    public static long PicturesCeiling() =>
+        Math.Max(PicturesFloorBytes, Math.Min(PicturesCeilingBytes, Available / 2));
+
+    /// <summary>
+    /// A figure for the setting, held to the floor and this machine's ceiling.
+    /// The one place both the Configure field and the settings file go through.
+    /// </summary>
+    public static long ClampPictures(long bytes) =>
+        Math.Clamp(bytes, PicturesFloorBytes, PicturesCeiling());
 }

@@ -504,8 +504,8 @@ public partial class MainViewModel
     /// <remarks>
     /// Replaces the still-image "frame cache" figure, which capped one cache of
     /// six while the others' caps summed, unseen, to a third of the machine. The
-    /// floor is where one 1080p frame's layers stop fitting; the ceiling is
-    /// shared with the derived value. Saved, unlike the figure it replaces, and
+    /// floor is where one 1080p frame's layers stop fitting; the ceiling is half
+    /// the machine (<see cref="MemoryBudget.PicturesCeiling"/>). Saved, unlike the figure it replaces, and
     /// applied at once: over the new limit, the next publish gives memory back.
     /// </remarks>
     public int MemoryForPicturesMb
@@ -513,10 +513,7 @@ public partial class MainViewModel
         get => (int)(Lightbox.Raster.PictureMemory.Limit / (1024 * 1024));
         set
         {
-            var clamped = Math.Clamp(
-                value,
-                (int)(MemoryBudget.PicturesFloorBytes / (1024 * 1024)),
-                (int)(MemoryBudget.PicturesCeilingBytes / (1024 * 1024)));
+            var clamped = (int)(MemoryBudget.ClampPictures(value * 1024L * 1024L) / (1024 * 1024));
             if (MemoryForPicturesMb == clamped) return;
             ApplyPictureLimit(clamped * 1024L * 1024L);
             Settings.MemoryForPicturesMb = clamped;
@@ -528,11 +525,12 @@ public partial class MainViewModel
 
     /// <summary>
     /// The still cache may grow to the brokered share: which cache gives way is
-    /// the broker's decision, by least recent use, not a fixed split.
+    /// the broker's decision, by least recent use, not a fixed split. Held to
+    /// the range here, so a figure from the settings file is too.
     /// </summary>
     internal static void ApplyPictureLimit(long bytes)
     {
-        Lightbox.Raster.PictureMemory.Limit = bytes;
+        Lightbox.Raster.PictureMemory.Limit = MemoryBudget.ClampPictures(bytes);
         FrameBitmapCache.ByteBudget = Lightbox.Raster.PictureMemory.Brokered;
     }
 

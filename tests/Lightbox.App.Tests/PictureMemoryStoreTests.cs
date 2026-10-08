@@ -82,6 +82,47 @@ public class PictureMemoryStoreTests
         Assert.Equal(cache.AllocatedBytes, store.Bytes);
     }
 
+    /// <summary>
+    /// A cleared cache forgets when its pictures were used. A stamp that
+    /// survived Clear would make a picture put back afterwards look old, and the
+    /// broker would take it ahead of pictures genuinely older in other stores.
+    /// </summary>
+    [Fact]
+    public void AClearedFlattenCacheForgetsWhenItsPicturesWereUsed()
+    {
+        using var cache = new TileFlattenCache();
+        cache.Insert("a", 1, 0, Viewport, Bitmap());
+        cache.Insert("b", 1, 0, Viewport, Bitmap());
+        cache.Get("a", 1, 0, Viewport); // stamped now
+        cache.Clear();
+        Thread.Sleep(1);
+        var afterClear = PictureMemory.Clock();
+
+        cache.Insert("a", 1, 0, Viewport, Bitmap()); // oldest of the three
+        cache.Insert("b", 1, 0, Viewport, Bitmap());
+        cache.Insert("c", 1, 0, Viewport, Bitmap());
+
+        Assert.True(((IPictureStore)cache).OldestEvictable >= afterClear);
+    }
+
+    [Fact]
+    public void AClearedTileCacheForgetsWhenItsFramesWereUsed()
+    {
+        using var cache = new TileFrameCache();
+        var frames = Enumerable.Range(0, 2).Select(Inked).ToList();
+        cache.Get(frames[0], 320, 180);
+        cache.Get(frames[1], 320, 180);
+        cache.Get(frames[0], 320, 180); // stamped now
+        cache.Clear();
+        Thread.Sleep(1);
+        var afterClear = PictureMemory.Clock();
+
+        cache.Get(frames[0], 320, 180); // oldest of the two
+        cache.Get(frames[1], 320, 180);
+
+        Assert.True(((IPictureStore)cache).OldestEvictable >= afterClear);
+    }
+
     [Fact]
     public void UndoPixelsGoOldestStepFirst()
     {
@@ -123,6 +164,38 @@ public class MemoryForPicturesSettingTests : BrushStateIsolated
 {
     private const long Mb = 1024 * 1024;
 
+    private static long MachineCeiling => Math.Max(
+        MemoryBudget.PicturesFloorBytes,
+        Math.Min(MemoryBudget.PicturesCeilingBytes, MemoryBudget.Available / 2));
+
+    /// <summary>
+    /// The settings file is input (Q200's precedent): a hand-edited figure, or one
+    /// carried from a bigger machine, is held to the range on the way in, not
+    /// applied as written.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(-5)]
+    [InlineData(int.MaxValue)]
+    public void ASavedFigureOutsideTheRangeIsHeldToItOnLoad(int saved)
+    {
+        var previous = FrameBitmapCache.ByteBudget;
+        var previousLimit = PictureMemory.Limit;
+        try
+        {
+            new AppSettings { MemoryForPicturesMb = saved }.Save();
+
+            _ = new ViewModels.MainViewModel(null);
+
+            Assert.InRange(PictureMemory.Limit, MemoryBudget.PicturesFloorBytes, MachineCeiling);
+            Assert.Equal(saved < 0 ? MemoryBudget.PicturesFloorBytes : MachineCeiling, PictureMemory.Limit);
+        }
+        finally
+        {
+            FrameBitmapCache.ByteBudget = previous;
+            PictureMemory.Limit = previousLimit;
+        }
+    }
+
     [AvaloniaFact]
     public void SettingTheLimitAppliesItSavesItAndTheStillCacheMayFillIt()
     {
@@ -146,8 +219,9 @@ public class MemoryForPicturesSettingTests : BrushStateIsolated
     }
 
     /// <summary>
-    /// The floor is where one 1080p frame's layers stop fitting; the ceiling is
-    /// the derivation's, because past it nothing would spend the bytes.
+    /// The floor is where one 1080p frame's layers stop fitting. The ceiling is
+    /// half the machine, at most 16 GB: past half, idle warming would fill what
+    /// the rest of the computer needs.
     /// </summary>
     [AvaloniaFact]
     public void TheSettingIsHeldBetweenTheDerivationsFloorAndCeiling()
@@ -158,7 +232,7 @@ public class MemoryForPicturesSettingTests : BrushStateIsolated
         try
         {
             vm.MemoryForPicturesMb = int.MaxValue;
-            Assert.Equal(MemoryBudget.PicturesCeilingBytes / Mb, vm.MemoryForPicturesMb);
+            Assert.Equal(MachineCeiling / Mb, vm.MemoryForPicturesMb);
 
             vm.MemoryForPicturesMb = 1;
             Assert.Equal(MemoryBudget.PicturesFloorBytes / Mb, vm.MemoryForPicturesMb);

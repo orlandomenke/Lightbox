@@ -201,6 +201,7 @@ public sealed class TileFlattenCache : IDisposable, Lightbox.Raster.IPictureStor
     {
         foreach (var (_, bitmap) in _lru) DisposeOrDefer(bitmap);
         _lru.Clear();
+        _used.Clear();
         _map.Clear();
         CachedBytes = 0;
     }

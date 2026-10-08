@@ -276,6 +276,7 @@ public sealed class TileFrameCache : IDisposable, Lightbox.Raster.IPictureStore
             entry.Store.Dispose();
         }
         _lru.Clear();
+        _used.Clear();
         _map.Clear();
         AllocatedBytes = 0;
     }

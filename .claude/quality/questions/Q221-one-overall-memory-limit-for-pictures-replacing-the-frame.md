@@ -35,6 +35,13 @@ as safety limits. The alternatives cost:
   owner's machine and 1 GB on the 8 GB minimum spec. The figure is saved only
   once the artist sets it, so a settings file carried to another computer does
   not carry this machine's size. The old figure was never saved.
+- **The artist may set 512 MB up to half the machine**, at most 16 GB
+  (`MemoryBudget.PicturesCeiling`). A fixed 16 GB ceiling would let an 8 GB
+  laptop be offered twice its memory, which idle warming would then try to
+  fill. A saved figure is held to that range on load (`ClampPictures`), since
+  the settings file is input and one set on a bigger machine arrives unchanged.
+  This came from review, not from the owner; it bounds the choice without
+  changing it.
 - **The four UI-thread stores are brokered** (`IPictureStore`, `PictureMemory`):
   still images, playback tiles, flattened views and undo pixels. They share
   three quarters of the limit (`PictureMemory.Brokered`). After each publish

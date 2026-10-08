@@ -1093,6 +1093,8 @@ public partial class ConfigureWindow : Window
         PlaybackQualityBox.ItemsSource = _vm.PlaybackQualityChoices;
         PlaybackQualityBox.SelectedItem = _vm.PlaybackQualityChoice;
         UndoDepthBox.Value = _vm.UndoDepth;
+        // This machine's ceiling, not the fixed one in the markup (Q221).
+        CacheBudgetBox.Maximum = Lightbox.Raster.MemoryBudget.PicturesCeiling() / (1024 * 1024);
         CacheBudgetBox.Value = _vm.MemoryForPicturesMb;
         RasterCheckpointsBox.IsChecked = _vm.RasterCheckpoints;
         WarmPlaybackBox.IsChecked = _vm.WarmPlaybackAtIdle;

@@ -25,7 +25,9 @@ cache also evicts only its own entries, and only when something new arrives.
 ## The limit
 
 **Memory for pictures: 1/8 of RAM by default.** That is 4 GB on a 32 GB machine
-and 1 GB on the minimum spec. It is one setting, in Configure → Performance, and it
+and 1 GB on the minimum spec. The artist may set it between 512 MB and half the
+machine (at most 16 GB). A figure from the settings file is held to that range on
+load, since one set on a bigger machine arrives unchanged. It is one setting, in Configure → Performance, and it
 replaces the still-image "frame cache budget" (Q221). That figure was never
 saved, so nothing carries over; the new one is saved only once the artist sets it. Undo's *document copies* are not pictures; they are the
 next piece of work, not this one.
