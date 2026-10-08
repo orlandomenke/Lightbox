@@ -74,9 +74,18 @@
     <ProgressBar x:Name="Progress" Height="6" Minimum="0" Maximum="1" IsVisible="False" />
     <TextBlock x:Name="StatusText" TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.85" />
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}">
-      <Button Content="Close" Click="OnClose" x:Name="CloseButton" />
-      <Button Classes="primary" Content="Export" Click="OnExport" x:Name="ExportButton" IsDefault="True" />
-    </StackPanel>
+    <!--
+      A uniform grid, so both buttons take the width of the wider label; a
+      MinWidth alone leaves them different. Dismissing is the quiet one.
+      DialogGeometryTests measures the pair.
+    -->
+    <UniformGrid HorizontalAlignment="Right" Columns="2" ColumnSpacing="8">
+      <Button x:Name="CloseButton" Classes="tertiary" Content="Close" Click="OnClose"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+      <Button x:Name="ExportButton" Classes="primary" Content="Export" Click="OnExport" IsDefault="True"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+    </UniformGrid>
   </StackPanel>
 </Window>

@@ -29,30 +29,41 @@
 
     <Separator />
 
-    <Grid ColumnDefinitions="120,*" RowSpacing="8" ColumnSpacing="8"
-          RowDefinitions="Auto,Auto,Auto,Auto,Auto">
-      <TextBlock Grid.Row="0" Grid.Column="0" Text="Format" VerticalAlignment="Center" />
-      <ComboBox Grid.Row="0" Grid.Column="1" x:Name="TargetBox" HorizontalAlignment="Stretch"
-                SelectionChanged="OnTargetChanged" />
+    <!--
+      A stack of rows, each its own grid, and the code-behind hides a ROW. As
+      one grid with row spacing, hiding a row's two controls left its spacing
+      behind: 24 px between Trim and Background on a strip, and 32 px of
+      nothing under Format on a PNG sequence.
+    -->
+    <StackPanel x:Name="SheetRows" Spacing="{StaticResource Space8}">
+      <Grid ColumnDefinitions="120,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Text="Format" VerticalAlignment="Center" />
+        <ComboBox Grid.Column="1" x:Name="TargetBox" HorizontalAlignment="Stretch"
+                  SelectionChanged="OnTargetChanged" />
+      </Grid>
 
-      <TextBlock Grid.Row="1" Grid.Column="0" Text="Trim" VerticalAlignment="Center"
-                 x:Name="TrimLabel" />
-      <ComboBox Grid.Row="1" Grid.Column="1" x:Name="TrimBox" HorizontalAlignment="Stretch" />
+      <Grid x:Name="TrimRow" ColumnDefinitions="120,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Text="Trim" VerticalAlignment="Center" x:Name="TrimLabel" />
+        <ComboBox Grid.Column="1" x:Name="TrimBox" HorizontalAlignment="Stretch" />
+      </Grid>
 
-      <TextBlock Grid.Row="2" Grid.Column="0" Text="Layout" VerticalAlignment="Center"
-                 x:Name="PackLabel" />
-      <ComboBox Grid.Row="2" Grid.Column="1" x:Name="PackBox" HorizontalAlignment="Stretch" />
+      <Grid x:Name="PackRow" ColumnDefinitions="120,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Text="Layout" VerticalAlignment="Center" x:Name="PackLabel" />
+        <ComboBox Grid.Column="1" x:Name="PackBox" HorizontalAlignment="Stretch" />
+      </Grid>
 
-      <TextBlock Grid.Row="3" Grid.Column="0" Text="Padding" VerticalAlignment="Center"
-                 x:Name="PaddingLabel" />
-      <TextBox Grid.Row="3" Grid.Column="1" x:Name="PaddingBox" Width="{StaticResource SizeDialogField}"
-               HorizontalAlignment="Left"
-               ToolTip.Tip="Transparent gutter around each cell, in pixels. Stops an engine's bilinear filtering bleeding one sprite into the next." />
+      <Grid x:Name="PaddingRow" ColumnDefinitions="120,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Text="Padding" VerticalAlignment="Center" x:Name="PaddingLabel" />
+        <TextBox Grid.Column="1" x:Name="PaddingBox" Width="{StaticResource SizeDialogField}"
+                 HorizontalAlignment="Left"
+                 ToolTip.Tip="Transparent gutter around each cell, in pixels. Stops an engine's bilinear filtering bleeding one sprite into the next." />
+      </Grid>
 
-      <TextBlock Grid.Row="4" Grid.Column="0" Text="Background" VerticalAlignment="Center"
-                 x:Name="BackgroundLabel" />
-      <ComboBox Grid.Row="4" Grid.Column="1" x:Name="BackgroundBox" HorizontalAlignment="Stretch" />
-    </Grid>
+      <Grid x:Name="BackgroundRow" ColumnDefinitions="120,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Text="Background" VerticalAlignment="Center" x:Name="BackgroundLabel" />
+        <ComboBox Grid.Column="1" x:Name="BackgroundBox" HorizontalAlignment="Stretch" />
+      </Grid>
+    </StackPanel>
 
     <TextBlock x:Name="BackgroundHint" TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6" />
 
@@ -100,9 +111,18 @@
 
     <Separator />
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}">
-      <Button Content="Cancel" Click="OnCancel" />
-      <Button Classes="primary" Content="Export…" Click="OnExport" IsDefault="True" />
-    </StackPanel>
+    <!--
+      A uniform grid, so both buttons take the width of the wider label; a
+      MinWidth alone leaves them different. Dismissing is the quiet one.
+      DialogGeometryTests measures the pair.
+    -->
+    <UniformGrid HorizontalAlignment="Right" Columns="2" ColumnSpacing="8">
+      <Button x:Name="CancelButton" Classes="tertiary" Content="Cancel" Click="OnCancel"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+      <Button x:Name="ExportButton" Classes="primary" Content="Export…" Click="OnExport" IsDefault="True"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+    </UniformGrid>
   </StackPanel>
 </Window>

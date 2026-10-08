@@ -4287,6 +4287,11 @@ test reopens the bug.
   - Fix: relay `ProjectViewModel.PropertyChanged` for `HasProject` directly.
   - Reported from a build. Cost: S
 
+- [x] **B411** `P3` `ui` Dialog buttons differ in width, and a hidden row leaves its spacing behind `evidence: DialogGeometryTests, SaveAsImagesTwoButtonsAreAPair, TheEngineExportsTwoButtonsAreAPair, TheVideoExportsTwoButtonsAreAPair, SaveAsImageLeavesNoGapWhereQualityWouldBe, TheEngineExportLeavesNoGapWhereAStripsLayoutRowsWouldBe, TheEngineExportLeavesNoTailWhereAllTheSheetRowsWouldBe`
+  - **Measured before the fix, 2026-10-08.** The two buttons at the foot of three dialogs were 84/71 px (Save as image), 84/93 (Export for a game engine) and 73/82 (Export video), where the design system asks for a pair of one size with the dismissing one ranked `tertiary`. And a `Grid` with `RowSpacing` keeps the spacing of a row whose contents are hidden: 16 px between Format and Size with Quality hidden on a PNG, 24 px between Trim and Background on a GameMaker strip, and 32 px of nothing under Format on a PNG sequence, where every gap is meant to be 8.
+  - **Found by the UI review of `ImageSequenceWindow`** and fixed there first; these are the three older windows with the same two faults, which no test measured. Markup that reads as correct and lays out wrong, which is why the tests measure the laid-out window rather than assert on the XAML.
+  - **Fixed the same way in all three:** the pair is a two-column `UniformGrid`, so both take the wider label's width; each form row is its own grid inside a `StackPanel`, which spaces only what is visible, and the engine window's code-behind now hides a row rather than the two controls in it.
+
 - [x] **B234** `P3` `ui` Heat dots sprinkle the ink in Bind and Pose modes, where no brush can use them `evidence: HeatShowsOnlyWhileTheWeightBrushIsArmed`
   - `HeatPoints` gated only on the Bone tool being active and a bone being selected, so zero-influence blue dots covered every line while the artist was building or posing the skeleton. The dots answer "what would the weight brush touch" — outside Weights mode that question has no brush, and the answer is noise.
   - Fixed by gating on the weight brush being armed, which is also when the dots' posed positions mean something to correct against.
