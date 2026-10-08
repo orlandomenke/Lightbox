@@ -94,6 +94,20 @@ public static class TiledRasterizer
             RasterizeWhole(store, strokes, info);
             return;
         }
+        // A whole drawing into an empty store: render it once and cut it up.
+        // Stamping per tile replays every stroke once for each tile it reaches
+        // (3.0x on the owner-shaped document) and rebuilds its dabs, paints and
+        // shaders each time; whole-then-cut is the same bytes, measured on every
+        // drawing of that document at 1080p and 4K, and 2.5-3.4x faster
+        // (playback phase 2a, docs/DESIGN-playback-first-loop.md). Its price is
+        // one document-sized bitmap while the render runs; what stays resident is
+        // still only inked tiles. A region, or a store that already holds ink,
+        // keeps the per-tile path: Absorb replaces tiles, it does not draw over.
+        if (region is null && store.TileCount == 0)
+        {
+            RasterizeWhole(store, strokes, info);
+            return;
+        }
         RasterizeByTile(store, strokes, info, region);
     }
 

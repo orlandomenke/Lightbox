@@ -70,6 +70,52 @@ public class TiledRasterizerTests(ITestOutputHelper output)
         return strokes;
     }
 
+    /// <summary>
+    /// Playback phase 2a: a whole drawing into an empty store is rendered once and
+    /// cut up, rather than stamped per tile. Both routes stay — a region and a
+    /// store that holds ink still go per tile — so both must stay the same bytes,
+    /// with the hostile brush, tile by tile.
+    /// </summary>
+    [Fact]
+    public void StampingPerTileAndRenderingOnceThenCuttingAreTheSameBytes()
+    {
+        var strokes = Drawing();
+        using var perTile = new TileStore();
+        TiledRasterizer.Rasterize(perTile, strokes, Info, region: SKRectI.Create(0, 0, W, H));
+        using var once = new TileStore();
+        TiledRasterizer.Rasterize(once, strokes, Info);
+
+        using var a = TiledRasterizer.Flatten(perTile, W, H);
+        using var b = TiledRasterizer.Flatten(once, W, H);
+        Assert.Equal(Fingerprint(a), Fingerprint(b));
+    }
+
+    /// <summary>
+    /// And the reason for the second route, guarded: the strokes here cross three
+    /// seams each, so per tile stamps each about four times. A ratio of minimums,
+    /// so contention cannot fake either side (the timing-tests memory).
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Performance")]
+    public void RenderingAWholeDrawingOnceIsMuchCheaperThanStampingItPerTile()
+    {
+        var strokes = Drawing();
+        double perTile = double.MaxValue, once = double.MaxValue;
+        for (var run = 0; run < 4; run++)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            using (var store = new TileStore()) TiledRasterizer.Rasterize(store, strokes, Info, region: SKRectI.Create(0, 0, W, H));
+            perTile = Math.Min(perTile, sw.Elapsed.TotalMilliseconds);
+            sw.Restart();
+            using (var store = new TileStore()) TiledRasterizer.Rasterize(store, strokes, Info);
+            once = Math.Min(once, sw.Elapsed.TotalMilliseconds);
+        }
+        output.WriteLine($"per tile {perTile:0.0} ms, once then cut {once:0.0} ms ({perTile / once:0.00}x)");
+        Assert.True(once < perTile * RenderOnceCeiling, $"once {once:0.0} ms is not under {RenderOnceCeiling} of per tile {perTile:0.0} ms");
+    }
+
+    private const double RenderOnceCeiling = 0.6;
+
     [Fact]
     public void ATiledRenderIsBitIdenticalToAnUntiledOne()
     {
