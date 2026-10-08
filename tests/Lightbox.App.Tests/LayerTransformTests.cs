@@ -210,7 +210,7 @@ public class LayerTransformTests : BrushStateIsolated
         var xaml = File.ReadAllText(Path.Combine(dir!.FullName, "src", "Lightbox.App", "Views", "MainWindow.axaml"));
         var at = xaml.IndexOf("x:Name=\"TransformScopeCombo\"", StringComparison.Ordinal);
         Assert.True(at > 0, "the Scope combo is gone or renamed");
-        var combo = xaml[at..xaml.IndexOf("</ComboBox>", at, StringComparison.Ordinal)];
+        var combo = xaml[at..xaml.IndexOf("/>", at, StringComparison.Ordinal)];
 
         Assert.Contains("SelectedItem=\"{Binding SessionTransformScope}\"", combo);
         Assert.Contains("TransformScopeText.Converter", combo);

@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4431
+budget: 4434
 
 ## Why it is here despite being XAML
 
@@ -340,3 +340,4 @@ leaves a number nobody can account for. So every reason above stays, and
   the bar's gear — Krita's split. What stayed is how a paint tool behaves
   (smoothing, the pen, anti-aliasing), forty-odd lines in place of five hundred.
 - **→ 4,431** (2026-10-08): folder shapes (Q215) — one row-menu item, whose header the row words for what a click will do so keeping and releasing share it, and one hosting line for `ShapeBracket.axaml`, which carries the bracket and the warning chrome off the window as `LinkBracket.axaml` does. +3 over main's 4,428, which is the size of the change; measured alone on the old tree it was 4,887 → 4,890.
+- **→ 4,434** (2026-10-08): Edit ▸ Transform ▸ *Every frame of this layer* (Q216) — one `MenuItem`, three lines in the shape of its neighbours, handler in `MainWindow.Transform.cs`. The Scope combo's artist-readable names cost nothing: they are a `DisplayMemberBinding` on the existing element rather than an item template, which is what took the branch from +9 to +3. +3 over main's 4,431, the size of the change.

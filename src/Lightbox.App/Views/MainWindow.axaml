@@ -2349,14 +2349,8 @@
                       <DockPanel>
                         <TextBlock Text="Scope" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
                         <ComboBox x:Name="TransformScopeCombo" ItemsSource="{Binding TransformScopeChoices}" SelectedItem="{Binding SessionTransformScope}"
-                                  HorizontalAlignment="Stretch" Margin="{StaticResource GapBefore}"
-                                  ToolTip.Tip="What the transform applies to: this drawing, this frame on every layer, every frame of this layer, the marked cels, or everything">
-                          <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:TransformScope">
-                              <TextBlock Text="{Binding Converter={x:Static vm:TransformScopeText.Converter}}" />
-                            </DataTemplate>
-                          </ComboBox.ItemTemplate>
-                        </ComboBox>
+                                  HorizontalAlignment="Stretch" Margin="{StaticResource GapBefore}" DisplayMemberBinding="{Binding Converter={x:Static vm:TransformScopeText.Converter}}"
+                                  ToolTip.Tip="What the transform applies to: this drawing, this frame on every layer, every frame of this layer, the marked cels, or everything" />
                       </DockPanel>
                       <DockPanel>
                         <TextBlock Text="Sampling" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
