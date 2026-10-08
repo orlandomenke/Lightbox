@@ -63,15 +63,39 @@ instead of flattens) stays blocked on its own measurement and is not needed here
 
 Each lands alone, behind the tests named, and changes nothing an artist sees.
 
-1. **The paused canvas composes from level-0 tiles** for every layer the tiled
-   route can draw (`TileFrameCache.CanTileFrame`), whenever no stroke is in
-   progress. Stop no longer needs to swap: the held tiles *are* the paused canvas,
-   so `_holdTilesAfterStop` and its wait for stills retire. Stills are then asked
-   for only by the readers below, the drawing path and the frames that cannot
-   tile.
-   - Gate: a pixel test comparing the paused tiled composite with the still route
-     at 100%, 50%, 33% and 25%, onion on and off — **zero differing values**.
-   - Measure: the lab's `memory-session`, A/B, still cache bytes at the end.
+1. **Landed as: tiles until the frame on screen has its stills, and no stills
+   for frames off screen.**
+   - Arriving at a frame (a step, a jump, a stop) shows it from level-0 tiles at
+     once, rather than rendering its stills on the UI thread. Its stills are
+     warmed in the background, because the next stroke needs them: the ring and
+     the layer-stack bake compose from them.
+   - When they arrive, one publish goes through the still route and bakes the
+     stacks there and then (`LayerStackBake.Eager`). This is where the plan
+     changed. Shown from tiles all the way to pen-down, the first dab rebuilt the
+     ring and the bake: 3.7 → 47 ms at 1080p and 11 → 186 ms at 4K, with seven
+     layers. That is the worst place for it.
+   - Every paused publish drops the stills of drawings the tiles already serve,
+     except the ones on screen (`FrameBitmapCache.DropWhere`). Drawings that
+     cannot tile keep theirs, or the idle warm would remake them on every publish
+     (B408's loop).
+   - Stop keeps Q218's hold. What it settles on is now this route.
+   - **Gate:** the paused tiled composite against the still route at 100%, 50%,
+     33% and 25%, onion on and off, gives zero differing values
+     (`PausedOnTilesTests`).
+   - **Measured:**
+
+     | | arriving at a frame | first dab after idle |
+     |---|---|---|
+     | 1080p, before | 168 ms | 3.8 ms |
+     | 1080p, after | 6.3 ms | 3.9 ms |
+     | 4K, before | 470 ms | 11.7 ms |
+     | 4K, after | 11.2 ms | 12.0 ms |
+
+     Seven layers, local probe. Memory is measured by the lab's
+     `memory-session`, A/B.
+   - **Not yet:** a stroke begun before the stills arrive renders them at
+     pen-down. That is the cost arrival used to pay, now paid only when the pen
+     is faster than the warm.
 2. **Readers stop materialising stills** for frames that have tiles: one pixel
    (colour pick, brush ring), a region (eraser probe, flood fill's region, the
    effect brush's backdrop) and undo pixels. `TileStore` reads a pixel or copies
