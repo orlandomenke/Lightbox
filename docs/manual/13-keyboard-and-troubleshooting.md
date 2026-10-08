@@ -52,7 +52,7 @@ warns about.
 | Backspace | Take the last point back off, while drawing with the pen |
 | Enter / Esc | Finish the pen line (neither discards it — Ctrl+Z does) |
 | Delete | Delete the selected lines |
-| Arrows | Nudge the selected lines a pixel, ten with Shift (Arrow tool only) |
+| Arrows | Nudge the selected lines a pixel, ten with Shift (Arrow tool only). With nothing selected, **Left/Right step a frame** and **Up/Down go to the previous/next drawing** — from the canvas or the timeline |
 | Ctrl (hold) | Borrow the eyedropper; let go and your tool comes back |
 | B, E, F, V, I (hold) | Tap to switch tools as always; **hold** one, use it, and let go to land back where you were |
 | I | Eyedropper — except over the timeline, where it inserts a key, and over the X-sheet, where it makes the selected empty cels blank keyframes |
