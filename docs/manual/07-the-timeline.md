@@ -45,7 +45,25 @@ another layer, or tidying it, no longer costs you your place.
 **Double-click a cell to go there and draw there**: that switches to its layer.
 Clicking a layer's name at the start of its row, or picking it in the Layers
 docker, switches layer without moving the playhead. A click in your own layer's
-row simply moves the playhead, as it always has. A **keyed** cell holds a drawing; a **hold** repeats the drawing
+row simply moves the playhead, as it always has.
+
+**The cel that is highlighted is the one a command means**, however it came to
+be picked. Ctrl+click picks a cel without moving the playhead, so with a cel
+picked on frame 10 and the playhead on frame 3, copy copies frame 10's cel,
+paste lands on it, and **I** or *Insert breakdown* marks it — and the playhead
+stays on 3. With a block picked, copy takes the block's run and paste lands at
+the block's first cel, not at the playhead. When cels on several layers are
+picked at the same frame, a command that needs one of them takes the topmost
+row. With nothing picked — or only camera or bone keys picked on the Timeline
+tab — these commands mean the playhead's cel on the layer you are on, as
+before; Delete is the exception, and refuses rather than guess.
+
+**Three things stay with the layer you draw on, not with the picked cel:**
+drawing itself, AI inbetweening, and stepping to the previous or next key
+(**1** and **2**), which walk the keys of the layer you are on. And one gesture
+still takes you to another layer besides the double click: Alt+dragging a
+drawing along another layer's row, and the commands on a cel's own right-click
+menu, which have always meant "here". A **keyed** cell holds a drawing; a **hold** repeats the drawing
 before it, which is what animating on 2s and 3s is made of.
 
 **Two kinds of cell look empty, and they are not the same thing.** A plain empty

@@ -1864,6 +1864,10 @@ public partial class MainViewModel
             return;
         }
 
+        // Already exactly this: a click that changes nothing repaints nothing.
+        var key = TimelineKey.Cel(cell.LayerIndex, cell.Index);
+        if (CurrentFrameIndex == cell.Index && _keySelection.Count == 1 && _keySelection.Contains(key)) return;
+
         CurrentFrameIndex = cell.Index;
         _keySelection.Clear();
         // Q103, as below: a hatched cell can be stood on and cannot be picked.

@@ -55,6 +55,29 @@ Recommended and taken.
   the same cel and there is nothing to keep apart.
 - **Drawing and AI inbetweening stay with the layer**, not with the pick.
 
+### What the review found in the first build (adversary, 2026-10-09)
+
+Each fixed with a test that was red first.
+
+- **The I key keyed the wrong cel.** It was a second method beside the Animation
+  menu's item, and only the menu's had been changed. It now goes through the
+  menu's.
+- **A cel picked on the drawing layer, away from the playhead, was ignored** by
+  insert keyframe and breakdown: the redirect only fired for another layer.
+- **A verb acting on a Ctrl+click pick moved the playhead to it** as a side
+  effect of the cel's own menu verb. From the keyboard and the Animation menu a
+  verb now changes neither the layer nor the playhead.
+- **Camera or pose keys picked, and no cel:** copy, paste, exposure and timing
+  had stopped working, where before they meant the playhead's cel. They do
+  again. Delete still refuses there, because guessing a drawing to delete is
+  not safe.
+- **Several layers picked at one frame:** which of them a single-cel verb took
+  depended on the order they were clicked in. It is the topmost row now.
+
+Known and left: a very quick click-then-drag on one cel reads as a double
+click, so it switches layer and starts no drag; and whether a pen's double tap
+counts as a double click was not established.
+
 ### Left open
 
 - A cel's right-click menu still switches layer for Insert and Paste. Whether

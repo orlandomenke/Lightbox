@@ -197,6 +197,7 @@ public class XsheetClickKeepsLayerTests(Xunit.ITestOutputHelper output) : BrushS
 
         Assert.Equal(1, Marks(vm, Top, 2));
         Assert.NotEqual(1, Marks(vm, Bottom, 2));
+        Assert.Equal(Top, vm.ActiveLayerIndex);
     }
 
     [AvaloniaFact]
@@ -299,6 +300,190 @@ public class XsheetClickKeepsLayerTests(Xunit.ITestOutputHelper output) : BrushS
         Assert.Equal(FrameRole.Breakdown, ExposureSheet.FrameAtExactIndex(vm.Doc.Scene.Layers[Top], 1)!.Role);
         Assert.Equal("#0000ff", ColourAt(vm, Top, 5));
         Assert.Equal(1, Marks(vm, Bottom, 5));
+    }
+
+    // ---- what the review found (adversary, 2026-10-09) --------------------------
+
+    private static FrameRole RoleOf(MainViewModel vm, int layer, int index) =>
+        ExposureSheet.FrameAtExactIndex(vm.Doc.Scene.Layers[layer], index)!.Role;
+
+    private static void SetRole(MainViewModel vm, int layer, int index, FrameRole role) =>
+        ExposureSheet.FrameAtExactIndex(vm.Doc.Scene.Layers[layer], index)!.Role = role;
+
+    /// <summary>Which cels of a layer hold a drawing — its timing, as a string.</summary>
+    private static string Timing(MainViewModel vm, int layer) =>
+        string.Concat(vm.Doc.Scene.Layers[layer].Cels.Select(c => c.Frame is null ? '.' : 'x'));
+
+    [AvaloniaFact]
+    public void TheIKeyMarksTheClickedCelToo()
+    {
+        // The key and the Animation menu's item were two methods, and only the
+        // menu's had been taught to ask which cel is picked.
+        var vm = Sheet();
+        SetRole(vm, Bottom, 2, FrameRole.Breakdown);
+        SetRole(vm, Top, 2, FrameRole.Breakdown);
+        vm.SelectFrameCommand.Execute(Cell(vm, Bottom, 2));
+
+        vm.InsertKeyframeAtPlayhead();
+
+        Assert.Equal(FrameRole.Key, RoleOf(vm, Bottom, 2));
+        Assert.Equal(FrameRole.Breakdown, RoleOf(vm, Top, 2));
+    }
+
+    [AvaloniaFact]
+    public void ACelPickedOnYourOwnLayerAwayFromThePlayheadIsStillThePick()
+    {
+        // Ctrl+click picks without moving the playhead. The pick is what is
+        // highlighted, so the pick is what a verb means — on any layer.
+        var vm = Sheet();
+        vm.SelectFrameCommand.Execute(Cell(vm, Top, 1));
+        vm.ToggleCelSelection(Cell(vm, Top, 4));
+
+        vm.InsertFrameAtPlayhead(FrameRole.Breakdown);
+
+        Assert.Equal(FrameRole.Breakdown, RoleOf(vm, Top, 4));
+        Assert.Equal(FrameRole.Key, RoleOf(vm, Top, 1));
+    }
+
+    [AvaloniaFact]
+    public void AVerbOnACelPickedElsewhereDoesNotMoveThePlayhead()
+    {
+        var vm = Sheet();
+        vm.SelectFrameCommand.Execute(Cell(vm, Top, 0));
+        vm.CopyCurrentCel();
+        vm.SelectFrameCommand.Execute(Cell(vm, Top, 1));
+        vm.ToggleCelSelection(Cell(vm, Bottom, 4));
+
+        vm.PasteCurrentCel();
+        vm.InsertFrameAtPlayhead(FrameRole.Breakdown);
+        vm.InsertBlankFrameAtPlayhead();
+
+        Assert.Equal(1, vm.CurrentFrameIndex);
+        Assert.Equal(Top, vm.ActiveLayerIndex);
+    }
+
+    [AvaloniaFact]
+    public void StretchingAndReducingExposureWorkOnTheClickedCelsLayer()
+    {
+        var vm = Sheet();
+        var top = Timing(vm, Top);
+        var bottom = Timing(vm, Bottom);
+        vm.SelectFrameCommand.Execute(Cell(vm, Bottom, 2));
+
+        vm.StretchSelectedExposureCommand.Execute(null);
+
+        output.WriteLine($"bottom {bottom} -> {Timing(vm, Bottom)}; top {top} -> {Timing(vm, Top)}");
+        Assert.NotEqual(bottom, Timing(vm, Bottom));
+        Assert.Equal(top, Timing(vm, Top).TrimEnd('.'));
+
+        // Reducing keeps every second drawing of a run and holds it, so it
+        // needs a run: four cels of the bottom layer, picked from another layer.
+        var stretched = Timing(vm, Bottom);
+        vm.SelectFrameCommand.Execute(Cell(vm, Bottom, 0));
+        vm.RangeSelectTo(Cell(vm, Bottom, 3));
+        vm.ReduceSelectedExposureCommand.Execute(null);
+
+        output.WriteLine($"bottom {stretched} -> reduced {Timing(vm, Bottom)}; {vm.AiStatus}");
+        Assert.NotEqual(stretched, Timing(vm, Bottom));
+        Assert.Equal(top, Timing(vm, Top).TrimEnd('.'));
+        Assert.Equal(Top, vm.ActiveLayerIndex);
+    }
+
+    [AvaloniaFact]
+    public void ATimingPresetRetimesTheClickedCelsLayer()
+    {
+        var vm = Sheet();
+        var top = Timing(vm, Top);
+        var bottom = Timing(vm, Bottom);
+        vm.SelectedTimingPreset = vm.TimingPresets.First(p => p.Name == "On 2s");
+        vm.SelectFrameCommand.Execute(Cell(vm, Bottom, 0));
+        vm.RangeSelectTo(Cell(vm, Bottom, 3));
+
+        vm.ApplySelectedTimingCommand.Execute(null);
+
+        output.WriteLine($"bottom {bottom} -> {Timing(vm, Bottom)}; top {top} -> {Timing(vm, Top)}; {vm.AiStatus}");
+        Assert.NotEqual(bottom, Timing(vm, Bottom));
+        Assert.Equal(top, Timing(vm, Top));
+    }
+
+    [AvaloniaFact]
+    public void InsertingAnEmptyCellInsertsItOnTheClickedCelsLayer()
+    {
+        var vm = Sheet();
+        var top = Timing(vm, Top);
+        var bottom = Timing(vm, Bottom);
+        vm.SelectFrameCommand.Execute(Cell(vm, Bottom, 2));
+
+        vm.InsertBlankFrameAtPlayhead();
+
+        output.WriteLine($"bottom {bottom} -> {Timing(vm, Bottom)}; top {top} -> {Timing(vm, Top)}");
+        Assert.NotEqual(bottom, Timing(vm, Bottom).TrimEnd('.'));
+        // The scene grows a frame to hold what was pushed along, so every row
+        // gains an empty cell at the end; the top layer's drawings do not move.
+        Assert.Equal(top, Timing(vm, Top).TrimEnd('.'));
+        Assert.Equal(Top, vm.ActiveLayerIndex);
+    }
+
+    [AvaloniaFact]
+    public void WithOnlyCameraKeysPickedTheGentleVerbsStillMeanThePlayhead()
+    {
+        // A selection that names no cel is not a reason for Ctrl+C to do
+        // nothing. Delete refuses there, because guessing a drawing to delete
+        // is not safe; copying and re-timing the playhead's cel is what these
+        // did before, and nothing about picking a camera key changed that.
+        var vm = Sheet();
+        vm.AddCameraCommand.Execute(null);
+        vm.AddCameraKeyAt(1);
+        vm.CurrentFrameIndex = 3;
+        vm.SelectTrackKey(TimelineKey.Camera(1), toggle: false, range: false);
+        Assert.Empty(vm.CelSelection);
+
+        vm.CopyCurrentCel();
+        vm.ExtendExposureAtPlayhead();
+
+        Assert.True(vm.HasCelClipboard, vm.AiStatus);
+        Assert.Equal(Frames + 1, vm.Doc.Scene.Layers[Top].Cels.Count);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void WhenSeveralLayersArePickedAtOneFrameTheTopRowIsTheOneMeant(bool bottomFirst)
+    {
+        // The pick is a set; which of two cels at the same frame "comes first"
+        // must not depend on the order they were clicked in.
+        var vm = Sheet();
+        vm.SelectFrameCommand.Execute(Cell(vm, Top, 5));
+        foreach (var layer in bottomFirst ? new[] { Bottom, Middle } : new[] { Middle, Bottom })
+        {
+            vm.ToggleCelSelection(Cell(vm, layer, 1));
+        }
+
+        vm.CopyCurrentCel();
+        vm.ClearCelRange();
+        vm.SelectFrameCommand.Execute(Cell(vm, Top, 5));
+        vm.PasteCurrentCel();
+
+        Assert.Equal("#00ff00", ColourAt(vm, Top, 5));
+    }
+
+    [AvaloniaFact]
+    public void ClickingTheCelThatIsAlreadyPickedChangesNothing()
+    {
+        // A click that changes nothing must not repaint every cell of the sheet.
+        var vm = Sheet();
+        var cell = Cell(vm, Bottom, 2);
+        vm.SelectFrameCommand.Execute(cell);
+        var raised = 0;
+        foreach (var row in vm.LayerRows)
+        {
+            foreach (var c in row.Cells) c.PropertyChanged += (_, _) => raised++;
+        }
+
+        vm.SelectFrameCommand.Execute(cell);
+
+        Assert.Equal(0, raised);
+        Assert.Equal([(Bottom, 2)], vm.CelSelection.ToArray());
     }
 
     // ---- the real gestures -----------------------------------------------------
