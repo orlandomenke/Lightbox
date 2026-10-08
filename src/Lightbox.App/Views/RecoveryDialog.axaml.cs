@@ -52,15 +52,15 @@ public partial class RecoveryDialog : Window
     {
         Message.Text = "Delete this unsaved work for good? It cannot be brought back.";
         Note.Text = "";
-        Choices.IsVisible = false;
-        Confirm.IsVisible = true;
+        ButtonRow.IsVisible = false;
+        ConfirmRow.IsVisible = true;
     }
 
     private void OnBackClicked(object? sender, RoutedEventArgs e)
     {
         Message.Text = "Lightbox closed before saving. Its unsaved work was kept:";
-        Choices.IsVisible = true;
-        Confirm.IsVisible = false;
+        ButtonRow.IsVisible = true;
+        ConfirmRow.IsVisible = false;
     }
 
     private void OnDeleteClicked(object? sender, RoutedEventArgs e) => Close(RecoveryChoice.Discard);

@@ -19,8 +19,8 @@
 
     <!-- What each file is. -->
     <StackPanel Spacing="{StaticResource Space8}">
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8">
-        <TextBlock Grid.Column="0" Text="Format" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Format" VerticalAlignment="Center" />
         <ComboBox Grid.Column="1" x:Name="FormatBox"
                   HorizontalAlignment="Stretch"
                   ItemsSource="{Binding Formats}"
@@ -28,15 +28,15 @@
       </Grid>
 
       <!-- Hidden rather than disabled on PNG: the format has no such setting. -->
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8" IsVisible="{Binding HasQuality}">
-        <TextBlock Grid.Column="0" Text="Quality" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding HasQuality}">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Quality" VerticalAlignment="Center" />
         <NumericUpDown Grid.Column="1"
                        Value="{Binding Quality}" Minimum="1" Maximum="100" Increment="5"
                        FormatString="0" />
       </Grid>
 
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8">
-        <TextBlock Grid.Column="0" Text="Size %" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Size %" VerticalAlignment="Center" />
         <NumericUpDown Grid.Column="1" x:Name="SizeBox"
                        Value="{Binding ScalePercent}" Minimum="1" Maximum="1600" Increment="25"
                        FormatString="0" />
@@ -48,8 +48,8 @@
     <!-- Which frames. Counted from one, as the timeline shows them. -->
     <StackPanel Spacing="{StaticResource Space8}">
       <!-- Only on a document that has tags; an empty picker is a control that does nothing. -->
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8" IsVisible="{Binding HasTags}">
-        <TextBlock Grid.Column="0" Text="Tag" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding HasTags}">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Tag" VerticalAlignment="Center" />
         <ComboBox Grid.Column="1" x:Name="TagBox"
                   HorizontalAlignment="Stretch"
                   ItemsSource="{Binding Tags}"
@@ -58,8 +58,8 @@
                   DisplayMemberBinding="{Binding Name, DataType=doc:AnimationTag}" />
       </Grid>
 
-      <Grid ColumnDefinitions="120,*,Auto,*" ColumnSpacing="8">
-        <TextBlock Grid.Column="0" Text="Frames" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Frames" VerticalAlignment="Center" />
         <NumericUpDown Grid.Column="1" x:Name="FromBox"
                        Value="{Binding FromFrame}" Minimum="1" Maximum="{Binding LastFrame}"
                        Increment="1" FormatString="0" />
@@ -69,8 +69,8 @@
                        Increment="1" FormatString="0" />
       </Grid>
 
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8">
-        <TextBlock Grid.Column="0" Text="Every" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Every" VerticalAlignment="Center" />
         <NumericUpDown Grid.Column="1" x:Name="StepBox"
                        Value="{Binding Step}" Minimum="1" Maximum="{Binding LastFrame}"
                        Increment="1" FormatString="0"
@@ -86,20 +86,20 @@
 
     <!-- What the files are called. -->
     <StackPanel Spacing="{StaticResource Space8}">
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8">
-        <TextBlock Grid.Column="0" Text="Name" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Name" VerticalAlignment="Center" />
         <TextBox Grid.Column="1" x:Name="PrefixBox" Text="{Binding Prefix}" />
       </Grid>
 
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8">
-        <TextBlock Grid.Column="0" Text="Digits" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Digits" VerticalAlignment="Center" />
         <NumericUpDown Grid.Column="1"
                        Value="{Binding Digits}" Minimum="1" Maximum="10" Increment="1" FormatString="0" />
       </Grid>
 
       <!-- Absent while the timeline does the numbering: the two answer the same question. -->
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8" IsVisible="{Binding HasStartNumber}">
-        <TextBlock Grid.Column="0" Text="Start at" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding HasStartNumber}">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Start at" VerticalAlignment="Center" />
         <NumericUpDown Grid.Column="1"
                        Value="{Binding StartNumber}" Minimum="0" Maximum="999999" Increment="1"
                        FormatString="0" />
@@ -118,13 +118,12 @@
               Content="Leave the paper out"
               ToolTip.Tip="Frames are written with a see-through background. This export only — the document keeps its paper." />
 
-    <Grid ColumnDefinitions="120,*" ColumnSpacing="8" IsVisible="{Binding HasMatte}">
-      <TextBlock Grid.Column="0" Text="Fill with" VerticalAlignment="Center" />
+    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding HasMatte}">
+      <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Fill with" VerticalAlignment="Center" />
       <TextBox Grid.Column="1" Text="{Binding Matte}" />
     </Grid>
 
-    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}"
-            IsVisible="{Binding MayLoseTransparency}">
+    <Border x:Name="TransparencyWarning" Classes="notice warning" IsVisible="{Binding MayLoseTransparency}">
       <TextBlock TextWrapping="Wrap"
                  Text="This format has no transparency. The see-through areas will be filled in — export as PNG or WebP to keep them." />
     </Border>
@@ -137,7 +136,7 @@
       A uniform grid: both buttons take the width of the wider one. A MinWidth alone leaves "Export…" wider
       than "Cancel", which is the pair the design system says must match.
     -->
-    <UniformGrid HorizontalAlignment="Right" Columns="2" ColumnSpacing="8">
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="8" HorizontalAlignment="Right">
       <Button x:Name="CancelButton" Classes="tertiary" Content="Cancel"
               Click="OnCancel" IsCancel="True"
               HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"

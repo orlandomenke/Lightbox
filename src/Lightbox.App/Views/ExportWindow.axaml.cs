@@ -200,8 +200,9 @@ public partial class ExportWindow : Window
         // properties on the record, so the window cannot disagree with it.
         var preset = Gather("probe");
 
-        foreach (var control in new Control[]
-                 { TrimLabel, TrimBox, BackgroundLabel, BackgroundBox, BackgroundHint })
+        // Rows, not the two controls in each: a row whose contents are hidden
+        // still takes its place in the stack, and its spacing with it.
+        foreach (var control in new Control[] { TrimRow, BackgroundRow, BackgroundHint })
         {
             control.IsVisible = preset.UsesSheetSettings;
         }
@@ -209,7 +210,7 @@ public partial class ExportWindow : Window
         // Packing, columns and padding are the three the strip convention decides for
         // itself, so they go away rather than being shown and then overridden. The trim
         // stays, because none-versus-union is still a real choice for a strip.
-        foreach (var control in new Control[] { PackLabel, PackBox, PaddingLabel, PaddingBox })
+        foreach (var control in new Control[] { PackRow, PaddingRow })
         {
             control.IsVisible = preset.UsesSheetSettings && !preset.UsesStripLayout;
         }
@@ -309,7 +310,7 @@ public partial class ExportWindow : Window
         if (worldHeight is not null) WorldHeightBox.Text = worldHeight;
     }
 
-    internal bool SheetRowsVisibleForTests => TrimBox.IsVisible;
+    internal bool SheetRowsVisibleForTests => TrimRow.IsVisible;
 
     internal bool EngineRowsVisibleForTests => EnginePanel.IsVisible;
 

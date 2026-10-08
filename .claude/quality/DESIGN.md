@@ -404,6 +404,33 @@ reference draws it. The vocabulary lives in `TrackView.ColourOf`, the graph
 editor's series reuse the same hues for the same things, and a seventh track
 cycles rather than inventing a colour.
 
+## Dialogs
+
+Five rules, each measured on every dialog by `DialogFamilyTests` and
+`DialogGeometryTests` rather than read off the markup — every one of them was
+broken by XAML that looked right.
+
+- **The buttons at the foot are one width: the widest label's.** A row named
+  `ButtonRow` that is a one-row `UniformGrid`. A `MinWidth` alone does not do
+  it; it held in the dialog first cited as the pattern only because both its
+  labels were short.
+- **Cancel on the left, the action on the right** (owner, 2026-10-08 — what
+  most dialogs already did). One `primary` at most, and it is last; everything
+  else in the row is `tertiary`; exactly one button answers Escape and it is
+  not the action.
+- **A row that can be hidden is its own grid in a `StackPanel`**, never a row of
+  a shared `Grid` with `RowSpacing`: a grid keeps a hidden row's spacing, and
+  the gap where the row would be comes out at two or four times the others.
+  Hide the row, not the two controls in it.
+- **The label column is `SizeDialogLabel` (120), set as the label's `Width` in
+  an `Auto` column**, and a dialog's margin is `DialogPadding` — so a form's
+  fields start the same distance from the edge in every dialog.
+- **A notice is tinted by what it is, never a surface.** `Border.notice.warning`
+  or `Border.notice.info`: the state colour at 18% with a one-pixel border, the
+  badge rule applied to a sentence. A dialog's ground is already
+  `SurfaceElevated`, so a "card" drawn in that surface is invisible on it.
+  The summary sentence at the foot is not a notice and stays plain.
+
 ## Density that has to stay generous
 
 Do not shrink these to save space:

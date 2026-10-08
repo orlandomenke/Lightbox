@@ -113,6 +113,14 @@
     to know before drawing.
   -->
   <SolidColorBrush x:Key="StatusWarningSurfaceBrush" Color="{StaticResource AccentAmber}" Opacity="0.18" />
+  <!--
+    The same tint for information, and it exists because of where a notice
+    sits: a dialog's ground is already the raised surface, so a "card" drawn
+    in that surface is invisible on it. A notice inside a dialog is told apart
+    by what it is — amber for a warning, this for something worth knowing —
+    the way a badge is tinted rather than filled.
+  -->
+  <SolidColorBrush x:Key="StatusInfoSurfaceBrush" Color="{StaticResource AccentViolet}" Opacity="0.18" />
 
 
   <!-- ===== Fields ==================================================== -->

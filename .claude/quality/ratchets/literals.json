@@ -26,7 +26,7 @@
   "src/Lightbox.App/Views/ProjectWindow.axaml": 61,
   "src/Lightbox.App/Views/ResizeDialog.axaml": 3,
   "src/Lightbox.App/Views/RigSetEditor.axaml": 2,
-  "src/Lightbox.App/Views/SaveFirstDialog.axaml": 3,
+  "src/Lightbox.App/Views/SaveFirstDialog.axaml": 1,
   "src/Lightbox.App/Views/SaveImageDialog.axaml": 1,
   "src/Lightbox.App/Views/ScenePanel.axaml": 12,
   "src/Lightbox.App/Views/SplashWindow.axaml": 9,
