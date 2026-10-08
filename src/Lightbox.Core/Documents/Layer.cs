@@ -42,10 +42,11 @@ public sealed class Cel
     public Frame? Frame { get; set; }
 
     /// <summary>A copy holding no reference in common with this one.</summary>
-    public Cel Clone()
+    /// <param name="frame">How the drawing is copied; see <see cref="Doc.Clone"/>.</param>
+    public Cel Clone(Func<Frame, Frame>? frame = null)
     {
         var copy = (Cel)MemberwiseClone();
-        copy.Frame = Frame?.Clone();
+        copy.Frame = Frame is null ? null : frame?.Invoke(Frame) ?? Frame.Clone();
         return copy;
     }
 }
@@ -236,10 +237,11 @@ public sealed class LayerMask
     [JsonIgnore] public bool IsInverted => Inverted == true;
 
     /// <summary>A copy holding no reference in common with this one.</summary>
-    public LayerMask Clone()
+    /// <param name="frame">How the drawing is copied; see <see cref="Doc.Clone"/>.</param>
+    public LayerMask Clone(Func<Frame, Frame>? frame = null)
     {
         var copy = (LayerMask)MemberwiseClone();
-        copy.Frame = Frame.Clone();
+        copy.Frame = frame?.Invoke(Frame) ?? Frame.Clone();
         return copy;
     }
 }
@@ -478,11 +480,12 @@ public sealed class Layer
     public List<Cel> Cels { get; set; } = [];
 
     /// <summary>A copy holding no reference in common with this one.</summary>
-    public Layer Clone()
+    /// <param name="frame">How each drawing is copied; see <see cref="Doc.Clone"/>.</param>
+    public Layer Clone(Func<Frame, Frame>? frame = null)
     {
         var copy = (Layer)MemberwiseClone();
-        copy.Cels = Cels.Select(c => c.Clone()).ToList();
-        copy.Mask = Mask?.Clone();
+        copy.Cels = Cels.Select(c => c.Clone(frame)).ToList();
+        copy.Mask = Mask?.Clone(frame);
         copy.Effects = Effects?.Clone();
         return copy;
     }

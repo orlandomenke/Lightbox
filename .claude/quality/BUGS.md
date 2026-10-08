@@ -2120,6 +2120,25 @@ test reopens the bug.
     This costs nothing at commit; the stroke commit's hot path is unchanged.
   - **Its review blocked the first version once.** A retype keeps the old letters it took out. If a letter had gone from under the session, for example through a redo inside the text session, the undo read one past the end of that list. It threw after it had already removed the new letters, and lost the caption and its history together. The kept list and its indices are now the same strokes, and the test removes a letter mid-session to prove it. From the same review: *Add from set* guides keep what undo took out too, and symbol removals take every match, as `RemoveAll` did (`TakeEvery`), because a file written while this bug was open can hold an object twice.
 
+- [x] **B414** `P2` `canvas` Nudging a drawing to spacing moves its baked raster in the copy undo restores from, so undo leaves it out of register `evidence: SharedSampleTests, MovingADrawingLeavesACopyTakenBeforeItWhereItWas`
+
+  - **Found 2026-10-08** by the compiler. To act on a note in the sensitivity review of undo storing only what changed, `BakedSample` and `StrokeCheckpoint` were made init-only. Every copy of a stroke shares them on purpose (`DocCloneTests.DeliberatelyShared`), so a change in place reaches every copy. The review had found no writer by grep; the compiler found one.
+  - **Mechanism:** `FrameTranslate.Apply` (*Nudge to spacing*) moved `Baked.X/Y` in place. The step's `before = frame.Clone()` shares that sample, so it moved too. Undo restored the points but left the baked raster at the nudged position, out of register with its own stroke, and saved that way. Once undo shares frozen drawings between steps, every step holding the drawing would see the move.
+  - **Fix:** the translate makes a new sample. Both shared types are now init-only, so a future change in place fails to compile instead of corrupting undo. Two tests that corrupted a checkpoint on purpose now replace it.
+- [x] **B413** `P2` `canvas` Undo of a guide, reference or weight edit does nothing after an undone structural edit: 19 deltas mutate captured objects `evidence: DeltaAfterSwapTests, AGridsSpacingUndoesAfterTheDocumentWasSwapped, PaintedWeightsUndoAfterTheDocumentWasSwapped`
+
+  - **Found 2026-10-08** while designing undo that stores only what changed. That change thaws a fresh document on redo as well as undo, and its sensitivity review showed that it would make this reachable by one more ordinary sequence.
+  - **Mechanism:** undoing or redoing a structural edit replaces the document instance. A delta step whose apply and revert write to an object captured when the step was made (`_ => guide.Spacing = before`) writes to the old instance afterwards. The undo silently does nothing to the document on screen, and the history and the drawing disagree from then on. Stroke commits were never affected, because they find their frame and stroke by id.
+  - **Scope:** an audit of all 50 `PerformDelta` call sites found 19 that captured objects:
+    - 9 guide setters;
+    - 8 reference strip and cell edits;
+    - the guide and reference-box group drags in `Transform`;
+    - weight painting (`EndWeightStroke`). This one changes how a rigged drawing deforms, and a save then writes it without the painting. That is why the bug is P2.
+  - **Fix:** each step finds its target in the document it is handed:
+    - guides and strips by id (`GuideDelta`, `StripDelta`);
+    - cells by their strip's id and their place in it (`CellDelta`), since a cell has no id;
+    - painted strokes by frame and stroke id.
+    `MoveGuidesBy`'s remark had said the opposite: it held guides by reference *because* an undo can replace the list. Reference is what does not survive that.
 - [x] **B412** `P2` `canvas` A refused undo-pixel swap leaves its patch on the wrong side, and a later swap writes it back `evidence: MarkSnapshotRefusalTests, ARefusedSwapDropsItsStepSoALaterOneCannotWriteTheWrongSideBack`
 
   - **Found in review, 2026-10-08,** by the sensitivity pass on the overall memory limit (Q221). That change did not make the hole but makes it likelier: a limit that evicts the least recently used picture anywhere is exactly what removes one of a frame's two renderings.

@@ -32,6 +32,41 @@ public partial class MainViewModel
     /// <summary>The guides on this document, or an empty list.</summary>
     public IReadOnlyList<Guide> Guides => Scene.Guides ?? [];
 
+    // ---- B413: deltas find what they change in the document they are handed ----
+
+    /// <summary>
+    /// A delta on one guide, found by id each time it runs (B413). Undoing a
+    /// structural edit replaces the document, so the guide object an edit
+    /// started from is not the one on screen afterwards; a step that wrote to
+    /// it would undo nothing.
+    /// </summary>
+    private void GuideDelta(Guide guide, Action<Guide> apply, Action<Guide> revert)
+    {
+        var id = guide.Id;
+        _editor.PerformDelta(
+            d => { if (d.Scene.Guides?.Find(g => g.Id == id) is { } g) apply(g); },
+            d => { if (d.Scene.Guides?.Find(g => g.Id == id) is { } g) revert(g); });
+    }
+
+    /// <summary>A delta on one reference strip, found by id each time it runs (B413).</summary>
+    private void StripDelta(ReferenceStrip strip, Action<ReferenceStrip> apply, Action<ReferenceStrip> revert)
+    {
+        var id = strip.Id;
+        _editor.PerformDelta(
+            d => { if (d.Scene.References?.Find(r => r.Id == id) is { } r) apply(r); },
+            d => { if (d.Scene.References?.Find(r => r.Id == id) is { } r) revert(r); });
+    }
+
+    /// <summary>
+    /// A delta on one cell of a reference strip (B413). A cell has no id, so it
+    /// is found by its strip's id and its place in the strip.
+    /// </summary>
+    private void CellDelta(ReferenceStrip strip, int index, Action<ReferenceCell> apply, Action<ReferenceCell> revert) =>
+        StripDelta(strip,
+            r => { if (index >= 0 && index < r.Cells.Count) apply(r.Cells[index]); },
+            r => { if (index >= 0 && index < r.Cells.Count) revert(r.Cells[index]); });
+
+
     public bool HasGuides => Scene.HasGuides;
 
     /// <summary>
@@ -141,7 +176,7 @@ public partial class MainViewModel
         var clamped = Math.Clamp(spacing, 1, 4096);
         var before = guide.Spacing;
         if (Math.Abs(before - clamped) < 1e-9) return;
-        _editor.PerformDelta(_ => guide.Spacing = clamped, _ => guide.Spacing = before);
+        GuideDelta(guide, g => g.Spacing = clamped, g => g.Spacing = before);
         NotifyGuidesView();
     }
 
@@ -150,7 +185,7 @@ public partial class MainViewModel
     {
         var before = guide.Angle;
         if (Math.Abs(before - angle) < 1e-9) return;
-        _editor.PerformDelta(_ => guide.Angle = angle, _ => guide.Angle = before);
+        GuideDelta(guide, g => g.Angle = angle, g => g.Angle = before);
         NotifyGuidesView();
     }
 
@@ -159,9 +194,9 @@ public partial class MainViewModel
     {
         var before = (guide.Visible, guide.Snaps);
         if (before == (visible, snaps)) return;
-        _editor.PerformDelta(
-            _ => { guide.Visible = visible; guide.Snaps = snaps; },
-            _ => { guide.Visible = before.Visible; guide.Snaps = before.Snaps; });
+        GuideDelta(guide, 
+            g => { g.Visible = visible; g.Snaps = snaps; },
+            g => { g.Visible = before.Visible; g.Snaps = before.Snaps; });
         NotifyGuidesView();
     }
 
@@ -172,7 +207,7 @@ public partial class MainViewModel
     public void SetGuideLocked(Guide guide, bool locked)
     {
         if (guide.Locked == locked) return;
-        _editor.PerformDelta(_ => guide.Locked = locked, _ => guide.Locked = !locked);
+        GuideDelta(guide, g => g.Locked = locked, g => g.Locked = !locked);
         NotifyGuidesView();
     }
 
@@ -298,9 +333,9 @@ public partial class MainViewModel
         if (guide.Locked) return;
         var before = (guide.X, guide.Y);
         if (Math.Abs(before.X - x) < 1e-9 && Math.Abs(before.Y - y) < 1e-9) return;
-        _editor.PerformDelta(
-            _ => { guide.X = x; guide.Y = y; },
-            _ => { guide.X = before.X; guide.Y = before.Y; });
+        GuideDelta(guide, 
+            g => { g.X = x; g.Y = y; },
+            g => { g.X = before.X; g.Y = before.Y; });
         NotifyGuidesView();
     }
 
@@ -310,7 +345,7 @@ public partial class MainViewModel
         var clamped = Math.Clamp(rays, Guide.MinRays, Guide.MaxRays);
         var before = guide.Divisions;
         if (before == clamped) return;
-        _editor.PerformDelta(_ => guide.Divisions = clamped, _ => guide.Divisions = before);
+        GuideDelta(guide, g => g.Divisions = clamped, g => g.Divisions = before);
         NotifyGuidesView();
     }
 
@@ -552,9 +587,9 @@ public partial class MainViewModel
         {
             return;
         }
-        _editor.PerformDelta(
-            _ => { guide.Spacing = clampedUnit; guide.Divisions = clampedDivisions; },
-            _ => { guide.Spacing = before.Spacing; guide.Divisions = before.Divisions; });
+        GuideDelta(guide, 
+            g => { g.Spacing = clampedUnit; g.Divisions = clampedDivisions; },
+            g => { g.Spacing = before.Spacing; g.Divisions = before.Divisions; });
         NotifyGuidesView();
     }
 
@@ -594,7 +629,7 @@ public partial class MainViewModel
         // Back to where the drag started, then forward again as one recorded
         // step — so undo returns the top to where it was picked up.
         guide.Spacing = before;
-        _editor.PerformDelta(_ => guide.Spacing = after, _ => guide.Spacing = before);
+        GuideDelta(guide, g => g.Spacing = after, g => g.Spacing = before);
         NotifyGuidesView();
     }
 
@@ -615,9 +650,9 @@ public partial class MainViewModel
     public void MoveGuide(Guide guide, double dx, double dy)
     {
         if (guide.Locked) return;
-        _editor.PerformDelta(
-            _ => { guide.X += dx; guide.Y += dy; },
-            _ => { guide.X -= dx; guide.Y -= dy; });
+        GuideDelta(guide, 
+            g => { g.X += dx; g.Y += dy; },
+            g => { g.X -= dx; g.Y -= dy; });
         NotifyGuidesView();
     }
 
@@ -1385,9 +1420,9 @@ public partial class MainViewModel
         if (ActiveReference is not { } strip) return;
         if (index < 0 || index >= strip.Cells.Count) return;
         var cell = strip.Cells[index];
-        _editor.PerformDelta(
-            _ => { cell.Dx += dx; cell.Dy += dy; },
-            _ => { cell.Dx -= dx; cell.Dy -= dy; });
+        CellDelta(strip, index, 
+            c => { c.Dx += dx; c.Dy += dy; },
+            c => { c.Dx -= dx; c.Dy -= dy; });
         AfterReferenceChange();
     }
 
@@ -1417,14 +1452,14 @@ public partial class MainViewModel
         // A box with no area is a box you cannot get hold of again.
         if (w < 4 || h < 4) return;
 
-        _editor.PerformDelta(
-            _ => { cell.X = x; cell.Y = y; cell.Width = w; cell.Height = h; },
-            _ =>
+        CellDelta(strip, index, 
+            c => { c.X = x; c.Y = y; c.Width = w; c.Height = h; },
+            c =>
             {
-                cell.X = before.X;
-                cell.Y = before.Y;
-                cell.Width = before.Width;
-                cell.Height = before.Height;
+                c.X = before.X;
+                c.Y = before.Y;
+                c.Width = before.Width;
+                c.Height = before.Height;
             });
         AfterReferenceChange();
     }
@@ -1443,9 +1478,9 @@ public partial class MainViewModel
         var cell = strip.Cells[index];
         var (x, y) = DocToSheet(strip, cell, docX, docY);
         var (beforeX, beforeY) = (cell.PivotX, cell.PivotY);
-        _editor.PerformDelta(
-            _ => { cell.PivotX = x; cell.PivotY = y; },
-            _ => { cell.PivotX = beforeX; cell.PivotY = beforeY; });
+        CellDelta(strip, index, 
+            c => { c.PivotX = x; c.PivotY = y; },
+            c => { c.PivotX = beforeX; c.PivotY = beforeY; });
         AfterReferenceChange();
     }
 
@@ -1542,10 +1577,12 @@ public partial class MainViewModel
     /// <summary>Move the cell showing at the playhead, in document pixels.</summary>
     public void NudgeReferenceCell(double dx, double dy)
     {
-        if (ActiveReferenceCell is not { } cell) return;
-        _editor.PerformDelta(
-            _ => { cell.Dx += dx; cell.Dy += dy; },
-            _ => { cell.Dx -= dx; cell.Dy -= dy; });
+        if (ActiveReference is not { } strip || ActiveReferenceCell is not { } cell) return;
+        var index = strip.Cells.IndexOf(cell);
+        if (index < 0) return; // not this strip's cell: no step, rather than an empty one
+        CellDelta(strip, index, 
+            c => { c.Dx += dx; c.Dy += dy; },
+            c => { c.Dx -= dx; c.Dy -= dy; });
         AfterReferenceChange();
     }
 
@@ -1553,9 +1590,9 @@ public partial class MainViewModel
     public void NudgeReference(double dx, double dy)
     {
         if (ActiveReference is not { } strip) return;
-        _editor.PerformDelta(
-            _ => { strip.OffsetX += dx; strip.OffsetY += dy; },
-            _ => { strip.OffsetX -= dx; strip.OffsetY -= dy; });
+        StripDelta(strip, 
+            s => { s.OffsetX += dx; s.OffsetY += dy; },
+            s => { s.OffsetX -= dx; s.OffsetY -= dy; });
         AfterReferenceChange();
     }
 
@@ -1565,13 +1602,13 @@ public partial class MainViewModel
     {
         if (ActiveReference is not { } strip) return;
         var before = strip.Cells.ConvertAll(c => (c.Dx, c.Dy));
-        _editor.PerformDelta(
-            _ => { foreach (var c in strip.Cells) (c.Dx, c.Dy) = (0, 0); },
-            _ =>
+        StripDelta(strip, 
+            s => { foreach (var c in s.Cells) (c.Dx, c.Dy) = (0, 0); },
+            s =>
             {
-                for (var i = 0; i < strip.Cells.Count && i < before.Count; i++)
+                for (var i = 0; i < s.Cells.Count && i < before.Count; i++)
                 {
-                    (strip.Cells[i].Dx, strip.Cells[i].Dy) = before[i];
+                    (s.Cells[i].Dx, s.Cells[i].Dy) = before[i];
                 }
             });
         AfterReferenceChange();
@@ -1782,7 +1819,7 @@ public partial class MainViewModel
         // to one that never did.
         bool? after = locked ? true : null;
         if (before == after) return;
-        _editor.PerformDelta(_ => strip.Locked = after, _ => strip.Locked = before);
+        StripDelta(strip, s => s.Locked = after, s => s.Locked = before);
         AfterReferenceViewTweak();
         OnPropertyChanged(nameof(CanvasReferenceLocked));
         OnPropertyChanged(nameof(SelectedReferenceLocked));
@@ -1894,18 +1931,18 @@ public partial class MainViewModel
         // that changes nothing is one the artist has to press through.
         if (after == before) return;
 
-        _editor.PerformDelta(
-            _ =>
+        StripDelta(strip, 
+            s =>
             {
-                strip.OffsetX = after.OffsetX;
-                strip.OffsetY = after.OffsetY;
-                strip.Scale = after.Scale;
+                s.OffsetX = after.OffsetX;
+                s.OffsetY = after.OffsetY;
+                s.Scale = after.Scale;
             },
-            _ =>
+            s =>
             {
-                strip.OffsetX = before.OffsetX;
-                strip.OffsetY = before.OffsetY;
-                strip.Scale = before.Scale;
+                s.OffsetX = before.OffsetX;
+                s.OffsetY = before.OffsetY;
+                s.Scale = before.Scale;
                 AfterReferenceViewTweak();
             });
         AfterReferenceViewTweak();

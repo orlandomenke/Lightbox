@@ -523,10 +523,17 @@ public sealed class Doc
         return shell;
     }
 
-    public Doc Clone()
+    /// <param name="frame">
+    /// How each layer's drawings are copied; a deep <see cref="Frame.Clone"/> when
+    /// null. Undo passes one that reuses a frozen drawing that has not changed
+    /// (docs/DESIGN-undo-shares-unchanged.md). Drawings it does not reach — a
+    /// symbol's — are deep-copied whatever is passed, which costs sharing, never
+    /// correctness.
+    /// </param>
+    public Doc Clone(Func<Frame, Frame>? frame = null)
     {
         var copy = (Doc)MemberwiseClone();
-        copy.Scene = Scene.Clone();
+        copy.Scene = Scene.Clone(frame);
         copy.ReferenceSheets = ReferenceSheets.Select(s => s.Clone()).ToList();
         copy.ReferenceBoard = ReferenceBoard?.Clone();
         copy.BrushTips = new Dictionary<string, string>(BrushTips);
