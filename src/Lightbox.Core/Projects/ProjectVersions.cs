@@ -1,5 +1,6 @@
 namespace Lightbox.Core.Projects;
 
+using Lightbox.Core.Serialization;
 using Lightbox.Core.Versioning;
 
 /// <summary>
@@ -108,7 +109,7 @@ public static class ProjectVersions
         {
             var entry = manager.CreateVersion(resourceId, label, notes);
             if (milestone is { } status) manager.SetMilestone(resourceId, entry.Id, status);
-            File.Move(staged, Path.Combine(directory, entry.Id + SuffixOf(source)), overwrite: true);
+            DocJson.MoveIntoPlace(staged, Path.Combine(directory, entry.Id + SuffixOf(source)));
             return entry;
         }
         catch
@@ -161,7 +162,7 @@ public static class ProjectVersions
         // crash leaves behind must never be the document.
         var temp = current + ".tmp";
         File.Copy(content, temp, overwrite: true);
-        File.Move(temp, current, overwrite: true);
+        DocJson.MoveIntoPlace(temp, current);
         return target;
     }
 
