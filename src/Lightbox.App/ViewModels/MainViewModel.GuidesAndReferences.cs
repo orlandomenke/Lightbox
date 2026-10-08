@@ -1576,6 +1576,7 @@ public partial class MainViewModel
     {
         if (ActiveReference is not { } strip || ActiveReferenceCell is not { } cell) return;
         var index = strip.Cells.IndexOf(cell);
+        if (index < 0) return; // not this strip's cell: no step, rather than an empty one
         CellDelta(strip, index, 
             c => { c.Dx += dx; c.Dy += dy; },
             c => { c.Dx -= dx; c.Dy -= dy; });
