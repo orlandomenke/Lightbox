@@ -266,7 +266,7 @@ public sealed partial class MainViewModel
             revert: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
-                placementIn = TakeLast(frame.Placements, p => p.Id == placement.Id) ?? placementIn;
+                placementIn = TakeEvery(frame.Placements, p => p.Id == placement.Id) ?? placementIn;
                 if (frame.Placements is { Count: 0 }) frame.Placements = null;
                 frame.Strokes.AddRange(strokesOut);
             },
@@ -559,9 +559,9 @@ public sealed partial class MainViewModel
             revert: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
-                placementIn = TakeLast(frame.Placements, p => p.Id == placement.Id) ?? placementIn;
+                placementIn = TakeEvery(frame.Placements, p => p.Id == placement.Id) ?? placementIn;
                 if (frame.Placements is { Count: 0 }) frame.Placements = null;
-                if (carve is not null) carveIn = TakeLast(frame.Strokes, k => k.Id == carve.Id) ?? carveIn;
+                if (carve is not null) carveIn = TakeEvery(frame.Strokes, k => k.Id == carve.Id) ?? carveIn;
                 else frame.Strokes.AddRange(removedOut);
             },
             affectedFrameId: frameId);
@@ -1046,7 +1046,7 @@ public sealed partial class MainViewModel
             revert: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
-                placementIn = TakeLast(frame.Placements, p => p.Id == placement.Id) ?? placementIn;
+                placementIn = TakeEvery(frame.Placements, p => p.Id == placement.Id) ?? placementIn;
                 // Back to absent, not to empty: a cel that no longer places
                 // anything must serialize as one that never did.
                 if (frame.Placements is { Count: 0 }) frame.Placements = null;
@@ -1143,7 +1143,7 @@ public sealed partial class MainViewModel
                 if (doc.Scene is not { FrameGroups: not null }) return;
 
                 // Remove frame group
-                groupIn = TakeLast(doc.Scene.FrameGroups, g => g.Id == groupId) ?? groupIn;
+                groupIn = TakeEvery(doc.Scene.FrameGroups, g => g.Id == groupId) ?? groupIn;
 
                 // Remove placements, keeping them for the redo
                 var placementIds = new HashSet<string>(placements.Select(p => p.Id));
@@ -1186,7 +1186,7 @@ public sealed partial class MainViewModel
             apply: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
-                placementOut = TakeLast(frame.Placements, p => p.Id == placement.Id) ?? placementOut;
+                placementOut = TakeEvery(frame.Placements, p => p.Id == placement.Id) ?? placementOut;
                 if (frame.Placements is { Count: 0 }) frame.Placements = null;
             },
             revert: doc =>
@@ -1446,7 +1446,7 @@ public sealed partial class MainViewModel
             apply: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
-                placementOut = TakeLast(frame.Placements, p => p.Id == placement.Id) ?? placementOut;
+                placementOut = TakeEvery(frame.Placements, p => p.Id == placement.Id) ?? placementOut;
                 if (frame.Placements is { Count: 0 }) frame.Placements = null;
                 frame.Strokes.AddRange(bakedIn);
             },

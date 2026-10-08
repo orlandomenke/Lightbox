@@ -874,7 +874,10 @@ public partial class MainViewModel
                         taken.Add(list[at]);
                         list.RemoveAt(at);
                     }
-                    if (taken.Count > 0) removedOut = taken;
+                    // Exactly what was found, even none: indices[i] and
+                    // removedOut[i] must be the same stroke, or the undo reads
+                    // past the end with the new letters already gone.
+                    removedOut = taken;
                     if (original is not null && doc.Texts?.GetValueOrDefault(original.Id) is { } was) originalOut = was;
 
                     if (glyphs.Count == 0)
@@ -904,7 +907,7 @@ public partial class MainViewModel
                         if (doc.Texts is { Count: 0 }) doc.Texts = null;
                     }
 
-                    for (var i = removed.Count - 1; i >= 0; i--)
+                    for (var i = removedOut.Count - 1; i >= 0; i--)
                     {
                         var at = i < indices.Count ? Math.Min(indices[i], list.Count) : list.Count;
                         list.Insert(at, removedOut[i]);

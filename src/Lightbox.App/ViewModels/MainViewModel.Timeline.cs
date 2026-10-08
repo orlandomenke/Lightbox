@@ -1706,6 +1706,16 @@ public partial class MainViewModel
     /// what it took out of the document, so its redo can put that back rather
     /// than the object the step was made with.
     /// </summary>
+    private static T? TakeEvery<T>(List<T>? list, Predicate<T> match) where T : class
+    {
+        // Every match goes, as RemoveAll took them; the last is kept for the redo.
+        // Ids are unique in a list, so there is one, but a file written while
+        // B415 was open can hold a stroke twice, and an undo must not leave one.
+        var last = list?.FindLast(match);
+        list?.RemoveAll(match);
+        return last;
+    }
+
     private static T? TakeLast<T>(List<T>? list, Predicate<T> match) where T : class
     {
         var index = list?.FindLastIndex(match) ?? -1;
