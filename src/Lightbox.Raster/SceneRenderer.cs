@@ -1055,18 +1055,21 @@ public static class SceneRenderer
 
         foreach (var pass in passes)
         {
-            // B309: this body draws bitmaps, tint, opacity, blend, a matrix and
-            // an overlay. A shaped or filtered pass is meant never to arrive —
-            // ScenePassBuilder refuses tile-native for a document with any live
-            // effect (docEffects) and for a shaped frame (TileFallbackReason.
-            // Shaped) — so the drop below is protected by a gate rather than by
-            // this loop. Said out loud, because the sibling route was protected
-            // by exactly such a belief and the belief was wrong.
-            System.Diagnostics.Debug.Assert(
-                pass.AdjustStack is null && pass.Shapes is not { Count: > 0 }
-                    && pass.Effect is null && pass.Style is null,
-                "B309: a shaped or filtered pass reached the tiled compositor, "
-                + "which cannot draw one — the tile-native gate has regressed.");
+            // B309's lesson, applied to this loop too (B419). It draws bitmaps,
+            // tint, opacity, blend, a matrix and an overlay — and a shaped or
+            // filtered pass DOES arrive: the tile gate keeps a clipped or
+            // folder-shaped layer from becoming a tile pass, but it becomes a
+            // bitmap pass in a list that still comes here. A Debug.Assert said
+            // it could not happen and was compiled out of the build an artist
+            // runs, so the carve dropped silently for the whole of playback.
+            // Delegated to the one implementation that draws every field, as
+            // the culled route does.
+            if (pass.Shapes is { Count: > 0 } || pass.Effect is not null
+                || pass.Style is not null || pass.AdjustStack is not null)
+            {
+                if (pass.SourceFrame is null) DrawOne(surface, canvas, pass, renderScale, transform: null);
+                continue;
+            }
             if (pass.Bitmap is null && pass.SourceFrame is null) continue;
             RequireLive(pass); // B392: this route runs on the render thread, after the publish
 
