@@ -42,8 +42,8 @@
 
     <!-- One grid rather than two rows, so the swap button can sit beside both
          fields at once — portrait/landscape is one gesture, not two edits. -->
-    <Grid ColumnDefinitions="110,*,Auto" RowDefinitions="Auto,Auto" RowSpacing="10">
-      <TextBlock Grid.Row="0" Grid.Column="0" Text="Width (px)" VerticalAlignment="Center" />
+    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" RowSpacing="10">
+      <TextBlock Grid.Row="0" Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Width (px)" VerticalAlignment="Center" />
       <NumericUpDown Grid.Row="0" Grid.Column="1" x:Name="WidthBox" Minimum="16" Maximum="8192" Increment="10" FormatString="0" Value="1920" />
       <TextBlock Grid.Row="1" Grid.Column="0" Text="Height (px)" VerticalAlignment="Center" />
       <NumericUpDown Grid.Row="1" Grid.Column="1" x:Name="HeightBox" Minimum="16" Maximum="8192" Increment="10" FormatString="0" Value="1080" />

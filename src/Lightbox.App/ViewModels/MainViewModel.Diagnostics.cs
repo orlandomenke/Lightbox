@@ -497,35 +497,41 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>Ceiling for cached frame bitmaps, in megabytes.</summary>
+    /// <summary>
+    /// Memory for pictures, in megabytes: the one limit every picture cache
+    /// answers to (Q221, docs/DESIGN-memory-for-pictures.md).
+    /// </summary>
     /// <remarks>
-    /// <para>
-    /// <b>The artist's setting stays the final word</b> — the derivation in
-    /// <see cref="MemoryBudget"/> decides the <em>default</em>, which is
-    /// the part that was wrong.
-    /// </para>
-    /// <para>
-    /// <b>Its floor is deliberately below the derived one</b> and that is not an
-    /// inconsistency. The derived floor is what a minimum-spec machine needs for
-    /// the cache to be worth having; this floor is how far somebody may go when
-    /// they have decided they would rather have the memory — which is what the
-    /// Configure page's own text offers ("lowering it frees memory on a large
-    /// canvas"). The ceiling is shared, because above it the cache is holding
-    /// bytes it will never spend whoever asked for them.
-    /// </para>
+    /// Replaces the still-image "frame cache" figure, which capped one cache of
+    /// six while the others' caps summed, unseen, to a third of the machine. The
+    /// floor is where one 1080p frame's layers stop fitting; the ceiling is half
+    /// the machine (<see cref="MemoryBudget.PicturesCeiling"/>). Saved, unlike the figure it replaces, and
+    /// applied at once: over the new limit, the next publish gives memory back.
     /// </remarks>
-    public int FrameCacheBudgetMb
+    public int MemoryForPicturesMb
     {
-        get => (int)(FrameBitmapCache.ByteBudget / (1024 * 1024));
+        get => (int)(Lightbox.Raster.PictureMemory.Limit / (1024 * 1024));
         set
         {
-            var clamped = Math.Clamp(
-                value, 64, (int)(MemoryBudget.FrameCacheCeilingBytes / (1024 * 1024)));
-            if (FrameCacheBudgetMb == clamped) return;
-            FrameBitmapCache.ByteBudget = clamped * 1024L * 1024L;
+            var clamped = (int)(MemoryBudget.ClampPictures(value * 1024L * 1024L) / (1024 * 1024));
+            if (MemoryForPicturesMb == clamped) return;
+            ApplyPictureLimit(clamped * 1024L * 1024L);
+            Settings.MemoryForPicturesMb = clamped;
+            Settings.Save();
             OnPropertyChanged();
             RefreshDocumentStats();
         }
+    }
+
+    /// <summary>
+    /// The still cache may grow to the brokered share: which cache gives way is
+    /// the broker's decision, by least recent use, not a fixed split. Held to
+    /// the range here, so a figure from the settings file is too.
+    /// </summary>
+    internal static void ApplyPictureLimit(long bytes)
+    {
+        Lightbox.Raster.PictureMemory.Limit = MemoryBudget.ClampPictures(bytes);
+        FrameBitmapCache.ByteBudget = Lightbox.Raster.PictureMemory.Brokered;
     }
 
     /// <summary>

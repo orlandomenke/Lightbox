@@ -60,11 +60,16 @@
       <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
     </Border>
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}">
-      <Button Content="Reset" Click="OnReset" />
-      <Button Content="Cancel" Click="OnCancel" IsCancel="True" />
-      <Button Content="Resize" Click="OnApply" IsDefault="True"
-              Classes="primary" IsEnabled="{Binding CanApply}" />
-    </StackPanel>
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="8" HorizontalAlignment="Right">
+      <Button Classes="tertiary" Content="Reset" Click="OnReset"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="tertiary" Content="Cancel" Click="OnCancel" IsCancel="True"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="primary" Content="Resize" Click="OnApply" IsDefault="True" IsEnabled="{Binding CanApply}"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  MinWidth="{StaticResource SizeDialogButton}" />
+    </UniformGrid>
   </StackPanel>
 </Window>

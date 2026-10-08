@@ -207,6 +207,25 @@
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
+  <!--
+    A sentence the artist should read before pressing the button under it: a
+    tinted ground and a one-pixel border in the state's colour. Not a surface —
+    see StatusInfoSurfaceBrush for why a surface cannot work inside a dialog.
+  -->
+  <Style Selector="Border.notice">
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
+    <Setter Property="Padding" Value="{StaticResource CardPadding}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="Border.notice.warning">
+    <Setter Property="Background" Value="{DynamicResource StatusWarningSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource StatusWarningBrush}" />
+  </Style>
+  <Style Selector="Border.notice.info">
+    <Setter Property="Background" Value="{DynamicResource StatusInfoSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource StatusInfoBrush}" />
+  </Style>
+
   <Style Selector="Border.badge.info">
     <Setter Property="BorderBrush" Value="{DynamicResource StatusInfoBrush}" />
   </Style>

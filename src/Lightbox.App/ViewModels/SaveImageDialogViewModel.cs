@@ -72,10 +72,13 @@ public sealed partial class SaveImageDialogViewModel : ObservableObject
                 {
                     _svgNotice = _svgSurvey().Notice;
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
+                    // A fixed sentence. The exception's own text is for a log:
+                    // it can be a path or a type name, and this is read by an
+                    // artist in a dialog.
                     _svgNotice = "This drawing could not be checked for which layers would be saved "
-                        + $"as pixels ({ex.Message}). Saving as SVG may not work for it.";
+                        + "as pixels. Saving as SVG may not work for it.";
                 }
             }
             return _svgNotice;

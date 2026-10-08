@@ -10,28 +10,40 @@
 
   <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
 
-    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
-      <TextBlock Grid.Row="0" Grid.Column="0" Text="Format" VerticalAlignment="Center" />
-      <ComboBox Grid.Row="0" Grid.Column="1" x:Name="FormatBox"
-                ItemsSource="{Binding Formats}"
-                SelectedItem="{Binding Format}" />
+    <!--
+      Each row is its own grid inside a stack, not a row of one shared grid: a
+      grid keeps the spacing of a row whose contents are hidden, so with Quality
+      hidden on PNG the gap between Format and Size was 16 where every other gap
+      is 8. A stack spaces only what is visible.
+    -->
+    <StackPanel Spacing="{StaticResource Space8}">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Format" VerticalAlignment="Center" />
+        <ComboBox Grid.Column="1" x:Name="FormatBox"
+                  HorizontalAlignment="Stretch"
+                  ItemsSource="{Binding Formats}"
+                  SelectedItem="{Binding Format}" />
+      </Grid>
 
       <!--
         Hidden rather than disabled on PNG, the rule the export window already
         follows: a greyed slider invites a click that does nothing, where an
         absent one says the format has no such setting.
       -->
-      <TextBlock Grid.Row="1" Grid.Column="0" Text="Quality" VerticalAlignment="Center"
-                 IsVisible="{Binding HasQuality}" />
-      <NumericUpDown Grid.Row="1" Grid.Column="1"
-                     Value="{Binding Quality}" Minimum="1" Maximum="100" Increment="5"
-                     FormatString="0" IsVisible="{Binding HasQuality}" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding HasQuality}">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Quality" VerticalAlignment="Center" />
+        <NumericUpDown Grid.Column="1" x:Name="QualityBox"
+                       Value="{Binding Quality}" Minimum="1" Maximum="100" Increment="5"
+                       FormatString="0" />
+      </Grid>
 
-      <TextBlock Grid.Row="2" Grid.Column="0" Text="Size" VerticalAlignment="Center" />
-      <NumericUpDown Grid.Row="2" Grid.Column="1"
-                     Value="{Binding ScalePercent}" Minimum="1" Maximum="1600" Increment="25"
-                     FormatString="0" />
-    </Grid>
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Size %" VerticalAlignment="Center" />
+        <NumericUpDown Grid.Column="1" x:Name="SizeBox"
+                       Value="{Binding ScalePercent}" Minimum="1" Maximum="1600" Increment="25"
+                       FormatString="0" />
+      </Grid>
+    </StackPanel>
 
     <!--
       Only shown for a format with nowhere to put alpha, and it is here because
@@ -39,7 +51,7 @@
       works and the artist cannot change it" failure, not a saving.
     -->
     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding !KeepsTransparency}">
-      <TextBlock Grid.Column="0" Text="Fill with" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Fill with" VerticalAlignment="Center" />
       <TextBox Grid.Column="1" Text="{Binding Matte}" />
     </Grid>
 
@@ -55,8 +67,7 @@
       and the status line says so. Typing the extension is the deliberate act,
       which is why it is allowed to win rather than being second-guessed here.
     -->
-    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}"
-            IsVisible="{Binding MayLoseTransparency}">
+    <Border x:Name="TransparencyWarning" Classes="notice warning" IsVisible="{Binding MayLoseTransparency}">
       <TextBlock TextWrapping="Wrap"
                  Text="This format has no transparency. The see-through areas will be filled in — save as PNG or WebP to keep them." />
     </Border>
@@ -66,8 +77,7 @@
       same reason: which layers will be pixels inside the file is something to
       know before choosing SVG for them, not after opening it elsewhere.
     -->
-    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}"
-            IsVisible="{Binding HasSvgNotice}">
+    <Border x:Name="SvgNoticeCard" Classes="notice info" IsVisible="{Binding HasSvgNotice}">
       <TextBlock x:Name="SvgNoticeText" TextWrapping="Wrap" Text="{Binding SvgNotice}" />
     </Border>
 
@@ -75,9 +85,18 @@
       <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
     </Border>
 
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource Space8}">
-      <Button Content="Cancel" Click="OnCancel" IsCancel="True" />
-      <Button Content="Save…" Click="OnApply" IsDefault="True" Classes="primary" />
-    </StackPanel>
+    <!--
+      A uniform grid, so both buttons take the width of the wider label; a
+      MinWidth alone leaves them different. Dismissing is the quiet one.
+      DialogGeometryTests measures the pair.
+    -->
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="8" HorizontalAlignment="Right">
+      <Button x:Name="CancelButton" Classes="tertiary" Content="Cancel" Click="OnCancel" IsCancel="True"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+      <Button x:Name="SaveButton" Classes="primary" Content="Save…" Click="OnApply" IsDefault="True"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+    </UniformGrid>
   </StackPanel>
 </Window>

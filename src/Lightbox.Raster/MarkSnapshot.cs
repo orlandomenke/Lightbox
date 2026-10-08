@@ -43,7 +43,7 @@ namespace Lightbox.Raster;
 /// deliberately strict and the failure is always <c>false</c>.
 /// </para>
 /// </remarks>
-public sealed class MarkSnapshot : IDisposable
+public sealed class MarkSnapshot : IDisposable, IPictureStore
 {
     /// <summary>
     /// Bytes of saved patches held across the whole history.
@@ -99,6 +99,9 @@ public sealed class MarkSnapshot : IDisposable
         public required List<Patch> Patches { get; init; }
 
         public required long Bytes { get; init; }
+
+        /// <summary>When it was filed (Q221): undo pixels are used, if ever, in filing order.</summary>
+        public long Used { get; } = PictureMemory.Clock();
     }
 
     private readonly Dictionary<long, Step> _steps = [];
@@ -234,8 +237,26 @@ public sealed class MarkSnapshot : IDisposable
     /// swapped, because a half-swapped drawing is ink the record does not
     /// describe and it only shows where marks overlap.
     /// </para>
+    /// <para>
+    /// <b>A refusal drops the step (B412).</b> The replay the caller falls back
+    /// to moves the bitmap and not the patch, so after it the patch holds the
+    /// side the bitmap is now on. Kept, a later swap that did pair up — the
+    /// rendering that caused the refusal evicted in between — would write that
+    /// side back: a redo showing the drawing without its mark.
+    /// </para>
     /// </remarks>
     public bool Swap(long revision, FrameBitmapCache cache, Frame frame, SKRectI region)
+    {
+        if (TrySwap(revision, cache, frame, region)) return true;
+        if (_steps.Remove(revision, out var stale))
+        {
+            Bytes -= stale.Bytes;
+            _order.Remove(revision);
+        }
+        return false;
+    }
+
+    private bool TrySwap(long revision, FrameBitmapCache cache, Frame frame, SKRectI region)
     {
         if (!_steps.TryGetValue(revision, out var step)
             || step.FrameId != frame.Id
@@ -336,6 +357,29 @@ public sealed class MarkSnapshot : IDisposable
     /// Oldest first, because the oldest step is the one an artist is least
     /// likely to reach — and losing it costs a slower undo, never the edit.
     /// </summary>
+    // ---- the overall limit (Q221) -----------------------------------------------
+
+    /// <summary>
+    /// The oldest step's pixels. Losing them costs nothing but speed: its undo
+    /// replays the record instead (<c>AMarkTooBigForTheBudgetIsNotSavedAndUndoesAnyway</c>).
+    /// </summary>
+    long? IPictureStore.OldestEvictable =>
+        _order.Count > 0 && _steps.TryGetValue(_order[0], out var step) ? step.Used : null;
+
+    long IPictureStore.EvictOldest()
+    {
+        while (_order.Count > 0)
+        {
+            var oldest = _order[0];
+            _order.RemoveAt(0);
+            if (!_steps.Remove(oldest, out var step)) continue;
+            Bytes -= step.Bytes;
+            Evictions++;
+            return step.Bytes;
+        }
+        return 0;
+    }
+
     private void Evict()
     {
         while (_order.Count > 0 && (Bytes > ByteBudget || _order.Count > MaxSteps))
