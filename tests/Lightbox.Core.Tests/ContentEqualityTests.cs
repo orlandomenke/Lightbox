@@ -40,6 +40,21 @@ public class ContentEqualityTests(ITestOutputHelper output)
         public override string ToString() => content.ToString();
     }
 
+    /// <summary>
+    /// Properties the file never writes are not something to compare either, so
+    /// a type with only those has nothing to compare and counts as changed.
+    /// </summary>
+    [Fact]
+    public void ATypeWhoseOnlyPropertiesAreNeverWrittenCountsAsChanged()
+    {
+        Assert.False(ContentEquality.Same(new OnlyIgnored { Cache = 1 }, new OnlyIgnored { Cache = 1 }));
+    }
+
+    private sealed class OnlyIgnored
+    {
+        [System.Text.Json.Serialization.JsonIgnore] public int Cache { get; set; }
+    }
+
     /// <summary>Hash01 seeds dabs from the bits: 0.0 and -0.0 are different drawings.</summary>
     [Fact]
     public void DoublesCompareByTheirBits()

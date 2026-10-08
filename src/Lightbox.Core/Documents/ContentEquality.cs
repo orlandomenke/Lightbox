@@ -79,21 +79,16 @@ public static class ContentEquality
         var tb = Expression.Variable(t, "tb");
         var next = Expression.Add(depth, Expression.Constant(1));
 
-        var compared = t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Count(p => p.GetIndexParameters().Length == 0 && p.GetMethod is { IsPublic: true });
+        var written = Written(t);
         // Nothing to read is not "nothing differs": content in private fields, or
         // an opaque wrapper, would compare equal for any two instances and be
         // shared. Two distinct instances of such a type count as changed.
-        if (compared == 0) return static (_, _, _) => false;
+        if (written.Length == 0) return static (_, _, _) => false;
 
         Expression all = Expression.Constant(true);
-        foreach (var written in t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                     .Where(p => p.GetIndexParameters().Length == 0
-                                 && p.GetMethod is { IsPublic: true }
-                                 && p.GetCustomAttribute<JsonIgnoreAttribute>() is not { Condition: JsonIgnoreCondition.Always })
-                     .Reverse())
+        foreach (var property in written.Reverse())
         {
-            var p = ComparedThrough.TryGetValue((t, written.Name), out var source) ? t.GetProperty(source)! : written;
+            var p = ComparedThrough.TryGetValue((t, property.Name), out var source) ? t.GetProperty(source)! : property;
             all = Expression.AndAlso(SameProperty(Expression.Property(ta, p), Expression.Property(tb, p), next), all);
         }
 
@@ -120,6 +115,18 @@ public static class ContentEquality
     {
         [(typeof(BrushSettings), nameof(BrushSettings.MediumOnDisk))] = nameof(BrushSettings.Medium),
     };
+
+    /// <summary>
+    /// The properties the serializer writes. One list for both the count and
+    /// the compare, so the two cannot disagree about whether there is anything
+    /// to compare.
+    /// </summary>
+    private static PropertyInfo[] Written(Type t) =>
+        t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.GetIndexParameters().Length == 0
+                        && p.GetMethod is { IsPublic: true }
+                        && p.GetCustomAttribute<JsonIgnoreAttribute>() is not { Condition: JsonIgnoreCondition.Always })
+            .ToArray();
 
     /// <summary>One property of each side, compared without boxing where the type allows.</summary>
     private static Expression SameProperty(Expression x, Expression y, Expression depth)
