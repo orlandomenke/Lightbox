@@ -128,15 +128,41 @@ public static class MediumSimulator
         var w = Math.Max(MinSide, rect.Width / step);
         var h = Math.Max(MinSide, rect.Height / step);
 
-        var coverage = SampleCoverage(scratch, rect, w, h, step);
-        if (coverage is null) return;
+        // The stroke-sized arrays below are rented, for FluidLattice.Rent's
+        // reason: each is over the large-object threshold, and one per stroke
+        // is LOH churn collected only by full blocking GCs — which is also what
+        // stopped renders scaling across cores (playback phase 2a). Each is
+        // written in full before it is read, so a dirty rented array cannot leak
+        // into a mark; `brushalloc --check` holds every medium preset to it.
+        var pool = System.Buffers.ArrayPool<float>.Shared;
+        var coverageRent = pool.Rent(w * h);
+        var paperRent = pool.Rent(w * h);
+        var depositRent = pool.Rent(w * h * 4);
+        try
+        {
+            var coverage = coverageRent.AsSpan(0, w * h);
+            if (!SampleCoverage(scratch, rect, w, h, step, coverage)) return;
+            Simulate(scratch, existing, strokeColor, medium, rect, w, h, step, existingOrigin,
+                coverage, paperRent.AsSpan(0, w * h), depositRent.AsSpan(0, w * h * 4));
+        }
+        finally
+        {
+            pool.Return(coverageRent);
+            pool.Return(paperRent);
+            pool.Return(depositRent);
+        }
+    }
 
+    private static void Simulate(
+        SKSurface scratch, SKBitmap? existing, SKColor strokeColor, MediumSettings medium,
+        SKRectI rect, int w, int h, int step, SKPointI existingOrigin,
+        ReadOnlySpan<float> coverage, Span<float> paper, Span<float> deposit)
+    {
         // Rented, not built: a 320-cell lattice is nine megabytes of large-object
         // arrays, and one per stroke is a gigabyte of LOH churn every few
         // hundred marks. See FluidLattice.Rent — it is cleared on the way out,
         // so a stroke can never inherit the last one's water.
         var lattice = FluidLattice.Rent(w, h);
-        var paper = new float[w * h];
         PaperField.Fill(paper, w, h, rect.Left / step, rect.Top / step, medium.Paper, medium.PaperScale / step);
         lattice.SetPaper(paper, medium.PaperInfluence);
 
@@ -159,7 +185,6 @@ public static class MediumSimulator
         // long the solver ran, which is not something a flow control should say.
         lattice.Dry();
 
-        var deposit = new float[w * h * 4];
         lattice.ReadDeposit(deposit);
         WriteBack(scratch, deposit, existing, strokeColor, medium, rect, w, h, step, existingOrigin);
     }
@@ -187,22 +212,22 @@ public static class MediumSimulator
     /// The stroke's alpha, downsampled. This is where pressure enters: dab
     /// alpha already carries it, so low coverage means a light touch.
     /// </summary>
-    private static float[]? SampleCoverage(SKSurface scratch, SKRectI rect, int w, int h, int step)
+    /// <returns>False when there is nothing to sample; <paramref name="coverage"/> is then unwritten.</returns>
+    private static bool SampleCoverage(SKSurface scratch, SKRectI rect, int w, int h, int step, Span<float> coverage)
     {
         using var image = scratch.Snapshot();
-        if (image is null) return null;
+        if (image is null) return false;
         var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         using var small = new SKBitmap(info);
         // Box-filtered downsample, so a thin stroke does not fall between samples.
         if (!image.ScalePixels(small.PeekPixels(), new SKSamplingOptions(SKFilterMode.Linear)))
         {
-            return null;
+            return false;
         }
 
-        var coverage = new float[w * h];
         using var pixmap = small.PeekPixels();
         var view = Pixels.Of(pixmap);
-        if (view.IsEmpty) return null;
+        if (view.IsEmpty) return false;
         for (var y = 0; y < h; y++)
         {
             for (var x = 0; x < w; x++)
@@ -210,7 +235,7 @@ public static class MediumSimulator
                 coverage[y * w + x] = view.AlphaAt(x, y) / 255f;
             }
         }
-        return coverage;
+        return true;
     }
 
     /// <summary>
@@ -220,7 +245,7 @@ public static class MediumSimulator
     /// to blooming rather than merely thin.
     /// </summary>
     private static void SeedFromCoverage(
-        FluidLattice lattice, float[] coverage, SKColor color, MediumSettings medium, int w, int h)
+        FluidLattice lattice, ReadOnlySpan<float> coverage, SKColor color, MediumSettings medium, int w, int h)
     {
         var (r, g, b) = Linear(color);
         var wetness = (float)Math.Clamp(medium.Wetness, 0, 1);
@@ -256,7 +281,7 @@ public static class MediumSimulator
     /// covering it.
     /// </summary>
     private static void SeedRewetted(
-        FluidLattice lattice, SKBitmap existing, float[] coverage,
+        FluidLattice lattice, SKBitmap existing, ReadOnlySpan<float> coverage,
         MediumSettings medium, SKRectI rect, int w, int h, int step, SKPointI origin)
     {
         var rewet = (float)Math.Clamp(medium.Rewetting, 0, 1);
@@ -295,17 +320,19 @@ public static class MediumSimulator
     /// inside the existing bounded-region pipeline.
     /// </summary>
     private static void WriteBack(
-        SKSurface scratch, float[] deposit, SKBitmap? existing, SKColor strokeColor,
+        SKSurface scratch, ReadOnlySpan<float> deposit, SKBitmap? existing, SKColor strokeColor,
         MediumSettings medium, SKRectI rect, int w, int h, int step, SKPointI origin)
     {
         var info = new SKImageInfo(w, h, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         using var small = new SKBitmap(info);
         var hiding = Math.Clamp(medium.Hiding, 0, 1);
 
-        // Build the result in a plain byte buffer and install it in one go.
-        // SetPixel per pixel bounds-checks and repacks an SKColor each time;
-        // at a 320-cell lattice that was ~100k calls per stroke.
-        var rgba = new byte[w * h * 4];
+        // Built straight in the bitmap's own pixels, cleared first: the loop
+        // skips cells with no mass and relies on them reading transparent.
+        // SetPixel per pixel bounds-checks and repacks an SKColor each time; a
+        // managed byte copy was a stroke-sized array and then a copy (phase 2a).
+        var rgba = small.GetPixelSpan();
+        rgba.Clear();
         using (var underPixmap = existing?.PeekPixels())
         {
             var under = Pixels.Of(underPixmap);
@@ -350,8 +377,6 @@ public static class MediumSimulator
         // shades the pigment as it finally reads — including whatever mixing
         // with the layer underneath decided.
         Impasto.Shade(rgba, w, h, medium.Body, medium.Relief);
-
-        System.Runtime.InteropServices.Marshal.Copy(rgba, 0, small.GetPixels(), rgba.Length);
 
         var canvas = scratch.Canvas;
         canvas.Save();
