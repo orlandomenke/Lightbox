@@ -1255,6 +1255,7 @@ public partial class MainViewModel
     private double _buildStartComposeMs;
     private double _buildStartHandoffMs;
     private long _buildStartMisses;
+    private long _buildStartEvictions;
 
     /// <summary>
     /// The single worst frame build, broken into the phases IT spent its time
@@ -1325,6 +1326,19 @@ public partial class MainViewModel
         }
 
         NoteMemory();
+
+        // The whole build, in its parts, for the headroom band's advice: it
+        // names a cause only from these (the compose time alone, which is all
+        // it had, could never see a drawing being rendered).
+        Performance.RecordBuild(new Services.PerformanceMonitor.BuildSample(
+            ms,
+            BuildDescribeMs - _buildStartDescribeMs,
+            BuildComposeMs - _buildStartComposeMs,
+            BuildHandoffMs - _buildStartHandoffMs,
+            _cache.Misses - _buildStartMisses,
+            _cache.Evictions - _buildStartEvictions,
+            (System.Diagnostics.Stopwatch.GetTimestamp() - AppStartedTicks)
+                / (double)System.Diagnostics.Stopwatch.Frequency));
 
         if (ms > WorstBuild.TotalMs)
         {
@@ -1472,6 +1486,7 @@ public partial class MainViewModel
         _buildStartComposeMs = BuildComposeMs;
         _buildStartHandoffMs = BuildHandoffMs;
         _buildStartMisses = _cache.Misses;
+        _buildStartEvictions = _cache.Evictions;
 
         // Belt to the release at the end of this method: if an exception left
         // holds behind, the next publish must not stack a second set on top.
@@ -2004,8 +2019,14 @@ public partial class MainViewModel
         post(() =>
         {
             Interlocked.Exchange(ref _prewarmDrainQueued, 0);
+            var refusedBefore = _prewarm.Refused;
+            var installedBefore = _prewarm.Installed;
             TakeWarmedFrames();
             if (ReleaseHeldTilesIfStillsReady()) PublishSnapshot();
+            // A drain that installed nothing and was refused never asks again on
+            // its own: asking again is how a refusal became a loop (B408). The
+            // next publish — an edit, a frame change — asks afresh.
+            if (_prewarm.Installed == installedBefore && _prewarm.Refused > refusedBefore) return;
             WarmAtIdle();
         });
     }
@@ -2048,6 +2069,15 @@ public partial class MainViewModel
     private bool CanHoldTilesOnStop()
     {
         if (Services.ThumbnailWorker.Post is null) return false;
+        // The hold ends when the stills are all in; if they cannot all be in at
+        // once — a still cache set smaller than one frame's drawings — it would
+        // never end (B408). Then Stop does what it did before the hold existed.
+        var stills = StillImagesNeeded().Count();
+        if (stills > FrameBitmapCache.MaxEntries
+            || stills * (long)Scene.Width * Scene.Height * 4 > FrameBitmapCache.ByteBudget)
+        {
+            return false;
+        }
         if (Scene.Camera is not null || _publish.Viewport is not { Width: > 0, Height: > 0 }) return false;
         if (Lightbox.Raster.EffectPasses.AnyLive(Scene)) return false;
         foreach (var layer in Scene.Layers)
@@ -2130,7 +2160,7 @@ public partial class MainViewModel
 
             jobs ??= [];
             jobs.Add(new Services.WarmRequest(
-                frame, scene.Width, scene.Height, CurrentFrameIndex, Services.WarmProduct.Bitmap));
+                frame, scene.Width, scene.Height, CurrentFrameIndex, Services.WarmProduct.Bitmap, Wanted: true));
         }
 
         // Then the onion ghosts (Q219): the still picture draws them, so a
@@ -2141,7 +2171,7 @@ public partial class MainViewModel
             if (cel == CurrentFrameIndex) continue; // the drawings, queued above
             if (_cache.Holds(frame, scene.Width, scene.Height, 1.0, cel)) continue;
             jobs ??= [];
-            jobs.Add(new Services.WarmRequest(frame, scene.Width, scene.Height, cel, Services.WarmProduct.Bitmap));
+            jobs.Add(new Services.WarmRequest(frame, scene.Width, scene.Height, cel, Services.WarmProduct.Bitmap, Wanted: true));
         }
         return jobs;
     }
@@ -2158,8 +2188,12 @@ public partial class MainViewModel
         }
         else
         {
+            // Wanted now (the paused picture's stills): in, as a miss would be.
+            // A guess: only into room there already is (B408).
             taken = warmed.Bitmap is { } bmp
-                && _cache.InsertWarm(want.Frame, want.Width, want.Height, 1.0, want.CelIndex, bmp);
+                && (want.Wanted
+                    ? _cache.InsertWanted(want.Frame, want.Width, want.Height, 1.0, want.CelIndex, bmp)
+                    : _cache.InsertWarm(want.Frame, want.Width, want.Height, 1.0, want.CelIndex, bmp));
             held = _cache.Holds(want.Frame, want.Width, want.Height, 1.0, want.CelIndex);
         }
         // Refused and still not held: there was no room. The idle warm stops

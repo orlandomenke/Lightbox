@@ -199,6 +199,67 @@ public sealed class StopOnTilesTests : BrushStateIsolated
         Assert.Contains(latest!.Passes ?? [], p => p.Tint is not null);
     }
 
+    /// <summary>
+    /// B408, from the lab's memory session: with the still cache at its cap, the
+    /// stopped frame's stills were refused, the idle warm asked for them again on
+    /// every drain (1,009 renders in two minutes) and the hold never ended. They
+    /// are wanted now, so they go in; the hold ends; the warm stops.
+    /// </summary>
+    [AvaloniaFact]
+    public void AFullStillCacheNeitherLoopsTheWarmNorStrandsTheHold()
+    {
+        var vm = Vm();
+        vm.Onion.Enabled = true;
+        vm.PublishSnapshot();
+        Settle(vm);
+        vm.FrameCache.Clear();
+        // Fill it to its cap with other pictures, as a long session does.
+        for (var i = 0; i < Lightbox.Raster.FrameBitmapCache.MaxEntries; i++)
+        {
+            vm.FrameCache.InsertWarm(
+                new Lightbox.Core.Documents.Frame { Id = $"other{i}" }, 4, 4, 1.0, 0,
+                new SKBitmap(new SKImageInfo(4, 4, SKColorType.Rgba8888, SKAlphaType.Premul)));
+        }
+
+        vm.TogglePlaybackCommand.Execute(null);
+        vm.CurrentFrameIndex = 2;
+        vm.PublishSnapshot();
+        vm.TogglePlaybackCommand.Execute(null);
+        Assert.True(vm.HoldingTilesAfterStop);
+        var renderedAtStop = vm.Prewarm.Rendered;
+
+        Settle(vm);
+        var rendered = vm.Prewarm.Rendered - renderedAtStop;
+        _output.WriteLine($"renders after stop: {rendered}");
+
+        Assert.False(vm.HoldingTilesAfterStop, "the hold never ended");
+        Assert.True(rendered < 30, $"{rendered} renders after stop: the warm is looping");
+    }
+
+    /// <summary>A still cache smaller than one frame's stills: the hold could never end, so it is not taken.</summary>
+    [AvaloniaFact]
+    public void AStillCacheTooSmallForTheFrameDoesNotHold()
+    {
+        var budget = Lightbox.Raster.FrameBitmapCache.ByteBudget;
+        try
+        {
+            var vm = Vm();
+            vm.PublishSnapshot();
+            Settle(vm);
+            Lightbox.Raster.FrameBitmapCache.ByteBudget = 1;
+            vm.TogglePlaybackCommand.Execute(null);
+            vm.CurrentFrameIndex = 2;
+            vm.PublishSnapshot();
+            vm.TogglePlaybackCommand.Execute(null);
+
+            Assert.False(vm.HoldingTilesAfterStop);
+        }
+        finally
+        {
+            Lightbox.Raster.FrameBitmapCache.ByteBudget = budget;
+        }
+    }
+
     [AvaloniaFact]
     public void AStrokeEndsTheHold()
     {

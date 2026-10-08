@@ -61,6 +61,16 @@
                  Text="This format has no transparency. The see-through areas will be filled in — save as PNG or WebP to keep them." />
     </Border>
 
+    <!--
+      The SVG counterpart of the warning above, and in front of the save for the
+      same reason: which layers will be pixels inside the file is something to
+      know before choosing SVG for them, not after opening it elsewhere.
+    -->
+    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}"
+            IsVisible="{Binding HasSvgNotice}">
+      <TextBlock x:Name="SvgNoticeText" TextWrapping="Wrap" Text="{Binding SvgNotice}" />
+    </Border>
+
     <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}">
       <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
     </Border>
