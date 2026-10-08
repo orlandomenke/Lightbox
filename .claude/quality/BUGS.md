@@ -2113,6 +2113,20 @@ test reopens the bug.
   - **Found 2026-10-08** by the compiler. To act on a note in the sensitivity review of undo storing only what changed, `BakedSample` and `StrokeCheckpoint` were made init-only. Every copy of a stroke shares them on purpose (`DocCloneTests.DeliberatelyShared`), so a change in place reaches every copy. The review had found no writer by grep; the compiler found one.
   - **Mechanism:** `FrameTranslate.Apply` (*Nudge to spacing*) moved `Baked.X/Y` in place. The step's `before = frame.Clone()` shares that sample, so it moved too. Undo restored the points but left the baked raster at the nudged position, out of register with its own stroke, and saved that way. Once undo shares frozen drawings between steps, every step holding the drawing would see the move.
   - **Fix:** the translate makes a new sample. Both shared types are now init-only, so a future change in place fails to compile instead of corrupting undo. Two tests that corrupted a checkpoint on purpose now replace it.
+- [x] **B413** `P2` `canvas` Undo of a guide, reference or weight edit does nothing after an undone structural edit: 19 deltas mutate captured objects `evidence: DeltaAfterSwapTests, AGridsSpacingUndoesAfterTheDocumentWasSwapped, PaintedWeightsUndoAfterTheDocumentWasSwapped`
+
+  - **Found 2026-10-08** while designing undo that stores only what changed. That change thaws a fresh document on redo as well as undo, and its sensitivity review showed that it would make this reachable by one more ordinary sequence.
+  - **Mechanism:** undoing or redoing a structural edit replaces the document instance. A delta step whose apply and revert write to an object captured when the step was made (`_ => guide.Spacing = before`) writes to the old instance afterwards. The undo silently does nothing to the document on screen, and the history and the drawing disagree from then on. Stroke commits were never affected, because they find their frame and stroke by id.
+  - **Scope:** an audit of all 50 `PerformDelta` call sites found 19 that captured objects:
+    - 9 guide setters;
+    - 8 reference strip and cell edits;
+    - the guide and reference-box group drags in `Transform`;
+    - weight painting (`EndWeightStroke`). This one changes how a rigged drawing deforms, and a save then writes it without the painting. That is why the bug is P2.
+  - **Fix:** each step finds its target in the document it is handed:
+    - guides and strips by id (`GuideDelta`, `StripDelta`);
+    - cells by their strip's id and their place in it (`CellDelta`), since a cell has no id;
+    - painted strokes by frame and stroke id.
+    `MoveGuidesBy`'s remark had said the opposite: it held guides by reference *because* an undo can replace the list. Reference is what does not survive that.
 
 - [x] **B405** `P2` `canvas` Auto-bind drops small weights without renormalising, so the drawing trails the rig `evidence: AutoBindWeightsSumToOneAfterThePrune_SoTheDrawingKeepsUpWithTheRig`
   - **Measured 2026-10-08** on a four-bone chain: auto-bind pruned influences under 1% and left the rest as they were, so points summed to 0.984–0.997, and `Blend` holds the remainder at rest. Moving the whole rig 300 px left points 4.7 px behind — a smear that grows with the move. Renormalised after the prune in `Skinning.AutoWeights`; existing strokes keep the weights they stored (the owner's Q217), and layers that follow the whole skeleton, weighted at render time, are fixed at once.
