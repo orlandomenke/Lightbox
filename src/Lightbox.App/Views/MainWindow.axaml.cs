@@ -362,6 +362,12 @@ public partial class MainWindow : Window
         _shortcuts.Load();
         ShowSaveGestures();
         KeyDown += OnKeyDown;
+        // B417: with nothing focused — a fresh window, a closed dialog — the
+        // first arrow press went to Avalonia's keyboard navigation, which
+        // spent it moving focus to the first button and marked it handled, so
+        // the shortcut never ran. Arrows reach the shortcuts first then; a
+        // focused field or list still gets its own arrows as before.
+        AddHandler(KeyDownEvent, OnArrowWithNothingFocused, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // The release edge, so a borrowed tool comes back — see OnKeyUpEdge for
         // why it tunnels and why it is shared with the floating panel windows.
         AddHandler(KeyUpEvent, OnKeyUpEdge, Avalonia.Interactivity.RoutingStrategies.Tunnel);

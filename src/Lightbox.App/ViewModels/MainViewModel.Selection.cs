@@ -385,9 +385,41 @@ public partial class MainViewModel
     }
 
     /// <summary>Arrow keys over the canvas: shift the selection outline by whole pixels.</summary>
-    public void NudgeSelection(int dx, int dy)
+    public void NudgeSelection(int dx, int dy) => TryNudgeSelection(dx, dy);
+
+    /// <summary>
+    /// The canvas arrows: nudge what is selected, or — with nothing to nudge —
+    /// flip through the animation (the owner's answer, 2026-10-08): Left/Right
+    /// step a frame, Up/Down go to the previous/next drawing.
+    /// </summary>
+    /// <remarks>
+    /// One binding per key, so the Configure window still lists and rebinds
+    /// it; the fallback rides on the nudge rather than on a second canvas
+    /// binding for the same key, which the map could not resolve. Arrows
+    /// used to do nothing at all on the canvas without a selection — which,
+    /// with the pointer on the drawing, is most of the time.
+    /// </remarks>
+    public void NudgeSelectionOrFlip(int dx, int dy)
     {
-        if (dx == 0 && dy == 0) return;
+        if (TryNudgeSelection(dx, dy)) return;
+        if (dx != 0)
+        {
+            CurrentFrameIndex = Math.Clamp(CurrentFrameIndex + Math.Sign(dx), 0, Doc.Scene.FrameCount - 1);
+        }
+        else if (dy < 0)
+        {
+            PreviousKeyframeCommand.Execute(null);
+        }
+        else if (dy > 0)
+        {
+            NextKeyframeCommand.Execute(null);
+        }
+    }
+
+    /// <returns>Whether there was anything selected to move.</returns>
+    private bool TryNudgeSelection(int dx, int dy)
+    {
+        if (dx == 0 && dy == 0) return false;
         // A line selection wins, because the two cannot both be live in a way
         // that matters: the Arrow holds lines, the Select tools hold an area, and
         // only one of them is what the artist is looking at. Asked first rather
@@ -395,8 +427,8 @@ public partial class MainViewModel
         // rebindable, canvas-scoped binding for "move what is selected", and
         // adding a second set would mean an artist rebinding one and finding the
         // other still on the old key.
-        if (NudgeSelectionFromKeyboard(dx, dy, coarse: false)) return;
-        if (!HasSelection) return;
+        if (NudgeSelectionFromKeyboard(dx, dy, coarse: false)) return true;
+        if (!HasSelection) return false;
         foreach (var contour in _selectionContours)
         {
             for (var i = 0; i < contour.Count; i++)
@@ -406,6 +438,7 @@ public partial class MainViewModel
             }
         }
         NotifySelection();
+        return true;
     }
 
     [RelayCommand]
