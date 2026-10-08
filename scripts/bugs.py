@@ -597,11 +597,9 @@ def move_ids(moves: dict[str, str], base: str,
     touched: list[str] = []
     for rel, additions in added_lines(base).items():
         path = ROOT / rel
-        if not path.exists():
+        if not path.exists() or not _in_tree(path):
             continue
-        try:
-            lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-        except (UnicodeDecodeError, OSError):
+        if (lines := _lines(path)) is None:
             continue
         changed = False
         for line_no, text in additions:
@@ -622,8 +620,44 @@ def move_ids(moves: dict[str, str], base: str,
                 changed = True
                 touched.append(f"{rel}:{line_no}")
         if changed:
-            path.write_text("".join(lines), encoding="utf-8")
+            _put(path, lines)
     return touched
+
+
+def _lines(path: Path) -> list[str] | None:
+    """A file as git numbers it: split on LF and on nothing else, bytes untouched.
+
+    `read_text` translates CRLF to LF on the way in and `write_text` translates
+    LF to the host's ending on the way out, so a rewrite through the pair
+    changed every line ending in the file to whatever the machine running the
+    repair prefers — on Windows an LF file came back CRLF, on Linux the reverse.
+    This repository holds both. Split on `\\n` alone, a CRLF line keeps its
+    `\\r` as its last character and `_put` hands back exactly what was read.
+    It also means line N here is line N to `git diff` and `git blame`, which
+    `splitlines` does not promise: it breaks on form feeds as well.
+    """
+    try:
+        return path.read_bytes().decode("utf-8").split("\n")
+    except (UnicodeDecodeError, OSError):
+        return None
+
+
+def _put(path: Path, lines: list[str]) -> None:
+    path.write_bytes("\n".join(lines).encode("utf-8"))
+
+
+def _in_tree(path: Path) -> bool:
+    """Whether writing to `path` writes a file of this repository.
+
+    A symlink is refused outright, wherever it points: what git tracks at that
+    path is the link, so no line of the file behind it belongs to any commit
+    here, and a link out of the tree would have the repair edit somebody else's
+    file. A path reached *through* a linked directory is caught by resolving it.
+    """
+    try:
+        return not path.is_symlink() and path.resolve().is_relative_to(ROOT.resolve())
+    except OSError:
+        return False
 
 
 @dataclass
@@ -632,12 +666,14 @@ class Occurrence:
 
     `where` is a line number in a file ledger and a filename in a directory one.
     `ours` says the branch wrote it, which is what decides who gives up the number.
+    `to` is the number it is moving to, when it has one of its own — see `renumber`.
     """
 
     where: object
     id: str
     title: str
     ours: bool
+    to: str | None = None
 
 
 def _occurrences(ledger: Ledger, base: str | None) -> list[Occurrence]:
@@ -671,12 +707,26 @@ class Filed:
 
     spot: Occurrence
     sha: str | None
-    when: float         # commit time; an entry no commit holds is newer than all
+    when: float         # commit time; an entry with no date sorts after every dated one
     stamp: str          # the same, as a person reads it
+    why: str = "dated"  # or: uncommitted / unknown / norepo — never left to be inferred
 
     @property
     def said(self) -> str:
-        return f"filed {self.stamp} by {self.sha[:8]}" if self.sha else "not committed yet"
+        """How this entry was dated, or which of three reasons it was not.
+
+        Three, because they call for different things from the reader. An entry
+        no commit holds really is the newest. One git could not date is merely
+        unknown, and moving it is a guess — the report said "not committed yet"
+        for both, which is false for the second and hides exactly the case
+        where the choice most needs checking.
+        """
+        if self.why == "dated" and self.sha:
+            return f"filed {self.stamp} by {self.sha[:8]}"
+        return "not dated: " + {
+            "uncommitted": "no commit holds it yet",
+            "norepo": "no repository to ask",
+        }.get(self.why, "git could not say which commit filed it")
 
 
 @dataclass
@@ -705,20 +755,33 @@ def _filed(ledger: Ledger, spot: Occurrence) -> Filed:
     retitled since it was filed dates from its retitle, so it can read as newer
     than it is. The report prints the commit and date each entry was dated by
     for exactly that reason — the choice can be checked rather than trusted.
+
+    **The date is the committer date, and that is "landed", not "filed".** A
+    rebase or a squash writes a new one, so a question filed first on a branch
+    that was rebased last reads as the later of the two. It is still the rule —
+    the alternative, the author date, survives a rebase and is whatever the
+    author's clock or an `--amend --date` said — but it is printed beside every
+    date rather than left for the reader to know.
     """
-    nothing = Filed(spot, None, float("inf"), "")
+    def undated(why: str) -> Filed:
+        return Filed(spot, None, float("inf"), "", why)
+
     if not ledger.path.is_relative_to(ROOT):
-        return nothing
+        return undated("norepo")
     rel = ledger.path.relative_to(ROOT).as_posix()
     if ledger.path.is_dir():
         log = _git("log", "--diff-filter=A", "--follow", "--format=%H %ct %cI",
                    "--", f"{rel}/{spot.where}")
     else:
         log = _git("log", "--format=%H %ct %cI", f"-S{spot.title}", "--", rel)
+    if log is None:
+        return undated("unknown")
     # Newest first, so the last line is the first commit to hold it.
-    rows = [line.split() for line in (log or "").splitlines() if line.strip()]
-    if not rows or len(rows[-1]) != 3 or not rows[-1][1].isdigit():
-        return nothing
+    rows = [line.split() for line in log.splitlines() if line.strip()]
+    if not rows:
+        return undated("uncommitted")
+    if len(rows[-1]) != 3 or not rows[-1][1].isdigit():
+        return undated("unknown")
     sha, when, stamp = rows[-1]
     return Filed(spot, sha, float(when), stamp)
 
@@ -746,11 +809,17 @@ def _occurrences_to_move(ledger: Ledger, duplicated: dict[str, list[str]],
     base is stale.
 
     Ties — two entries filed by one commit, or two commits in the same second —
-    and entries no commit holds yet fall back to ledger order: the one later in
-    the file, or later by filename, moves. That is arbitrary and it is
-    deterministic, and with no repository to ask (a fixture) it is the only
-    rule there is. It decides which of two entries renumbers, never whether
-    both survive.
+    fall back to ledger order: the one later in the file, or later by filename,
+    moves. That is arbitrary and it is deterministic, and with no repository to
+    ask (a fixture) it is the only rule there is. An entry that cannot be dated
+    at all sorts after every one that can — true of an entry no commit holds
+    yet, and an assumption when git simply could not say; `renumber` prints
+    which, per entry, and prints the ledger-order notice whenever any two
+    entries in the group tied, not only when all of them did. None of this
+    decides whether an entry survives, only which number it carries.
+
+    More than two entries under one number leave in date order, and each gets a
+    number of its own (`Occurrence.to`).
 
     `by_history` is filled with every id settled the second way, because the
     citation pass has to treat those differently — see `move_ids_filed_with`.
@@ -816,17 +885,39 @@ def _keeping_spots(ledger: Ledger, moving: list[Occurrence],
                      if isinstance(spot.where, int))
 
 
-def _lines_filed_with(sha: str, old: str) -> dict[str, set[str]]:
-    """path -> the exact lines citing `old` that one commit added."""
+def _files_citing(sha: str, old: str) -> list[str]:
+    """The paths in which one commit added a line citing `old`."""
     diff = _git("show", "--format=", "--unified=0", "--no-color", "--no-renames", sha, "--")
     cite = re.compile(rf"\b{re.escape(old)}\b")
-    return {rel: texts for rel, additions in _added_in(diff).items()
-            if (texts := {text for _, text in additions if cite.search(text)})}
+    return sorted(rel for rel, additions in _added_in(diff).items()
+                  if any(cite.search(text) for _, text in additions))
 
 
-def move_ids_filed_with(old: str, new: str, settled: ByHistory,
-                        protect: frozenset[tuple[str, int]] = frozenset()) -> list[str]:
-    """Move the citations the moving entry's own filing commit wrote, and no others.
+BLAMED = re.compile(r"^(?P<sha>[0-9a-f]{40}) \d+ (?P<line>\d+)(?: \d+)?$")
+
+
+def _blamed(rel: str) -> dict[int, str] | None:
+    """line number -> the commit that last wrote it, for the file as it is on disk.
+
+    The working tree rather than HEAD, so the numbers are the ones about to be
+    edited; a line changed and not yet committed comes back under git's all-zero
+    id, which is no commit's and so is never moved. None when git will not
+    blame the path at all — untracked, binary, or no repository.
+    """
+    out = _git("blame", "--porcelain", "--", rel)
+    if out is None:
+        return None
+    # Header lines only: every line of content is tab-prefixed in this format,
+    # so nothing a file contains can pass for one.
+    return {int(m["line"]): m["sha"] for line in out.split("\n") if (m := BLAMED.match(line))}
+
+
+def move_ids_filed_with(old: str, new: str, mover: Filed, others: list[Filed],
+                        protect: frozenset[tuple[str, int]] = frozenset()
+                        ) -> tuple[list[str], list[str]]:
+    """Move the lines one entry's filing commit wrote, and no others.
+
+    Returns what was moved and what was refused, as `path:line` and as notes.
 
     **A bare id cannot say which of two same-numbered entries it means**, so when
     the branch running the repair filed neither — or both — "the lines this
@@ -836,50 +927,54 @@ def move_ids_filed_with(old: str, new: str, settled: ByHistory,
     either where it was: a subset, chosen by where the tool happened to be run.
 
     What *is* known is the commit that filed the entry being moved, and a line
-    that commit added citing the number means the entry it was filing. So those
-    lines move, found by their exact text, wherever they now sit in the file.
+    that commit wrote citing the number means the entry it was filing. **Which
+    commit wrote a line is asked of `git blame`, per line.** The first form of
+    this compared text: any line reading the same as one the filing commit
+    added was moved, wherever it sat — so a line a later commit wrote with the
+    same words went too, and was reported as the filing commit's. Text cannot
+    tell two identical lines apart and blame can, which is the whole of the
+    difference. It also follows a line the commit wrote to wherever later edits
+    have pushed it, which is what the text match was reaching for.
+
     Narrower than "every citation in a file that commit touched" on purpose: a
     roadmap or a manual page is touched by both filing commits, and a whole-file
     replace there would take the keeper's lines too.
 
-    Two things are left out deliberately. A line the keeper's filing commit
-    added with the same text is ambiguous again, and stays. And a citation
-    written by any later commit stays — it may well mean the moving entry, but
-    nothing here can know that. `citations_left` prints every one of them, and
-    that list is the part a person has to read.
-    """
-    theirs: dict[str, set[str]] = {}
-    for kept in settled.keeping:
-        if kept.sha:
-            for rel, texts in _lines_filed_with(kept.sha, old).items():
-                theirs.setdefault(rel, set()).update(texts)
-    mine: dict[str, set[str]] = {}
-    for filed in settled.moving:
-        if filed.sha:
-            for rel, texts in _lines_filed_with(filed.sha, old).items():
-                mine.setdefault(rel, set()).update(texts)
+    Left out deliberately, and all of it ends up in `citations_left`'s list:
 
+    - a line any other commit wrote, or that is edited and not yet committed —
+      it may well mean the moving entry, but nothing here can know that;
+    - everything, when another entry under the same number was filed by the
+      very same commit: its lines mean one or the other and blame cannot say;
+    - a file git will not blame, or that has been renamed since — moving none
+      is the fallback, never a guess at which copies are the commit's;
+    - a path that is now a symlink, which is reported by name (`_in_tree`).
+    """
+    if not mover.sha or any(other.sha == mover.sha for other in others):
+        return [], []
     cite = re.compile(rf"\b{re.escape(old)}\b")
     touched: list[str] = []
-    for rel, texts in sorted(mine.items()):
-        texts = texts - theirs.get(rel, set())
+    refused: list[str] = []
+    for rel in _files_citing(mover.sha, old):
         path = ROOT / rel
-        if not texts or not path.is_file():
+        if path.is_symlink() or (path.exists() and not _in_tree(path)):
+            refused.append(f"{rel} — a symlink, not written through")
             continue
-        try:
-            lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-        except (UnicodeDecodeError, OSError):
+        if not path.is_file() or (blame := _blamed(rel)) is None:
+            continue
+        if (lines := _lines(path)) is None:
             continue
         changed = False
-        for n, current in enumerate(lines, 1):
-            if (rel, n) in protect or current.rstrip("\r\n") not in texts:
+        for n in sorted(blame):
+            if blame[n] != mover.sha or (rel, n) in protect or not 1 <= n <= len(lines):
                 continue
-            lines[n - 1] = cite.sub(new, current)
-            changed = True
-            touched.append(f"{rel}:{n}")
+            if (rewritten := cite.sub(new, lines[n - 1])) != lines[n - 1]:
+                lines[n - 1] = rewritten
+                changed = True
+                touched.append(f"{rel}:{n}")
         if changed:
-            path.write_text("".join(lines), encoding="utf-8")
-    return touched
+            _put(path, lines)
+    return touched, refused
 
 
 def citations_left(old: str, skip_files: set[str],
@@ -907,12 +1002,13 @@ def move_in_file(path: Path, moves: dict[str, str],
     It will not have when there is no repository to diff against, which is every
     test fixture, and the line must not be left carrying the old number either way.
     """
-    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    if (lines := _lines(path)) is None:
+        return []
     for spot in occurrences:
         n = spot.where
         if isinstance(n, int) and 1 <= n <= len(lines) and re.search(rf"\b{spot.id}\b", lines[n - 1]):
-            lines[n - 1] = re.sub(rf"\b{spot.id}\b", moves[spot.id], lines[n - 1])
-    path.write_text("".join(lines), encoding="utf-8")
+            lines[n - 1] = re.sub(rf"\b{spot.id}\b", spot.to or moves[spot.id], lines[n - 1])
+    _put(path, lines)
     return []
 
 
@@ -928,14 +1024,16 @@ def move_in_dir(folder: Path, moves: dict[str, str],
     said: list[str] = []
     for spot in occurrences:
         old_name = str(spot.where)
-        new_id = moves[spot.id]
+        new_id = spot.to or moves[spot.id]
         source = folder / old_name
         target = folder / f"{new_id}-{old_name.split('-', 1)[1]}"
         if not source.exists():
             continue
-        text = source.read_text(encoding="utf-8")
-        source.write_text(re.sub(rf"^#\s+{spot.id}\b", f"# {new_id}", text, count=1, flags=re.M),
-                          encoding="utf-8")
+        # Bytes in and bytes out, for `_lines`' reason: the heading is the only
+        # thing that may change, the file's line endings included.
+        text = source.read_bytes().decode("utf-8")
+        source.write_bytes(
+            re.sub(rf"^#\s+{spot.id}\b", f"# {new_id}", text, count=1, flags=re.M).encode("utf-8"))
         if _git("mv", str(source), str(target)) is None:
             source.rename(target)
         said.append(f"    renamed {old_name} -> {target.name}")
@@ -1049,45 +1147,76 @@ def renumber(ledger: Ledger, moving: list[Occurrence],
     n = len(ledger.prefix)
     taken = ids_everywhere(ledger, elsewhere) | {s.id for s in moving}
     moves: dict[str, str] = {}
+    headline: list[str] = []
+    # `moving` lists an id's entries in the order they leave — date order, where
+    # history chose them — so allocating as it is walked hands out the numbers
+    # in that order too.
     for spot in moving:
         number = max((int(i[n:]) for i in taken if i[n:].isdigit()), default=0) + 1
-        moves[spot.id] = f"{ledger.prefix}{number}"
-        taken.add(moves[spot.id])
+        fresh = f"{ledger.prefix}{number}"
+        taken.add(fresh)
+        if spot.id in by_history:
+            # **One number per entry, not one per id.** `moves` is keyed by the
+            # old id, which is enough while only one entry leaves it. With three
+            # entries under one number two leave, and both were sent to whichever
+            # number was allocated last: a new duplicate, made by the repair,
+            # with two entries' citations merged onto it.
+            spot.to = fresh
+            headline.append(f"  RENUMBERED {spot.id} -> {fresh}")
+        else:
+            moves[spot.id] = fresh
+    headline = [f"  RENUMBERED {old} -> {new}" for old, new in moves.items()] + headline
 
     said: list[str] = []
-    owned = {old: new for old, new in moves.items() if old not in by_history}
-    if base is not None and owned:
+    if base is not None and moves:
         said += [f"    moved a citation at {where}"
-                 for where in move_ids(owned, base, protect)]
+                 for where in move_ids(moves, base, protect)]
         said.append("    citations on lines this branch did not add were left alone — "
-                    "they mean the entry keeping " + ", ".join(owned))
-    settled_here = {old: s for old, s in by_history.items() if old in moves}
-    for old, settled in settled_here.items():
+                    "they mean the entry keeping " + ", ".join(moves))
+    refused: dict[str, list[str]] = {}
+    for old, settled in by_history.items():
         everyone = settled.keeping + settled.moving
         said.append(f"    {old}: this branch filed "
                     + ("every one" if all(f.spot.ours for f in everyone) else "none")
                     + " of these, so the later one moves")
         said += [f"      keeps {old}: {f.spot.title[:50]} — {f.said}" for f in settled.keeping]
-        said += [f"      moves: {f.spot.title[:50]} — {f.said}" for f in settled.moving]
-        if len({f.when for f in everyone}) == 1:
-            said.append("      a tie — settled by ledger order, which is arbitrary")
-        said += [f"    moved a citation at {where} (written by the commit that filed it)"
-                 for where in move_ids_filed_with(old, moves[old], settled, protect)]
+        said += [f"      moves to {f.spot.to}: {f.spot.title[:50]} — {f.said}"
+                 for f in settled.moving]
+        dated = [f for f in everyone if f.why == "dated"]
+        if dated:
+            said.append('      dates are committer dates: a rebase or squash rewrites them, '
+                        'so "later" means landed later, not filed later')
+        if dated and len(dated) < len(everyone):
+            said.append("      an entry that could not be dated is treated as the newest — "
+                        "that is an assumption, not a finding")
+        # ANY two the same, not all of them: with three entries a tie between
+        # two is still a choice ledger order made, and it used to go unsaid.
+        if len({f.when for f in everyone}) < len(everyone):
+            said.append("      entries with the same date, or none, were settled by ledger "
+                        "order, which is arbitrary")
+        for f in settled.moving:
+            others = [other for other in everyone if other is not f]
+            moved, skipped = move_ids_filed_with(old, f.spot.to, f, others, protect)
+            said += [f"    moved a citation at {where} to {f.spot.to} "
+                     "(written by the commit that filed it)" for where in moved]
+            refused.setdefault(old, []).extend(skipped)
     said += ledger.move(moves, moving, base)
 
-    for old, settled in settled_here.items():
+    for old, settled in by_history.items():
         folder = (ledger.path.relative_to(ROOT).as_posix()
                   if ledger.path.is_dir() and ledger.path.is_relative_to(ROOT) else None)
         keepers = {f"{folder}/{f.spot.where}" for f in settled.keeping} if folder else set()
         left = citations_left(old, keepers, protect)
-        if left:
+        went = " or ".join(str(f.spot.to) for f in settled.moving)
+        if left or refused.get(old):
             said.append(f"    {len(left)} citation(s) of {old} left alone — check by hand. "
                         f"A bare {old} cannot say which entry it means;")
-            said.append(f"    any that mean the entry that moved must become {moves[old]}:")
+            said.append(f"    any that mean an entry that moved must become {went}:")
             said += [f"      left alone — check by hand: {where}" for where in left]
+            said += [f"      left alone — check by hand: {note}" for note in refused.get(old, [])]
         else:
             said.append(f"    no other citation of {old} is left in the tree")
-    return [f"  RENUMBERED {old} -> {new}" for old, new in moves.items()] + said
+    return headline + said
 
 
 def _selftest_both_on_the_base(failures: list[str]) -> None:
@@ -1237,6 +1366,218 @@ def _selftest_both_on_the_base(failures: list[str]) -> None:
 
         print(f"  on-base:    {', '.join(names)} — mine cites {read('mine-doc.md')!r}, "
               f"later cites {read('later-doc.md')!r}")
+
+
+def _fixture(tmp: str):
+    """A throwaway repository on `main` holding this script: (repo, run, commit, repair).
+
+    `core.autocrlf` is pinned off so that a file written with CRLF is committed
+    with CRLF on every machine — the line-ending scenario is about what the
+    repair writes, and must not depend on what the host's git does on the way in.
+    """
+    import shutil
+    import subprocess
+
+    repo = Path(tmp)
+
+    def run(*args, when: str | None = None):
+        env = dict(os.environ)
+        if when:
+            env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = when
+        subprocess.run(args, cwd=repo, check=True, env=env,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def commit(message: str, minute: int):
+        run("git", "add", "-A")
+        run("git", "commit", "-qm", message, when=f"2026-01-01T11:{minute:02d}:00+00:00")
+
+    def repair() -> str:
+        return subprocess.run(
+            [sys.executable, str(repo / "scripts" / "bugs.py"), "ids", "--fix"],
+            cwd=repo, capture_output=True, text=True,
+            encoding="utf-8", errors="replace").stdout
+
+    run("git", "init", "-q", "-b", "main")
+    run("git", "config", "user.email", "t@t")
+    run("git", "config", "user.name", "t")
+    run("git", "config", "core.autocrlf", "false")
+    (repo / ".claude" / "quality" / "questions").mkdir(parents=True)
+    (repo / "scripts").mkdir()
+    here = Path(__file__).resolve().parent
+    for module in ("bugs.py", "evidence.py"):
+        shutil.copy2(here / module, repo / "scripts" / module)
+    commit("seed", 0)
+    return repo, run, commit, repair
+
+
+def _selftest_citations_by_commit(failures: list[str]) -> None:
+    """Scenarios 6-10: what the review of the first repair for B410 found.
+
+    Each is a way the rule "the later entry moves and takes its filing commit's
+    citations" was stated more strongly than the code held it.
+
+    - **copied** — a citation was matched by its *text*, anywhere in the file.
+      A later line that happens to read the same was moved with it and reported
+      as written by the filing commit. Which commit wrote a line is a question
+      `git blame` answers and a string comparison does not.
+    - **endings** — the rewrite went through `read_text`/`write_text`, which
+      translate line endings. A file must come back byte-identical apart from
+      the id; this repository holds both kinds.
+    - **thrice** — three entries under one number gave both movers the SAME new
+      number: a fresh duplicate, with two entries' citations merged onto it.
+    - **undated** — an entry no commit holds moved without the report saying
+      that was why, and a tie between two of three entries printed no notice.
+    - **symlink** — a path that has since become a link out of the tree must
+      not be written through.
+    """
+    import tempfile
+
+    tag = "Q" + "7"
+
+    def number(name: str) -> int:
+        return int(name.split("-", 1)[0][1:])
+
+    # ---- copied + endings ---------------------------------------------------
+    with tempfile.TemporaryDirectory() as tmp:
+        repo, run, commit, repair = _fixture(tmp)
+        qdir = repo / ".claude" / "quality" / "questions"
+
+        (qdir / f"{tag}-zebra-earlier.md").write_bytes(f"# {tag} - earlier\n".encode())
+        (repo / "d.md").write_bytes(b"zebra\n")
+        commit("earlier", 1)
+
+        (qdir / f"{tag}-apple-later.md").write_bytes(f"# {tag} - later\r\nbody\r\n".encode())
+        (repo / "d.md").write_bytes(f"zebra\nsee {tag} (later)\n".encode())
+        (repo / "crlf.md").write_bytes(f"see {tag}\r\nplain\r\n".encode())
+        (repo / "lf.md").write_bytes(f"see {tag}\nplain\n".encode())
+        commit("later", 2)
+
+        # The branch writes the very same line again. It is this branch's own,
+        # written after both entries existed, and nothing says which it means.
+        run("git", "checkout", "-q", "-b", "mine")
+        (repo / "d.md").write_bytes(f"zebra\nsee {tag} (later)\nsee {tag} (later)\n".encode())
+        commit("mine", 3)
+
+        said = repair()
+        moved = next((p.name for p in qdir.glob("*-apple-later.md")), "")
+        new = moved.split("-", 1)[0]
+        got = (repo / "d.md").read_bytes().decode().splitlines()
+        if got != ["zebra", f"see {new} (later)", f"see {tag} (later)"] or new == tag:
+            failures.append(
+                "a line with the same text as one the filing commit wrote, added by a "
+                f"LATER commit, was moved with it: {got}")
+        if re.search(r"moved a citation at d\.md:3", said):
+            failures.append("d.md:3 was reported as written by the filing commit; it was not")
+        if not re.search(r"left alone.*d\.md:3", said):
+            failures.append(f"d.md:3 was not listed as left alone:\n{said}")
+        print(f"  copied:     d.md reads {got}")
+
+        want = {
+            "crlf.md": f"see {new}\r\nplain\r\n".encode(),
+            "lf.md": f"see {new}\nplain\n".encode(),
+            f".claude/quality/questions/{moved}": f"# {new} - later\r\nbody\r\n".encode(),
+        }
+        wrong = {name: (repo / name).read_bytes() for name, expected in want.items()
+                 if not moved or (repo / name).read_bytes() != expected}
+        if wrong:
+            failures.append(
+                f"the repair changed more than the id — line endings were rewritten: {wrong}")
+        print(f"  endings:    {len(want) - len(wrong)} of {len(want)} files byte-identical "
+              "apart from the id")
+
+        if "committer date" not in said or "rebase" not in said:
+            failures.append(
+                "the report dates entries by committer date and does not say that a "
+                f"rebase or squash rewrites it:\n{said}")
+
+    # ---- thrice -------------------------------------------------------------
+    with tempfile.TemporaryDirectory() as tmp:
+        repo, run, commit, repair = _fixture(tmp)
+        qdir = repo / ".claude" / "quality" / "questions"
+        # Filed zebra, mango, apple — so date order and name order disagree
+        # about which mover comes first as well as about who keeps the number.
+        for minute, slug in enumerate(("zebra", "mango", "apple"), 1):
+            (qdir / f"{tag}-{slug}.md").write_bytes(f"# {tag} - {slug}\n".encode())
+            (repo / f"{slug}-doc.md").write_bytes(f"see {tag}\n".encode())
+            commit(slug, minute)
+        run("git", "checkout", "-q", "-b", "mine")
+
+        said = repair()
+        now = {p.name.split("-", 1)[1].removesuffix(".md"): p.name.split("-", 1)[0]
+               for p in qdir.glob("*.md")}
+        cites = {slug: (repo / f"{slug}-doc.md").read_text(encoding="utf-8").strip()
+                 for slug in ("zebra", "mango", "apple")}
+        if len(set(now.values())) != 3:
+            failures.append(f"three entries under one number were not given three: {now}")
+        elif now.get("zebra") != tag or not (
+                number(now["mango"] + "-") < number(now["apple"] + "-")):
+            failures.append(
+                f"the earliest must keep the number and the movers follow in date order: {now}")
+        elif cites != {slug: f"see {now[slug]}" for slug in now}:
+            failures.append(f"each mover's citation must follow its own entry: {cites} for {now}")
+        print(f"  thrice:     {now}")
+
+    # ---- undated ------------------------------------------------------------
+    with tempfile.TemporaryDirectory() as tmp:
+        repo, run, commit, repair = _fixture(tmp)
+        qdir = repo / ".claude" / "quality" / "questions"
+        (qdir / f"{tag}-zebra.md").write_bytes(f"# {tag} - zebra\n".encode())
+        commit("zebra", 1)
+        run("git", "checkout", "-q", "-b", "mine")
+        # Two more that no commit holds: written, never added.
+        for slug in ("apple", "mango"):
+            (qdir / f"{tag}-{slug}.md").write_bytes(f"# {tag} - {slug}\n".encode())
+
+        said = repair()
+        now = {p.name.split("-", 1)[1].removesuffix(".md"): p.name.split("-", 1)[0]
+               for p in qdir.glob("*.md")}
+        if now.get("zebra") != tag or len(set(now.values())) != 3:
+            failures.append(f"the one dated entry must keep the number, the others part: {now}")
+        if len(re.findall(r"no commit holds it yet", said)) != 2:
+            failures.append(f"an entry that moved for want of a date was not labelled so:\n{said}")
+        if "treated as the newest" not in said:
+            failures.append("the report did not say an undated entry is ASSUMED newest")
+        if "settled by ledger order, which is arbitrary" not in said:
+            failures.append(
+                "two of three entries tied and the report did not say ledger order settled it")
+        try:
+            label = Filed(Occurrence("x", tag, "t", False), None, float("inf"), "", "unknown").said
+        except TypeError:
+            label = "(the record cannot say why an entry is undated)"
+        if "git could not" not in label:
+            failures.append(f"a git failure is reported as if the entry were uncommitted: {label!r}")
+        print(f"  undated:    {now}")
+
+    # ---- symlink ------------------------------------------------------------
+    with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as outside:
+        repo, run, commit, repair = _fixture(tmp)
+        qdir = repo / ".claude" / "quality" / "questions"
+        target = Path(outside) / "outside.md"
+        target.write_bytes(f"see {tag}\n".encode())
+        try:
+            os.symlink(target, repo / "probe")
+            (repo / "probe").unlink()
+        except (OSError, NotImplementedError):
+            print("  symlink:    skipped — this machine will not create one")
+            return
+        run("git", "config", "core.symlinks", "true")
+        (qdir / f"{tag}-zebra.md").write_bytes(f"# {tag} - zebra\n".encode())
+        commit("zebra", 1)
+        (qdir / f"{tag}-apple.md").write_bytes(f"# {tag} - apple\n".encode())
+        (repo / "linked-doc.md").write_bytes(f"see {tag}\n".encode())
+        commit("apple", 2)
+        # The path the filing commit wrote has since become a link out of the tree.
+        run("git", "checkout", "-q", "-b", "mine")
+        (repo / "linked-doc.md").unlink()
+        os.symlink(target, repo / "linked-doc.md")
+        commit("link it", 3)
+
+        said = repair()
+        if target.read_bytes() != f"see {tag}\n".encode():
+            failures.append("the repair wrote through a symlink to a file outside the tree")
+        if not re.search(r"left alone.*linked-doc\.md.*symlink", said):
+            failures.append(f"the symlink was not reported as skipped:\n{said}")
+        print(f"  symlink:    outside file reads {target.read_bytes().decode().strip()!r}")
 
 
 def cmd_selftest_on_base() -> int:
@@ -1526,6 +1867,7 @@ def cmd_selftest() -> int:
             print(f"  allocated:  {inherited} taken twice off main — still a clash")
 
     _selftest_both_on_the_base(failures)
+    _selftest_citations_by_commit(failures)
 
     for line in failures:
         print(f"  FAILED  {line}")

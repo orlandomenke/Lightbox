@@ -164,7 +164,8 @@ public class LedgerGateTests(ITestOutputHelper output)
 
         // Named individually, so a scenario silently disappearing from the
         // script cannot leave this passing on the ones that remain.
-        foreach (var scenario in new[] { "mid-merge:", "committed:", "in-range:", "retitled:", "allocated:", "on-base:" })
+        foreach (var scenario in new[] { "mid-merge:", "committed:", "in-range:", "retitled:", "allocated:", "on-base:",
+                     "copied:", "endings:", "thrice:", "undated:", "symlink:" })
         {
             Assert.True(
                 said.Contains(scenario, StringComparison.Ordinal),
