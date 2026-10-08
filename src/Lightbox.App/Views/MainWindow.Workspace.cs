@@ -1238,6 +1238,23 @@ public partial class MainWindow : IFollowsUiScale
         LayerList.AddHandler(PointerReleasedEvent, OnLayerListPointerReleased, handledEventsToo: true);
         LayerList.AddHandler(PointerCaptureLostEvent, OnLayerListCaptureLost);
         XsheetLayerList.AddHandler(PointerPressedEvent, OnXsheetLayerPressedTunnel, RoutingStrategies.Tunnel);
+
+        // A list scrolled under a still pointer has a different row under it:
+        // re-aim the layer drag's drop line without waiting for a move.
+        EdgeScroll.Scrolled += () =>
+        {
+            if (_layerDragging && _layerDragCandidate is { } carried) AimLayerDrop(carried);
+        };
+        // Drags the operating system runs — swatches, cels, symbols, project
+        // rows — report where they are and nothing else, so whichever list is
+        // under the drag is found from the position. Handled events too: the
+        // list's own drop handlers mark theirs handled, and this is not a drop.
+        AddHandler(DragDrop.DragOverEvent, (_, e) => EdgeScroll.TrackUnder(this, e.GetPosition(this)),
+            RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(DragDrop.DragLeaveEvent, (_, _) => EdgeScroll.Stop(),
+            RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(DragDrop.DropEvent, (_, _) => EdgeScroll.Stop(),
+            RoutingStrategies.Bubble, handledEventsToo: true);
     }
     /// <summary>
     /// Ctrl or Shift pressed on an X-sheet layer name is a selection click on the
@@ -1407,6 +1424,15 @@ public partial class MainWindow : IFollowsUiScale
     /// </summary>
     private const double PenDragThresholdPx = 10;
 
+    /// <summary>
+    /// Scrolls whichever list a drag is held at the edge of — the layer
+    /// docker's own drag, and every drag the operating system runs.
+    /// </summary>
+    internal Input.DragEdgeScroller EdgeScroll { get; } = new();
+
+    /// <summary>Where the layer drag last was, in the window, for re-aiming after a scroll.</summary>
+    private Point _layerDragAt;
+
     private object? _layerDragCandidate;
     private Point _layerDragFrom;
     private IPointer? _layerDragPointer;
@@ -1466,9 +1492,16 @@ public partial class MainWindow : IFollowsUiScale
             e.Pointer.Capture(LayerList);
         }
 
-        AutoScrollLayerList(e);
-        var (item, hint) = LayerDropUnder(carried, e.GetPosition(LayerList).Y);
-        _vm.ShowLayerDropHint(hint == LayerDropHint.None ? null : item, hint);
+        _layerDragAt = e.GetPosition(this);
+        if (Input.DragEdgeScroller.ScrollingAbove(LayerList) is { } scroller)
+        {
+            EdgeScroll.Track(scroller, e.GetPosition(scroller));
+        }
+        else
+        {
+            EdgeScroll.Stop();
+        }
+        AimLayerDrop(carried);
         var name = carried switch { LayerRow r => r.Name, GroupRow g => g.Name, _ => "" };
         DragGhost.Show(name, e.GetPosition(this));
         e.Handled = true;
@@ -1507,6 +1540,7 @@ public partial class MainWindow : IFollowsUiScale
         _layerDragCandidate = null;
         _layerDragPointer = null;
         _layerDragging = false;
+        EdgeScroll.Stop();
         DragGhost.Hide();
         _vm.ClearLayerDropHints();
         if (wasDragging && pointer?.Captured == LayerList) pointer.Capture(null);
@@ -1537,15 +1571,19 @@ public partial class MainWindow : IFollowsUiScale
         return (item, _vm.LayerDropHintFor(carried, item, fraction));
     }
 
-    /// <summary>Scroll the docker while the pointer is held near its top or bottom edge.</summary>
-    private void AutoScrollLayerList(PointerEventArgs e)
+    /// <summary>
+    /// Show the drop line for where the layer drag is now.
+    /// </summary>
+    /// <remarks>
+    /// From the pointer's place in the window rather than from an event, so it
+    /// can be asked again after the list has scrolled under a pointer that did
+    /// not move.
+    /// </remarks>
+    private void AimLayerDrop(object carried)
     {
-        if (LayerList.Parent is not ScrollViewer scroller) return;
-        const double edge = 24, step = 12;
-        var y = e.GetPosition(scroller).Y;
-        var offset = scroller.Offset;
-        if (y < edge) scroller.Offset = offset.WithY(Math.Max(0, offset.Y - step));
-        else if (y > scroller.Bounds.Height - edge) scroller.Offset = offset.WithY(offset.Y + step);
+        if (this.TranslatePoint(_layerDragAt, LayerList) is not { } inList) return;
+        var (item, hint) = LayerDropUnder(carried, inList.Y);
+        _vm.ShowLayerDropHint(hint == LayerDropHint.None ? null : item, hint);
     }
 
     /// <summary>
