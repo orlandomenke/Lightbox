@@ -155,22 +155,45 @@ public static class Skinning
     /// makes a drawn fix compose with the pose, IK, splines and constraints
     /// without any of them knowing correctives exist.
     /// </param>
+    /// <param name="wholeSkeleton">
+    /// The stroke follows the whole skeleton and carries no weights (Q90): it
+    /// is auto-weighted on its <b>densified</b> rest path, so every sample
+    /// takes the weight of where it is (B404). Weighting the control points
+    /// and interpolating left a two-point line one blend from end to end, and
+    /// posed it as a chord that pivoted off its bone.
+    /// </param>
     public static Stroke PoseStroke(
         Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose,
         IReadOnlyList<BoneBinding>? fallback = null,
-        IReadOnlyList<PointOffset>? correction = null)
+        IReadOnlyList<PointOffset>? correction = null,
+        bool wholeSkeleton = false)
     {
         var bindings = stroke.Weights is { Count: > 0 } own ? own : fallback;
-        if (bindings is not { Count: > 0 } || stroke.Points.Count == 0)
+        var auto = bindings is not { Count: > 0 } && wholeSkeleton;
+        if ((bindings is not { Count: > 0 } && !auto) || stroke.Points.Count == 0)
             return stroke;
 
         var deltas = Deltas(armature, pose);
         var source = Corrected(stroke.Points, correction);
-        var (rest, weights) = DensifyWithWeights(source, bindings);
+        IReadOnlyList<StrokePoint> rest;
+        double[][] weights;
+        if (auto)
+        {
+            rest = DenseRest(source);
+            List<BoneBinding> derived;
+            (derived, weights) = AutoWeights(rest, armature, pose: null);
+            if (derived.Count == 0) return stroke;
+            bindings = derived;
+        }
+        else
+        {
+            (rest, weights) = DensifyWithWeights(source, bindings!);
+        }
+        var used = bindings!;
 
         var posed = new List<StrokePoint>(rest.Count);
         for (var i = 0; i < rest.Count; i++)
-            posed.Add(Blend(rest[i], bindings, weights[i], deltas));
+            posed.Add(Blend(rest[i], used, weights[i], deltas));
 
         var copy = stroke.Clone(newId: false);
         copy.Points = posed;
@@ -186,10 +209,12 @@ public static class Skinning
             // own, so each binding contributes its stroke-wide mean — exact
             // for the coarse bindings that fills realistically get, and
             // deterministic for the rest.
-            var hole = new double[bindings.Count];
-            for (var i = 0; i < bindings.Count; i++) hole[i] = MeanWeight(bindings[i], stroke.Points.Count);
+            // Auto weights are per densified sample, not per control point.
+            var weighted = auto ? rest.Count : stroke.Points.Count;
+            var hole = new double[used.Count];
+            for (var i = 0; i < used.Count; i++) hole[i] = MeanWeight(used[i], weighted);
             copy.Holes = holes
-                .Select(h => h.Select(p => Blend(p, bindings, hole, deltas)).ToList())
+                .Select(h => h.Select(p => Blend(p, used, hole, deltas)).ToList())
                 .ToList();
         }
         return copy;
@@ -230,9 +255,10 @@ public static class Skinning
             var stroke = frame.Strokes[i];
             var own = stroke.Weights is { Count: > 0 };
             if (!own && (layerBone is null || !TakesLayerBinding(stroke))) continue;
-            var fallback = own ? null : named ?? AutoBoundFor(stroke, armature);
+            var fallback = own ? null : named;
             var posed = PoseStroke(
-                stroke, armature, pose, fallback, corrections.GetValueOrDefault(stroke.Id));
+                stroke, armature, pose, fallback, corrections.GetValueOrDefault(stroke.Id),
+                wholeSkeleton: !own && named is null);
             if (ReferenceEquals(posed, stroke)) continue;
             frame.Strokes[i] = posed;
             baked++;
@@ -300,9 +326,12 @@ public static class Skinning
             // does, on a copy, so the record still carries no weights. It runs
             // on the cache's miss path beside a full rasterization of the same
             // frame, which is where its cost belongs.
-            if (BindingsFor(stroke, armature, layerBone, named) is not { } fallback) continue;
+            var own = stroke.Weights is { Count: > 0 };
+            if (!own && (layerBone is null || !TakesLayerBinding(stroke))) continue;
             var posed = PoseStroke(
-                stroke, armature, pose, fallback, corrections.GetValueOrDefault(stroke.Id));
+                stroke, armature, pose, own ? null : named, corrections.GetValueOrDefault(stroke.Id),
+                wholeSkeleton: !own && named is null);
+            if (ReferenceEquals(posed, stroke)) continue;
             if (ghostOverBudget && BrushCostOf.Settings(stroke.Brush) == BrushCost.Expressive)
                 GhostCentreline(posed);
             copy.Strokes[i] = posed;
@@ -513,45 +542,80 @@ public static class Skinning
         Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose = null)
     {
         if (armature.Bones.Count == 0 || stroke.Points.Count == 0) return;
+        var (bindings, _) = AutoWeights(stroke.Points, armature, pose);
+        stroke.Weights = bindings.Count > 0 ? bindings : null;
+    }
 
-        var bind = ArmatureOps.Solve(armature, pose);
-        var perBone = new List<(string Id, double[] W)>();
-        var sums = new double[stroke.Points.Count];
-
-        foreach (var bone in armature.Bones)
+    /// <summary>
+    /// The auto-bind weighting of <paramref name="points"/>: one binding per
+    /// bone that matters, and the same weights by point, for callers that
+    /// blend straight away.
+    /// </summary>
+    /// <remarks>
+    /// <b>Renormalised after the prune (B405).</b> Dropping influences below a
+    /// hundredth left a point's weights summing to less than one, and
+    /// <see cref="Blend"/> holds the remainder at rest — so on a four-bone
+    /// chain the drawing trailed a moved rig by 1.6% of the move. The prune is
+    /// for sparsity; it must not change where a point goes.
+    /// </remarks>
+    private static (List<BoneBinding> Bindings, double[][] Weights) AutoWeights(
+        IReadOnlyList<StrokePoint> points, Armature armature, IReadOnlyDictionary<string, BonePose>? pose)
+    {
+        var count = points.Count;
+        var bones = armature.Bones;
+        var placements = ArmatureOps.Solve(armature, pose);
+        var w = new double[bones.Count][];
+        for (var b = 0; b < bones.Count; b++)
         {
-            var placement = bind[bone.Id];
+            var placement = placements[bones[b].Id];
             var a = new StrokePoint(placement.X, placement.Y, 1);
-            var (tx, ty) = placement.Tip(bone.Length);
-            var b = new StrokePoint(tx, ty, 1);
-            var w = new double[stroke.Points.Count];
-            for (var i = 0; i < stroke.Points.Count; i++)
+            var (tx, ty) = placement.Tip(bones[b].Length);
+            var tip = new StrokePoint(tx, ty, 1);
+            w[b] = new double[count];
+            for (var i = 0; i < count; i++)
             {
-                var d = GeometryOps.DistToSegment(stroke.Points[i], a, b);
+                var d = GeometryOps.DistToSegment(points[i], a, tip);
                 // +1 keeps the on-bone case finite and gives the falloff a
                 // knee about a pixel out rather than a pole.
-                w[i] = 1.0 / ((d + 1) * (d + 1));
-                sums[i] += w[i];
+                w[b][i] = 1.0 / ((d + 1) * (d + 1));
             }
-            perBone.Add((bone.Id, w));
         }
 
-        var bindings = new List<BoneBinding>();
-        foreach (var (id, w) in perBone)
+        for (var i = 0; i < count; i++)
         {
-            var any = false;
-            for (var i = 0; i < w.Length; i++)
+            var sum = 0.0;
+            for (var b = 0; b < bones.Count; b++) sum += w[b][i];
+            var kept = 0.0;
+            for (var b = 0; b < bones.Count; b++)
             {
-                w[i] = sums[i] > 0 ? w[i] / sums[i] : 0;
+                w[b][i] = sum > 0 ? w[b][i] / sum : 0;
                 // Influence below a hundredth is inertia, not intent — drop
                 // it so a twenty-bone rig does not write twenty weights on
                 // every point of every stroke.
-                if (w[i] < 0.01) w[i] = 0;
-                else any = true;
+                if (w[b][i] < 0.01) w[b][i] = 0;
+                kept += w[b][i];
             }
-            if (any) bindings.Add(new BoneBinding { BoneId = id, PointWeights = [.. w] });
+            if (kept > 0)
+            {
+                for (var b = 0; b < bones.Count; b++) w[b][i] /= kept;
+            }
         }
-        stroke.Weights = bindings.Count > 0 ? bindings : null;
+
+        var bindings = new List<BoneBinding>();
+        var used = new List<int>();
+        for (var b = 0; b < bones.Count; b++)
+        {
+            if (!w[b].Any(x => x > 0)) continue;
+            bindings.Add(new BoneBinding { BoneId = bones[b].Id, PointWeights = [.. w[b]] });
+            used.Add(b);
+        }
+        var byPoint = new double[count][];
+        for (var i = 0; i < count; i++)
+        {
+            byPoint[i] = new double[used.Count];
+            for (var k = 0; k < used.Count; k++) byPoint[i][k] = w[used[k]][i];
+        }
+        return (bindings, byPoint);
     }
 
     // ---- pose space → rest space (B381, B382) ------------------------------------
@@ -794,6 +858,21 @@ public static class Skinning
         return stroke =>
         {
             var bindings = BindingsFor(stroke, armature, layerBone, named);
+            if (stroke.Weights is not { Count: > 0 } && named is null && bindings is not null
+                && corrections.GetValueOrDefault(stroke.Id) is null)
+            {
+                // Weighted the way the render weights it (B404): the render
+                // auto-weights a whole-skeleton stroke on its densified path,
+                // so the edit has to be inverted through those weights too —
+                // not two endpoint weights ramped across inserted points, which
+                // the write-back would then store, reshaping the line for good.
+                // Not under a corrective: its offsets are stored per control
+                // point, and inserting points would orphan them.
+                var dense = DenseRest(stroke.Points, WriteBackChord);
+                if (!ReferenceEquals(dense, stroke.Points)) stroke.Points = [.. dense];
+                var (atDensity, _) = AutoWeights(stroke.Points, armature, pose: null);
+                bindings = atDensity.Count > 0 ? atDensity : bindings;
+            }
             if (!TransformInPose(
                     stroke, armature, pose, bindings, corrections.GetValueOrDefault(stroke.Id), map, deltas))
             {
@@ -860,7 +939,10 @@ public static class Skinning
             // Dense before the auto-bind, so the weights vary smoothly along
             // the line and the inverse holds between the pen's samples — a
             // shape's five corners across a bent joint would otherwise bow.
-            stroke.Points = [.. GeometryOps.Densify(stroke.Points, WriteBackChord)];
+            // Pair-aware (B404): a line-tool line is two points, Densify
+            // leaves a pair alone, and its middle would pose as one blend of
+            // its two ends and bow away from where the pen drew it.
+            stroke.Points = [.. DenseRest(stroke.Points, WriteBackChord)];
             AutoBind(stroke, armature, pose);
             bindings = stroke.Weights;
             if (bindings is not { Count: > 0 }) return null;
@@ -902,8 +984,13 @@ public static class Skinning
         }
 
         // Same short-circuit as GeometryOps.Densify: nothing to add means the
-        // caller's own points, weights straight off the record.
-        var dense = GeometryOps.Densify(points, maxChord);
+        // caller's own points, weights straight off the record. A pair is
+        // subdivided only when its weights vary (B404): one bone at full
+        // weight is one rigid map, the chord stays exact under it, and a bake
+        // of a rigidly bound line keeps the two points it was drawn with.
+        var varies = bindings.Count > 1;
+        foreach (var b in bindings) varies |= b.PointWeights is not null;
+        var dense = varies ? DenseRest(points, maxChord) : GeometryOps.Densify(points, maxChord);
         if (ReferenceEquals(dense, points))
         {
             var direct = new double[points.Count][];
@@ -938,6 +1025,22 @@ public static class Skinning
             }
         }
         return (output, weights.ToArray());
+    }
+
+    /// <summary>
+    /// The rest path a pose bends: <see cref="GeometryOps.Densify"/>, and a
+    /// two-point stroke subdivided too (B404). Densify leaves a pair alone —
+    /// the dab walk has nothing to curve between two points — but a pose has
+    /// to bend the segment where the bones bend, and a pair left whole was
+    /// posed as its chord.
+    /// </summary>
+    private static IReadOnlyList<StrokePoint> DenseRest(IReadOnlyList<StrokePoint> points, double maxChord = 2.0)
+    {
+        if (points.Count != 2 || GeometryOps.Dist(points[0], points[1]) <= maxChord)
+            return GeometryOps.Densify(points, maxChord);
+        var output = new List<StrokePoint> { points[0] };
+        GeometryOps.AppendSpan(output, points, 0, maxChord);
+        return output;
     }
 
     private static double MeanWeight(BoneBinding binding, int pointCount)
