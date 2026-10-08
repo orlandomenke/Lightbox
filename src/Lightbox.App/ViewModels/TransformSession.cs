@@ -203,6 +203,37 @@ sealed class TransformSession
             parts.Static?.Dispose();
         }
         _parts.Clear();
+        foreach (var (_, sheet) in _ghostSheets.Values) sheet.Dispose();
+        _ghostSheets.Clear();
+        foreach (var sheet in _retiredSheets) sheet.Dispose();
+        _retiredSheets.Clear();
+    }
+
+    /// <summary>
+    /// One bitmap per layer holding every ghost that follows the drag,
+    /// composited once, keyed by which ghosts went into it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q216, and the perf-warden's measurement.</b> Ghosts that follow the
+    /// drag all move by the same matrix, so drawing each through it resampled a
+    /// whole-canvas bitmap per ghost per pointer event — about 2 ms each at
+    /// 960×540 against 0.5 ms for the untransformed blit they had been. Composited
+    /// first, they are one resample however deep the onion goes. A sheet whose
+    /// key goes stale mid-session (the onion settings changed) is retired rather
+    /// than disposed, because a publish may still be reading it; retired sheets
+    /// go when the splits do.
+    /// </remarks>
+    private readonly Dictionary<string, (int Key, SKBitmap Sheet)> _ghostSheets = [];
+
+    private readonly List<SKBitmap> _retiredSheets = [];
+
+    internal SKBitmap? GhostSheet(string layerId, int key) =>
+        _ghostSheets.TryGetValue(layerId, out var have) && have.Key == key ? have.Sheet : null;
+
+    internal void RememberGhostSheet(string layerId, int key, SKBitmap sheet)
+    {
+        if (_ghostSheets.TryGetValue(layerId, out var old)) _retiredSheets.Add(old.Sheet);
+        _ghostSheets[layerId] = (key, sheet);
     }
 
     /// <summary>The split already built for this frame during this gesture, if any.</summary>

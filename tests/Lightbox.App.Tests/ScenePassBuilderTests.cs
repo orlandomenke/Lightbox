@@ -109,6 +109,35 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// <b>The perf-warden's measurement:</b> each following ghost resampled a
+    /// whole-canvas bitmap per pointer event. When every ghost of a layer
+    /// follows, they share a matrix, so they arrive as one composited sheet
+    /// drawn through it — one resample however deep the onion is.
+    /// </summary>
+    [Fact]
+    public void FollowingGhostsArriveAsOneSheetThroughTheDrag()
+    {
+        var ink = LayerWith("Ink", 3);
+        var scene = SceneWith(ink);
+        using var cache = new FrameBitmapCache();
+        using var sheet = new SkiaSharp.SKBitmap(64, 48);
+        var asked = 0;
+        var live = new ScenePassBuilder.LiveEdit(
+            TransformPreview: SkiaSharp.SKMatrix.CreateScale(2, 2),
+            TransformFrames: [.. ink.Cels.Select(c => c.Frame!)], GhostsFollow: true,
+            TransformFrameIds: ink.Cels.Select(c => c.Frame!.Id).ToHashSet(),
+            GhostSheet: (_, ghosts) => { asked = ghosts.Count; return sheet; });
+
+        var plan = ScenePassBuilder.Describe(scene, StateFor(scene, ink), cache, new TileFallbackTally(), live);
+        var sheets = plan.Specs.Where(s => ReferenceEquals(s.Bitmap, sheet)).ToList();
+
+        Assert.Equal(2, asked);                                // both ghosts went into it
+        Assert.Single(sheets);                                 // and came out as one pass
+        Assert.Equal(2, sheets[0].Matrix!.Value.ScaleX);       // drawn through the drag
+        Assert.DoesNotContain(plan.Specs, s => s.Tint is not null); // no loose ghosts left
+    }
+
+    /// <summary>
     /// A region-limited transform moves part of each drawing, and a ghost is one
     /// bitmap — moving it would show strokes moving that are going to stay.
     /// </summary>

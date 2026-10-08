@@ -227,7 +227,8 @@ internal static class ScenePassBuilder
         double TipScale = 1.0,
         SKRectI? PostUsed = null,
         bool GhostsFollow = false,
-        IReadOnlySet<string>? TransformFrameIds = null)
+        IReadOnlySet<string>? TransformFrameIds = null,
+        Func<Layer, IReadOnlyList<PassSpec>, SKBitmap?>? GhostSheet = null)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -425,7 +426,9 @@ internal static class ScenePassBuilder
             // sit under it, exactly as its own earlier frames would.
             // Ghosts ride their layer's plane — a ghost is the same drawing at
             // another time, so it parallaxes exactly as the drawing does.
-            var ghosts = GhostSpecsFor(layer, scene, state, parallax, GhostDrag(live));
+            var ghostDrag = GhostDrag(live);
+            var ghosts = GhostSpecsFor(layer, scene, state, parallax, ghostDrag);
+            if (ghostDrag is { } gd) ghosts = AsOneSheet(layer, ghosts, gd.FrameIds, live.GhostSheet);
             if (!state.Onion.DrawOver) passes.AddRange(ghosts);
 
             // Past the end of the scene the canvas shows no drawing (Q103).
@@ -876,6 +879,34 @@ internal static class ScenePassBuilder
         && live.TransformFrameIds is { Count: > 0 } ids
             ? (preview, ids)
             : null;
+
+    /// <summary>
+    /// A layer's ghosts as one pass when every one of them follows the drag,
+    /// else unchanged.
+    /// </summary>
+    /// <remarks>
+    /// They share one matrix, so the view model composites them once into a
+    /// sheet and the sheet is resampled once per event instead of once per
+    /// ghost (Q216; measured at ~2 ms per ghost per event at 960×540). Mixed
+    /// layers — some ghosts in the session, some not — keep their passes,
+    /// because their order interleaves and a sheet would put the static ones
+    /// in the wrong place.
+    /// </remarks>
+    private static IReadOnlyList<PassSpec> AsOneSheet(
+        Layer layer, IReadOnlyList<PassSpec> ghosts, IReadOnlySet<string> moving,
+        Func<Layer, IReadOnlyList<PassSpec>, SKBitmap?>? sheetFor)
+    {
+        if (sheetFor is null || ghosts.Count < 2) return ghosts;
+        for (var i = 0; i < ghosts.Count; i++)
+        {
+            if (ghosts[i].CelFrame is not { } f || !moving.Contains(f.Id)) return ghosts;
+        }
+        if (sheetFor(layer, ghosts) is not { } sheet) return ghosts;
+        var first = ghosts[0];
+        return [new PassSpec(
+            null, first.CelIndex, sheet, null, 1.0,
+            Matrix: first.Matrix, Shapes: first.Shapes)];
+    }
 
     private static SKMatrix? GhostMatrix(
         Frame ghost, SKMatrix? parallax, (SKMatrix Preview, IReadOnlySet<string> FrameIds)? drag)

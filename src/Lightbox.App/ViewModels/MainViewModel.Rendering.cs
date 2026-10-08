@@ -296,6 +296,49 @@ public partial class MainViewModel
     private Func<Frame, ScenePassBuilder.TransformSplit?>? _passTransformSplit;
 
     /// <summary>
+    /// A layer's following ghosts composited into one document-sized bitmap,
+    /// built once per session and per set of ghosts (Q216) — see
+    /// <c>TransformSession.GhostSheet</c> for why.
+    /// </summary>
+    /// <remarks>
+    /// The ghosts go in untransformed and unmasked: the sheet is drawn through
+    /// the drag and carved by the layer's mask as one pass, which is the same
+    /// picture because source-over is associative and every ghost of a layer
+    /// is carved by the same mask.
+    /// </remarks>
+    private SKBitmap? GhostSheetFor(Layer layer, IReadOnlyList<ScenePassBuilder.PassSpec> ghosts)
+    {
+        var hash = new HashCode();
+        foreach (var g in ghosts)
+        {
+            hash.Add(g.CelFrame?.Id);
+            hash.Add(g.CelIndex);
+            hash.Add(g.Tint);
+            hash.Add(g.Opacity);
+        }
+        var key = hash.ToHashCode();
+        if (_transform.GhostSheet(layer.Id, key) is { } have) return have;
+
+        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var sheet = new SKBitmap(info);
+        using (var surface = SKSurface.Create(info, sheet.GetPixels(), sheet.RowBytes))
+        using (_cache.HoldFetches())
+        {
+            var passes = new List<RenderPass>(ghosts.Count);
+            foreach (var g in ghosts)
+            {
+                passes.Add(ScenePassBuilder.Materialize(
+                    g with { Matrix = null, Shapes = null }, _cache, Scene.Width, Scene.Height));
+            }
+            SceneRenderer.ComposeInto(surface, passes, SKColors.Transparent);
+        }
+        _transform.RememberGhostSheet(layer.Id, key, sheet);
+        return sheet;
+    }
+
+    private Func<Layer, IReadOnlyList<ScenePassBuilder.PassSpec>, SKBitmap?>? _passGhostSheet;
+
+    /// <summary>
     /// The fetch the fold defers — cached in a field for the same reason as
     /// <see cref="_passTransformSplit"/>: a lambda capturing <c>this</c>
     /// allocates per publish, and a publish runs per pointer event.
@@ -1479,7 +1522,8 @@ public partial class MainViewModel
             PostUsed: _live.PostUsed,
             // Q216: whole drawings move, so their ghosts can move with them.
             GhostsFollow: _transform.Filter is null,
-            TransformFrameIds: _transform.FrameIds);
+            TransformFrameIds: _transform.FrameIds,
+            GhostSheet: _passGhostSheet ??= GhostSheetFor);
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;

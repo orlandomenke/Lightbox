@@ -1,4 +1,5 @@
 using Avalonia.Headless.XUnit;
+using Lightbox.App.Rendering;
 using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
@@ -121,6 +122,53 @@ public class LayerTransformTests : BrushStateIsolated
         vm.TransformScope = TransformScope.ActiveLayerAllFrames;
         Assert.True(vm.PickStrokeAt(220, 200, tolerance: 6));
         Assert.Equal(TransformScope.ActiveCel, vm.SessionTransformScope);
+    }
+
+    [AvaloniaFact]
+    public void TheGhostsShowWhereTheDragIsTakingTheirDrawings()
+    {
+        // The published frame, not the pass list: the ghosts are composited into
+        // one sheet for the drag (the perf-warden's finding), and this is what
+        // says the sheet lands where the drawings will.
+        var vm = VmLayers.BareVm();
+        vm.SmoothStrokes = false;
+        vm.ColorHex = "#000000";
+        vm.BrushSize = 16;
+        vm.BrushOpacity = 1;
+        vm.BrushFlow = 1;
+        void Line(double x)
+        {
+            vm.BeginStroke(x, 100, 1);
+            vm.MoveStroke(x + 60, 100, 1);
+            vm.EndStroke();
+        }
+        Line(60);
+        vm.AddFrameCommand.Execute(null);
+        vm.CurrentFrameIndex = 1;
+        Line(200);
+        vm.AddFrameCommand.Execute(null);
+        vm.CurrentFrameIndex = 2;
+        Line(340);
+        vm.CurrentFrameIndex = 1;
+        vm.Onion.Enabled = true;
+        vm.Onion.Before = 1;
+        vm.Onion.After = 1;
+
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+        Assert.True(vm.BeginLayerTransform());
+        vm.PreviewTransform(SkiaSharp.SKMatrix.CreateTranslation(0, 150));
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(latest);
+        using var bmp = SkiaSharp.SKBitmap.FromImage(latest!.Image)!;
+        // No paper on this document, so empty canvas is transparent: ink is
+        // anything with alpha that is not white.
+        static bool Inked(SkiaSharp.SKColor c) => c.Alpha > 20 && (c.Red < 235 || c.Green < 235 || c.Blue < 235);
+        Assert.True(Inked(bmp.GetPixel(90, 250)), "the previous drawing's ghost did not follow the drag");
+        Assert.True(Inked(bmp.GetPixel(370, 250)), "the next drawing's ghost did not follow the drag");
+        Assert.False(Inked(bmp.GetPixel(90, 100)), $"a ghost was left behind where its drawing used to be: {bmp.GetPixel(90, 100)}");
+        vm.CancelTransform();
     }
 
     [AvaloniaFact]
