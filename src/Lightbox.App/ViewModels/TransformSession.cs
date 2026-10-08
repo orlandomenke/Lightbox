@@ -49,6 +49,13 @@ sealed class TransformSession
     internal List<Frame> Frames { get; } = [];
 
     /// <summary>
+    /// The ids of <see cref="Frames"/>, built once per session: the onion asks
+    /// "is this ghost's drawing moving?" per ghost per publish (Q216), and a
+    /// scan of a whole layer's drawings for each one is a cost per pointer event.
+    /// </summary>
+    internal HashSet<string> FrameIds { get; } = [];
+
+    /// <summary>
     /// Which strokes move, or null when everything does. Null is not merely the
     /// default — it is the fast path, and <see cref="Parts"/> borrows rather than
     /// renders when it holds.
@@ -157,6 +164,8 @@ sealed class TransformSession
     {
         Frames.Clear();
         Frames.AddRange(frames);
+        FrameIds.Clear();
+        foreach (var f in Frames) FrameIds.Add(f.Id);
         Filter = filter;
     }
 
@@ -164,6 +173,7 @@ sealed class TransformSession
     internal void End()
     {
         Frames.Clear();
+        FrameIds.Clear();
         Filter = null;
         MovingBounds = null;
         SnapBounds = null;

@@ -98,7 +98,8 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
         using var cache = new FrameBitmapCache();
         var drag = SkiaSharp.SKMatrix.CreateScale(2, 2);
         var live = new ScenePassBuilder.LiveEdit(
-            TransformPreview: drag, TransformFrames: [ink.Cels[0].Frame!, ink.Cels[1].Frame!], GhostsFollow: true);
+            TransformPreview: drag, TransformFrames: [ink.Cels[0].Frame!, ink.Cels[1].Frame!], GhostsFollow: true,
+            TransformFrameIds: new HashSet<string> { ink.Cels[0].Frame!.Id, ink.Cels[1].Frame!.Id });
         var built = ScenePassBuilder.Build(scene, StateFor(scene, ink), cache, new TileFallbackTally(), live);
         var ghosts = built.Passes.Where(IsGhost).ToList();
 
@@ -120,7 +121,8 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
 
         var live = new ScenePassBuilder.LiveEdit(
             TransformPreview: SkiaSharp.SKMatrix.CreateScale(2, 2),
-            TransformFrames: [.. ink.Cels.Select(c => c.Frame!)], GhostsFollow: false);
+            TransformFrames: [.. ink.Cels.Select(c => c.Frame!)], GhostsFollow: false,
+            TransformFrameIds: ink.Cels.Select(c => c.Frame!.Id).ToHashSet());
         var built = ScenePassBuilder.Build(scene, StateFor(scene, ink), cache, new TileFallbackTally(), live);
 
         Assert.All(built.Passes.Where(IsGhost), g => Assert.Null(g.Matrix));

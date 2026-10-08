@@ -226,7 +226,8 @@ internal static class ScenePassBuilder
         SKRectI? TipBounds = null,
         double TipScale = 1.0,
         SKRectI? PostUsed = null,
-        bool GhostsFollow = false)
+        bool GhostsFollow = false,
+        IReadOnlySet<string>? TransformFrameIds = null)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -777,7 +778,7 @@ internal static class ScenePassBuilder
     /// </summary>
     internal static IReadOnlyList<PassSpec> GhostSpecsFor(
         Layer layer, Scene scene, State state, SKMatrix? parallax = null,
-        (SKMatrix Preview, IReadOnlyList<Frame> Frames)? drag = null)
+        (SKMatrix Preview, IReadOnlySet<string> FrameIds)? drag = null)
     {
         var onion = state.Onion;
         // Ghosts are a drawing aid. During playback they are noise, and the
@@ -867,19 +868,21 @@ internal static class ScenePassBuilder
     /// over every drawing in scope, ghosts' drawings included.
     /// </para>
     /// </remarks>
-    private static (SKMatrix Preview, IReadOnlyList<Frame> Frames)? GhostDrag(in LiveEdit live) =>
+    private static (SKMatrix Preview, IReadOnlySet<string> FrameIds)? GhostDrag(in LiveEdit live) =>
         live.GhostsFollow
         && live.TransformPreview is { } preview
         && live.TransformBands is not { Count: > 0 }
         && live.TransformMesh is null
-        && live.TransformFrames is { Count: > 0 } frames
-            ? (preview, frames)
+        && live.TransformFrameIds is { Count: > 0 } ids
+            ? (preview, ids)
             : null;
 
     private static SKMatrix? GhostMatrix(
-        Frame ghost, SKMatrix? parallax, (SKMatrix Preview, IReadOnlyList<Frame> Frames)? drag)
+        Frame ghost, SKMatrix? parallax, (SKMatrix Preview, IReadOnlySet<string> FrameIds)? drag)
     {
-        if (drag is not { } d || !Moving(d.Frames, ghost)) return parallax;
+        // A set built once per session, not a scan: this is per ghost per
+        // publish, and a whole layer's session can hold hundreds of drawings.
+        if (drag is not { } d || !d.FrameIds.Contains(ghost.Id)) return parallax;
         return parallax is { } pm ? SKMatrix.Concat(pm, d.Preview) : d.Preview;
     }
 

@@ -833,7 +833,8 @@ lines moving that will not.
 This is a gesture, like the Move tool's Ctrl-drag: the Scope control reads
 *This layer, every frame* while it is open, and the next Ctrl+T is back on
 whatever scope you had set. Pick another scope while it is open and that one
-takes over.
+takes over. With lines picked it does nothing and says so — a picked line lives
+on one drawing, so deselect first (**Ctrl+D**).
 
 The **Move** tool does not read or change the scope either — a plain drag moves
 this drawing and a **Ctrl**-drag every drawing on the layer, for that drag only.

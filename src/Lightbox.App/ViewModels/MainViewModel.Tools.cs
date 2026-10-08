@@ -993,8 +993,17 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(SessionTransformScope));
     }
 
-    /// <summary>What the open session actually collects: the gesture's scope, else the setting.</summary>
-    internal TransformScope EffectiveTransformScope => _gestureScope ?? TransformScope;
+    /// <summary>
+    /// What the open session actually collects: this drawing while picked lines
+    /// pin it there (B223), else the gesture's scope, else the setting.
+    /// </summary>
+    /// <remarks>
+    /// The pin is folded in here rather than left to <c>CollectTransformFrames</c>
+    /// alone, because the Scope combo reads this: without it the page said
+    /// "This layer, every frame" over a session holding one drawing.
+    /// </remarks>
+    internal TransformScope EffectiveTransformScope =>
+        ScopeIsPinnedToThisCel ? TransformScope.ActiveCel : _gestureScope ?? TransformScope;
 
     /// <summary>
     /// What the Scope combo shows and sets: the scope the open session is
@@ -1064,6 +1073,13 @@ public partial class MainViewModel
     public bool BeginLayerTransform()
     {
         if (TransformActive) return false;
+        // Picked lines live on one drawing, so the session would quietly hold
+        // that one and nothing else — a command doing less than it says.
+        if (ScopeIsPinnedToThisCel)
+        {
+            AiStatus = "Lines are picked on this drawing — deselect them (Ctrl+D) to transform every frame of the layer.";
+            return false;
+        }
         SetGestureScope(TransformScope.ActiveLayerAllFrames);
         if (BeginTransform()) return true;
         SetGestureScope(null);

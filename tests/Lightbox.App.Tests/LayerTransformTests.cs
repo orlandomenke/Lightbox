@@ -101,6 +101,29 @@ public class LayerTransformTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void PickedLinesRefuseItRatherThanQuietlyMovingOneDrawing()
+    {
+        // Adversary's finding: picked lines pin a session to their drawing, so
+        // the command held one drawing while the Scope combo said every frame.
+        var vm = CycleVm();
+        Assert.True(vm.PickStrokeAt(220, 200, tolerance: 6));
+        Assert.True(vm.HasStrokeSelection);
+
+        Assert.False(vm.BeginLayerTransform());
+        Assert.False(vm.TransformActive);
+        Assert.Contains("deselect", vm.AiStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [AvaloniaFact]
+    public void ThePinnedScopeIsWhatTheScopeControlShows()
+    {
+        var vm = CycleVm();
+        vm.TransformScope = TransformScope.ActiveLayerAllFrames;
+        Assert.True(vm.PickStrokeAt(220, 200, tolerance: 6));
+        Assert.Equal(TransformScope.ActiveCel, vm.SessionTransformScope);
+    }
+
+    [AvaloniaFact]
     public void TheStatusLineCountsDrawingsNotFrames()
     {
         // Three frames, two drawings: the hold is not a drawing of its own.
