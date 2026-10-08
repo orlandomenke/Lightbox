@@ -161,7 +161,8 @@ turn it off on a laptop running on battery.
 showed it, while the still canvas prepares its own copy in the background, and
 then quietly takes over. At 50% zoom or closer the two are identical. Zoomed
 further out, a few stroke edges can look very slightly different for that moment
-before settling.
+before settling. With onion skin on, the ghosts appear with the still a moment
+after you stop, rather than holding the frame back until they are drawn.
 
 ### Blending layers on the graphics card
 

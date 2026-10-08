@@ -1517,7 +1517,8 @@ public partial class MainViewModel
             IsScrubbing || _holdTilesAfterStop,
             // Depth answers to a camera move, so it applies exactly when the
             // composite is about to be drawn under the camera's matrix.
-            ThroughCamera: ViewThroughCamera);
+            ThroughCamera: ViewThroughCamera,
+            GhostsLater: _holdTilesAfterStop);
         var live = new ScenePassBuilder.LiveEdit(
             _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedPoints,
             _liveShape, _liveGradient, LiveTextPaint, _strokeBuilder.Current,
@@ -2036,20 +2037,50 @@ public partial class MainViewModel
         return true;
     }
 
-    /// <summary>End the hold if the still canvas now has every image of the frame; true when it did.</summary>
+    /// <summary>
+    /// End the hold if the still canvas now has every image the paused picture
+    /// will draw — the frame and its onion ghosts (Q219) — true when it did.
+    /// </summary>
     private bool ReleaseHeldTilesIfStillsReady()
     {
         if (!_holdTilesAfterStop || IsPlaying) return false;
         var scene = Scene;
+        foreach (var (frame, cel) in StillImagesNeeded())
+        {
+            if (!_cache.Holds(frame, scene.Width, scene.Height, 1.0, cel)) return false;
+        }
+        _holdTilesAfterStop = false;
+        // The navigator kept its picture through the hold; the still is here now.
+        RefreshNavigatorThumb();
+        return true;
+    }
+
+    /// <summary>
+    /// The full-size images the paused picture at the playhead draws: each
+    /// visible layer's drawing, and its onion ghosts as the pass builder itself
+    /// would ask for them — asked of <see cref="ScenePassBuilder.GhostSpecsFor"/>
+    /// rather than restated, so the two cannot disagree about which ghosts.
+    /// </summary>
+    private IEnumerable<(Frame Frame, int Cel)> StillImagesNeeded()
+    {
+        var scene = Scene;
+        var still = new ScenePassBuilder.State(
+            CurrentFrameIndex, scene.Layers.Count > 0 ? ActiveLayer.Id : null,
+            IsPlaying: false, IsLightTable,
+            HaveViewport: _publish.Viewport is { Width: > 0, Height: > 0 },
+            Onion);
         foreach (var layer in scene.Layers)
         {
             if (!scene.IsLayerVisible(layer)) continue;
-            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is not { } frame) continue;
-            if (!FrameBitmapCache.CanCache(frame)) continue;
-            if (!_cache.Holds(frame, scene.Width, scene.Height, 1.0, CurrentFrameIndex)) return false;
+            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is { } frame && FrameBitmapCache.CanCache(frame))
+            {
+                yield return (frame, CurrentFrameIndex);
+            }
+            foreach (var ghost in ScenePassBuilder.GhostSpecsFor(layer, scene, still))
+            {
+                if (ghost.CelFrame is { } g && FrameBitmapCache.CanCache(g)) yield return (g, ghost.CelIndex);
+            }
         }
-        _holdTilesAfterStop = false;
-        return true;
     }
 
     /// <summary>The playback range from the playhead to its end, then from its start round to the playhead.</summary>
@@ -2075,6 +2106,17 @@ public partial class MainViewModel
             jobs ??= [];
             jobs.Add(new Services.WarmRequest(
                 frame, scene.Width, scene.Height, CurrentFrameIndex, Services.WarmProduct.Bitmap));
+        }
+
+        // Then the onion ghosts (Q219): the still picture draws them, so a
+        // stop's swap — and the next stroke — would otherwise render them on
+        // the UI thread. After the drawings, which a stroke needs first.
+        foreach (var (frame, cel) in StillImagesNeeded())
+        {
+            if (cel == CurrentFrameIndex) continue; // the drawings, queued above
+            if (_cache.Holds(frame, scene.Width, scene.Height, 1.0, cel)) continue;
+            jobs ??= [];
+            jobs.Add(new Services.WarmRequest(frame, scene.Width, scene.Height, cel, Services.WarmProduct.Bitmap));
         }
         return jobs;
     }

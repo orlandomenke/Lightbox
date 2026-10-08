@@ -125,6 +125,12 @@ public partial class MainViewModel
             return;
         }
 
+        // A stop holding the playback tiles (Q218): the navigator composes from
+        // the full-size stills, which are exactly what is not there yet — it was
+        // 10 renders on the UI thread inside the stop. It keeps its picture and
+        // is refreshed when the hold ends.
+        if (_holdTilesAfterStop) return;
+
         var scene = Scene;
         var exposed = new List<(Layer Layer, Frame Frame)>();
         foreach (var layer in scene.Layers)

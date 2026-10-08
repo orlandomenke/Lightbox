@@ -158,6 +158,47 @@ public sealed class StopOnTilesTests : BrushStateIsolated
         Assert.True(held.Bytes.AsSpan().SequenceEqual(final.Bytes), $"at {zoom:P0} the held frame is not the still's bytes");
     }
 
+    /// <summary>
+    /// The case the lab found failing in the app: onion on and the Navigator
+    /// open. The navigator composed the stopped frame from full-size stills (ten
+    /// renders inside the stop) and the ghosts are bitmap passes. Now Stop
+    /// renders nothing on the UI thread, the ghosts are absent while it holds,
+    /// and they arrive with the still — whose images, ghosts included, were
+    /// warmed first, so the swap renders nothing either (Q219).
+    /// </summary>
+    [AvaloniaFact]
+    public void WithOnionAndTheNavigatorOnStopRendersNothingAndTheGhostsArriveWithTheStill()
+    {
+        var vm = Vm();
+        vm.Onion.Enabled = true;
+        vm.Workspace.NavigatorVisible = true;
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+        vm.PublishSnapshot();
+        Settle(vm);
+        vm.FrameCache.Clear(); // see PlayThenStop
+
+        vm.TogglePlaybackCommand.Execute(null);
+        vm.CurrentFrameIndex = 2;
+        vm.PublishSnapshot();
+        var beforeStop = vm.FrameCache.Misses;
+        vm.TogglePlaybackCommand.Execute(null);
+        var atStop = vm.FrameCache.Misses - beforeStop;
+
+        Assert.True(vm.HoldingTilesAfterStop);
+        Assert.Equal(0, atStop);
+        Assert.DoesNotContain(latest!.Passes ?? [], p => p.Tint is not null);
+
+        var beforeSwap = vm.FrameCache.Misses;
+        Settle(vm);
+        var atSwap = vm.FrameCache.Misses - beforeSwap;
+        _output.WriteLine($"still-image renders on the UI thread: {atStop} at stop, {atSwap} at the swap");
+
+        Assert.False(vm.HoldingTilesAfterStop);
+        Assert.Equal(0, atSwap);
+        Assert.Contains(latest!.Passes ?? [], p => p.Tint is not null);
+    }
+
     [AvaloniaFact]
     public void AStrokeEndsTheHold()
     {
