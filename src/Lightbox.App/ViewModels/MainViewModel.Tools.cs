@@ -970,6 +970,24 @@ public partial class MainViewModel
 
     public IReadOnlyList<TransformScope> TransformScopeChoices { get; } = Enum.GetValues<TransformScope>();
 
+    /// <summary>
+    /// The scope a Move drag carries for as long as its session is open, or
+    /// null when the session is the artist's own.
+    /// </summary>
+    /// <remarks>
+    /// <b>B403.</b> The Move tool decides its scope from the modifier — this
+    /// drawing, or with Ctrl every drawing on the layer — and used to say so by
+    /// writing <see cref="TransformScope"/>. Nothing put it back, so a Ctrl-drag
+    /// left the setting on the whole layer and the next Ctrl+T moved every
+    /// drawing while the artist looked at one; and a plain drag quietly reset a
+    /// scope they had chosen. A gesture's scope is the gesture's, so it lives
+    /// here and ends with the session.
+    /// </remarks>
+    private TransformScope? _moveScope;
+
+    /// <summary>What the open session actually collects: the move's scope, else the setting.</summary>
+    internal TransformScope EffectiveTransformScope => _moveScope ?? TransformScope;
+
     /// <summary>Pixel solver for raster baselines (strokes never resample).</summary>
     [ObservableProperty]
     private TransformSampling _transformSampling = TransformSampling.Bilinear;
@@ -1133,7 +1151,7 @@ public partial class MainViewModel
         : HasSelection ? "the selection"
         : HasStrokeSelection ? (Selection.SelectedStrokeIds.Count == 1
             ? "the selected line" : $"{Selection.SelectedStrokeIds.Count} selected lines")
-        : CelScopeLayers() is { Count: > 1 } layers && TransformScope is TransformScope.ActiveCel
+        : CelScopeLayers() is { Count: > 1 } layers && EffectiveTransformScope is TransformScope.ActiveCel
             ? $"{layers.Count} layers"
         : "this drawing";
 }
