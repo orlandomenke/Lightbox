@@ -4,6 +4,7 @@ using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Geometry;
 using Lightbox.Core.Timeline;
+using Lightbox.Raster;
 
 namespace Lightbox.App.Services;
 
@@ -70,6 +71,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 "create_folder" => CreateFolder(request),
                 "move_to_folder" => MoveToFolder(request),
                 "group_layers" => GroupLayers(request),
+                "set_folder_shape" => SetFolderShape(request),
                 _ => Lab?.Invoke(request) ?? IpcProtocol.Response.Fail($"Unknown op \"{request.Op}\"."),
             };
         }
@@ -154,8 +156,11 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 // The folder a layer is directly in (Q204); absent when it is
                 // in none, so a document without folders reads as it always did.
                 FolderId = FolderTree.Folder(s, l.GroupId)?.Id,
+                // The shape layer this one is kept inside (Q215), absent when
+                // none — so an agent need not derive the rule from the stack.
+                KeptInsideOf = KeptInsideOf(s, l),
             }),
-            Folders = FoldersForAgent(s),
+            Folders = FoldersForAgent(s, Vm.CurrentFrameIndex),
         });
     }
 
@@ -170,7 +175,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
     /// part of the drawing. Layers name their folder from their own side, so
     /// the tree is in the reply without a nested shape an agent has to walk.
     /// </remarks>
-    private static object? FoldersForAgent(Scene s)
+    private static object? FoldersForAgent(Scene s, int frame)
     {
         if (s.LayerGroups.Count == 0) return null;
         var holding = FolderTree.HoldingLayers(s);
@@ -185,6 +190,12 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 g.Visible,
                 g.Locked,
                 Empty = !holding.Contains(g.Id),
+                // The layer the folder keeps the layers above inside (Q215);
+                // absent on a folder that keeps nothing inside. shapeHidden is
+                // the case render_frame shows as nothing: present only when true.
+                g.ShapeLayerId,
+                ShapeHidden = g.ShapeLayerId is not null && !LayerShapes.FolderShapeHasContent(s, g, frame)
+                    ? true : (bool?)null,
             })
             .ToList();
     }
@@ -223,7 +234,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
     private IpcProtocol.Response MoveToFolder(IpcProtocol.Request request)
     {
         var p = Payload<MoveToFolderRef>(request);
-        if (p.Id.Length == 0) return IpcProtocol.Response.Fail("Give the id of the layer or folder to move.");
+        if (string.IsNullOrEmpty(p.Id)) return IpcProtocol.Response.Fail("Give the id of the layer or folder to move.");
         if (Vm.ExternalMoveToFolder(p.Id, p.FolderId, p.Reorder, out var reordered) is { } refusal)
             return IpcProtocol.Response.Fail(refusal);
         var s = Vm.Doc.Scene;
@@ -243,6 +254,29 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         if (id is null) return IpcProtocol.Response.Fail(refusal ?? "Those could not be grouped.");
         var folder = FolderTree.Folder(Vm.Doc.Scene, id)!;
         return IpcProtocol.Response.Success(new { FolderId = id, folder.Name, ParentId = folder.ParentId, Reordered = reordered });
+    }
+
+    /// <summary><c>set_folder_shape</c>: keep the layers above one inside it, or stop.</summary>
+    private IpcProtocol.Response SetFolderShape(IpcProtocol.Request request)
+    {
+        var p = Payload<FolderShapeRef>(request);
+        if (string.IsNullOrEmpty(p.LayerId)) return IpcProtocol.Response.Fail("Give the id of the layer to make the shape.");
+        if (Vm.ExternalSetFolderShape(p.LayerId, p.KeepInside, out var folderId, out var changed) is { } refusal)
+            return IpcProtocol.Response.Fail(refusal);
+        var folder = FolderTree.Folder(Vm.Doc.Scene, folderId)!;
+        return IpcProtocol.Response.Success(new { FolderId = folderId, folder.ShapeLayerId, Changed = changed });
+    }
+
+    private static string? KeptInsideOf(Scene s, Layer layer)
+    {
+        var index = s.Layers.IndexOf(layer);
+        return index >= 0 && LayerShapes.FolderShapingOf(s, index) is { } folder ? folder.ShapeLayerId : null;
+    }
+
+    private sealed class FolderShapeRef
+    {
+        public string LayerId { get; set; } = "";
+        public bool KeepInside { get; set; } = true;
     }
 
     private class FrameRef

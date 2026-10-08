@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4428
+budget: 4431
 
 ## Why it is here despite being XAML
 
@@ -339,3 +339,4 @@ leaves a number nobody can account for. So every reason above stays, and
   options docker for the brush editor (`Views/BrushEditor.axaml`), a popup from
   the bar's gear — Krita's split. What stayed is how a paint tool behaves
   (smoothing, the pen, anti-aliasing), forty-odd lines in place of five hundred.
+- **→ 4,431** (2026-10-08): folder shapes (Q215) — one row-menu item, whose header the row words for what a click will do so keeping and releasing share it, and one hosting line for `ShapeBracket.axaml`, which carries the bracket and the warning chrome off the window as `LinkBracket.axaml` does. +3 over main's 4,428, which is the size of the change; measured alone on the old tree it was 4,887 → 4,890.

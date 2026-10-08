@@ -1108,6 +1108,9 @@ public partial class MainViewModel
         }, label: targets.Count == 1 ? "Set layer visible" : "Set layers visible",
             frameContentUnchanged: true);
         NotifyLayerGating();
+        // Hiding a folder's shape empties what it keeps inside (Q215); the
+        // rows above it say so, and have to hear about it.
+        SyncMaskRows();
     }
 
     /// <summary>
@@ -1541,7 +1544,7 @@ public partial class MainViewModel
     {
         layer ??= ActiveLayer;
         return MergeTargetOf(layer) is { } below
-            && Lightbox.Raster.LayerMerge.WouldBakePixels(layer, below);
+            && Lightbox.Raster.LayerMerge.WouldBakePixels(layer, below, Scene);
     }
 
     /// <summary>

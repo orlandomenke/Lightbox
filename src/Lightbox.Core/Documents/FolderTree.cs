@@ -300,6 +300,14 @@ public static class FolderTree
         var beforeHolding = before is null ? null : HoldingLayers(before, findBefore);
         foreach (var folder in after.LayerGroups)
         {
+            // A shape names a layer inside its folder or nothing (Q215): one
+            // dragged out, deleted or merged away leaves no key behind that
+            // would quietly start carving again if it came back.
+            if (folder.ShapeLayerId is { } shapeId
+                && !after.Layers.Any(l => l.Id == shapeId && IsWithin(find, l, folder)))
+            {
+                folder.ShapeLayerId = null;
+            }
             if (holding.Contains(folder.Id))
             {
                 folder.Under = null;
