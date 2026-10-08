@@ -547,20 +547,40 @@ public static class Skinning
     /// where the pen was, not where the record will keep them. Null is the
     /// bind pose, which is what every other caller means.
     /// </param>
+    /// <param name="jointWeights">
+    /// Weigh by joint (Q217) — what a bind made now means, and the default.
+    /// False for a stroke drawn onto a layer that follows the whole skeleton
+    /// with the weighting it was bound with before Q217, so the new line
+    /// poses as its neighbours on that layer do.
+    /// </param>
+    /// <param name="keepPoints">
+    /// Never insert points: the stroke carries a corrective, whose offsets are
+    /// stored one per control point and would stop applying the moment the
+    /// count changed (sensitivity on Q217) — the same guard the pose-space
+    /// write-back keeps.
+    /// </param>
     public static void AutoBind(
-        Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose = null)
+        Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose = null,
+        bool jointWeights = true, bool keepPoints = false)
     {
         if (armature.Bones.Count == 0 || stroke.Points.Count == 0) return;
         // A bind made now is a new bind (Q217): weighted by joint, and a span
         // too long to carry its own blend gets the points it needs first.
-        var (bindings, weights) = AutoWeights(stroke.Points, armature, pose, jointWeights: true);
-        if (WithJointPoints(stroke.Points, weights) is { } denser)
+        var (bindings, weights) = AutoWeights(stroke.Points, armature, pose, jointWeights);
+        if (jointWeights && !keepPoints
+            && WithJointPoints(stroke.Points, weights, closed: stroke.Tool.FillsAContour()) is { } denser)
         {
             stroke.Points = denser;
-            (bindings, _) = AutoWeights(stroke.Points, armature, pose, jointWeights: true);
+            // A path maps points; these just gained some without it (see Stroke.Path).
+            stroke.Path = null;
+            (bindings, _) = AutoWeights(stroke.Points, armature, pose, jointWeights);
         }
         stroke.Weights = bindings.Count > 0 ? bindings : null;
     }
+
+    /// <summary>Whether any corrective in <paramref name="frame"/> stores offsets for this stroke.</summary>
+    public static bool IsCorrected(Frame frame, string strokeId) =>
+        frame.Correctives?.Any(c => c.Stops.Any(s => s.Strokes.Any(x => x.StrokeId == strokeId))) == true;
 
     /// <summary>
     /// The stroke's points with every long span whose two ends follow the
@@ -582,25 +602,56 @@ public static class Skinning
     /// (<see cref="GeometryOps.AppendSpan"/>), at the write-back's chord.
     /// </para>
     /// </remarks>
-    private static List<StrokePoint>? WithJointPoints(IReadOnlyList<StrokePoint> points, double[][] weights)
+    /// <param name="closed">
+    /// A contour (fill, clear, text): drawn as straight edges, so a span is
+    /// subdivided along its straight line rather than the brush's curve —
+    /// a curve would bow the fill's edges at rest the moment it was bound —
+    /// and the closing edge back to the first point counts as a span too.
+    /// </param>
+    private static List<StrokePoint>? WithJointPoints(
+        IReadOnlyList<StrokePoint> points, double[][] weights, bool closed = false)
     {
-        List<StrokePoint>? output = null;
-        for (var i = 0; i + 1 < points.Count; i++)
+        bool Split(int i, int j)
         {
             var differs = false;
             for (var b = 0; b < weights[i].Length && !differs; b++)
-                differs = Math.Abs(weights[i][b] - weights[i + 1][b]) > 1e-9;
-            var split = differs && GeometryOps.Dist(points[i], points[i + 1]) > WriteBackChord;
+                differs = Math.Abs(weights[i][b] - weights[j][b]) > 1e-9;
+            return differs && GeometryOps.Dist(points[i], points[j]) > WriteBackChord;
+        }
+
+        List<StrokePoint>? output = null;
+        for (var i = 0; i + 1 < points.Count; i++)
+        {
+            var split = Split(i, i + 1);
             if (split && output is null)
             {
                 output = new List<StrokePoint>(points.Count * 2);
                 for (var k = 0; k <= i; k++) output.Add(points[k]);
             }
             if (output is null) continue;
-            if (split) GeometryOps.AppendSpan(output, points, i, WriteBackChord);
-            else output.Add(points[i + 1]);
+            if (!split) output.Add(points[i + 1]);
+            else if (closed) AppendStraight(output, points[i], points[i + 1], includeEnd: true);
+            else GeometryOps.AppendSpan(output, points, i, WriteBackChord);
+        }
+        if (closed && points.Count > 2 && Split(points.Count - 1, 0))
+        {
+            output ??= [.. points];
+            AppendStraight(output, points[^1], points[0], includeEnd: false);
         }
         return output;
+    }
+
+    /// <summary>Points along the straight segment a→b at the write-back chord, after a; b itself when asked.</summary>
+    private static void AppendStraight(List<StrokePoint> output, StrokePoint a, StrokePoint b, bool includeEnd)
+    {
+        var steps = (int)Math.Ceiling(GeometryOps.Dist(a, b) / WriteBackChord);
+        for (var k = 1; k < steps; k++)
+        {
+            var t = (double)k / steps;
+            output.Add(new StrokePoint(a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * t,
+                a.Pressure + (b.Pressure - a.Pressure) * t));
+        }
+        if (includeEnd) output.Add(b);
     }
 
     /// <summary>
@@ -985,7 +1036,8 @@ public static class Skinning
         var index = rig ?? RigIndex.Empty;
         if (doc.Armature is not { Bones.Count: > 0 } armature || !index.IsPosed(frame)) return null;
         if (stroke.Weights is { Count: > 0 } || stroke.Points.Count == 0) return null;
-        var layerBone = index.LayerOf(frame) is { } layer ? doc.Scene.RiggedBoneOf(layer) : null;
+        var layer = index.LayerOf(frame);
+        var layerBone = layer is not null ? doc.Scene.RiggedBoneOf(layer) : null;
         if (layerBone is null) return null;
 
         var pose = ArmatureOps.EffectivePoseAt(armature, doc.Scene.PoseTrack, frameIndex);
@@ -999,7 +1051,9 @@ public static class Skinning
             // leaves a pair alone, and its middle would pose as one blend of
             // its two ends and bow away from where the pen drew it.
             stroke.Points = [.. DenseRest(stroke.Points, WriteBackChord)];
-            AutoBind(stroke, armature, pose);
+            // The layer's own weighting (Q217): a line drawn onto a layer
+            // bound before joint weighting poses as its neighbours do.
+            AutoBind(stroke, armature, pose, jointWeights: doc.Scene.UsesJointWeights(layer!));
             bindings = stroke.Weights;
             if (bindings is not { Count: > 0 }) return null;
         }
@@ -1141,6 +1195,13 @@ public static class Skinning
     private static double[][] JointFalloff(Armature armature, double[][] distance, int count)
     {
         var bones = armature.Bones;
+        // Every pair's zone once, not per point: a whole-skeleton layer weighs
+        // every dense sample on every render, and a parent lookup per sample
+        // per bone pair would make that bones² × samples.
+        var zones = new double[bones.Count, bones.Count];
+        for (var a = 0; a < bones.Count; a++)
+            for (var b = 0; b < bones.Count; b++)
+                if (a != b) zones[a, b] = ZoneBetween(armature, bones[a], bones[b]);
         var w = new double[bones.Count][];
         for (var b = 0; b < bones.Count; b++) w[b] = new double[count];
         for (var i = 0; i < count; i++)
@@ -1152,7 +1213,7 @@ public static class Skinning
             for (var b = 0; b < bones.Count; b++)
             {
                 if (b == near) continue;
-                var zone = ZoneBetween(armature, bones[near], bones[b]);
+                var zone = zones[near, b];
                 if (zone <= 0) continue;
                 var x = (distance[near][i] - distance[b][i]) / zone; // ≤ 0
                 if (x <= -1) continue;

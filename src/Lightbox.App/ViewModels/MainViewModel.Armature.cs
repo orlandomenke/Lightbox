@@ -1402,7 +1402,11 @@ public sealed partial class MainViewModel
     public int AutoBindSelectedStrokes()
     {
         if (EditingRig is not { Bones.Count: > 0 } armature) return 0;
-        return EditSelectedStrokes(stroke => Skinning.AutoBind(stroke, armature));
+        // A corrected stroke keeps its points, or its corrective would stop
+        // applying (sensitivity on Q217); it is still weighted by joint.
+        var frame = ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex);
+        return EditSelectedStrokes(stroke => Skinning.AutoBind(
+            stroke, armature, keepPoints: frame is not null && Skinning.IsCorrected(frame, stroke.Id)));
     }
 
     /// <summary>

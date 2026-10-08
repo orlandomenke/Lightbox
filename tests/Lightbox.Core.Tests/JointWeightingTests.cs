@@ -1,6 +1,7 @@
 using Lightbox.Core.Documents;
 using Lightbox.Core.Geometry;
 using Lightbox.Core.Serialization;
+using Lightbox.Core.Timeline;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -97,6 +98,103 @@ public class JointWeightingTests(ITestOutputHelper output)
         var worstUpper = Enumerable.Range(0, rest.Count).Where(i => rest[i].X < 100 - zone - 12).Max(i => Moved(posed, i));
         output.WriteLine($"{line.Points.Count} points after binding; upper arm moved up to {worstUpper:E2} px");
         Assert.True(worstUpper < 1e-9, $"the upper-arm part of the line moved {worstUpper:F3} px");
+    }
+
+    [Fact]
+    public void ACorrectedStrokeKeepsItsPointsSoItsCorrectiveStillApplies()
+    {
+        // Sensitivity on Q217: a corrective stores one offset per control
+        // point and stops applying the moment the count changes. Auto-bind
+        // must not insert points under one — the write-back's own rule.
+        var arm = Arm();
+        var line = new Stroke { Points = [new StrokePoint(0, 10, 1), new StrokePoint(200, 10, 1)] };
+        Skinning.AutoBind(line, arm, keepPoints: true);
+        Assert.Equal(2, line.Points.Count);
+        Assert.NotNull(line.Weights);
+        Assert.All(line.Weights!, b => Assert.True(b.PointWeights is null || b.PointWeights.Count == 2));
+
+        var frame = new Frame { Strokes = { line } };
+        Assert.False(Skinning.IsCorrected(frame, line.Id));
+        frame.Correctives =
+        [
+            new Corrective
+            {
+                DriverBoneId = "fore",
+                Stops = [new CorrectiveStop { AngleDeg = 90, Strokes = [new StrokeCorrection { StrokeId = line.Id }] }],
+            },
+        ];
+        Assert.True(Skinning.IsCorrected(frame, line.Id));
+    }
+
+    [Fact]
+    public void InsertingPointsDropsAPathThatNoLongerMatches()
+    {
+        var arm = Arm();
+        var line = new Stroke
+        {
+            Points = [new StrokePoint(0, 10, 1), new StrokePoint(200, 10, 1)],
+            Path = new StrokePath(),
+        };
+        Skinning.AutoBind(line, arm);
+        Assert.True(line.Points.Count > 2);
+        Assert.Null(line.Path);
+    }
+
+    [Fact]
+    public void AFillsEdgesStayStraight_AndItsClosingEdgeIsSubdividedToo()
+    {
+        // Sensitivity on Q217: a contour is drawn as straight edges, so the
+        // brush's curve through inserted points would bow the fill at rest.
+        var arm = Arm();
+        var corners = new List<StrokePoint>
+        {
+            new(60, -20, 1), new(140, -20, 1), new(140, 20, 1), new(60, 20, 1),
+        };
+        var fill = new Stroke { Tool = ToolKind.Fill, Points = [.. corners] };
+        Skinning.AutoBind(fill, arm);
+
+        Assert.True(fill.Points.Count > corners.Count, "a fill across the joint gained no points");
+        foreach (var p in fill.Points)
+        {
+            var onAnEdge = Enumerable.Range(0, corners.Count).Min(i =>
+                GeometryOps.DistToSegment(p, corners[i], corners[(i + 1) % corners.Count]));
+            Assert.True(onAnEdge < 1e-9, $"({p.X:F2},{p.Y:F2}) left the rectangle's edges by {onAnEdge:E2}");
+        }
+        // The closing edge (60,20)→(60,-20) lies wholly on the upper arm, so it
+        // needs nothing; the two edges that cross the elbow are what gained.
+        var crossing = fill.Points.Count(p => p.X is > 60 and < 140);
+        output.WriteLine($"{fill.Points.Count} points, {crossing} along the crossing edges");
+        Assert.True(crossing >= 2 * 10);
+    }
+
+    [Fact]
+    public void ALineDrawnOnALayerBoundBeforeTakesThatLayersWeighting()
+    {
+        // Sensitivity on Q217: a new line continuing an old one across the
+        // elbow must pose as its neighbours on that layer do.
+        var doc = DocumentFactory.CreateDoc();
+        doc.Armature = Arm();
+        doc.Scene.PoseTrack = new PoseTrack
+        {
+            Keys = [new PoseKey { Frame = 0, Bones = { ["fore"] = new BonePose { RotationDeg = 90 } } }],
+        };
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        layer.BoneId = "";
+        var frame = layer.Cels[0].Frame!;
+        var rig = RigIndex.For(doc);
+
+        var onOld = new Stroke { Points = Enumerable.Range(0, 15).Select(i => new StrokePoint(10 + i * 5, 10, 1)).ToList() };
+        Skinning.UnposeDrawnStroke(onOld, doc, frame, 0, rig);
+        layer.JointWeights = true;
+        var onNew = new Stroke { Points = Enumerable.Range(0, 15).Select(i => new StrokePoint(10 + i * 5, 10, 1)).ToList() };
+        Skinning.UnposeDrawnStroke(onNew, doc, frame, 0, rig);
+
+        // Far from the elbow, joint weighting gives the forearm nothing; the
+        // old weighting gives it a share everywhere.
+        double Fore(Stroke s) => s.Weights!.FirstOrDefault(b => b.BoneId == "fore")?.WeightAt(0) ?? 0;
+        output.WriteLine($"forearm share at x 10: old layer {Fore(onOld):F3}, joint layer {Fore(onNew):F3}");
+        Assert.True(Fore(onOld) > 0.01, "the line on the old layer was weighted by joint");
+        Assert.Equal(0, Fore(onNew));
     }
 
     [Fact]
