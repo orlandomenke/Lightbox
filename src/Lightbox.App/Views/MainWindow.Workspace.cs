@@ -1264,6 +1264,10 @@ public partial class MainWindow : IFollowsUiScale
             RoutingStrategies.Bubble, handledEventsToo: true);
         AddHandler(DragDrop.DropEvent, (_, _) => EdgeScroll.Stop(),
             RoutingStrategies.Bubble, handledEventsToo: true);
+
+        // Wired from here to keep the constructor inside its line budget; the
+        // reveal itself lives with the timeline, in MainWindow.Timeline.cs.
+        WireLayerReveal();
     }
     /// <summary>
     /// Ctrl or Shift pressed on an X-sheet layer name is a selection click on the
