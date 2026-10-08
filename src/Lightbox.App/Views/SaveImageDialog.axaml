@@ -17,8 +17,8 @@
       is 8. A stack spaces only what is visible.
     -->
     <StackPanel Spacing="{StaticResource Space8}">
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8">
-        <TextBlock Grid.Column="0" Text="Format" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Format" VerticalAlignment="Center" />
         <ComboBox Grid.Column="1" x:Name="FormatBox"
                   HorizontalAlignment="Stretch"
                   ItemsSource="{Binding Formats}"
@@ -30,15 +30,15 @@
         follows: a greyed slider invites a click that does nothing, where an
         absent one says the format has no such setting.
       -->
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8" IsVisible="{Binding HasQuality}">
-        <TextBlock Grid.Column="0" Text="Quality" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding HasQuality}">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Quality" VerticalAlignment="Center" />
         <NumericUpDown Grid.Column="1" x:Name="QualityBox"
                        Value="{Binding Quality}" Minimum="1" Maximum="100" Increment="5"
                        FormatString="0" />
       </Grid>
 
-      <Grid ColumnDefinitions="120,*" ColumnSpacing="8">
-        <TextBlock Grid.Column="0" Text="Size %" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Size %" VerticalAlignment="Center" />
         <NumericUpDown Grid.Column="1" x:Name="SizeBox"
                        Value="{Binding ScalePercent}" Minimum="1" Maximum="1600" Increment="25"
                        FormatString="0" />
@@ -50,8 +50,8 @@
       the plumbing existed with no control bound to it — which is the "the feature
       works and the artist cannot change it" failure, not a saving.
     -->
-    <Grid ColumnDefinitions="120,*" ColumnSpacing="8" IsVisible="{Binding !KeepsTransparency}">
-      <TextBlock Grid.Column="0" Text="Fill with" VerticalAlignment="Center" />
+    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="{Binding !KeepsTransparency}">
+      <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Fill with" VerticalAlignment="Center" />
       <TextBox Grid.Column="1" Text="{Binding Matte}" />
     </Grid>
 
@@ -67,8 +67,7 @@
       and the status line says so. Typing the extension is the deliberate act,
       which is why it is allowed to win rather than being second-guessed here.
     -->
-    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}"
-            IsVisible="{Binding MayLoseTransparency}">
+    <Border x:Name="TransparencyWarning" Classes="notice warning" IsVisible="{Binding MayLoseTransparency}">
       <TextBlock TextWrapping="Wrap"
                  Text="This format has no transparency. The see-through areas will be filled in — save as PNG or WebP to keep them." />
     </Border>
@@ -78,8 +77,7 @@
       same reason: which layers will be pixels inside the file is something to
       know before choosing SVG for them, not after opening it elsewhere.
     -->
-    <Border Background="{DynamicResource SurfaceElevated}" CornerRadius="{StaticResource RadiusCard}" Padding="{StaticResource CardPadding}"
-            IsVisible="{Binding HasSvgNotice}">
+    <Border x:Name="SvgNoticeCard" Classes="notice info" IsVisible="{Binding HasSvgNotice}">
       <TextBlock x:Name="SvgNoticeText" TextWrapping="Wrap" Text="{Binding SvgNotice}" />
     </Border>
 
@@ -92,7 +90,7 @@
       MinWidth alone leaves them different. Dismissing is the quiet one.
       DialogGeometryTests measures the pair.
     -->
-    <UniformGrid HorizontalAlignment="Right" Columns="2" ColumnSpacing="8">
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="8" HorizontalAlignment="Right">
       <Button x:Name="CancelButton" Classes="tertiary" Content="Cancel" Click="OnCancel" IsCancel="True"
               HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
               MinWidth="{StaticResource SizeDialogButton}" />

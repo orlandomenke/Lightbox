@@ -91,8 +91,11 @@
   <Thickness x:Key="DialogPadding">16</Thickness>
   <!-- A dialog with a paragraph and a list to read: the crash-recovery offer (B394). -->
   <x:Double x:Key="SizeDialogWidth">480</x:Double>
-  <!-- A dialog's label column, its small text field, its buttons' floor. -->
-  <x:Double x:Key="SizeDialogLabel">110</x:Double>
+  <!-- A dialog's label column, its small text field, its buttons' floor.
+       The label was 110 here and a literal 120 in the export and image
+       dialogs; 120 is the one value now (owner, 2026-10-08), because it is
+       what most of the dialogs already were. -->
+  <x:Double x:Key="SizeDialogLabel">120</x:Double>
   <x:Double x:Key="SizeDialogField">70</x:Double>
   <x:Double x:Key="SizeDialogButton">80</x:Double>
 

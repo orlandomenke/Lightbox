@@ -6,7 +6,7 @@
         Width="480" SizeToContent="Height" MaxHeight="720"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
-  <StackPanel Margin="{StaticResource PagePadding}" Spacing="{StaticResource Space10}">
+  <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space10}">
 
     <!-- FFmpeg first, and loudly. The encoder being absent is the one thing
          that stops every setting below from mattering, and the version of
@@ -20,25 +20,25 @@
     <!-- 120 label column and 10px stack spacing to match the other
          settings dialogs (ExportWindow, UpdateFromTemplateWindow) — a window
          that is denser than its siblings reads as a different application. -->
-    <Grid ColumnDefinitions="120,*" ColumnSpacing="8" RowSpacing="8"
+    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" RowSpacing="8"
           RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
-      <TextBlock Grid.Row="0" Grid.Column="0" Text="Format" VerticalAlignment="Center" />
+      <TextBlock Grid.Row="0" Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Format" VerticalAlignment="Center" />
       <ComboBox Grid.Row="0" Grid.Column="1" x:Name="FormatBox" HorizontalAlignment="Stretch"
                 SelectionChanged="OnFormatChanged"
                 ToolTip.Tip="MP4 plays anywhere and is the one to send for review. ProRes is what an editor wants: bigger files, no generation loss." />
 
-      <TextBlock Grid.Row="1" Grid.Column="0" Text="Quality" VerticalAlignment="Center" />
+      <TextBlock Grid.Row="1" Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Quality" VerticalAlignment="Center" />
       <ComboBox Grid.Row="1" Grid.Column="1" x:Name="QualityBox" HorizontalAlignment="Stretch"
                 SelectionChanged="OnSettingChanged" />
 
-      <TextBlock Grid.Row="2" Grid.Column="0" Text="Size" VerticalAlignment="Center" />
+      <TextBlock Grid.Row="2" Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Size" VerticalAlignment="Center" />
       <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Space8}">
         <ComboBox x:Name="ScaleBox" SelectionChanged="OnSettingChanged"
                   ToolTip.Tip="The surface is rendered at this size — the drawing is not resampled, so a 200% render is a sharper mark rather than a bigger pixel." />
         <TextBlock x:Name="SizeText" VerticalAlignment="Center" Opacity="0.7" FontSize="{StaticResource TypeDense}" />
       </StackPanel>
 
-      <TextBlock Grid.Row="3" Grid.Column="0" Text="Frames" VerticalAlignment="Center" />
+      <TextBlock Grid.Row="3" Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Frames" VerticalAlignment="Center" />
       <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Space8}">
         <CheckBox x:Name="WholeTimelineBox" Content="All" IsChecked="True"
                   IsCheckedChanged="OnWholeTimelineChanged" />
@@ -47,13 +47,13 @@
         <TextBox x:Name="ToBox" Width="{StaticResource SizeDialogField}" TextChanged="OnSettingChanged" />
       </StackPanel>
 
-      <TextBlock Grid.Row="4" Grid.Column="0" Text="Frame rate" VerticalAlignment="Center" />
+      <TextBlock Grid.Row="4" Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Frame rate" VerticalAlignment="Center" />
       <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Space8}">
         <TextBox x:Name="FpsBox" Width="{StaticResource SizeDialogField}" TextChanged="OnSettingChanged" />
         <TextBlock x:Name="DurationText" VerticalAlignment="Center" Opacity="0.7" FontSize="{StaticResource TypeDense}" />
       </StackPanel>
 
-      <TextBlock Grid.Row="5" Grid.Column="0" Text="Sound" VerticalAlignment="Center" />
+      <TextBlock Grid.Row="5" Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Sound" VerticalAlignment="Center" />
       <CheckBox Grid.Row="5" Grid.Column="1" x:Name="AudioBox" Content="Mux the scratch track"
                 IsChecked="True"
                 ToolTip.Tip="Off when the document has no sound, or the track is muted." />
@@ -61,8 +61,8 @@
 
     <Separator />
 
-    <Grid ColumnDefinitions="120,*,Auto" ColumnSpacing="8">
-      <TextBlock Grid.Column="0" Text="Save to" VerticalAlignment="Center" />
+    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+      <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Save to" VerticalAlignment="Center" />
       <TextBox Grid.Column="1" x:Name="PathBox" TextChanged="OnSettingChanged"
                PlaceholderText="Choose where the file goes" />
       <Button Grid.Column="2" Classes="text" Content="Browse…" Click="OnBrowse" />
@@ -79,8 +79,8 @@
       MinWidth alone leaves them different. Dismissing is the quiet one.
       DialogGeometryTests measures the pair.
     -->
-    <UniformGrid HorizontalAlignment="Right" Columns="2" ColumnSpacing="8">
-      <Button x:Name="CloseButton" Classes="tertiary" Content="Close" Click="OnClose"
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="8" HorizontalAlignment="Right">
+      <Button x:Name="CloseButton" Classes="tertiary" Content="Close" Click="OnClose" IsCancel="True"
               HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
               MinWidth="{StaticResource SizeDialogButton}" />
       <Button x:Name="ExportButton" Classes="primary" Content="Export" Click="OnExport" IsDefault="True"
