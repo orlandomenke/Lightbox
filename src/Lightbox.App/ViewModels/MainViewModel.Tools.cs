@@ -709,9 +709,16 @@ public partial class MainViewModel
 
     public IReadOnlyList<HoldDrawing> HoldDrawingChoices { get; } = Enum.GetValues<HoldDrawing>();
 
-    /// <summary>Timeline-context shortcut: key the active layer's cel at the playhead.</summary>
-    public void InsertKeyframeAtPlayhead() =>
-        _editor.SetKeyAt(ActiveLayer.Id, CurrentFrameIndex, FrameRole.Key);
+    /// <summary>
+    /// Timeline-context shortcut (I): key the picked cel, or the playhead's on
+    /// the layer being drawn on when none is picked.
+    /// </summary>
+    /// <remarks>
+    /// Through <see cref="InsertFrameAtPlayhead"/>, the Animation menu's item,
+    /// so the key and the menu cannot mean different cels. They were two
+    /// methods, and after Q224 only the menu's knew which cel was picked.
+    /// </remarks>
+    public void InsertKeyframeAtPlayhead() => InsertFrameAtPlayhead(FrameRole.Key);
 
     /// <summary>The tool button's icon, so it says which selection it will make.</summary>
     /// <remarks>

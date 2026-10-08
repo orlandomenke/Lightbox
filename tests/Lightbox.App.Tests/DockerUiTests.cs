@@ -68,7 +68,7 @@ public class LayerRowTests
     }
 
     [AvaloniaFact]
-    public void SelectFrame_OnAnotherLayersCell_SelectsThatLayerAndFrame()
+    public void ActivatingAnotherLayersCell_SelectsThatLayerAndFrame()
     {
         // Bare: this is about row/layer addressing, so paper would only shift
         // every index without changing what is being checked.
@@ -76,12 +76,30 @@ public class LayerRowTests
         vm.AddPaintedLayerCommand.Execute(null); // active layer = 1
         vm.AddFrameCommand.Execute(null);       // playhead = 1
 
+        // Q224: a double click is what goes to a cel AND takes its layer. A
+        // plain click used to, and this test was written against that; the
+        // addressing it checks — second row is scene layer 0 — is unchanged.
         var bottomRowCell = vm.LayerRows[1].Cells[0]; // scene layer 0, frame 0
-        vm.SelectFrameCommand.Execute(bottomRowCell);
+        vm.ActivateCel(bottomRowCell);
 
         Assert.Equal(0, vm.ActiveLayerIndex);
         Assert.Equal(0, vm.CurrentFrameIndex);
         Assert.True(vm.LayerRows[1].IsActive);
+    }
+
+    [AvaloniaFact]
+    public void SelectFrame_OnAnotherLayersCell_PicksItAndKeepsTheLayer()
+    {
+        var vm = VmLayers.BareVm();
+        vm.AddPaintedLayerCommand.Execute(null); // active layer = 1
+        vm.AddFrameCommand.Execute(null);       // playhead = 1
+
+        vm.SelectFrameCommand.Execute(vm.LayerRows[1].Cells[0]); // scene layer 0, frame 0
+
+        Assert.Equal(1, vm.ActiveLayerIndex);
+        Assert.Equal(0, vm.CurrentFrameIndex);
+        Assert.True(vm.LayerRows[0].IsActive);
+        Assert.True(vm.LayerRows[1].Cells[0].IsSelected);
     }
 
     /// <remarks>

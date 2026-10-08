@@ -1834,9 +1834,56 @@ public partial class MainViewModel
         RefreshPointerIntent();
     }
 
-    /// <summary>Clicking a cel selects both the frame and the layer it belongs to.</summary>
+    /// <summary>
+    /// A plain click on a cel: go to its frame and pick it, without changing
+    /// the layer being drawn on (Q224).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It used to do three things at once — go to the frame, pick the cel and
+    /// switch the layer — and the third is the one an artist reading timing
+    /// across rows did not ask for: one click in another layer's row and the
+    /// next mark lands on the wrong layer. Switching is now its own gesture,
+    /// <see cref="ActivateCel"/>, on a double click.
+    /// </para>
+    /// <para>
+    /// <b>In another layer's row the cel becomes the selection</b>, the one
+    /// cel of it, so that every verb that asks "which cel?" answers with the
+    /// one that is highlighted (<see cref="SelectionOrCurrentCell"/>). In the
+    /// row of the layer being drawn on there is nothing to keep apart — the
+    /// playhead's cel on that layer <em>is</em> the pick — so that click is
+    /// exactly what it always was, selection cleared and all.
+    /// </para>
+    /// </remarks>
     [RelayCommand]
     private void SelectFrame(FrameCell cell)
+    {
+        if (cell.LayerIndex == ActiveLayerIndex || cell.LayerIndex < 0 || cell.LayerIndex >= Scene.Layers.Count)
+        {
+            ActivateCel(cell);
+            return;
+        }
+
+        // Already exactly this: a click that changes nothing repaints nothing.
+        var key = TimelineKey.Cel(cell.LayerIndex, cell.Index);
+        if (CurrentFrameIndex == cell.Index && _keySelection.Count == 1 && _keySelection.Contains(key)) return;
+
+        CurrentFrameIndex = cell.Index;
+        _keySelection.Clear();
+        // Q103, as below: a hatched cell can be stood on and cannot be picked.
+        if (!cell.IsVirtual)
+        {
+            _keySelection.Add(TimelineKey.Cel(cell.LayerIndex, cell.Index));
+            _celAnchor = (cell.LayerIndex, cell.Index);
+        }
+        RefreshTimelineSelection();
+    }
+
+    /// <summary>
+    /// Go to a cel and make its layer the one being drawn on — a double click
+    /// in the sheet, and what a plain click did before Q224.
+    /// </summary>
+    public void ActivateCel(FrameCell cell)
     {
         // A cel click picks a layer, so a folder picked on its header stops
         // being the pick — even when the layer it lands on was already active

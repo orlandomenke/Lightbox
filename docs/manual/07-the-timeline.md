@@ -4,13 +4,15 @@
 ## The timeline family
 
 **The everyday frame verbs are also on the Animation menu**, each aimed at the
-drawing under the playhead on the layer you are on: play/pause and flipping to
+cel you have picked — or, with nothing picked, the drawing under the playhead
+on the layer you are on: play/pause and flipping to
 the neighbouring keys, inserting a keyframe, breakdown or inbetween, inserting
 an empty cell or a blank keyframe, extending and reducing an exposure, the cel
 clipboard, Delete and Delete and pull, onion skin and motion trail, and the
-playback range. Delete, Delete and pull, Insert empty cell and Insert blank
-keyframe take the **selection** when there is one,
-wherever the playhead is. The cel's right-click menu stays the way
+playback range. Every one of them takes the **selection** when there is one,
+wherever the playhead is — Delete, Delete and pull, Insert empty cell and
+Insert blank keyframe cover all of it; the others act on the picked cel. None
+of them changes the layer you draw on. The cel's right-click menu stays the way
 to aim any of them at a *particular* cel — and keeps the dialogs (re-time,
 timing chart, markers), which need one to aim at.
 
@@ -31,8 +33,37 @@ and the sheet keeps its place along the frames: only up and down changes.
 
 ## The X-sheet
 
-One row per layer, one cell per frame. Click a cell to go there; the current one
-is highlighted. A **keyed** cell holds a drawing; a **hold** repeats the drawing
+One row per layer, one cell per frame. **Click a cell to go to its frame and
+pick it**; the current frame is highlighted down the sheet.
+
+**A click never changes the layer you are drawing on.** Click a cell in another
+layer's row and the playhead goes to that frame and that cell becomes the
+selection — so Delete, copy, cut and paste, extending or reducing an exposure,
+a timing preset and marking a keyframe or breakdown all act on *it* — while the
+next mark you make still lands on the layer you were on. Reading the timing of
+another layer, or tidying it, no longer costs you your place.
+**Double-click a cell to go there and draw there**: that switches to its layer.
+Clicking a layer's name at the start of its row, or picking it in the Layers
+docker, switches layer without moving the playhead. A click in your own layer's
+row simply moves the playhead, as it always has.
+
+**The cel that is highlighted is the one a command means**, however it came to
+be picked. Ctrl+click picks a cel without moving the playhead, so with a cel
+picked on frame 10 and the playhead on frame 3, copy copies frame 10's cel,
+paste lands on it, and **I** or *Insert breakdown* marks it — and the playhead
+stays on 3. With a block picked, copy takes the block's run and paste lands at
+the block's first cel, not at the playhead. When cels on several layers are
+picked at the same frame, a command that needs one of them takes the topmost
+row. With nothing picked — or only camera or bone keys picked on the Timeline
+tab — these commands mean the playhead's cel on the layer you are on, as
+before; Delete is the exception, and refuses rather than guess.
+
+**Three things stay with the layer you draw on, not with the picked cel:**
+drawing itself, AI inbetweening, and stepping to the previous or next key
+(**1** and **2**), which walk the keys of the layer you are on. And one gesture
+still takes you to another layer besides the double click: Alt+dragging a
+drawing along another layer's row, and the commands on a cel's own right-click
+menu, which have always meant "here". A **keyed** cell holds a drawing; a **hold** repeats the drawing
 before it, which is what animating on 2s and 3s is made of.
 
 **Two kinds of cell look empty, and they are not the same thing.** A plain empty
