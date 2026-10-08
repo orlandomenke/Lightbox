@@ -1238,6 +1238,9 @@ public partial class MainWindow : IFollowsUiScale
         LayerList.AddHandler(PointerReleasedEvent, OnLayerListPointerReleased, handledEventsToo: true);
         LayerList.AddHandler(PointerCaptureLostEvent, OnLayerListCaptureLost);
         XsheetLayerList.AddHandler(PointerPressedEvent, OnXsheetLayerPressedTunnel, RoutingStrategies.Tunnel);
+        // Wired from here to keep the constructor inside its line budget; the
+        // reveal itself lives with the timeline, in MainWindow.Timeline.cs.
+        WireLayerReveal();
     }
     /// <summary>
     /// Ctrl or Shift pressed on an X-sheet layer name is a selection click on the
