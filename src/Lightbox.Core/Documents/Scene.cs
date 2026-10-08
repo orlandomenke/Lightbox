@@ -526,10 +526,11 @@ public sealed class Scene
         return shell;
     }
 
-    public Scene Clone()
+    /// <param name="frame">How each drawing is copied; see <see cref="Doc.Clone"/>.</param>
+    public Scene Clone(Func<Frame, Frame>? frame = null)
     {
         var copy = (Scene)MemberwiseClone();
-        copy.Layers = Layers.Select(l => l.Clone()).ToList();
+        copy.Layers = Layers.Select(l => l.Clone(frame)).ToList();
         copy.Markers = Markers.Select(m => m.Clone()).ToList();
         copy.LayerGroups = LayerGroups.Select(g => g.Clone()).ToList();
         copy.LayerLinks = LayerLinks?.Select(l => l.Clone()).ToList();

@@ -25,6 +25,13 @@ namespace Lightbox.Core.Timeline;
 /// it — but the sentence's actual prediction still stands: the structural edits
 /// that <em>can</em> express an inverse should become deltas, and most of them
 /// can, because most touch one layer or one list rather than the document.
+/// <para>
+/// <b>A snapshot stores only the drawings that changed</b>
+/// (docs/DESIGN-undo-shares-unchanged.md). Its drawings are frozen and shared with
+/// every other step whose drawing has not changed since, so a rename on the
+/// owner-shaped document stores 17 KB where it stored 14.4 MB. Undo and redo pay
+/// for it by thawing a fresh copy: about one clone, before the re-render.
+/// </para>
 /// </summary>
 public sealed class DocumentEditor
 {
@@ -66,9 +73,9 @@ public sealed class DocumentEditor
     /// </remarks>
     public long Revision => _undo.Count > 0 ? _undo.Peek().Revision : 0;
     /// <summary>
-    /// Undo steps kept. Stroke commits are cheap deltas, but structural edits
-    /// snapshot the whole document, so on a large scene this trades memory
-    /// for history depth.
+    /// Undo steps kept. Stroke commits are cheap deltas; structural edits
+    /// snapshot the document, sharing every drawing that has not changed with the
+    /// steps around them, so depth costs the drawings edited rather than the scene.
     /// </summary>
     public int MaxUndo { get; set; } = 64;
 
@@ -199,8 +206,8 @@ public sealed class DocumentEditor
         var name = label ?? Humanize(caller);
         using var whole = Measure?.Invoke("edit", name);
         Doc before;
-        using (Measure?.Invoke("edit.snapshot", name)) before = Doc.Clone();
-        PushStep(new SnapshotStep(before, frameContentUnchanged, touchedFrames), name);
+        using (Measure?.Invoke("edit.snapshot", name)) before = Freeze(Doc);
+        PushStep(new SnapshotStep(before, Freeze, frameContentUnchanged, touchedFrames), name);
         using (Measure?.Invoke("edit.apply", name))
         {
             mutate(Doc);
@@ -222,6 +229,57 @@ public sealed class DocumentEditor
     /// must not grow one: the app installs this when its own log is on.
     /// </remarks>
     public static Func<string, string, IDisposable?>? Measure { get; set; }
+
+    // ---- frozen drawings (docs/DESIGN-undo-shares-unchanged.md) ---------------
+
+    /// <summary>
+    /// The latest frozen copy of each drawing, by id. Weak: the steps that use a
+    /// copy keep it alive, and a copy no step uses is free to go.
+    /// </summary>
+    private readonly Dictionary<string, WeakReference<Frame>> _frozen = [];
+
+    /// <summary>
+    /// A copy of <paramref name="doc"/> for the history to hold. Every drawing in
+    /// it is frozen — never handed out to be edited — so a drawing that has not
+    /// changed since it was last frozen is the same object in every step that
+    /// holds it, and costs its bytes once.
+    /// </summary>
+    private Doc Freeze(Doc doc)
+    {
+        var frozen = doc.Clone(FrozenCopyOf);
+        // Ids of drawings since deleted leave dead entries behind; clearing them
+        // here keeps the table the size of the drawings the history still holds.
+        if (_frozen.Count > 64) Prune();
+        return frozen;
+    }
+
+    private Frame FrozenCopyOf(Frame live)
+    {
+        // The compare walks every point, but allocates nothing: on the owner-
+        // shaped fixture, about the time the copy it saves would have taken.
+        if (_frozen.TryGetValue(live.Id, out var held) && held.TryGetTarget(out var frozen)
+            && ContentEquality.Same(live, frozen))
+        {
+            return frozen;
+        }
+        var copy = live.Clone();
+        _frozen[live.Id] = new WeakReference<Frame>(copy);
+        return copy;
+    }
+
+    private void Prune()
+    {
+        foreach (var id in _frozen.Where(e => !e.Value.TryGetTarget(out _)).Select(e => e.Key).ToList())
+        {
+            _frozen.Remove(id);
+        }
+    }
+
+    /// <summary>
+    /// A live document from a frozen one: every drawing copied afresh, so nothing
+    /// the history holds can be edited through what this returns.
+    /// </summary>
+    private static Doc Thaw(Doc frozen) => frozen.Clone();
 
     /// <summary>
     /// Run a mutation as one undoable step WITHOUT snapshotting the document —
@@ -513,8 +571,15 @@ public sealed class DocumentEditor
     /// nothing. Swapping rather than copying is what makes redo exact: the
     /// step always holds whichever document is not current.
     /// </remarks>
+    /// <summary>
+    /// A whole-document step. It holds the side the document is not on, frozen,
+    /// and exchanges it on every undo and redo: the side it hands back is thawed,
+    /// the side it takes is frozen, and frozen drawings that have not changed are
+    /// shared with every other step that holds them.
+    /// </summary>
     private sealed class SnapshotStep(
-        Doc other, bool frameContentUnchanged, IReadOnlyCollection<string>? frameIds = null) : IEditStep
+        Doc other, Func<Doc, Doc> freeze, bool frameContentUnchanged,
+        IReadOnlyCollection<string>? frameIds = null) : IEditStep
     {
         private Doc _other = other;
 
@@ -530,8 +595,8 @@ public sealed class DocumentEditor
 
         private Doc Swap(Doc doc)
         {
-            var restored = _other;
-            _other = doc;
+            var restored = Thaw(_other);
+            _other = freeze(doc);
             return restored;
         }
     }
