@@ -858,6 +858,21 @@ public static class Skinning
         return stroke =>
         {
             var bindings = BindingsFor(stroke, armature, layerBone, named);
+            if (stroke.Weights is not { Count: > 0 } && named is null && bindings is not null
+                && corrections.GetValueOrDefault(stroke.Id) is null)
+            {
+                // Weighted the way the render weights it (B404): the render
+                // auto-weights a whole-skeleton stroke on its densified path,
+                // so the edit has to be inverted through those weights too —
+                // not two endpoint weights ramped across inserted points, which
+                // the write-back would then store, reshaping the line for good.
+                // Not under a corrective: its offsets are stored per control
+                // point, and inserting points would orphan them.
+                var dense = DenseRest(stroke.Points, WriteBackChord);
+                if (!ReferenceEquals(dense, stroke.Points)) stroke.Points = [.. dense];
+                var (atDensity, _) = AutoWeights(stroke.Points, armature, pose: null);
+                bindings = atDensity.Count > 0 ? atDensity : bindings;
+            }
             if (!TransformInPose(
                     stroke, armature, pose, bindings, corrections.GetValueOrDefault(stroke.Id), map, deltas))
             {
@@ -924,7 +939,10 @@ public static class Skinning
             // Dense before the auto-bind, so the weights vary smoothly along
             // the line and the inverse holds between the pen's samples — a
             // shape's five corners across a bent joint would otherwise bow.
-            stroke.Points = [.. GeometryOps.Densify(stroke.Points, WriteBackChord)];
+            // Pair-aware (B404): a line-tool line is two points, Densify
+            // leaves a pair alone, and its middle would pose as one blend of
+            // its two ends and bow away from where the pen drew it.
+            stroke.Points = [.. DenseRest(stroke.Points, WriteBackChord)];
             AutoBind(stroke, armature, pose);
             bindings = stroke.Weights;
             if (bindings is not { Count: > 0 }) return null;
@@ -966,8 +984,13 @@ public static class Skinning
         }
 
         // Same short-circuit as GeometryOps.Densify: nothing to add means the
-        // caller's own points, weights straight off the record.
-        var dense = DenseRest(points, maxChord);
+        // caller's own points, weights straight off the record. A pair is
+        // subdivided only when its weights vary (B404): one bone at full
+        // weight is one rigid map, the chord stays exact under it, and a bake
+        // of a rigidly bound line keeps the two points it was drawn with.
+        var varies = bindings.Count > 1;
+        foreach (var b in bindings) varies |= b.PointWeights is not null;
+        var dense = varies ? DenseRest(points, maxChord) : GeometryOps.Densify(points, maxChord);
         if (ReferenceEquals(dense, points))
         {
             var direct = new double[points.Count][];

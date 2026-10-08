@@ -23,6 +23,13 @@
    separately because answer 2 reached further than the falloff): a two-point
    stroke posed as a chord (B404) and pruned weights not renormalised (B405).
    Only the broken cases change; nothing in the file does.
+5. **Sparse shapes are among the broken cases** (asked after the
+   sensitivity review measured it; as recommended). A rectangle, polygon or
+   fill contour on a whole-skeleton layer was posed by ramping each side's
+   weights between its corners — B404's defect with more corners. Weighting
+   along the side moves such a shape up to 9.9 px (rectangle) and 14.6 px
+   (triangle) at a 90° joint, and freehand drawings by 0.2 px. Existing rigged
+   shapes look different at bent joints, which is what was agreed to.
 
 Raised by: the owner, 2026-10-08 — "if I draw a straight line and want to
 rotate the bone, the line should still be straight for most part of it …
