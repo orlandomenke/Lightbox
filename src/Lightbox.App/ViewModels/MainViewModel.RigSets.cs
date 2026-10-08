@@ -254,10 +254,12 @@ public partial class MainViewModel
 
         var landed = ArmatureFit.LandedAs(set, AuthoredCanvas.Of(Scene), DocumentHeightScale, RigPullFit);
         var fitted = ArmatureFit.Onto(set, AuthoredCanvas.Of(Scene), DocumentHeightScale, RigPullFit);
-        var before = Doc.Armature;
+        // B415: an exchange — each direction puts back the rig the other took
+        // out, as it was in the document, not as it was made.
+        var other = fitted;
         _editor.PerformDelta(
-            apply: doc => doc.Armature = fitted,
-            revert: doc => doc.Armature = before);
+            apply: doc => (doc.Armature, other) = (other, doc.Armature),
+            revert: doc => (doc.Armature, other) = (other, doc.Armature));
         NotifyArmatureSurface();
         NotifyRigSetOffers();
         AiStatus = landed switch

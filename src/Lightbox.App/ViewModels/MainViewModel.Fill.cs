@@ -430,18 +430,22 @@ public partial class MainViewModel
         _committingScopedEdit = true;
         try
         {
+            // B415: what undo takes out is what redo puts back — the stroke as it
+            // is in the document, not as it was made, which can differ once a
+            // structural undo has swapped the document for a copy.
+            var inDocument = stroke;
             _editor.PerformDelta(
                 apply: doc =>
                 {
                     if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
                     var list = StrokeListIn(doc, frameId);
                     if (list is null) return;
-                    if (below) list.Insert(UnderLineWorkIndex(list), stroke);
-                    else list.Add(stroke);
+                    if (below) list.Insert(UnderLineWorkIndex(list), inDocument);
+                    else list.Add(inDocument);
                 },
                 revert: doc =>
                 {
-                    RemoveStrokeById(doc, frameId, stroke.Id);
+                    inDocument = RemoveStrokeById(doc, frameId, stroke.Id) ?? inDocument;
                     if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
                 },
                 affectedFrameId: frameId,

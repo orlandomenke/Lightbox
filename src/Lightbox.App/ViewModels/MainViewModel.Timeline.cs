@@ -1697,11 +1697,22 @@ public partial class MainViewModel
     /// snapshot-undo in between replaces the whole instance tree.
     /// </summary>
     /// <summary>Remove a stroke by id — reference equality dies when a snapshot-undo swaps in a cloned tree.</summary>
-    private static void RemoveStrokeById(Doc doc, string frameId, string strokeId)
+    /// <summary>Take a stroke out of a drawing by id; the stroke taken, or null when it was not there.</summary>
+    private static Stroke? RemoveStrokeById(Doc doc, string frameId, string strokeId) =>
+        TakeLast(StrokeListIn(doc, frameId), s => s.Id == strokeId);
+
+    /// <summary>
+    /// Take the last match out of a list and hand it back (B415): an undo keeps
+    /// what it took out of the document, so its redo can put that back rather
+    /// than the object the step was made with.
+    /// </summary>
+    private static T? TakeLast<T>(List<T>? list, Predicate<T> match) where T : class
     {
-        var list = StrokeListIn(doc, frameId);
-        var index = list?.FindLastIndex(s => s.Id == strokeId) ?? -1;
-        if (index >= 0) list!.RemoveAt(index);
+        var index = list?.FindLastIndex(match) ?? -1;
+        if (index < 0) return null;
+        var item = list![index];
+        list.RemoveAt(index);
+        return item;
     }
 
     private static List<Stroke>? StrokeListIn(Doc doc, string frameId)

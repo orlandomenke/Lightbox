@@ -2108,6 +2108,17 @@ test reopens the bug.
   - Fix: `_placementDrag` carries a set instead of one id, so a group is the same operation on more of them — same anchor, same axis lock, one `PerformDelta` step for the whole drag. A selection makes the grab modal inside `BeginPlacementMove`, which is the side that knows what is selected, so `CanvasControl` went back to reporting absolute document coordinates like every other move. The parallel path is deleted. Cost: S
   - P1 because the feature did not work and the damage it did could not be taken back.
 
+- [x] **B415** `P2` `canvas` Redo puts back the object a step was made with, not the one undo took out: a stroke can come back twice `evidence: RedoInsertsACopyTests, RedoingANewDrawingAndItsStrokeDoesNotDrawTheStrokeTwice, RedoingAPlacementPutsItWhereItWasPlacedNotWhereItWasLaterMoved`
+  - **Found 2026-10-08** by the sensitivity review of undo storing only what changed (#626), as a note. It is a bug on main that that change does not make worse.
+  - **Mechanism:** a delta that puts an object into the document put back the very object it was made with on every redo. After a structural undo swaps the document for a copy, later undos act on copies, and the original keeps whatever was in it. Two sequences show it:
+    - **Draw on a held cel.** That makes a new drawing and puts a stroke on it. Then do any structural edit and undo three times, so the drawing goes. Redo twice. The redo of the new drawing put back the original frame, which still held the stroke, and the redo of the stroke added it again. **The stroke was drawn twice and saved that way.**
+    - **Place a symbol and move it.** The move edits the placement in place. Undo and redo across a swap. The placement came back already moved, before its move had been redone.
+  - **Fix:** each such step puts back what the other direction took out of the document. Where the step swaps one object for another (a cel's drawing, the rig, the symmetry axis), that is a plain exchange: `(cel.Frame, other) = (other, cel.Frame)`. Where it adds and removes:
+    - stroke commits keep the stroke `RemoveStrokeById` takes out, which it now returns;
+    - symbol placements, carved and baked strokes, and frame groups keep what their undo takes out, through `TakeLast`;
+    - retyped text keeps the letters and the text entry in both directions.
+    This costs nothing at commit; the stroke commit's hot path is unchanged.
+
 - [x] **B412** `P2` `canvas` A refused undo-pixel swap leaves its patch on the wrong side, and a later swap writes it back `evidence: MarkSnapshotRefusalTests, ARefusedSwapDropsItsStepSoALaterOneCannotWriteTheWrongSideBack`
 
   - **Found in review, 2026-10-08,** by the sensitivity pass on the overall memory limit (Q221). That change did not make the hole but makes it likelier: a limit that evicts the least recently used picture anywhere is exactly what removes one of a frame's two renderings.

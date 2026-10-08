@@ -843,6 +843,13 @@ public partial class MainViewModel
         var frameId = target.Id;
         var removed = replacing ?? [];
         var indices = new List<int>();
+        // B415: each direction keeps what it takes out of the document, and
+        // the other puts back exactly that — the letters and words as they were
+        // in the document, not the objects this step was made with.
+        IReadOnlyList<Stroke> removedOut = removed;
+        IReadOnlyList<Stroke> glyphsIn = glyphs;
+        var textIn = text;
+        var originalOut = original;
 
         _committingScopedEdit = true;
         try
@@ -858,13 +865,17 @@ public partial class MainViewModel
                     // jumped above the artwork on every edit would be a stacking
                     // bug nobody could explain.
                     indices.Clear();
+                    var taken = new List<Stroke>();
                     foreach (var old in removed)
                     {
                         var at = list.FindIndex(s => s.Id == old.Id);
                         if (at < 0) continue;
                         indices.Add(at);
+                        taken.Add(list[at]);
                         list.RemoveAt(at);
                     }
+                    if (taken.Count > 0) removedOut = taken;
+                    if (original is not null && doc.Texts?.GetValueOrDefault(original.Id) is { } was) originalOut = was;
 
                     if (glyphs.Count == 0)
                     {
@@ -873,18 +884,21 @@ public partial class MainViewModel
                     }
 
                     doc.Texts ??= [];
-                    doc.Texts[text.Id] = text;
+                    doc.Texts[text.Id] = textIn;
                     choice.RecordInto(doc);
-                    list.AddRange(glyphs);
+                    list.AddRange(glyphsIn);
                 },
                 revert: doc =>
                 {
                     var list = StrokeListIn(doc, frameId);
                     if (list is null) return;
 
-                    foreach (var glyph in glyphs) list.RemoveAll(s => s.Id == glyph.Id);
+                    var glyphIds = glyphs.Select(g => g.Id).ToHashSet();
+                    if (list.Where(s => glyphIds.Contains(s.Id)).ToList() is { Count: > 0 } live) glyphsIn = live;
+                    list.RemoveAll(s => glyphIds.Contains(s.Id));
                     if (glyphs.Count > 0)
                     {
+                        if (doc.Texts?.GetValueOrDefault(text.Id) is { } typed) textIn = typed;
                         doc.Texts?.Remove(text.Id);
                         choice.RemoveFrom(doc);
                         if (doc.Texts is { Count: 0 }) doc.Texts = null;
@@ -893,15 +907,15 @@ public partial class MainViewModel
                     for (var i = removed.Count - 1; i >= 0; i--)
                     {
                         var at = i < indices.Count ? Math.Min(indices[i], list.Count) : list.Count;
-                        list.Insert(at, removed[i]);
+                        list.Insert(at, removedOut[i]);
                     }
                     // The element as it was before the retype, not the one being
                     // typed over it: undoing must put back the words that go
                     // with the letters being put back.
-                    if (original is not null)
+                    if (originalOut is not null)
                     {
                         doc.Texts ??= [];
-                        doc.Texts[original.Id] = original;
+                        doc.Texts[originalOut.Id] = originalOut;
                     }
                 },
                 affectedFrameId: frameId);

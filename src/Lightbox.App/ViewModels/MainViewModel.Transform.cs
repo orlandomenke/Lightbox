@@ -1527,14 +1527,16 @@ public partial class MainViewModel
             }
             var copy = KeyedCopyOf(exposed);
             var index = here;
+            // B415: an exchange, so a redo restores the drawing as undo found it.
+            Frame? other = copy;
             _editor.PerformDelta(
                 apply: doc =>
                 {
-                    if (CelIn(doc, layerId, index) is { } cel) cel.Frame = copy;
+                    if (CelIn(doc, layerId, index) is { } cel) (cel.Frame, other) = (other, cel.Frame);
                 },
                 revert: doc =>
                 {
-                    if (CelIn(doc, layerId, index) is { } cel) cel.Frame = null;
+                    if (CelIn(doc, layerId, index) is { } cel) (cel.Frame, other) = (other, cel.Frame);
                 },
                 label: "New drawing");
             if (CelIn(Doc, layerId, index)?.Frame is { } landed) keyed[heldId] = landed;
