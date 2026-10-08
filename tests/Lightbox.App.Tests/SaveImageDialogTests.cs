@@ -126,35 +126,6 @@ public class SaveImageDialogTests(Xunit.ITestOutputHelper output)
         Assert.Equal(1, vm.OutputHeight);
     }
 
-    // ---- every frame -----------------------------------------------------------
-
-    [Fact]
-    public void ASinglePaintingIsNotOfferedEveryFrame()
-    {
-        var vm = new SaveImageDialogViewModel(Painting(frames: 1));
-
-        Assert.False(vm.IsSequence);
-    }
-
-    [Fact]
-    public void EveryFrameIsIgnoredOnADocumentThatHasOnlyOne()
-    {
-        // Belt and braces: the checkbox is hidden, and ticking it anyway through
-        // a binding cannot produce a numbered single file.
-        var vm = new SaveImageDialogViewModel(Painting(frames: 1)) { AllFrames = true };
-
-        Assert.False(vm.ToOptions().AllFrames);
-    }
-
-    [Fact]
-    public void EveryFrameReachesTheOptionsOnASequence()
-    {
-        var vm = new SaveImageDialogViewModel(Painting(frames: 24)) { AllFrames = true };
-
-        Assert.True(vm.IsSequence);
-        Assert.True(vm.ToOptions().AllFrames);
-    }
-
     // ---- the sentence ----------------------------------------------------------
 
     [Fact]
@@ -163,15 +134,16 @@ public class SaveImageDialogTests(Xunit.ITestOutputHelper output)
         var vm = new SaveImageDialogViewModel(Painting(120, 80, frames: 3));
 
         output.WriteLine(vm.Summary);
-        Assert.Contains("one file", vm.Summary);
+        Assert.Contains("One file", vm.Summary);
         Assert.Contains("120×80", vm.Summary);
         Assert.Contains("PNG", vm.Summary);
         Assert.DoesNotContain("quality", vm.Summary);
 
-        vm.AllFrames = true;
+        // Three frames on the timeline and still one file: a run of frames is
+        // Export image sequence… (Q219).
         vm.Format = ImageSaveFormat.Jpeg;
         output.WriteLine(vm.Summary);
-        Assert.Contains("3 files", vm.Summary);
+        Assert.Contains("One file", vm.Summary);
         Assert.Contains("quality 90", vm.Summary);
     }
 
@@ -197,7 +169,6 @@ public class SaveImageDialogTests(Xunit.ITestOutputHelper output)
             Format = ImageSaveFormat.Webp,
             Quality = 55,
             ScalePercent = 150,
-            AllFrames = true,
             Matte = "#101010",
         };
 
@@ -206,7 +177,6 @@ public class SaveImageDialogTests(Xunit.ITestOutputHelper output)
         Assert.Equal(ImageSaveFormat.Webp, options.Format);
         Assert.Equal(55, options.Quality);
         Assert.Equal(1.5, options.Scale, 3);
-        Assert.True(options.AllFrames);
         Assert.Equal("#101010", options.Matte);
     }
 
@@ -246,7 +216,6 @@ public class SaveImageDialogTests(Xunit.ITestOutputHelper output)
 
         Assert.NotNull(dialog.DataContext);
         Assert.False(dialog.Confirmed);
-        Assert.Equal(6, dialog.Choice.FrameCount);
         output.WriteLine($"\"{dialog.Title}\" — {dialog.Choice.Summary}");
     }
 

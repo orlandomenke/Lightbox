@@ -628,33 +628,6 @@ public partial class MainWindow
         await writer.WriteAsync(_vm.ExportStandaloneDocument());
     }
 
-    private async void OnExportClicked(object? sender, RoutedEventArgs e)
-    {
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = "Export PNG sequence to folder",
-            AllowMultiple = false,
-        });
-        if (folders.Count == 0) return;
-        var dir = folders[0].TryGetLocalPath();
-        if (dir is null) return;
-        var clip = _vm.ResolvedAudioPathForExport() is not null ? _vm.AudioClipNow : null;
-        var written = await Task.Run(() =>
-        {
-            var files = Services.SequenceExporter.ExportPngSequence(_vm.Doc, dir);
-            // The scratch track rides along as plain PCM, the one encoding
-            // every comp package reads (Q56).
-            if (clip is not null)
-            {
-                Services.VideoExporter.WriteWavPcm16(clip, Path.Combine(dir, "audio.wav"));
-            }
-            return files;
-        });
-        _vm.AiStatus = clip is null
-            ? $"Exported {written.Count} PNG frame(s)."
-            : $"Exported {written.Count} PNG frame(s) and audio.wav.";
-    }
-
     /// <summary>
     /// <c>File ▸ Export video…</c> — the settings window owns the whole
     /// render (B146). It used to be a save picker whose every answer, the
