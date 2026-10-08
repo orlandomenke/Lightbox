@@ -23,9 +23,13 @@ public partial class SaveImageDialog : Window
     /// <summary>Whether the artist pressed Save rather than closing the window.</summary>
     public bool Confirmed { get; private set; }
 
-    public SaveImageDialog(Scene scene)
+    public SaveImageDialog(Scene scene) : this(scene, null) { }
+
+    /// <param name="scene">The document's scene.</param>
+    /// <param name="svgSurvey">What an SVG save would do with each layer; asked only if SVG is chosen.</param>
+    public SaveImageDialog(Scene scene, Func<Services.SvgReport>? svgSurvey)
     {
-        _vm = new SaveImageDialogViewModel(scene);
+        _vm = new SaveImageDialogViewModel(scene, svgSurvey);
         DataContext = _vm;
         InitializeComponent();
     }

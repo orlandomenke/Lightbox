@@ -140,7 +140,7 @@ public class SaveImageDialogTests(Xunit.ITestOutputHelper output)
         Assert.DoesNotContain("quality", vm.Summary);
 
         // Three frames on the timeline and still one file: a run of frames is
-        // Export image sequence… (Q219).
+        // Export image sequence… (Q220).
         vm.Format = ImageSaveFormat.Jpeg;
         output.WriteLine(vm.Summary);
         Assert.Contains("One file", vm.Summary);

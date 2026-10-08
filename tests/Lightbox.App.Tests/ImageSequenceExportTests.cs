@@ -9,7 +9,7 @@ namespace Lightbox.App.Tests;
 
 /// <summary>
 /// <c>File ▸ Export image sequence…</c> — a run of numbered pictures, with a
-/// range, a step, a format and the option of writing a held drawing once (Q219).
+/// range, a step, a format and the option of writing a held drawing once (Q220).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -244,7 +244,7 @@ public class ImageSequenceExportTests(Xunit.ITestOutputHelper output) : IDisposa
 
         output.WriteLine(string.Join(", ", result.Frames.Select(f => $"{f.File}@{f.FrameIndex}x{f.Hold}")));
         Assert.Equal([0, 6, 10], result.Paths.Select(SquareIn).ToArray());
-        // Q219: an unbroken run by default, because that is what an engine or
+        // Q220: an unbroken run by default, because that is what an engine or
         // a comp package expects to be handed.
         Assert.Equal(["frame_0001.png", "frame_0002.png", "frame_0003.png"], Names(result));
         Assert.Equal([0, 3, 5], result.Frames.Select(f => f.FrameIndex).ToArray());

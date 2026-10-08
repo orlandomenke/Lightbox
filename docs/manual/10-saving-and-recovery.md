@@ -4,7 +4,7 @@
 | --- | --- |
 | **Save** — Ctrl+S | Writes in place. With a project open, writes the project and only the documents that changed. A drawing that has never been saved has nowhere to go, so this opens **Save as…** instead of quietly doing nothing. |
 | **Save as…** — Ctrl+Shift+S | Picks a new path. |
-| **Save as image…** — Ctrl+Alt+Shift+S | Writes the drawing as an ordinary picture — PNG, JPEG or WebP. See [below](#saving-as-an-ordinary-picture). |
+| **Save as image…** — Ctrl+Alt+Shift+S | Writes the drawing as an ordinary picture — PNG, JPEG, WebP or SVG. See [below](#saving-as-an-ordinary-picture). |
 | **Export document…** | Writes a standalone `.lightbox.json` with every referenced swatch, gradient, brush tip and clip region **inlined**. |
 | **Export image sequence…** | Opens the [sequence window](#exporting-an-image-sequence) — numbered PNG, JPEG or WebP frames into a folder you pick: a range, every Nth frame, or each held drawing once. |
 | **Export video…** | Opens the [export window](#exporting-a-video) — format, size, frame range, rate, quality and sound, then the render itself. |
@@ -24,7 +24,7 @@ one image — always one, whatever is on the timeline. For a run of frames use
 
 | Setting | What it decides |
 | --- | --- |
-| **Format** | **PNG** keeps transparency and loses nothing — the right answer for artwork, and the default. **JPEG** is smaller, lossy, and **has no transparency at all**. **WebP** is lossy *and* keeps transparency, which is why it is here. |
+| **Format** | **PNG** keeps transparency and loses nothing — the right answer for artwork, and the default. **JPEG** is smaller, lossy, and **has no transparency at all**. **WebP** is lossy *and* keeps transparency, which is why it is here. **SVG** is shapes rather than pixels where your marks allow it — see [below](#saving-as-svg). |
 | **Quality** | 1–100, for JPEG and WebP. Absent on PNG rather than greyed out, because PNG has no such setting. |
 | **Size** | A percentage of the document. A larger render draws the strokes onto a larger surface rather than enlarging pixels, so 200 % is genuinely sharper — the same promise the video export makes. |
 | **Fill with** | Only for a format with no transparency. The colour that shows through where the drawing is see-through — white unless you change it, which is what you want unless you are matting a sprite onto something specific. |
@@ -46,9 +46,55 @@ that case the status line after the save is where you are told the transparency
 went.
 
 **Why not TIFF, GIF, BMP or PSD?** The image library Lightbox uses has encoders
-for exactly these three formats and no others, so the rest would be menu entries
-that write nothing. Writing a PSD back out is a separate piece of work and is
+for exactly PNG, JPEG and WebP and no others, so the rest would be menu entries
+that write nothing. (SVG is written by Lightbox itself, from the drawing.) Writing a PSD back out is a separate piece of work and is
 not built — Lightbox can read a Photoshop file today and cannot hand one back.
+
+### Saving as SVG
+
+An SVG is shapes, and only some marks are shapes. So an SVG save does two
+things, and tells you which it did:
+
+- **A layer whose every mark is an outline is written as paths.** That is
+  fills, set type, and lines drawn with a hard round brush — **Ink**, and any
+  brush you build from it with full hardness and no texture, scatter or jitter.
+  A line keeps its pressure: it is written as its outline, thick and thin where
+  you pressed, not as a centreline with one width.
+- **Any other layer is written as its pixels**, inside the same file. Pencil,
+  airbrush, watercolour, a smudge, an eraser — these are not outlines, and a
+  path pretending to be one would not look like your drawing.
+
+A layer is one or the other, never a mixture: an eraser changes the fill
+before it, so a layer with one mark that is not an outline goes in whole as
+pixels. **Keep line art and flats on their own layers** and those layers stay
+vector, whatever the paint layers beside them hold.
+
+The dialog says which layers will be pixels as soon as you pick SVG, and the
+status line says it again after the save. A file that is all paths says
+nothing.
+
+Lightbox does not go by the brush's settings alone. It draws the paths back and
+compares them with the layer on your canvas, and if they are not the same
+picture the layer is saved as pixels. What varies from one drawing to the next
+is how much of the file is editable as shapes, not whether it looks like the
+drawing. A layer that also holds imported pixels or a placed symbol is always
+saved as pixels.
+
+**A layered file holds more than the picture shows.** Unlike a PNG, the SVG
+carries each visible layer whole — including the parts another layer covers —
+and each layer's name. Hide a layer you do not want in the file; a hidden layer,
+and a layer at zero opacity, is left out.
+
+| | |
+| --- | --- |
+| **Layers** | Each is a group named after the layer, in stacking order, with its opacity. A blend mode is written the one way SVG has (`mix-blend-mode`), which browsers and Inkscape honour and some editors ignore. |
+| **Size** | Changes how big the file opens, up to 1600 %. The shapes themselves are the same shapes at any size. |
+| **Paper** | A paper layer is a path like any other fill; see-through paper writes no background. |
+| **The whole picture as one image** | A camera, a mask or a clipped layer, a layer effect, an adjustment layer, a scene effect or production footage cannot be said one layer at a time. With any of those the SVG holds a single image of the finished frame, and the dialog says why. |
+
+**Not built:** gradients as SVG gradients (a gradient fill sends its layer to
+pixels), a run of SVG frames from *Export image sequence…*, and text as live
+SVG text — set type is saved as its outlines, which is what it is in Lightbox.
 
 ## Exporting an image sequence
 
@@ -104,7 +150,7 @@ export to the next. And exporting into a folder that already holds a longer
 sequence does not remove the older files — pick an empty folder when the new
 run is shorter.
 
-**SVG is not here** — *Planned*, for Save as image.
+**SVG is not offered for a sequence** — *Planned*. [Save as image](#saving-as-svg) writes one frame as SVG.
 
 ## Opening a Photoshop file
 
