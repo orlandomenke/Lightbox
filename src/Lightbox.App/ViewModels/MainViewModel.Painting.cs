@@ -1055,6 +1055,13 @@ public partial class MainViewModel
     /// cross their cached renders; placement ids survive the copy
     /// (<see cref="SymbolPlacement.Clone"/>), which is what lets a drag that
     /// keyed the cel keep hold of the placement it grabbed.
+    /// <para>
+    /// <b>B406: and its sockets and collision boxes.</b> The frame was showing
+    /// them through the hold, and an export read them there; a key that left
+    /// them behind took them off this frame under the first touch — a transform,
+    /// a mark, a pose bake — with nothing on screen to say so. Both are records
+    /// of immutable values, so a new dictionary over them is a whole copy.
+    /// </para>
     /// </remarks>
     private static Frame KeyedCopyOf(Frame? held) => held is null ? new Frame() : new Frame
     {
@@ -1062,6 +1069,8 @@ public partial class MainViewModel
         PngBase64 = held.PngBase64,
         Strokes = held.Strokes.Select(s => s.Clone()).ToList(),
         Placements = held.Placements?.Select(p => p.Clone()).ToList(),
+        Anchors = held.Anchors is null ? null : new Dictionary<string, AnchorPoint>(held.Anchors),
+        Shapes = held.Shapes is null ? null : new Dictionary<string, ShapeBox>(held.Shapes),
     };
 
     /// <summary>

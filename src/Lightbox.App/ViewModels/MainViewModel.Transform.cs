@@ -1548,6 +1548,9 @@ public partial class MainViewModel
             if (keyed.TryGetValue(frames[i].Id, out var copy)) frames[i] = copy;
         }
         var filter = _transform.Filter;
+        // B406: asked before the edit, while the boxes are still the ones the
+        // map is about to turn. Only whole drawings carry their boxes.
+        var widened = filter is null && frames.Exists(f => TransformOps.WidensBoxes(map, f));
         // The preview goes first, and not only for tidiness: it borrows the
         // cache's own bitmaps, and the invalidation below disposes them.
         _transform.ClearPreview();
@@ -1640,6 +1643,10 @@ public partial class MainViewModel
         AiStatus = HasStrokeSelection && !HasSelection
             ? $"Transformed {TransformSubject}."
             : $"Transformed {frames.Count} drawing{(frames.Count == 1 ? "" : "s")}.";
+        if (widened)
+        {
+            AiStatus += " A collision box cannot turn, so the boxes are now the upright boxes around them — check the hurtboxes.";
+        }
     }
 
     /// <summary>
