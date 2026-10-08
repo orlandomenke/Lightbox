@@ -80,7 +80,7 @@ public static class DocJson
         {
             JsonSerializer.Serialize(gzip, doc, Options);
         }
-        File.Move(temp, path, overwrite: true);
+        MoveIntoPlace(temp, path);
     }
 
     /// <summary>
@@ -102,7 +102,44 @@ public static class DocJson
         if (Path.GetDirectoryName(path) is { Length: > 0 } dir) Directory.CreateDirectory(dir);
         var temp = path + ".tmp";
         File.WriteAllText(temp, text);
-        File.Move(temp, path, overwrite: true);
+        MoveIntoPlace(temp, path);
+    }
+
+    /// <summary>
+    /// Move a finished temporary file over its destination, waiting out a brief
+    /// hold on the destination (B416).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On Windows the replacing move fails while anything holds the destination
+    /// open without delete sharing — a virus scanner or the search indexer
+    /// reading a file that was just written does exactly that, for a moment. It
+    /// fails as a sharing violation or as access denied, for the same hold. Unretried, a
+    /// save failed with "access denied" and the artist was told their work had
+    /// not saved.
+    /// </para>
+    /// <para>
+    /// <b>Short and bounded:</b> five more tries over about 1.5 s, then the
+    /// failure goes to the caller as before. A file held for good is a real
+    /// failure and must still say so; the destination is untouched either way,
+    /// because a move either happens whole or not at all.
+    /// </para>
+    /// </remarks>
+    public static void MoveIntoPlace(string temp, string path)
+    {
+        for (var wait = 50; ; wait *= 2)
+        {
+            try
+            {
+                File.Move(temp, path, overwrite: true);
+                return;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException && wait <= 800
+                                      && File.Exists(temp))
+            {
+                Thread.Sleep(wait);
+            }
+        }
     }
 
     /// <summary>Read a document, gzipped or plain, by sniffing the container.</summary>

@@ -257,10 +257,10 @@ public sealed class RecoverySession : IDisposable
     public void Adopt(RecoverableDocument copy, string key, long revision)
     {
         FinishPendingWrite();
-        File.Move(copy.DocPath, Path.Combine(Dir, key + DocSuffix), overwrite: true);
+        Lightbox.Core.Serialization.DocJson.MoveIntoPlace(copy.DocPath, Path.Combine(Dir, key + DocSuffix)); // B416: waits out a scanner\'s brief hold
         if (File.Exists(copy.MetaPath))
         {
-            File.Move(copy.MetaPath, Path.Combine(Dir, key + MetaSuffix), overwrite: true);
+            Lightbox.Core.Serialization.DocJson.MoveIntoPlace(copy.MetaPath, Path.Combine(Dir, key + MetaSuffix)); // B416: waits out a scanner\'s brief hold
         }
         _written[key] = revision;
         RemoveIfEmpty(copy.SessionDir);

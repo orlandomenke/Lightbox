@@ -68,7 +68,7 @@ public static class SymbolLibrary
             // file where the library was.
             var temp = Path + ".tmp";
             File.WriteAllText(temp, JsonSerializer.Serialize(library, DocJson.Options));
-            File.Move(temp, Path, overwrite: true);
+            Lightbox.Core.Serialization.DocJson.MoveIntoPlace(temp, Path); // B416: waits out a scanner\'s brief hold
         }
         catch
         {

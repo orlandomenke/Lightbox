@@ -111,7 +111,7 @@ public static class AiSettings
             // reads as "not configured" and silently turns the AI off.
             var tmp = Path + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(connection, Json));
-            File.Move(tmp, Path, overwrite: true);
+            Lightbox.Core.Serialization.DocJson.MoveIntoPlace(tmp, Path); // B416: waits out a scanner\'s brief hold
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

@@ -92,7 +92,7 @@ public static class TimingPresetStore
             // file where the patterns were.
             var temp = Path + ".tmp";
             File.WriteAllText(temp, JsonSerializer.Serialize(state, Json));
-            File.Move(temp, Path, overwrite: true);
+            Lightbox.Core.Serialization.DocJson.MoveIntoPlace(temp, Path); // B416: waits out a scanner\'s brief hold
         }
         catch
         {
