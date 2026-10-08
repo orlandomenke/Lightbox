@@ -402,6 +402,57 @@ public class PoseSpaceTransformTests(ITestOutputHelper output)
         Assert.Equal(before[^1].Y + 40, after[^1].Y, 6);
     }
 
+    /// <summary>A document whose drawing layer follows the whole skeleton, with b swung 90° at frame 0.</summary>
+    private static (Doc Doc, Frame Frame, RigIndex Rig) WholeSkeletonBentAtTheJoint()
+    {
+        var doc = DocumentFactory.CreateDoc();
+        doc.Armature = TwoBones();
+        doc.Scene.PoseTrack = new PoseTrack
+        {
+            Keys = [new PoseKey { Frame = 0, Bones = { ["b"] = new BonePose { RotationDeg = 90 } } }],
+        };
+        var layer = doc.Scene.Layers.First(l => !l.IsBackground);
+        layer.BoneId = "";
+        return (doc, layer.Cels[0].Frame!, RigIndex.For(doc));
+    }
+
+    [Fact]
+    public void ALineToolLineDrawnAcrossAPosedJointStaysUnderThePenAlongItsLength()
+    {
+        // Sensitivity on B404: the drawn pair kept two points and two weights,
+        // and once the render subdivided pairs its middle posed as one blend
+        // of its ends — bowing away from where the pen drew it. The ends
+        // alone cannot see that; every rendered point is held to the segment.
+        var (doc, frame, rig) = WholeSkeletonBentAtTheJoint();
+        var drawn = Line((50, 2), (102, 80)); // from the arm, across the joint, down the swung b
+        var pen = drawn.Points.ToList();
+        Skinning.UnposeDrawnStroke(drawn, doc, frame, 0, rig);
+        frame.Strokes.Add(drawn);
+
+        var shown = Skinning.PoseFrameForRender(doc, frame, 0, rig).Strokes.Single(s => s.Id == drawn.Id);
+        var off = Departure(shown.Points, pen, 0, 0);
+        Assert.True(off < 1.5, $"the committed line sits {off:F2} px off where the pen drew it");
+    }
+
+    [Fact]
+    public void AWholeSkeletonNudgeMovesTheWholeLineNotJustItsEnds()
+    {
+        // Sensitivity on B404: the transform weighted a weightless pair at its
+        // two control points and the write-back stored that ramp, so the line
+        // took a new shape on top of the nudge — and kept it.
+        var (doc, frame, rig) = WholeSkeletonBentAtTheJoint();
+        var stroke = Line((50, 2), (190, 2)); // across the joint at rest
+        frame.Strokes.Add(stroke);
+        var before = Skinning.PoseFrameForRender(doc, frame, 0, rig).Strokes.Single().Points.ToList();
+
+        var mover = Skinning.PoseSpaceMover(doc, frame, 0, rig, (x, y) => Shift(0, 40, x, y));
+        TransformOps.TransformFrame(frame, (x, y) => Shift(0, 40, x, y), mover: mover);
+
+        var after = Skinning.PoseFrameForRender(doc, frame, 0, rig).Strokes.Single().Points;
+        var off = Departure(after, before, 0, 40);
+        Assert.True(off < 1.5, $"after the nudge the line departs {off:F2} px from where it was, moved 40 px down");
+    }
+
     [Fact]
     public void AnUnriggedLayerLeavesADrawnStrokeAlone()
     {
