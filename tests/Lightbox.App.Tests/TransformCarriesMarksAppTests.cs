@@ -81,6 +81,49 @@ public class TransformCarriesMarksAppTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void TransformingAHeldFrameKeysADrawingThatKeepsItsMarks()
+    {
+        // Adversary's repro: Ctrl+T on a hold keys the cel with a copy of the
+        // held drawing first, and that copy had lines and pixels only — so the
+        // new drawing came out with no socket and no hurtbox at all.
+        var vm = Vm();
+        vm.AddFrameCommand.Execute(null);
+        vm.ClearCelAt(vm.LayerRows[^1].Cells.First(c => c.Index == 1));   // frame 1 holds frame 0
+        vm.CurrentFrameIndex = 1;
+
+        Assert.True(vm.BeginTransform());
+        vm.CommitTransformAffine(250, 200, 2, 2, 0, 0, 0);
+
+        var keyed = Drawing(vm, 1);
+        Assert.NotNull(keyed.Shapes);
+        Assert.Equal(new ShapeBox(150, 160, 200, 80), keyed.Shapes!["hurt"]);   // carried, at the new size
+        Assert.True(keyed.Anchors?.ContainsKey("hand"), "the keyed drawing lost its socket");
+        Assert.Equal(new ShapeBox(200, 180, 100, 40), Drawing(vm, 0).Shapes!["hurt"]);  // the held original untouched
+    }
+
+    [AvaloniaFact]
+    public void PaintingOnAHeldFrameKeysADrawingThatKeepsItsMarks()
+    {
+        // The same copy, the same loss: a mark drawn on a hold (in "edit a
+        // copy" mode) keyed the cel with lines and pixels only, so the frame
+        // lost the socket and hurtbox it had been showing through the hold.
+        var vm = Vm();
+        vm.DrawingOnAHold = HoldDrawing.StartFromACopy;
+        vm.AddFrameCommand.Execute(null);
+        vm.ClearCelAt(vm.LayerRows[^1].Cells.First(c => c.Index == 1));
+        vm.CurrentFrameIndex = 1;
+
+        vm.BeginStroke(200, 300, 1);
+        vm.MoveStroke(260, 300, 1);
+        vm.EndStroke();
+
+        var keyed = Drawing(vm, 1);
+        Assert.NotSame(Drawing(vm, 0), keyed);
+        Assert.Equal(new ShapeBox(200, 180, 100, 40), keyed.Shapes?["hurt"]);
+        Assert.Equal(new AnchorPoint(250, 200, 0), keyed.Anchors?["hand"]);
+    }
+
+    [AvaloniaFact]
     public void ASelectionLimitedTransformLeavesThem()
     {
         var vm = Vm();
