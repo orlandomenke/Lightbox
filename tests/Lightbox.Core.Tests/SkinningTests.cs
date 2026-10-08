@@ -145,12 +145,15 @@ public class SkinningTests
         Assert.NotNull(stroke.Weights);
         var left = stroke.Weights!.First(b => b.BoneId == "left");
         var right = stroke.Weights!.First(b => b.BoneId == "right");
+        // The far end, not index 1: a span this long between two bones gains
+        // the points its blend needs when it is bound (Q217).
+        var last = stroke.Points.Count - 1;
         Assert.True(left.WeightAt(0) > 0.9, $"near-left point: left {left.WeightAt(0):F3}");
-        Assert.True(right.WeightAt(1) > 0.9, $"near-right point: right {right.WeightAt(1):F3}");
-        for (var i = 0; i < 2; i++)
+        Assert.True(right.WeightAt(last) > 0.9, $"near-right point: right {right.WeightAt(last):F3}");
+        for (var i = 0; i <= last; i++)
         {
             var sum = left.WeightAt(i) + right.WeightAt(i);
-            Assert.True(sum is > 0.9 and <= 1.0 + 1e-9, $"point {i} sums to {sum:F4}");
+            Assert.True(Math.Abs(sum - 1) < 1e-12, $"point {i} sums to {sum:R}");
         }
     }
 

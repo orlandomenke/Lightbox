@@ -271,8 +271,10 @@ Right-click a layer and open **Follows the rig**:
 
 - **The selected bone** — every stroke on the layer follows the bone picked in
   the Bone tool.
-- **The whole skeleton** — bound to the nearest bones by distance, the way
-  auto-bind does it.
+- **The whole skeleton** — weighted by joint, the way auto-bind does it:
+  each part of a drawing follows the bone it is on, blending only near the
+  joints. A layer bound this way before joint weighting existed keeps its
+  softer weighting until you choose this again.
 - **Nothing** — off the rig.
 
 This is per *layer*, so it covers drawings you have not made yet and frames
