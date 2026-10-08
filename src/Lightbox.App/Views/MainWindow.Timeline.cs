@@ -441,6 +441,19 @@ public partial class MainWindow
             e.Handled = true;
             return;
         }
+        // A second click on the same cel: go there AND draw there (Q224). The
+        // first click of the pair has already picked the cel through the
+        // button's own command; this one switches the layer, and is marked
+        // handled so the command does not then pick it back.
+        if (e.ClickCount == 2 && e.KeyModifiers == KeyModifiers.None)
+        {
+            _celDrag.Cancel();
+            _celDragPress = null;
+            _celSelect.Cancel();
+            _vm.ActivateCel(cell);
+            e.Handled = true;
+            return;
+        }
         // Remember the press so a later move can turn it into a drag: Alt
         // carries the drawing along its row, a plain drag selects a block (Q207).
         // Exactly one of the two is armed, so they cannot both claim the press.

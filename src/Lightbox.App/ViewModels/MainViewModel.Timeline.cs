@@ -446,7 +446,13 @@ public partial class MainViewModel
     /// virtual one beyond the current end — the timeline extends to reach it),
     /// or re-mark an existing frame's role.
     /// </summary>
-    public void InsertFrameAt(FrameCell cell, FrameRole role)
+    /// <param name="takeLayer">
+    /// Whether the cel's layer becomes the one being drawn on. True for a verb
+    /// aimed at a particular cel from its own menu, which has always done so;
+    /// false from the keyboard and the Animation menu, where the cel is
+    /// whichever is picked and picking no longer moves the layer (Q224).
+    /// </param>
+    public void InsertFrameAt(FrameCell cell, FrameRole role, bool takeLayer = true)
     {
         if (cell.LayerIndex < 0 || cell.LayerIndex >= Scene.Layers.Count) return;
         // Every selected cel, so marking a run as breakdowns is one gesture
@@ -454,7 +460,7 @@ public partial class MainViewModel
         // clicked cel alone, which is what every programmatic caller passes.
         ForEachSelectedCel(cell, "insert a drawing on it",
             (layer, index) => _editor.SetKeyAt(layer.Id, index, role));
-        ActiveLayerIndex = cell.LayerIndex;
+        if (takeLayer) ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
     }
 
@@ -604,7 +610,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void ApplySelectedTiming()
     {
-        if (CurrentCell() is { } cell) ApplyTimingAt(cell);
+        if (SelectionOrCurrentCell() is { } cell) ApplyTimingAt(cell);
     }
 
     [ObservableProperty]
@@ -687,13 +693,13 @@ public partial class MainViewModel
     [RelayCommand]
     private void StretchSelectedExposure()
     {
-        if (CurrentCell() is { } cell) StretchExposureAt(cell);
+        if (SelectionOrCurrentCell() is { } cell) StretchExposureAt(cell);
     }
 
     [RelayCommand]
     private void ReduceSelectedExposure()
     {
-        if (CurrentCell() is { } cell) ReduceToStepAt(cell);
+        if (SelectionOrCurrentCell() is { } cell) ReduceToStepAt(cell);
     }
 
     // ---- Delete, Delete and pull, Insert blank frame (Q196) --------------------
@@ -877,7 +883,13 @@ public partial class MainViewModel
     /// A column insert refuses on a locked layer for the column delete's reason:
     /// pushing four rows and not the fifth slides them out of step.
     /// </remarks>
-    public void InsertBlankFrameAt(FrameCell cell)
+    /// <param name="takeLayer">
+    /// Whether the cel's layer becomes the one being drawn on. True for a verb
+    /// aimed at a particular cel from its own menu, which has always done so;
+    /// false from the keyboard and the Animation menu, where the cel is
+    /// whichever is picked and picking no longer moves the layer (Q224).
+    /// </param>
+    public void InsertBlankFrameAt(FrameCell cell, bool takeLayer = true)
     {
         using var held = HoldPublishes();
         var picks = OpPicks(cell);
@@ -905,7 +917,7 @@ public partial class MainViewModel
         if (inserted == 0) return;
         _allThumbsDirty = true;
         ClearCelRange(); // the indices it held have shifted out from under it
-        ActiveLayerIndex = cell.LayerIndex;
+        if (takeLayer) ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
         RefreshThumbnails();
     }
@@ -1012,7 +1024,13 @@ public partial class MainViewModel
     }
 
     /// <summary>Paste the copied cel(s) starting at the cell (holds paste as holds).</summary>
-    public void PasteCel(FrameCell cell)
+    /// <param name="takeLayer">
+    /// Whether the cel's layer becomes the one being drawn on. True for a verb
+    /// aimed at a particular cel from its own menu, which has always done so;
+    /// false from the keyboard and the Animation menu, where the cel is
+    /// whichever is picked and picking no longer moves the layer (Q224).
+    /// </param>
+    public void PasteCel(FrameCell cell, bool takeLayer = true)
     {
         using var held = HoldPublishes();
         if (_celClipboard is not { } clip)
@@ -1035,7 +1053,7 @@ public partial class MainViewModel
             frames.Add(DocumentEditor.CloneFrame(source)); // fresh id per paste
         }
         _editor.SetFrameRange(layer.Id, cell.Index, frames);
-        ActiveLayerIndex = cell.LayerIndex;
+        if (takeLayer) ActiveLayerIndex = cell.LayerIndex;
         CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
     }
 
@@ -1049,26 +1067,38 @@ public partial class MainViewModel
     internal bool LinesAreTheFresherClipboard =>
         StrokeClipboard.HasContent && StrokeClipboard.Stamp > _celClipboardStamp;
 
-    /// <summary>Ctrl+C/X/V target: the active layer's cel at the playhead.</summary>
+    /// <summary>
+    /// The cel at the playhead on the layer being drawn on. What a verb falls
+    /// back to when no cel is picked — ask <see cref="SelectionOrCurrentCell"/>,
+    /// not this, for "which cel does the artist mean".
+    /// </summary>
     private FrameCell? CurrentCell()
     {
         var row = LayerRows.FirstOrDefault(r => r.SceneIndex == ActiveLayerIndex);
         return row?.Cells.FirstOrDefault(c => c.Index == CurrentFrameIndex);
     }
 
+    // Q224. A plain click in another layer's row picks that cel and leaves the
+    // layer being drawn on alone, so "the cel that is picked" and "the playhead
+    // on my layer" can be different cels. Every verb below therefore asks
+    // SelectionOrCurrentCell: the highlighted cel is the one acted on, and the
+    // playhead's cel on the drawing layer only when nothing is picked. And none
+    // of them changes the drawing layer — that is the double click's job, and
+    // a Ctrl+V that moved it would undo the reason for the change.
+
     public void CopyCurrentCel()
     {
-        if (CurrentCell() is { } cell) CopyCel(cell);
+        if (SelectionOrCurrentCell() is { } cell) CopyCel(cell);
     }
 
     public void CutCurrentCel()
     {
-        if (CurrentCell() is { } cell) CutCel(cell);
+        if (SelectionOrCurrentCell() is { } cell) CutCel(cell);
     }
 
     public void PasteCurrentCel()
     {
-        if (CurrentCell() is { } cell) PasteCel(cell);
+        if (SelectionOrCurrentCell() is { } cell) PasteCel(cell, takeLayer: false);
     }
 
     // ---- Animation menu: the cel context menu's verbs, aimed at the playhead ----
@@ -1076,17 +1106,27 @@ public partial class MainViewModel
     // shortcuts above use: the active layer's cel at the current frame.
 
     /// <summary>Mark the playhead's cel as a drawing of the given role (Animation menu).</summary>
-    public void InsertFrameAtPlayhead(FrameRole role) =>
+    public void InsertFrameAtPlayhead(FrameRole role)
+    {
+        // A cel picked on another layer is the one meant (Q224). Otherwise
+        // exactly what this always did: the playhead on the drawing layer,
+        // straight to the editor.
+        if (SelectionOrCurrentCell() is { } picked && picked.LayerIndex != ActiveLayerIndex)
+        {
+            InsertFrameAt(picked, role, takeLayer: false);
+            return;
+        }
         _editor.SetKeyAt(ActiveLayer.Id, CurrentFrameIndex, role);
+    }
 
     public void ExtendExposureAtPlayhead()
     {
-        if (CurrentCell() is { } cell) ExtendExposureAt(cell);
+        if (SelectionOrCurrentCell() is { } cell) ExtendExposureAt(cell);
     }
 
     public void ReduceExposureAtPlayhead()
     {
-        if (CurrentCell() is { } cell) ReduceExposureAt(cell);
+        if (SelectionOrCurrentCell() is { } cell) ReduceExposureAt(cell);
     }
 
     // Delete, Delete and pull and Insert blank frame are the Timeline docker's
@@ -1109,7 +1149,7 @@ public partial class MainViewModel
 
     public void InsertBlankFrameAtPlayhead()
     {
-        if (SelectionOrCurrentCell() is { } cell) InsertBlankFrameAt(cell);
+        if (SelectionOrCurrentCell() is { } cell) InsertBlankFrameAt(cell, takeLayer: false);
     }
 
     public void InsertBlankKeyframeAtPlayhead()
