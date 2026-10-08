@@ -227,6 +227,9 @@ public partial class MainWindow
         if (!_vm.TransformActive) _vm.BeginTransform();
     }
 
+    /// <summary>Edit ▸ Transform ▸ Every frame of this layer (Q216).</summary>
+    private void OnMenuBeginLayerTransform(object? sender, RoutedEventArgs e) => _vm.BeginLayerTransform();
+
     /// <summary>
     /// Edit ▸ Transform ▸ Perspective: the gizmo context menu's toggle, kept in
     /// step with the tool-options ToggleButton the same way that menu is.

@@ -236,6 +236,29 @@ public enum TransformScope
     EntireAnimation,
 }
 
+/// <summary>What each <see cref="TransformScope"/> is called where an artist reads it.</summary>
+/// <remarks>
+/// The combo showed the enum's own names — <c>ActiveLayerAllFrames</c> — which is
+/// how the one scope that reaches across time went unfound (Q216). Named for what
+/// moves, in the words the manual uses, so the control and the page agree.
+/// </remarks>
+public static class TransformScopeText
+{
+    public static string Label(TransformScope scope) => scope switch
+    {
+        TransformScope.ActiveCel => "This drawing",
+        TransformScope.AllLayersAtFrame => "This frame, every layer",
+        TransformScope.ActiveLayerAllFrames => "This layer, every frame",
+        TransformScope.CelRange => "Marked cels",
+        TransformScope.EntireAnimation => "Everything",
+        _ => scope.ToString(),
+    };
+
+    /// <summary>For the Scope combo's item template.</summary>
+    public static readonly Avalonia.Data.Converters.IValueConverter Converter =
+        new Avalonia.Data.Converters.FuncValueConverter<TransformScope, string>(Label);
+}
+
 /// <summary>
 /// Pixel solver used when a transform has to resample raster baseline
 /// pixels (strokes are pure geometry and never resample).

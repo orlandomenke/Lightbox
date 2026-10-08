@@ -85,6 +85,48 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// <b>Q216: a ghost whose drawing the transform is moving follows the drag.</b>
+    /// Scaling every drawing on a layer while their ghosts sit at the old size
+    /// previews one frame and guesses the rest. A ghost of a drawing outside the
+    /// session stays where it is.
+    /// </summary>
+    [Fact]
+    public void GhostsOfDrawingsInTheTransformFollowTheDrag()
+    {
+        var ink = LayerWith("Ink", 3);
+        var scene = SceneWith(ink);
+        using var cache = new FrameBitmapCache();
+        var drag = SkiaSharp.SKMatrix.CreateScale(2, 2);
+        var live = new ScenePassBuilder.LiveEdit(
+            TransformPreview: drag, TransformFrames: [ink.Cels[0].Frame!, ink.Cels[1].Frame!], GhostsFollow: true);
+        var built = ScenePassBuilder.Build(scene, StateFor(scene, ink), cache, new TileFallbackTally(), live);
+        var ghosts = built.Passes.Where(IsGhost).ToList();
+
+        Assert.Equal(2, ghosts.Count);
+        Assert.Contains(ghosts, g => g.Matrix is { } m && m.ScaleX == 2);  // frame 0: in the session
+        Assert.Contains(ghosts, g => g.Matrix is null);                     // frame 2: not
+    }
+
+    /// <summary>
+    /// A region-limited transform moves part of each drawing, and a ghost is one
+    /// bitmap — moving it would show strokes moving that are going to stay.
+    /// </summary>
+    [Fact]
+    public void GhostsStayWhenOnlyPartOfEachDrawingMoves()
+    {
+        var ink = LayerWith("Ink", 3);
+        var scene = SceneWith(ink);
+        using var cache = new FrameBitmapCache();
+
+        var live = new ScenePassBuilder.LiveEdit(
+            TransformPreview: SkiaSharp.SKMatrix.CreateScale(2, 2),
+            TransformFrames: [.. ink.Cels.Select(c => c.Frame!)], GhostsFollow: false);
+        var built = ScenePassBuilder.Build(scene, StateFor(scene, ink), cache, new TileFallbackTally(), live);
+
+        Assert.All(built.Passes.Where(IsGhost), g => Assert.Null(g.Matrix));
+    }
+
+    /// <summary>
     /// Draw-over lifts them above instead — for checking, when a line you have
     /// just made would otherwise hide the one you are comparing it to.
     /// </summary>

@@ -64,17 +64,16 @@ public partial class MainViewModel
 
         // B403: the gesture's scope, not the artist's setting — it ends with
         // the session (OnTransformActiveChanged) and the setting is untouched.
-        _moveScope = wholeLayer ? TransformScope.ActiveLayerAllFrames : TransformScope.ActiveCel;
+        SetGestureScope(wholeLayer ? TransformScope.ActiveLayerAllFrames : TransformScope.ActiveCel);
         if (!BeginTransform(gizmo: false))
         {
-            _moveScope = null;
+            SetGestureScope(null);
             return false;
         }
         _moveAnchor = (x, y);
         _moveDelta = default;
-        AiStatus = wholeLayer
-            ? $"Moving every drawing on {ActiveLayer.Name}"
-            : "Moving this drawing — hold Ctrl to move the whole layer";
+        if (wholeLayer) SayHowManyDrawingsMove("Moving");
+        else AiStatus = "Moving this drawing — hold Ctrl to move the whole layer";
         return true;
     }
 
@@ -871,7 +870,7 @@ public partial class MainViewModel
     {
         // However the session ended — release, Esc, a tool switch, a frame
         // change — a move's own scope ends with it (B403).
-        if (!value) _moveScope = null;
+        if (!value) SetGestureScope(null);
         RefreshUndoRedo();
     }
 

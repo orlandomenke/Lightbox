@@ -225,7 +225,8 @@ internal static class ScenePassBuilder
         SKBitmap? TipScratch = null,
         SKRectI? TipBounds = null,
         double TipScale = 1.0,
-        SKRectI? PostUsed = null)
+        SKRectI? PostUsed = null,
+        bool GhostsFollow = false)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -423,7 +424,7 @@ internal static class ScenePassBuilder
             // sit under it, exactly as its own earlier frames would.
             // Ghosts ride their layer's plane — a ghost is the same drawing at
             // another time, so it parallaxes exactly as the drawing does.
-            var ghosts = GhostSpecsFor(layer, scene, state, parallax);
+            var ghosts = GhostSpecsFor(layer, scene, state, parallax, GhostDrag(live));
             if (!state.Onion.DrawOver) passes.AddRange(ghosts);
 
             // Past the end of the scene the canvas shows no drawing (Q103).
@@ -775,7 +776,8 @@ internal static class ScenePassBuilder
     /// that mode ghosts other layers rather than other frames.
     /// </summary>
     internal static IReadOnlyList<PassSpec> GhostSpecsFor(
-        Layer layer, Scene scene, State state, SKMatrix? parallax = null)
+        Layer layer, Scene scene, State state, SKMatrix? parallax = null,
+        (SKMatrix Preview, IReadOnlyList<Frame> Frames)? drag = null)
     {
         var onion = state.Onion;
         // Ghosts are a drawing aid. During playback they are noise, and the
@@ -819,7 +821,7 @@ internal static class ScenePassBuilder
             passes.Add(new PassSpec(
                 pinned, index, null,
                 index < state.FrameIndex ? previous : next,
-                onion.Opacity, Matrix: parallax, Shapes: ghostShapes));
+                onion.Opacity, Matrix: GhostMatrix(pinned, parallax, drag), Shapes: ghostShapes));
         }
 
         // Furthest first so the nearest ghost ends up on top of the others,
@@ -834,9 +836,51 @@ internal static class ScenePassBuilder
                 ghost.Frame, ghost.Index, null,
                 ghost.Before ? previous : next,
                 OnionSkin.OpacityAt(ghost.Steps, onion.Opacity, onion.Falloff),
-                Matrix: parallax, Shapes: ghostShapes));
+                Matrix: GhostMatrix(ghost.Frame, parallax, drag), Shapes: ghostShapes));
         }
         return passes;
+    }
+
+    /// <summary>
+    /// The drag the ghosts should follow, or null when they stay put.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Q216.</b> Scaling every drawing on a layer while the ghosts of those
+    /// same drawings sit at the old size is a preview of one frame and a guess
+    /// about the rest — and the rest is the point of the operation. So a ghost
+    /// whose drawing the session is moving is drawn through the same matrix as
+    /// the drawing under the gizmo: what the onion shows during the drag is what
+    /// the commit will leave.
+    /// </para>
+    /// <para>
+    /// Only when whole drawings move (<see cref="LiveEdit.GhostsFollow"/>) and
+    /// the drag is one matrix. A region-limited transform moves part of each
+    /// drawing and a ghost is one bitmap, so moving it would show strokes moving
+    /// that will stay; bands and the cage are per-region too. In those cases the
+    /// ghosts stay where they are, which is what they always did.
+    /// </para>
+    /// <para>
+    /// Costs nothing new in pixels: a ghost is already a cached bitmap drawn
+    /// through a matrix (the parallax one), so this changes which matrix. The
+    /// repaint stays bounded because the session's moving bounds are the union
+    /// over every drawing in scope, ghosts' drawings included.
+    /// </para>
+    /// </remarks>
+    private static (SKMatrix Preview, IReadOnlyList<Frame> Frames)? GhostDrag(in LiveEdit live) =>
+        live.GhostsFollow
+        && live.TransformPreview is { } preview
+        && live.TransformBands is not { Count: > 0 }
+        && live.TransformMesh is null
+        && live.TransformFrames is { Count: > 0 } frames
+            ? (preview, frames)
+            : null;
+
+    private static SKMatrix? GhostMatrix(
+        Frame ghost, SKMatrix? parallax, (SKMatrix Preview, IReadOnlyList<Frame> Frames)? drag)
+    {
+        if (drag is not { } d || !Moving(d.Frames, ghost)) return parallax;
+        return parallax is { } pm ? SKMatrix.Concat(pm, d.Preview) : d.Preview;
     }
 
     private static IReadOnlyList<int> PinnedGhostIndices(Scene scene) =>

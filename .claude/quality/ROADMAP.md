@@ -1157,7 +1157,12 @@ every other AI feature and are only legible together.
 
 - [x] Deterministic marks across frames (no boiling) `evidence: OutputScaleTests, BrushDynamicsTests, ScalingTheCoordinatesInstead_ProducesADifferentMark`
 - [x] Batch frame editing `evidence: CelRangeTests, CelRangeSelectionTests`
-- [?] Batch transform across frames
+- [x] Batch transform across frames — every drawing on a layer in one box, round one pivot, ghosts following the drag (Q216) `evidence: TransformScopeText, BeginLayerTransform, SessionTransformScope, LayerTransformTests, ItScalesEveryDrawingOnTheLayerRoundOnePivot, TheNextCtrlTIsBackOnTheScopeTheArtistSet, GhostsOfDrawingsInTheTransformFollowTheDrag`
+  - **Scoped by Q216, and most of it already existed.** `TransformScope.ActiveLayerAllFrames` had shipped long before, behind a combo that only exists while a transform is open and that showed the enum's own names; and B403 made it unreliable. What landed is the way to it — Ctrl+Shift+Alt+T and Edit ▸ Transform — readable scope names, a status line that counts the drawings it will change, and onion ghosts that follow the drag.
+  - **One pivot, on purpose.** The owner's job was resizing a character across a cycle. A shared pivot scales the drawing *and its motion*; per-drawing pivots grow the figure while a jump keeps its old height. Declined in Q216 with that reason.
+  - **The scope is the gesture's**, as Move's Ctrl-drag is since B403, so the next Ctrl+T is back on the setting; the Scope combo binds the session's effective scope so the page never contradicts the canvas.
+- [ ] A transform that ramps over the frames — nothing on the first drawing, all of it on the last, eased; holds kept, over the marked cels else the layer (Q216) `evidence: TransformRamp, TransformRampTests, ARampLeavesTheFirstDrawingAndGivesTheLastTheWholeTransform, AHeldDrawingTakesTheRampAtItsFirstExposure, ARampRunsOverTheMarkedCelsWhenThereAreAny`
+  - Turns an in-place cycle into one that travels, corrects drift, makes a push-in. Holds keep their timing — a drawing on 2s moves on 2s — because splitting them changes the timing the artist chose. Destructive and arithmetic, so distinct from *Animation pegs* below, which is the non-destructive, re-adjustable version and a much larger build.
 - [x] Frame hold tools `evidence: ExposureSheet, ExposureEditingTests, RetimingTests, ExposureStep`
 - [?] Animation-aware brushes
   - **Scoped (Q80): a brush whose mark still makes sense when there are two

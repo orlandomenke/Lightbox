@@ -285,6 +285,9 @@
           <MenuItem Header="_Transform (move, scale, rotate)" Click="OnMenuBeginTransform"
                     InputGesture="Ctrl+T" IsEnabled="{Binding !TransformActive}"
                     ToolTip.Tip="Put a frame around the selection — or the whole drawing — and drag its handles" />
+          <MenuItem Header="Every _frame of this layer" Click="OnMenuBeginLayerTransform"
+                    InputGesture="Ctrl+Shift+Alt+T" IsEnabled="{Binding !TransformActive}"
+                    ToolTip.Tip="One frame around every drawing on this layer: move, scale or rotate the whole sequence at once, round one pivot" />
           <Separator />
           <MenuItem Header="_Apply" Click="OnTransformApply" IsEnabled="{Binding TransformActive}"
                     ToolTip.Tip="Keep the transformed drawing (Enter)" />
@@ -2345,9 +2348,15 @@
                       <TextBlock Text="Transform" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
                       <DockPanel>
                         <TextBlock Text="Scope" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
-                        <ComboBox ItemsSource="{Binding TransformScopeChoices}" SelectedItem="{Binding TransformScope}"
+                        <ComboBox x:Name="TransformScopeCombo" ItemsSource="{Binding TransformScopeChoices}" SelectedItem="{Binding SessionTransformScope}"
                                   HorizontalAlignment="Stretch" Margin="{StaticResource GapBefore}"
-                                  ToolTip.Tip="What the transform applies to: this cel, all layers at this frame, the selected cel range, or the whole animation" />
+                                  ToolTip.Tip="What the transform applies to: this drawing, this frame on every layer, every frame of this layer, the marked cels, or everything">
+                          <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TransformScope">
+                              <TextBlock Text="{Binding Converter={x:Static vm:TransformScopeText.Converter}}" />
+                            </DataTemplate>
+                          </ComboBox.ItemTemplate>
+                        </ComboBox>
                       </DockPanel>
                       <DockPanel>
                         <TextBlock Text="Sampling" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />

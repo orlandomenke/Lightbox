@@ -1476,7 +1476,9 @@ public partial class MainViewModel
             TipScale: _live.TipScale,
             // B334: what the passes have actually covered, so the compositor can
             // show the raw stamped ink everywhere they have not.
-            PostUsed: _live.PostUsed);
+            PostUsed: _live.PostUsed,
+            // Q216: whole drawings move, so their ghosts can move with them.
+            GhostsFollow: _transform.Filter is null);
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;
