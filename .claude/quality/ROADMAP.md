@@ -465,7 +465,7 @@ the test needs relaxing.
     all ask it — a masked layer cannot look different in two of them. Shaped
     passes refuse the fold and the tile path; merge-down bakes the mask in and
     clears it. The one known preview gap is B280 (transform drag).
-- [x] Clipping masks `evidence: LayerShapes.BaseOf, AClippedLayerDescribesItsBaseAndTheBasesMask, ConsecutiveClippedLayersShareTheFirstUnclippedBase, AClippedLayerAtTheBottomRendersUnclipped, TheDescribedListSkipsAClippedLayerOverNothing, ClippingIsUndoableAndAbsentWhenReleased, AClippedUpperLayerBakesCarvedToTheLowersContent`
+- [x] Clipping masks `evidence: LayerShapes.BaseOf, AClippedLayerDescribesItsBaseAndTheBasesMask, ConsecutiveClippedLayersShareTheFirstUnclippedBase, AClippedLayerAtTheBottomRendersUnclipped, TheDescribedListSkipsAClippedLayerOverNothing, ClippingIsUndoableAndAbsentWhenReleased, AClippedUpperLayerBakesCarvedToTheLowersContent, AClipStopsAtTheFolderItSitsIn`
   - Positional, Photoshop's rule: the base is the first unclipped layer
     beneath, consecutive clipped layers share it, and the base's own mask
     carves what clips to it. A flag rather than a base id, so reordering
