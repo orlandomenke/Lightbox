@@ -1702,20 +1702,24 @@ public partial class MainViewModel
         TakeLast(StrokeListIn(doc, frameId), s => s.Id == strokeId);
 
     /// <summary>
-    /// Take the last match out of a list and hand it back (B415): an undo keeps
-    /// what it took out of the document, so its redo can put that back rather
-    /// than the object the step was made with.
+    /// Take every match out of a list, as <c>RemoveAll</c> did, and hand back the
+    /// last for the redo (B415). For placements, carves and frame groups, whose
+    /// undo always removed every match: a file written while B415 was open can
+    /// hold one twice, and their undo still leaves none.
     /// </summary>
     private static T? TakeEvery<T>(List<T>? list, Predicate<T> match) where T : class
     {
-        // Every match goes, as RemoveAll took them; the last is kept for the redo.
-        // Ids are unique in a list, so there is one, but a file written while
-        // B415 was open can hold a stroke twice, and an undo must not leave one.
         var last = list?.FindLast(match);
         list?.RemoveAll(match);
         return last;
     }
 
+    /// <summary>
+    /// Take the last match out of a list and hand it back (B415): an undo keeps
+    /// what it took out of the document, so its redo can put that back rather
+    /// than the object the step was made with. One match only, as stroke undo
+    /// always took — a stroke held twice keeps its other copy, as on main.
+    /// </summary>
     private static T? TakeLast<T>(List<T>? list, Predicate<T> match) where T : class
     {
         var index = list?.FindLastIndex(match) ?? -1;
