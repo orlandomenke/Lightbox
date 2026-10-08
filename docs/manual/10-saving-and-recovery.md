@@ -6,7 +6,7 @@
 | **Save as…** — Ctrl+Shift+S | Picks a new path. |
 | **Save as image…** — Ctrl+Alt+Shift+S | Writes the drawing as an ordinary picture — PNG, JPEG or WebP. See [below](#saving-as-an-ordinary-picture). |
 | **Export document…** | Writes a standalone `.lightbox.json` with every referenced swatch, gradient, brush tip and clip region **inlined**. |
-| **Export PNGs…** | Every frame as a numbered PNG, into a folder you pick — with the scratch track beside them as `audio.wav` when there is one. |
+| **Export image sequence…** | Opens the [sequence window](#exporting-an-image-sequence) — numbered PNG, JPEG or WebP frames into a folder you pick: a range, every Nth frame, or each held drawing once. |
 | **Export video…** | Opens the [export window](#exporting-a-video) — format, size, frame range, rate, quality and sound, then the render itself. |
 | **Export for a game engine…** | Sprite sheet, sidecar, and optionally the Unity importer. |
 
@@ -19,7 +19,8 @@ than the factory key.
 **File ▸ Save as image…** writes what is on the canvas as a picture anyone can
 open. This is the plain "give me a PNG of this" that the export commands above
 do not cover: they write sequences, sheets and engine metadata, and this writes
-one image.
+one image — always one, whatever is on the timeline. For a run of frames use
+[**Export image sequence…**](#exporting-an-image-sequence).
 
 | Setting | What it decides |
 | --- | --- |
@@ -27,11 +28,10 @@ one image.
 | **Quality** | 1–100, for JPEG and WebP. Absent on PNG rather than greyed out, because PNG has no such setting. |
 | **Size** | A percentage of the document. A larger render draws the strokes onto a larger surface rather than enlarging pixels, so 200 % is genuinely sharper — the same promise the video export makes. |
 | **Fill with** | Only for a format with no transparency. The colour that shows through where the drawing is see-through — white unless you change it, which is what you want unless you are matting a sprite onto something specific. |
-| **Every frame** | Only on a document with more than one frame. Writes `name_0001.png`, `name_0002.png` and so on beside the name you chose. |
 
 Whatever the timeline is showing is what gets written, and with a camera in the
 scene it is what the camera saw. A saved PNG is the same pixels as that frame
-from **Export PNGs…** — the same compositing runs behind both.
+from **Export image sequence…** — the same compositing runs behind both.
 
 **The transparency warning is worth reading.** Pick JPEG on a drawing with
 see-through areas and the dialog says so before you save, because a character on
@@ -49,6 +49,62 @@ went.
 for exactly these three formats and no others, so the rest would be menu entries
 that write nothing. Writing a PSD back out is a separate piece of work and is
 not built — Lightbox can read a Photoshop file today and cannot hand one back.
+
+## Exporting an image sequence
+
+**File ▸ Export image sequence…** writes the animation as numbered pictures in a
+folder. Choose the settings, press **Export…**, then pick the folder. Left
+alone, it writes what *Export PNGs…* always wrote: every frame, PNG, the
+document's own size, `frame_0001.png` onwards.
+
+| Setting | What it decides |
+| --- | --- |
+| **Format**, **Quality**, **Size %** | As in [Save as image](#saving-as-an-ordinary-picture): PNG, JPEG or WebP; quality for the two lossy ones; a larger size re-draws the strokes rather than enlarging pixels. |
+| **Tag** | Only on a document that has animation tags. Picking one fills in the range with that tag's frames. Type over the range afterwards and the picker lets go of the tag. |
+| **Frames … to …** | The first and last frame to write, counted from 1 as the timeline shows them. |
+| **Every** | 1 writes every frame of the range, 2 every second one, and so on. |
+| **Unique frames only** | A drawing held for several frames is written **once**. See below. |
+| **Name**, **Digits**, **Start at** | `walk`, 3 and 10 give `walk_010.png`, `walk_011.png`… Characters a file name cannot hold are dropped. |
+| **Number files by their frame on the timeline** | Each file takes the number of the frame it sits on instead of its place in the run. *Start at* disappears, because the timeline is doing the numbering. |
+| **Leave the paper out** | PNG and WebP only. Frames are written with a see-through background. This export only — the document keeps its paper. |
+| **Fill with** | JPEG only. The colour behind the drawing where it is see-through. |
+
+The sentence at the bottom says how many files are about to be written and what
+the first one will be called, before you pick a folder.
+
+**Unique frames.** Animating on 2s, a 24-frame second holds 12 drawings, and
+this writes those 12. A frame is left out when it would be exactly the same
+picture as the file before it — judged on the finished frame, so a held drawing
+under a moving camera, or over a layer that is still changing, is *not* a
+repeat and is written. A picture that comes back later (A, B, A again) is
+written again: the files stay in the order they play.
+
+Beside the pictures it writes `frame_timing.json` (using your name in place of
+`frame`), which is the only place the holds are recorded:
+
+```json
+{ "fps": 12, "from": 1, "to": 6, "step": 1,
+  "frames": [ { "file": "frame_0001.png", "frame": 1, "hold": 3 },
+              { "file": "frame_0002.png", "frame": 4, "hold": 2 },
+              { "file": "frame_0003.png", "frame": 6, "hold": 1 } ] }
+```
+
+`frame` is where the picture sits on the timeline and `hold` is how many frames
+it stands for. By default the files are numbered 1, 2, 3 without gaps; tick
+*Number files by their frame on the timeline* and the same export is
+`frame_0001`, `frame_0004`, `frame_0006` instead. The dialog says "up to" a
+number of files in this mode, because how many pictures repeat is only known
+once they are rendered. Exporting every frame writes no timing file.
+
+With a camera in the scene the frames are what the camera saw. When the
+document has a scratch track, it is written beside the frames as `audio.wav`.
+
+**Two things it does not do yet.** The settings are not remembered from one
+export to the next. And exporting into a folder that already holds a longer
+sequence does not remove the older files — pick an empty folder when the new
+run is shorter.
+
+**SVG is not here** — *Planned*, for Save as image.
 
 ## Opening a Photoshop file
 
@@ -113,7 +169,7 @@ video is what the camera saw.
 the encoder Lightbox drives, FFmpeg, was not found. The packaged application
 ships a copy beside itself, so this normally means a development build or a
 broken install — put an `ffmpeg` on your PATH and reopen the window.
-**Export PNGs…** works regardless, and every compositing package will encode
+**Export image sequence…** works regardless, and every compositing package will encode
 the sequence.
 
 ## Nothing leaves the app until the drawing is on disk

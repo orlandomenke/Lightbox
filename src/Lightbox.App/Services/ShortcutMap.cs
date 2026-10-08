@@ -567,6 +567,11 @@ public sealed class ShortcutMap
             new("file.saveAsImage", "Save as image (PNG, JPEG, WebP)", "File",
                 G(Key.S, KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift)),
 
+            // Unbound by default: an export is a few times a day, not a few
+            // times a minute, and the keys near it are spoken for. Registered
+            // all the same, so it can be found in the editor and given one.
+            new("file.exportImageSequence", "Export image sequence", "File", null),
+
             // B58. The rig had no shortcut, no menu item and no binding, so the mode
             // could not be switched on and none of the editing behind it was
             // reachable. `Ctrl+R` is taken by the rulers, so this is the next key

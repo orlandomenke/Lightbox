@@ -56,9 +56,10 @@ public partial class MainWindow
         try
         {
             var result = SaveAsImage.Write(doc, path, options, _vm.CurrentFrameIndex);
+            var name = Path.GetFileName(result.Paths[0]);
             _vm.AiStatus = result.Warning is { } warning
-                ? $"Saved {Describe(result)}. {warning}"
-                : $"Saved {Describe(result)}.";
+                ? $"Saved {name}. {warning}"
+                : $"Saved {name}.";
         }
         catch (Exception ex)
         {
@@ -66,10 +67,48 @@ public partial class MainWindow
         }
     }
 
-    private static string Describe(ImageSaveResult result) =>
-        result.Paths.Count == 1
-            ? Path.GetFileName(result.Paths[0])
-            : $"{result.Paths.Count} images";
+    /// <summary>
+    /// <c>File ▸ Export image sequence…</c> (Q219): the choices first, then the
+    /// folder, so the summary sentence has been read before anything is picked.
+    /// </summary>
+    private async void OnExportImageSequenceClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.Doc is not { } doc) return;
+
+        var window = new ImageSequenceWindow(doc.Scene);
+        await window.ShowDialog(this);
+        if (!window.Confirmed) return;
+        var settings = window.Choice.ToSettings();
+
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Export image sequence to folder",
+            AllowMultiple = false,
+        });
+        if (folders.Count == 0 || folders[0].TryGetLocalPath() is not { } dir) return;
+
+        var clip = _vm.ResolvedAudioPathForExport() is not null ? _vm.AudioClipNow : null;
+        try
+        {
+            var result = await Task.Run(() =>
+            {
+                var written = ImageSequenceExporter.Export(doc, dir, settings);
+                // The scratch track rides along as plain PCM, the one encoding
+                // every comp package reads (Q56).
+                if (clip is not null) VideoExporter.WriteWavPcm16(clip, Path.Combine(dir, "audio.wav"));
+                return written;
+            });
+
+            var status = $"Exported {result.Paths.Count} {ImageSaveFormats.Label(result.Format)} frame(s)";
+            if (result.TimingPath is { } timing) status += $", {Path.GetFileName(timing)}";
+            if (clip is not null) status += " and audio.wav";
+            _vm.AiStatus = result.Warning is { } warning ? $"{status}. {warning}" : $"{status}.";
+        }
+        catch (Exception ex)
+        {
+            _vm.AiStatus = $"Could not export the sequence: {ex.Message}";
+        }
+    }
 
     private string SuggestedImageName(string extension)
     {

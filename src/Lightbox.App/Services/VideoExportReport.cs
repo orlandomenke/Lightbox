@@ -51,7 +51,7 @@ public static class VideoExportReport
         ffmpegPath is null
             ? "FFmpeg was not found, so no video can be written. Install FFmpeg and put it on PATH, "
               + "or reinstall Lightbox — the packaged application ships a copy beside itself. "
-              + "File ▸ Export PNGs… still works and any comp package will encode the sequence."
+              + "File ▸ Export image sequence… still works, and any comp package will encode a PNG sequence."
             : null;
 
     /// <summary>Whether an export can start at all.</summary>

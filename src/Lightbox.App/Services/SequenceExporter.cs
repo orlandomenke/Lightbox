@@ -31,9 +31,16 @@ public static class SequenceExporter
     /// untouched, so a 2× render is the same mark at twice the size rather
     /// than a differently-seeded one.
     /// </summary>
+    /// <param name="withoutPaper">
+    /// Leave the paper out of this render: the background layer is skipped and
+    /// the composite clears to transparent whatever the scene says. A choice
+    /// about one export, so it is an argument here and never a write to the
+    /// document.
+    /// </param>
     public static SKImage RenderFrame(
         Doc doc, FrameBitmapCache cache, int frameIndex,
-        double scale = 1.0, (int Width, int Height)? outputSize = null)
+        double scale = 1.0, (int Width, int Height)? outputSize = null,
+        bool withoutPaper = false)
     {
         var scene = doc.Scene;
         var camera = scene.Camera;
@@ -61,6 +68,7 @@ public static class SequenceExporter
         {
             var layer = scene.Layers[layerIndex];
             if (!scene.IsLayerVisible(layer)) continue;
+            if (withoutPaper && layer.IsBackground) continue;
             // Production footage goes over the paper and under every drawing
             // (Q57) — the same slot the canvas gives it, so the export shows
             // exactly what the artist was looking at.
@@ -115,7 +123,9 @@ public static class SequenceExporter
             : (Math.Max(1, (int)Math.Round(outWidth * scale)), Math.Max(1, (int)Math.Round(outHeight * scale))));
 
         return SceneRenderer.Compose(
-            width, height, passes, SceneRenderer.BackgroundOf(scene), transform, scale);
+            width, height, passes,
+            withoutPaper ? SKColors.Transparent : SceneRenderer.BackgroundOf(scene),
+            transform, scale);
     }
 
     /// <summary>

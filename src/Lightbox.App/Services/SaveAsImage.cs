@@ -17,10 +17,6 @@ namespace Lightbox.App.Services;
 /// <see cref="SequenceExporter.RenderFrame"/>, which is the same path export
 /// takes.
 /// </param>
-/// <param name="AllFrames">
-/// Write every timeline frame as a numbered file beside the chosen name instead
-/// of the one frame on screen.
-/// </param>
 /// <param name="Matte">
 /// The colour that shows through where the drawing is transparent, for a format
 /// that cannot keep alpha. White by default, because that is what a JPEG of
@@ -32,7 +28,6 @@ public sealed record ImageSaveOptions(
     ImageSaveFormat Format = ImageSaveFormat.Png,
     int Quality = 90,
     double Scale = 1.0,
-    bool AllFrames = false,
     string Matte = "#ffffff");
 
 /// <param name="LostTransparency">
@@ -66,11 +61,13 @@ public sealed record ImageSaveResult(
 /// is a bug nobody can localise.
 /// </para>
 /// <para>
-/// <b>What this is not.</b> Sequences, sheets, trimming, packing and engine
-/// metadata all live in <see cref="ExportRunner"/> behind a preset, and belong
-/// there. The overlap is deliberately one thing only — an opt-in "every frame",
-/// which writes numbered files and exists because <c>ExportPngSequence</c> is
-/// PNG-only, so a JPEG or WebP sequence had no route at all.
+/// <b>What this is not.</b> A run of numbered frames is
+/// <see cref="ImageSequenceExporter"/>; sheets, trimming, packing and engine
+/// metadata live in <see cref="ExportRunner"/> behind a preset. This writes one
+/// picture. It used to carry an opt-in "every frame", from when the sequence
+/// export was PNG-only and a JPEG or WebP sequence had no other route; Q219
+/// moved that to the sequence export, which shares <see cref="Encode"/> so the
+/// two cannot disagree about what a format does with transparency.
 /// </para>
 /// </remarks>
 public static class SaveAsImage
@@ -91,10 +88,7 @@ public static class SaveAsImage
             : options;
 
     /// <summary>Write the drawing to <paramref name="path"/>.</summary>
-    /// <param name="frameIndex">
-    /// Which timeline frame to write. Ignored when
-    /// <see cref="ImageSaveOptions.AllFrames"/> is set.
-    /// </param>
+    /// <param name="frameIndex">Which timeline frame to write.</param>
     public static ImageSaveResult Write(
         Doc doc, string path, ImageSaveOptions? options = null, int frameIndex = 0)
     {
@@ -107,37 +101,20 @@ public static class SaveAsImage
         cache.Rig = RigIndex.For(doc);
         cache.PoseResolver = (f, cel) => Skinning.PoseFrameForRender(doc, f, cel, cache.Rig);
 
-        var frames = options.AllFrames
-            ? Enumerable.Range(0, Math.Max(1, scene.FrameCount)).ToArray()
-            : [Math.Clamp(frameIndex, 0, Math.Max(0, scene.FrameCount - 1))];
+        var index = Math.Clamp(frameIndex, 0, Math.Max(0, scene.FrameCount - 1));
+        using var image = SequenceExporter.RenderFrame(doc, cache, index, options.Scale);
+        var lostTransparency = Encode(image, path, options);
 
-        var paths = new List<string>(frames.Length);
-        var lostTransparency = false;
-
-        foreach (var index in frames)
-        {
-            var target = frames.Length == 1 ? path : Numbered(path, index + 1);
-            using var image = SequenceExporter.RenderFrame(doc, cache, index, options.Scale);
-            if (WriteOne(image, target, options)) lostTransparency = true;
-            paths.Add(target);
-        }
-
-        return new ImageSaveResult(paths, options.Format, lostTransparency);
+        return new ImageSaveResult([path], options.Format, lostTransparency);
     }
 
     /// <summary>
-    /// <c>character.jpg</c> → <c>character_0007.jpg</c>, so a sequence sorts.
+    /// Encode one rendered frame to <paramref name="path"/> — the single place a
+    /// format's rules about quality and transparency are applied, shared with
+    /// <see cref="ImageSequenceExporter"/>.
     /// </summary>
-    internal static string Numbered(string path, int number)
-    {
-        var directory = Path.GetDirectoryName(path) ?? "";
-        var stem = Path.GetFileNameWithoutExtension(path);
-        var extension = Path.GetExtension(path);
-        return Path.Combine(directory, $"{stem}_{number:D4}{extension}");
-    }
-
     /// <returns>Whether transparency was present and had to be filled in.</returns>
-    private static bool WriteOne(SKImage image, string path, ImageSaveOptions options)
+    internal static bool Encode(SKImage image, string path, ImageSaveOptions options)
     {
         var keepsAlpha = ImageSaveFormats.SupportsAlpha(options.Format);
         var transparent = !keepsAlpha && HasTransparency(image);

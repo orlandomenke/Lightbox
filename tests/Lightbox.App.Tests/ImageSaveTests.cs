@@ -205,7 +205,7 @@ public class ImageSaveTests(Xunit.ITestOutputHelper output) : IDisposable
         Assert.False(ImageSaveFormats.HasQuality(ImageSaveFormat.Png));
     }
 
-    // ---- every frame ----------------------------------------------------------
+    // ---- one picture, whatever the timeline holds ------------------------------
 
     [Fact]
     public void OneFrameByDefaultEvenOnASequence()
@@ -216,44 +216,6 @@ public class ImageSaveTests(Xunit.ITestOutputHelper output) : IDisposable
 
         Assert.Single(result.Paths);
         Assert.Equal(path, result.Paths[0]);
-    }
-
-    [Fact]
-    public void AllFramesWritesNumberedFilesBesideTheChosenName()
-    {
-        var path = Path("walk.png");
-
-        var result = SaveAsImage.Write(
-            Painted(8, 8, frames: 3), path, new ImageSaveOptions(AllFrames: true));
-
-        Assert.Equal(3, result.Paths.Count);
-        Assert.All(result.Paths, p => Assert.True(File.Exists(p)));
-        Assert.Equal(
-            ["walk_0001.png", "walk_0002.png", "walk_0003.png"],
-            result.Paths.Select(p => System.IO.Path.GetFileName(p)!).ToArray());
-    }
-
-    [Fact]
-    public void AllFramesWorksForAFormatThePngSequenceExporterCannotWrite()
-    {
-        // The one real reason this overlaps Export at all.
-        var path = Path("cycle.webp");
-
-        var result = SaveAsImage.Write(
-            Painted(8, 8, frames: 2), path,
-            new ImageSaveOptions(ImageSaveFormat.Webp, AllFrames: true));
-
-        Assert.Equal(2, result.Paths.Count);
-        using var codec = SKCodec.Create(result.Paths[1]);
-        Assert.Equal(SKEncodedImageFormat.Webp, codec!.EncodedFormat);
-    }
-
-    [Fact]
-    public void NumberingKeepsTheExtensionAndPadsToFour()
-    {
-        Assert.Equal(
-            System.IO.Path.Combine("a", "b_0042.jpg"),
-            SaveAsImage.Numbered(System.IO.Path.Combine("a", "b.jpg"), 42));
     }
 
     [Fact]
@@ -465,16 +427,6 @@ public class ImageSaveTests(Xunit.ITestOutputHelper output) : IDisposable
 
         Assert.ThrowsAny<IOException>(
             () => SaveAsImage.Write(Painted(), System.IO.Path.Combine(blocker, "out.png")));
-    }
-
-    [Theory]
-    [InlineData("character", 7, "character_0007")]
-    [InlineData("walk_0001.png", 2, "walk_0001_0002.png")]
-    public void NumberingHandlesNamesItWasNotDesignedFor(string name, int number, string expected)
-    {
-        // None of these are pretty; what matters is that none collide with
-        // another frame's file or throw.
-        Assert.Equal(expected, System.IO.Path.GetFileName(SaveAsImage.Numbered(name, number)));
     }
 
     // ---- the format table -----------------------------------------------------

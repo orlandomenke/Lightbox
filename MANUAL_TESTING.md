@@ -323,7 +323,8 @@ headless can open a window and click Delete.
 - [ ] "Smooth" toggle visibly relaxes jittery strokes on release.
 - [ ] Timeline cells show live thumbnails that update as you paint.
 - [ ] fps control changes playback speed immediately (even while playing).
-- [ ] `Export PNGs…` writes frame_0001.png… to the chosen folder; frames match what playback shows.
+- [ ] `Export image sequence…` with nothing changed writes frame_0001.png… to the chosen folder; frames match what playback shows.
+- [ ] `Export image sequence…` with *Unique frames only* on a document animated on 2s writes half as many files and a `frame_timing.json`.
 - [ ] After a minute of editing, `Lightbox/autosave.lightbox.json` exists in app-data and opens correctly.
 
 ## AI (needs ANTHROPIC_API_KEY)

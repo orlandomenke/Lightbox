@@ -410,6 +410,10 @@ public partial class MainWindow
                 OnSaveAsImageClicked(this, e);
                 e.Handled = true;
                 break;
+            case "file.exportImageSequence":
+                OnExportImageSequenceClicked(this, e);
+                e.Handled = true;
+                break;
             case "canvas.transform":
                 if (!_vm.TransformActive) _vm.BeginTransform();
                 break;

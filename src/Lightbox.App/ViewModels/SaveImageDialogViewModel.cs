@@ -13,8 +13,7 @@ namespace Lightbox.App.ViewModels;
 /// <b>All of the decisions and none of the window</b>, for the reason
 /// <see cref="ResizeDialogViewModel"/> gives: the interesting cases here are the
 /// ones nobody clicks through by hand — a format that quietly cannot keep the
-/// transparency the drawing has, a quality slider on a lossless format, an
-/// "every frame" option on a document with one frame.
+/// transparency the drawing has, a quality slider on a lossless format.
 /// </para>
 /// <para>
 /// <b>The warning is stated before the save, not after.</b> The roadmap item this
@@ -37,7 +36,6 @@ public sealed partial class SaveImageDialogViewModel : ObservableObject
     {
         _canvasWidth = Math.Max(1, scene.Width);
         _canvasHeight = Math.Max(1, scene.Height);
-        FrameCount = Math.Max(1, scene.FrameCount);
         // A document whose paper is transparent, or which has no opaque paper
         // layer, is one where a format without alpha will change the picture.
         LooksTransparent = scene.TransparentBackground || scene.Layers.Exists(l => l.IsBackground);
@@ -64,18 +62,9 @@ public sealed partial class SaveImageDialogViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(Summary))]
     private double _scalePercent = 100;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Summary))]
-    private bool _allFrames;
-
     /// <summary>What shows through the transparency in a format that has none.</summary>
     [ObservableProperty]
     private string _matte = "#ffffff";
-
-    /// <summary>How many frames the document has; 1 hides the every-frame option.</summary>
-    public int FrameCount { get; }
-
-    public bool IsSequence => FrameCount > 1;
 
     /// <summary>Whether the document plausibly has transparency to lose.</summary>
     public bool LooksTransparent { get; }
@@ -96,9 +85,8 @@ public sealed partial class SaveImageDialogViewModel : ObservableObject
     private double Scale => Math.Clamp(ScalePercent, 1, 1600) / 100.0;
 
     /// <summary>
-    /// One sentence naming what is about to be written, including the count when
-    /// it is more than one file — "3 files" is the part an artist wants to have
-    /// read before they pick a folder rather than after.
+    /// One sentence naming what is about to be written. One file, always — a
+    /// run of frames is <c>Export image sequence…</c> (Q219).
     /// </summary>
     public string Summary
     {
@@ -106,9 +94,8 @@ public sealed partial class SaveImageDialogViewModel : ObservableObject
         {
             var label = ImageSaveFormats.Label(Format);
             var size = $"{OutputWidth}×{OutputHeight}";
-            var count = AllFrames && IsSequence ? $"{FrameCount} files" : "one file";
             var quality = HasQuality ? $", quality {Quality}" : "";
-            return $"{count}, {label} at {size}{quality}.";
+            return $"One file, {label} at {size}{quality}.";
         }
     }
 
@@ -116,7 +103,6 @@ public sealed partial class SaveImageDialogViewModel : ObservableObject
         Format,
         Math.Clamp(Quality, 1, 100),
         Scale,
-        AllFrames && IsSequence,
         Matte);
 
     /// <summary>The extension the chosen format wants, for the file picker.</summary>

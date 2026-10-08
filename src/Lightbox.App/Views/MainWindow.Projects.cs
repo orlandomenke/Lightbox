@@ -113,6 +113,7 @@ public partial class MainWindow
         SaveVersionMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.saveVersion")?.Current;
         VersionHistoryMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.versionHistory")?.Current;
         SaveAsImageMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.saveAsImage")?.Current;
+        ExportImageSequenceMenu.InputGesture = _shortcuts.Definitions.FirstOrDefault(d => d.Id == "file.exportImageSequence")?.Current;
     }
 
     /// <summary>
