@@ -262,7 +262,12 @@ public class RasterCheckpointTests(ITestOutputHelper o)
         using var replayed = Open(doc, frame);
 
         var made = Checkpoint(doc, frame);
-        made.PixelsBase64 = Convert.ToBase64String("not a png"u8.ToArray());
+        // Replaced, not changed in place: a checkpoint is shared by every copy of its drawing (B414).
+        frame.Checkpoint = new StrokeCheckpoint
+        {
+            Strokes = made.Strokes, Fingerprint = made.Fingerprint, Width = made.Width, Height = made.Height,
+            PixelsBase64 = Convert.ToBase64String("not a png"u8.ToArray()),
+        };
         // Still "usable" as far as the record is concerned — the fingerprint is
         // untouched — so this is the render path's guard being exercised, not
         // the fingerprint's.

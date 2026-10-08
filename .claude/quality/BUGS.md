@@ -2108,6 +2108,11 @@ test reopens the bug.
   - Fix: `_placementDrag` carries a set instead of one id, so a group is the same operation on more of them — same anchor, same axis lock, one `PerformDelta` step for the whole drag. A selection makes the grab modal inside `BeginPlacementMove`, which is the side that knows what is selected, so `CanvasControl` went back to reporting absolute document coordinates like every other move. The parallel path is deleted. Cost: S
   - P1 because the feature did not work and the damage it did could not be taken back.
 
+- [x] **B414** `P2` `canvas` Nudging a drawing to spacing moves its baked raster in the copy undo restores from, so undo leaves it out of register `evidence: SharedSampleTests, MovingADrawingLeavesACopyTakenBeforeItWhereItWas`
+
+  - **Found 2026-10-08** by the compiler. To act on a note in the sensitivity review of undo storing only what changed, `BakedSample` and `StrokeCheckpoint` were made init-only. Every copy of a stroke shares them on purpose (`DocCloneTests.DeliberatelyShared`), so a change in place reaches every copy. The review had found no writer by grep; the compiler found one.
+  - **Mechanism:** `FrameTranslate.Apply` (*Nudge to spacing*) moved `Baked.X/Y` in place. The step's `before = frame.Clone()` shares that sample, so it moved too. Undo restored the points but left the baked raster at the nudged position, out of register with its own stroke, and saved that way. Once undo shares frozen drawings between steps, every step holding the drawing would see the move.
+  - **Fix:** the translate makes a new sample. Both shared types are now init-only, so a future change in place fails to compile instead of corrupting undo. Two tests that corrupted a checkpoint on purpose now replace it.
 - [x] **B413** `P2` `canvas` Undo of a guide, reference or weight edit does nothing after an undone structural edit: 19 deltas mutate captured objects `evidence: DeltaAfterSwapTests, AGridsSpacingUndoesAfterTheDocumentWasSwapped, PaintedWeightsUndoAfterTheDocumentWasSwapped`
 
   - **Found 2026-10-08** while designing undo that stores only what changed. That change thaws a fresh document on redo as well as undo, and its sensitivity review showed that it would make this reachable by one more ordinary sequence.

@@ -56,7 +56,7 @@ public sealed class StrokeCheckpoint
     /// also why a stale checkpoint is cheap — the strokes after it are ordinary
     /// strokes.
     /// </remarks>
-    public int Strokes { get; set; }
+    public int Strokes { get; init; }
 
     /// <summary>
     /// What the covered strokes, and everything a render resolves for them,
@@ -68,13 +68,13 @@ public sealed class StrokeCheckpoint
     /// that some edit path remembered to drop it. See
     /// <c>CheckpointFingerprint</c> for why that direction was chosen.
     /// </remarks>
-    public string Fingerprint { get; set; } = "";
+    public string Fingerprint { get; init; } = "";
 
     /// <summary>
     /// The rendered pixels — see the remarks on the class about what this is
     /// and which codec may touch it.
     /// </summary>
-    public string PixelsBase64 { get; set; } = "";
+    public string PixelsBase64 { get; init; } = "";
 
     /// <summary>Width of <see cref="PixelsBase64"/>, in document pixels.</summary>
     /// <remarks>
@@ -83,10 +83,10 @@ public sealed class StrokeCheckpoint
     /// the pixels are used at all, so a checkpoint from a differently sized
     /// document is refused rather than stretched.
     /// </remarks>
-    public int Width { get; set; }
+    public int Width { get; init; }
 
     /// <inheritdoc cref="Width"/>
-    public int Height { get; set; }
+    public int Height { get; init; }
 
     /// <summary>Whether this carries enough to be worth trying to use.</summary>
     [System.Text.Json.Serialization.JsonIgnore]

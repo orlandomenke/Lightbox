@@ -334,7 +334,13 @@ public class CheckpointServiceTests
         // Pixels that would be obvious if they were ever drawn.
         using var wrong = new SKBitmap(new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Premul));
         using (var canvas = new SKCanvas(wrong)) canvas.Clear(SKColors.Red);
-        frame.Checkpoint!.PixelsBase64 = CheckpointCodec.Encode(wrong)!;
+        var c = frame.Checkpoint!;
+        // Replaced, not changed in place: a checkpoint is shared by every copy of its drawing (B414).
+        frame.Checkpoint = new StrokeCheckpoint
+        {
+            Strokes = c.Strokes, Fingerprint = c.Fingerprint, Width = c.Width, Height = c.Height,
+            PixelsBase64 = CheckpointCodec.Encode(wrong)!,
+        };
 
         using var cache = new FrameBitmapCache();
         var pixels = cache.Get(frame, W, H).GetPixelSpan().ToArray();
