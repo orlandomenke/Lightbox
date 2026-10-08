@@ -128,6 +128,8 @@ public partial class MainViewModel
         // publish that follows, and during playback this fires every tick.
         if (PerfLog.On && !IsPlaying) PerfLog.Mark("playhead", value.ToString(System.Globalization.CultureInfo.InvariantCulture));
         _lastStrokeEnd = null;   // and it stops being true on another drawing
+        // The tiles held after Stop were the stopped frame's (phase 3).
+        if (!IsPlaying) _holdTilesAfterStop = false;
 
         // Only while playing: the same path serves scrubbing, and blending a
         // budgeted path with an unbudgeted one makes every number mean nothing.

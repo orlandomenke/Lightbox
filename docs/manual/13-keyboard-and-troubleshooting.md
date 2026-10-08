@@ -157,6 +157,12 @@ little memory it prepares only as much of the range as fits, nearest the playhea
 first. The cost is the processor working for a few seconds after each change —
 turn it off on a laptop running on battery.
 
+**Stopping is instant too.** The frame you stop on stays on screen as playback
+showed it, while the still canvas prepares its own copy in the background, and
+then quietly takes over. At 50% zoom or closer the two are identical. Zoomed
+further out, a few stroke edges can look very slightly different for that moment
+before settling.
+
 ### Blending layers on the graphics card
 
 **Edit → Configure → Performance → Composite layers on the GPU.**
