@@ -778,10 +778,10 @@ it is re-rendered rather than recorded. What is missing is only presentation.
     `psd_tools` rejects as corrupt, so the reader had been green against files no
     other application would open.
 - [x] Tablet optimization `evidence: PressureTests, PressureVmTests, PenDiagnostic`
-- [x] Export an image sequence with a range, a step, a format and each held drawing once (Q219) `evidence: ImageSequenceExporter, ImageSequenceSettings, ImageSequenceDialogViewModel, ImageSequenceWindow, ImageSequenceExportTests, ImageSequenceDialogTests, TheDefaultsWriteByteForByteWhatExportPngsAlwaysWrote, UniqueFramesWritesAHeldDrawingOnceAndCountsFromOne, UniqueIsJudgedOnThePictureNotOnOneLayersHolds, TimelineNumbersKeepsEachFilesFrameNumberAndLeavesTheGaps, TransparentPaperLeavesThePaperOutAndTheDrawingIn, APrefixCannotNameAnotherFolderOrAnIllegalFile, ExportingASequenceIsARegisteredCommand`
+- [x] Export an image sequence with a range, a step, a format and each held drawing once (Q220) `evidence: ImageSequenceExporter, ImageSequenceSettings, ImageSequenceDialogViewModel, ImageSequenceWindow, ImageSequenceExportTests, ImageSequenceDialogTests, TheDefaultsWriteByteForByteWhatExportPngsAlwaysWrote, UniqueFramesWritesAHeldDrawingOnceAndCountsFromOne, UniqueIsJudgedOnThePictureNotOnOneLayersHolds, TimelineNumbersKeepsEachFilesFrameNumberAndLeavesTheGaps, TransparentPaperLeavesThePaperOutAndTheDrawingIn, APrefixCannotNameAnotherFolderOrAnIllegalFile, ExportingASequenceIsARegisteredCommand`
   - *Export PNGs…* was a folder picker and nothing else: every frame, PNG, the document's size. It is now **Export image sequence…** with a window — format, quality, size, a frame range (typed, or taken from an animation tag), every Nth frame, the file name, padding and first number, and the paper left out or filled in. Untouched, it writes byte for byte what it wrote before, and a test compares the two.
   - **"Unique frames only" is read off the rendered picture, not off the record.** A layer's holds would be cheaper and wrong three ways: two layers hold different lengths, a camera move changes a held drawing, and a duplicated cel is two drawings that are one picture. It collapses a hold and nothing else — A B A is three files — so the run stays in playing order. The holds go in a `_timing.json` beside the pictures, which is absent when every frame is written.
-  - **Numbering went against the recommendation**, and Q219 records it: an unbroken run is the default and the timeline's own numbers are the tick, not the other way round.
+  - **Numbering went against the recommendation**, and Q220 records it: an unbroken run is the default and the timeline's own numbers are the tick, not the other way round.
   - **Not done, on purpose and written down:** the settings are not remembered and are not in `ExportPreset` (the engine window's `PngSequence` target still writes every frame as PNG); a shorter export into a folder holding a longer one leaves the old tail; nothing over MCP reaches it.
 - [~] Save as an ordinary image format — PNG, JPEG, SVG `evidence: ImageSaveFormat, SaveAsImage, ImageSaveTests, ASvgSaveKeepsVectorLayersAsPaths`
   - Export writes sheets and sequences for engines; there is no plain "save this as a picture". PNG and JPEG are small and mostly plumbing. **SVG is the interesting one and should not be faked**: a raster document cannot become an SVG except as an embedded bitmap, which is a lie in a vector wrapper. It is only honest for the vector layers, and it needs the vector side to be richer first — which is what makes it the same item as the one below.
@@ -790,7 +790,7 @@ it is re-rendered rather than recorded. What is missing is only presentation.
     (Ctrl+Alt+Shift+S). One image by default — the missing verb this item names —
     and one image only: the opt-in *every frame* it first shipped with, from
     when the sequence export was PNG-only, moved to **Export image sequence…**
-    under Q219 so that one place writes numbered files. It renders through `SequenceExporter.RenderFrame`, so a saved PNG and
+    under Q220 so that one place writes numbered files. It renders through `SequenceExporter.RenderFrame`, so a saved PNG and
     that frame from an exported sequence are the same bytes by construction; a
     test asserts exactly that, because two compositing paths would be free to
     drift.

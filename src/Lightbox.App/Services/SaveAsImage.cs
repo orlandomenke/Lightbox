@@ -65,7 +65,7 @@ public sealed record ImageSaveResult(
 /// <see cref="ImageSequenceExporter"/>; sheets, trimming, packing and engine
 /// metadata live in <see cref="ExportRunner"/> behind a preset. This writes one
 /// picture. It used to carry an opt-in "every frame", from when the sequence
-/// export was PNG-only and a JPEG or WebP sequence had no other route; Q219
+/// export was PNG-only and a JPEG or WebP sequence had no other route; Q220
 /// moved that to the sequence export, which shares <see cref="Encode"/> so the
 /// two cannot disagree about what a format does with transparency.
 /// </para>

@@ -8,7 +8,7 @@ using SkiaSharp;
 namespace Lightbox.App.Services;
 
 /// <summary>
-/// What an artist decides before a run of numbered pictures is written (Q219):
+/// What an artist decides before a run of numbered pictures is written (Q220):
 /// format, size, which frames, whether a held drawing is written once, and
 /// what the files are called.
 /// </summary>
