@@ -1166,6 +1166,12 @@ public partial class MainViewModel
         SayWhichSelectedLayersStayed();
         _transformLayers = [.. Scene.Layers];
         TransformActive = true;
+        // A restart can change the range — a new scope, a new marking, a
+        // selection that now limits it — so the shares are worked out again,
+        // and a ramp the session can no longer hold is switched off (Q216).
+        _rampPlan = null;
+        if (RampOverFrames && !RampAvailable) RampOverFrames = false;
+        OnPropertyChanged(nameof(RampAvailable));
         // The session's controls live in the Tool options docker now (Q70), so
         // starting a transform with the docker closed must open it — Apply and
         // Cancel have keys, but scope, sampling and perspective would otherwise

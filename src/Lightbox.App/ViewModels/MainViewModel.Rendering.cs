@@ -1533,7 +1533,9 @@ public partial class MainViewModel
             // Q216: whole drawings move, so their ghosts can move with them.
             GhostsFollow: _transform.Filter is null,
             TransformFrameIds: _transform.FrameIds,
-            GhostSheet: _passGhostSheet ??= GhostSheetFor);
+            GhostSheet: _passGhostSheet ??= GhostSheetFor,
+            // Q216: a ramp gives each drawing its own share of the box.
+            RampPreview: RampApplies ? _passRampPreview ??= RampPreviewAt : null);
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;

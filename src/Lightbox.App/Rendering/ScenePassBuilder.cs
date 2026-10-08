@@ -228,7 +228,8 @@ internal static class ScenePassBuilder
         SKRectI? PostUsed = null,
         bool GhostsFollow = false,
         IReadOnlySet<string>? TransformFrameIds = null,
-        Func<Layer, IReadOnlyList<PassSpec>, SKBitmap?>? GhostSheet = null)
+        Func<Layer, IReadOnlyList<PassSpec>, SKBitmap?>? GhostSheet = null,
+        Func<Layer, int, SKMatrix?>? RampPreview = null)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -427,8 +428,13 @@ internal static class ScenePassBuilder
             // Ghosts ride their layer's plane — a ghost is the same drawing at
             // another time, so it parallaxes exactly as the drawing does.
             var ghostDrag = GhostDrag(live);
-            var ghosts = GhostSpecsFor(layer, scene, state, parallax, ghostDrag);
-            if (ghostDrag is { } gd) ghosts = AsOneSheet(layer, ghosts, gd.FrameIds, live.GhostSheet);
+            var ghosts = GhostSpecsFor(layer, scene, state, parallax, ghostDrag, live.RampPreview);
+            // A ramp gives every ghost its own share, so they share no matrix
+            // and cannot be one sheet (Q216).
+            if (ghostDrag is { } gd && live.RampPreview is null)
+            {
+                ghosts = AsOneSheet(layer, ghosts, gd.FrameIds, live.GhostSheet);
+            }
             if (!state.Onion.DrawOver) passes.AddRange(ghosts);
 
             // Past the end of the scene the canvas shows no drawing (Q103).
@@ -578,7 +584,8 @@ internal static class ScenePassBuilder
                     // The drag nests inside the layer's plane: the moved strokes
                     // still live on this layer, so the preview matrix applies in
                     // plane-local document space and the parallax wraps it.
-                    var preview = live.TransformPreview!.Value;
+                    // Q216: a ramp gives the drawing at the playhead its own share.
+                    var preview = live.RampPreview?.Invoke(layer, state.FrameIndex) ?? live.TransformPreview!.Value;
                     passes.Add(new PassSpec(
                         null, state.FrameIndex, parts.Moving, null, layer.Opacity,
                         SceneRenderer.ToSkia(layer.BlendMode), overlay,
@@ -781,7 +788,8 @@ internal static class ScenePassBuilder
     /// </summary>
     internal static IReadOnlyList<PassSpec> GhostSpecsFor(
         Layer layer, Scene scene, State state, SKMatrix? parallax = null,
-        (SKMatrix Preview, IReadOnlySet<string> FrameIds)? drag = null)
+        (SKMatrix Preview, IReadOnlySet<string> FrameIds)? drag = null,
+        Func<Layer, int, SKMatrix?>? ramp = null)
     {
         var onion = state.Onion;
         // Ghosts are a drawing aid. During playback they are noise, and the
@@ -825,7 +833,7 @@ internal static class ScenePassBuilder
             passes.Add(new PassSpec(
                 pinned, index, null,
                 index < state.FrameIndex ? previous : next,
-                onion.Opacity, Matrix: GhostMatrix(pinned, parallax, drag), Shapes: ghostShapes));
+                onion.Opacity, Matrix: GhostMatrix(layer, pinned, index, parallax, drag, ramp), Shapes: ghostShapes));
         }
 
         // Furthest first so the nearest ghost ends up on top of the others,
@@ -840,7 +848,7 @@ internal static class ScenePassBuilder
                 ghost.Frame, ghost.Index, null,
                 ghost.Before ? previous : next,
                 OnionSkin.OpacityAt(ghost.Steps, onion.Opacity, onion.Falloff),
-                Matrix: GhostMatrix(ghost.Frame, parallax, drag), Shapes: ghostShapes));
+                Matrix: GhostMatrix(layer, ghost.Frame, ghost.Index, parallax, drag, ramp), Shapes: ghostShapes));
         }
         return passes;
     }
@@ -909,12 +917,16 @@ internal static class ScenePassBuilder
     }
 
     private static SKMatrix? GhostMatrix(
-        Frame ghost, SKMatrix? parallax, (SKMatrix Preview, IReadOnlySet<string> FrameIds)? drag)
+        Layer layer, Frame ghost, int index, SKMatrix? parallax,
+        (SKMatrix Preview, IReadOnlySet<string> FrameIds)? drag, Func<Layer, int, SKMatrix?>? ramp)
     {
         // A set built once per session, not a scan: this is per ghost per
         // publish, and a whole layer's session can hold hundreds of drawings.
         if (drag is not { } d || !d.FrameIds.Contains(ghost.Id)) return parallax;
-        return parallax is { } pm ? SKMatrix.Concat(pm, d.Preview) : d.Preview;
+        // Under a ramp a ghost shows the share of the cel it stands at, which
+        // is the share its drawing will be given there (Q216).
+        var preview = ramp?.Invoke(layer, index) ?? d.Preview;
+        return parallax is { } pm ? SKMatrix.Concat(pm, preview) : preview;
     }
 
     private static IReadOnlyList<int> PinnedGhostIndices(Scene scene) =>

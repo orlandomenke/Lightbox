@@ -57,6 +57,17 @@ public partial class MainWindow
             // — so the two modes feed different preview entry points. Clearing
             // the other one on every change is what stops a mode switch leaving
             // a stale preview of the mode you just left on screen.
+            // Q216: the ramp eases the box's parts, so it needs them as parts —
+            // and only while the gizmo is a box.
+            if (Canvas.TransformCage || Canvas.TransformBands || Canvas.TransformPerspective)
+            {
+                _vm.SetTransformBox(null);
+            }
+            else
+            {
+                var (px, py, sx, sy, angle, dx, dy) = Canvas.TransformAffineResult;
+                _vm.SetTransformBox(new Lightbox.Core.Geometry.AffineParts(px, py, sx, sy, angle, dx, dy));
+            }
             if (Canvas.TransformCage)
             {
                 _vm.PreviewTransform(null);

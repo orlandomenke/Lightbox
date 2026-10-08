@@ -882,6 +882,44 @@ on one drawing, so deselect first (**Ctrl+D**).
 The **Move** tool does not read or change the scope either — a plain drag moves
 this drawing and a **Ctrl**-drag every drawing on the layer, for that drag only.
 
+#### Ramp it over the frames
+
+**The cycle walks on the spot and should cross the screen.** Start a transform
+over every frame of the layer (or mark a run of cels and pick *Marked cels*),
+tick **Ramp** on the Transform page, and drag the box to where the **last**
+drawing should end up. The first drawing stays where it is, the last gets the
+whole box, and every drawing between gets its share — a quarter of the way
+along at a quarter of the way through. The same works for a scale (a push-in
+that grows over the shot) or a rotation.
+
+| To do this | Do that |
+| --- | --- |
+| Make the move gather pace, or settle | Pick **Ease in**, **Ease out** or **Ease in and out** beside *Ramp*; **Even** is the same step every drawing |
+| See the whole ramp before applying | Turn on onion skin: each ghost shows its own share |
+| Apply | **Enter** — one undo step for every drawing |
+
+What to know:
+
+- **The box is the last drawing.** The drawing under the playhead shows its own
+  share, so on the first frame it does not move at all while you drag — watch
+  the ghosts, and the status line says what share this frame gets.
+- **Holds keep their timing.** A drawing held for two frames takes the share of
+  the frame it starts on, so a cycle on 2s still moves on 2s.
+- **A drawing shown in more than one place is split.** A loop that shows its
+  first drawing again at the end cannot have it at both ends of a walk, so each
+  later place gets its own copy, and the status line says how many were made.
+  Drawings outside the ramp are never changed — one that also shows outside it
+  is copied at every place inside it. Ctrl+Z puts it all back.
+- **Box only.** Perspective, bands and the cage apply in full, and a ramp needs
+  whole drawings, so it is not offered while a selection is up. A mirror cannot
+  be ramped — it would pass through a flat line on the way — and Enter says so
+  rather than mirroring everything.
+- **Ghosts cost more under a ramp.** Each one is drawn at its own share, so they
+  cannot be drawn as one; with deep onion skin on a large canvas the drag is
+  heavier than an ordinary transform.
+- The ramp switches itself off when the transform ends; the next one starts
+  without it.
+
 **Pick several layers in the Layers docker first and Ctrl+T moves them
 together** — the box goes round the drawing at this frame on each picked layer,
 and one drag, scale or rotation moves them all, as in Krita. It is this frame

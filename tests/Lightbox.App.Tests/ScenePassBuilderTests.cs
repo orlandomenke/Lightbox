@@ -138,6 +138,32 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// <b>Q216's ramp:</b> each ghost shows the share of the cel it stands at,
+    /// so ghosts carry different matrices — and therefore are not merged into
+    /// one sheet, which would put them all at one share.
+    /// </summary>
+    [Fact]
+    public void UnderARampEachGhostShowsItsOwnShare()
+    {
+        var ink = LayerWith("Ink", 3);
+        var scene = SceneWith(ink);
+        using var cache = new FrameBitmapCache();
+        using var sheet = new SkiaSharp.SKBitmap(64, 48);
+        var live = new ScenePassBuilder.LiveEdit(
+            TransformPreview: SkiaSharp.SKMatrix.CreateTranslation(100, 0),
+            TransformFrames: [.. ink.Cels.Select(c => c.Frame!)], GhostsFollow: true,
+            TransformFrameIds: ink.Cels.Select(c => c.Frame!.Id).ToHashSet(),
+            GhostSheet: (_, _) => sheet,
+            RampPreview: (_, index) => SkiaSharp.SKMatrix.CreateTranslation(50 * index, 0));
+
+        var plan = ScenePassBuilder.Describe(scene, StateFor(scene, ink), cache, new TileFallbackTally(), live);
+        var ghosts = plan.Specs.Where(s => s.Tint is not null).ToList();
+
+        Assert.DoesNotContain(plan.Specs, s => ReferenceEquals(s.Bitmap, sheet));
+        Assert.Equal([0f, 100f], ghosts.Select(g => g.Matrix!.Value.TransX).Order().ToArray());
+    }
+
+    /// <summary>
     /// A region-limited transform moves part of each drawing, and a ghost is one
     /// bitmap — moving it would show strokes moving that are going to stay.
     /// </summary>
