@@ -184,7 +184,8 @@ internal static class ScenePassBuilder
         bool HaveViewport,
         OnionSettings Onion,
         bool IsScrubbing = false,
-        bool ThroughCamera = false);
+        bool ThroughCamera = false,
+        bool GhostsLater = false);
 
     /// <summary>
     /// The moving and staying halves of a frame under a live transform, as the
@@ -824,7 +825,9 @@ internal static class ScenePassBuilder
         // list: this is asked once per visible layer per publish, and a publish
         // happens per pointer event during a stroke, so an unused List per
         // layer per event is a real allocation on the drawing path.
-        if (!onion.Enabled || state.IsPlaying || !layer.OnionEnabled) return [];
+        // GhostsLater: a stop holding the playback tiles (Q218/Q219) shows the
+        // frame at once and its ghosts with the exact still a moment later.
+        if (!onion.Enabled || state.IsPlaying || state.GhostsLater || !layer.OnionEnabled) return [];
 
         var previous = SceneRenderer.ParseTint(onion.PreviousTint, SceneRenderer.OnionPrevTint);
         var next = SceneRenderer.ParseTint(onion.NextTint, SceneRenderer.OnionNextTint);

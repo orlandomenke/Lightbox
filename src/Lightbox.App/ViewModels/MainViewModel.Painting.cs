@@ -291,6 +291,9 @@ public partial class MainViewModel
         // Both caches: playback publishes through the tile store since Q62,
         // so the scan protection has to follow the frames wherever they live
         // (B182 — the tile half went unflipped for a while, and thrashed).
+        // Stopping holds the playback tiles until the stills are ready (phase 3).
+        _holdTilesAfterStop = !value && CanHoldTilesOnStop();
+
         var order = value
             ? FrameBitmapCache.EvictionOrder.MostRecent
             : FrameBitmapCache.EvictionOrder.LeastRecent;
@@ -1801,6 +1804,8 @@ public partial class MainViewModel
         // the render in hand: the cores are the stroke's now (phase 2b). Its
         // finished work is kept; the commit's flush decides what is still good.
         if (!IsPlaying && _prewarm.IsBusy) _prewarm.Request([], 1);
+        // A stroke draws on the still canvas: no held tiles under it.
+        _holdTilesAfterStop = false;
         _strokeBuilder.Begin(
             IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,
             ColorHex,
