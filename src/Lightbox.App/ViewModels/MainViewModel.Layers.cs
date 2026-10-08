@@ -221,22 +221,23 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// The selection as stack items, topmost first: the picked folder, and each
-    /// selected layer that is not inside it.
+    /// The selection as stack items, topmost first: each picked folder not
+    /// inside another picked one, and each selected layer inside none of them.
     /// </summary>
     internal List<StackRef> SelectedStackItems()
     {
-        var folder = SelectedGroup;
+        var folders = SelectedGroups;
         var items = new List<StackRef>();
         foreach (var row in FolderTree.Rows(Scene))
         {
             switch (row.Item)
             {
-                case LayerGroup g when g.Id == folder?.Id && !row.Continued:
+                case LayerGroup g when !row.Continued && folders.Contains(g)
+                                       && !folders.Any(outer => outer != g && FolderTree.IsWithin(Scene, g, outer)):
                     items.Add(StackRef.Of(g));
                     break;
                 case Layer l when _selectedLayerIds.Contains(l.Id)
-                                  && (folder is null || !FolderTree.IsWithin(Scene, l, folder)):
+                                  && !folders.Any(f => FolderTree.IsWithin(Scene, l, f)):
                     items.Add(StackRef.Of(l));
                     break;
             }
@@ -646,22 +647,17 @@ public partial class MainViewModel
     private void DeleteGroup(GroupRow header)
     {
         var folder = header.Group;
-        // A lock above it protects it as surely as one inside it does: the
-        // layers under a locked outer folder refuse a delete one at a time,
-        // and picking the inner folder must not be the way round that.
-        if (FolderTree.Ancestors(Scene, folder).FirstOrDefault(f => f.Locked) is { } lockedAbove)
+        // One of several picked: Delete means the pick, as on a layer row (B399)
+        // — including when this one sits inside another picked folder.
+        if (_selectedGroupIds.Contains(folder.Id)
+            && SelectedStackItems() is var picked && !(picked.Count == 1 && picked[0].Id == folder.Id))
         {
-            AiStatus = $"\u201c{lockedAbove.Name}\u201d is locked \u2014 unlock it to delete a folder inside it.";
+            DeleteStackSelection();
             return;
         }
-        if (folder.Locked || FolderTree.SubtreeFolders(Scene, folder).Any(f => f.Locked))
+        if (FolderDeleteRefusal(folder) is { } refusal)
         {
-            AiStatus = $"“{folder.Name}” has a locked folder in it — unlock it to delete the folder.";
-            return;
-        }
-        if (FolderTree.SubtreeLayers(Scene, folder).FirstOrDefault(l => l.Locked) is { } locked)
-        {
-            AiStatus = $"“{locked.Name}” is locked — unlock it to delete the folder it is in.";
+            AiStatus = refusal;
             return;
         }
         var id = folder.Id;
@@ -677,7 +673,7 @@ public partial class MainViewModel
         {
             return;
         }
-        _selectedGroupId = null;
+        _selectedGroupIds.Clear();
         if (at >= 0)
         {
             var next = Math.Clamp(at, 0, Scene.Layers.Count - 1);
@@ -693,6 +689,94 @@ public partial class MainViewModel
         };
     }
 
+    /// <summary>Why this folder cannot be deleted, or null when it can.</summary>
+    private string? FolderDeleteRefusal(LayerGroup folder)
+    {
+        // A lock above it protects it as surely as one inside it does: the
+        // layers under a locked outer folder refuse a delete one at a time,
+        // and picking the inner folder must not be the way round that.
+        if (FolderTree.Ancestors(Scene, folder).FirstOrDefault(f => f.Locked) is { } lockedAbove)
+        {
+            return $"\u201c{lockedAbove.Name}\u201d is locked \u2014 unlock it to delete a folder inside it.";
+        }
+        if (folder.Locked || FolderTree.SubtreeFolders(Scene, folder).Any(f => f.Locked))
+        {
+            return $"“{folder.Name}” has a locked folder in it — unlock it to delete the folder.";
+        }
+        if (FolderTree.SubtreeLayers(Scene, folder).FirstOrDefault(l => l.Locked) is { } locked)
+        {
+            return $"“{locked.Name}” is locked — unlock it to delete the folder it is in.";
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Delete the whole pick — every picked folder with what is in it, and each
+    /// picked layer outside them — as one undoable step (B399).
+    /// </summary>
+    /// <remarks>
+    /// The folders go, not only their layers: deleting the layers would leave
+    /// the folders behind empty, which Q213 named as the thing not to do. A
+    /// folder that refuses (a lock in or above it) refuses the whole delete,
+    /// as <see cref="DeleteGroup"/> does for one — leaving its layers stranded
+    /// is not what either choice meant.
+    /// </remarks>
+    private void DeleteStackSelection()
+    {
+        var items = SelectedStackItems();
+        var folders = items.Where(i => i.IsFolder)
+            .Select(i => Scene.LayerGroups.First(g => g.Id == i.Id)).ToList();
+        foreach (var folder in folders)
+        {
+            if (FolderDeleteRefusal(folder) is { } refusal)
+            {
+                AiStatus = refusal;
+                return;
+            }
+        }
+        var looseLayers = items.Where(i => !i.IsFolder).Select(i => Scene.Layers.First(l => l.Id == i.Id)).ToList();
+        // A lock anywhere refuses the whole delete, as it does inside a folder:
+        // half a pick deleted is not what the artist picked.
+        foreach (var layer in looseLayers)
+        {
+            if (!CanEdit(layer, "delete it")) return;
+        }
+        var loose = looseLayers.Select(l => l.Id).ToHashSet();
+        var folderIds = folders.Select(f => f.Id).ToList();
+        var count = loose.Count + folders.Sum(f => FolderTree.SubtreeLayers(Scene, f).Count);
+        var at = folders.SelectMany(f => FolderTree.SubtreeLayers(Scene, f)).Select(l => Scene.Layers.IndexOf(l))
+            .Concat(Scene.Layers.Select((l, i) => loose.Contains(l.Id) ? i : -1).Where(i => i >= 0))
+            .DefaultIfEmpty(-1).Min();
+        if (!StackEdit(scene =>
+            {
+                foreach (var id in folderIds)
+                {
+                    if (FolderTree.Folder(scene, id) is { } f) FolderTree.DeleteWithContents(scene, f);
+                }
+                var wasPaper = scene.Layers.Any(l => loose.Contains(l.Id) && l.IsBackground);
+                scene.Layers.RemoveAll(l => loose.Contains(l.Id));
+                // As DeleteLayer: no paper means a transparent ground, not a white one.
+                if (wasPaper && !scene.Layers.Exists(l => l.IsBackground)) scene.TransparentBackground = true;
+                RegrowAPaintableLayer(scene);
+                return null;
+            }, "Delete selection", frameContentUnchanged: false))
+        {
+            return;
+        }
+        _selectedGroupIds.Clear();
+        _selectedLayerIds.Clear();
+        if (at >= 0)
+        {
+            var next = Math.Clamp(at, 0, Scene.Layers.Count - 1);
+            ActiveLayerIndex = Scene.Layers[next].IsBackground ? FirstPaintableLayer(Doc) : next;
+        }
+        RefreshLayerSelectionHighlights();
+        var what = folders.Count == 1 ? "1 folder" : $"{folders.Count} folders";
+        AiStatus = count == 1
+            ? $"Deleted {what} and 1 layer \u2014 Ctrl+Z brings them back."
+            : $"Deleted {what} and {count} layers \u2014 Ctrl+Z brings them back.";
+    }
+
     internal void CommitGroupRename(LayerGroup group, string name)
     {
         var trimmed = name.Trim();
@@ -700,10 +784,15 @@ public partial class MainViewModel
         _editor.Perform(_ => group.Name = trimmed, frameContentUnchanged: true);
     }
 
+    /// <summary>Every picked folder when this one is among them (B399), as a layer's eye follows the selection.</summary>
     internal void SetGroupVisible(LayerGroup group, bool visible)
     {
-        if (group.Visible == visible) return;
-        _editor.Perform(_ => group.Visible = visible, frameContentUnchanged: true);
+        var targets = GroupsForOp(group).Where(g => g.Visible != visible).ToList();
+        if (targets.Count == 0) return;
+        _editor.Perform(_ =>
+        {
+            foreach (var target in targets) target.Visible = visible;
+        }, label: targets.Count == 1 ? "Set folder visible" : "Set folders visible", frameContentUnchanged: true);
     }
 
     internal void SetGroupColor(LayerGroup group, string color)
@@ -739,6 +828,7 @@ public partial class MainViewModel
     private void AddFrame()
     {
         using var perf = PerfLog.Begin("frame.add");
+        using var held = HoldPublishes(); // the edit and the playhead it moves, one picture
         _editor.AddFrameAfter(CurrentFrameIndex);
         CurrentFrameIndex++;
     }
@@ -746,6 +836,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void DuplicateFrame()
     {
+        using var held = HoldPublishes();
         _editor.DuplicateFrame(CurrentFrameIndex);
         CurrentFrameIndex++;
     }
@@ -1050,11 +1141,18 @@ public partial class MainViewModel
         NotifyLayerGating();
     }
 
-    /// <summary>Locking a folder locks every layer inside it.</summary>
+    /// <summary>
+    /// Locking a folder locks every layer inside it — and every picked folder
+    /// when this one is among them (B399).
+    /// </summary>
     internal void SetGroupLocked(LayerGroup group, bool locked)
     {
-        if (group.Locked == locked) return;
-        _editor.Perform(_ => group.Locked = locked, frameContentUnchanged: true);
+        var targets = GroupsForOp(group).Where(g => g.Locked != locked).ToList();
+        if (targets.Count == 0) return;
+        _editor.Perform(_ =>
+        {
+            foreach (var target in targets) target.Locked = locked;
+        }, label: targets.Count == 1 ? "Set folder locked" : "Set folders locked", frameContentUnchanged: true);
         SyncLayerRows();
         NotifyLayerGating();
     }
@@ -1336,10 +1434,21 @@ public partial class MainViewModel
     {
         // A folder picked on its header is what Delete means (Q204), even an
         // empty one — the active layer is only where the brush would land.
-        if (SelectedGroup is { } folder
-            && LayerPanelItems.OfType<GroupRow>().FirstOrDefault(h => h.Group.Id == folder.Id) is { } header)
+        if (_selectedGroupIds.Count > 0)
         {
-            DeleteGroup(header);
+            // One folder alone keeps DeleteGroup's own wording; anything more —
+            // several folders, layers beside them, a folder inside a folder —
+            // is the whole pick (B399).
+            var picked = SelectedStackItems();
+            if (picked is [{ IsFolder: true } only]
+                && LayerPanelItems.OfType<GroupRow>().FirstOrDefault(h => h.Group.Id == only.Id) is { } header)
+            {
+                DeleteGroup(header);
+            }
+            else
+            {
+                DeleteStackSelection();
+            }
             return;
         }
         DeleteLayer(ActiveLayer);
@@ -1357,6 +1466,12 @@ public partial class MainViewModel
     /// </remarks>
     public void DeleteLayer(Layer layer)
     {
+        // A selected row in a pick that holds folders deletes the pick, folders and all.
+        if (_selectedGroupIds.Count > 0 && _selectedLayerIds.Contains(layer.Id))
+        {
+            DeleteStackSelection();
+            return;
+        }
         var ids = LayersForOp(layer).Where(l => CanEdit(l, "delete it")).Select(l => l.Id).ToHashSet();
         if (ids.Count == 0) return;
         var removedIndex = Scene.Layers.FindIndex(l => ids.Contains(l.Id));
@@ -1726,7 +1841,7 @@ public partial class MainViewModel
         // A cel click picks a layer, so a folder picked on its header stops
         // being the pick — even when the layer it lands on was already active
         // and no change notification will say so.
-        _selectedGroupId = null;
+        _selectedGroupIds.Clear();
         RefreshGroupSelectionHighlights();
         if (cell.LayerIndex >= 0 && cell.LayerIndex < Scene.Layers.Count)
             ActiveLayerIndex = cell.LayerIndex;
@@ -1855,10 +1970,19 @@ public partial class MainViewModel
     /// Opening the owner-shaped document replayed 64 drawings for their
     /// thumbnails on the UI thread, 5.9 s in one call (the performance lab).
     /// A source already in the frame cache is still used at once.
+    /// <para>
+    /// <b>A layer row needs the source even when the sheet's thumbnail is held.</b>
+    /// The sheet's cells are satisfied by that small picture; a row is drawn from
+    /// the source. Letting a held cell thumbnail stand for both sent every row
+    /// past the worker to render its source inline — and on a document larger
+    /// than the frame cache the sources are evicted between jumps, so every
+    /// click on a cel paid ten of them: ~820 ms, the lab's 2026-10-07 run.
+    /// </para>
     /// </remarks>
-    private bool DeferThumbSource(Frame frame, int celIndex)
+    private bool DeferThumbSource(Frame frame, int celIndex, bool forLayerRow = false)
     {
-        if (ThumbWorker is not { } worker || _thumbs.Holds(frame.Id)) return false;
+        if (ThumbWorker is not { } worker) return false;
+        if (!forLayerRow && _thumbs.Holds(frame.Id)) return false;
         // A posed drawing renders through the cache's pose resolver, which a
         // detached render has not got: done in the background it would come out
         // at the rest pose — and InsertWarm would put that on the canvas under
@@ -1891,20 +2015,19 @@ public partial class MainViewModel
         // render predates it. Refused, and the refresh that follows asks again.
         if (_allThumbsDirty) return false;
         _thumbs.Put(id, ThumbnailRenderer.Render(made.Bitmap));
-        var taken = _cache.InsertWarm(made.Frame, made.Width, made.Height, made.Scale, made.Cel, made.Bitmap);
-        if (!taken)
+        // The rows that show this drawing take their picture now, from the
+        // render in hand — a walk of the rows, not of every cell. Whether or not
+        // the cache keeps the source: on a document over its budget the source
+        // can be evicted before the refresh below reads it, and a row that went
+        // back to the worker for it would ask again on every jump.
+        foreach (var row in LayerRows)
         {
-            // The cache had no room, so the layer rows could not find the source
-            // later; give the few that show this drawing their picture now — a
-            // walk of the rows, not of every cell.
-            foreach (var row in LayerRows)
-            {
-                if (ExposureSheet.ExposedFrame(row.Layer, CurrentFrameIndex)?.Id != id) continue;
-                row.Thumb = ThumbnailRenderer.RenderChecker(made.Bitmap, 44, 26);
-                row.ThumbFrameId = id;
-                LayerThumbRenders++;
-            }
+            if (ExposureSheet.ExposedFrame(row.Layer, CurrentFrameIndex)?.Id != id) continue;
+            row.Thumb = ThumbnailRenderer.RenderChecker(made.Bitmap, 44, 26);
+            row.ThumbFrameId = id;
+            LayerThumbRenders++;
         }
+        var taken = _cache.InsertWarm(made.Frame, made.Width, made.Height, made.Scale, made.Cel, made.Bitmap);
         if (ThumbnailWorker.Post is { } post) QueueThumbRefresh(post);
         return taken;
     }
@@ -1919,6 +2042,14 @@ public partial class MainViewModel
     /// </summary>
     private void RefreshThumbnails()
     {
+        // Inside a publish hold, after the canvas: the lab's A/B of B402 found
+        // the held publish waiting behind this, so the picture came ~100 ms
+        // later than when each verb published first. Several asks become one.
+        if (_publishHolds > 0)
+        {
+            _thumbsOwed = true;
+            return;
+        }
         using var perf = PerfLog.Begin("thumbnails");
         foreach (var row in LayerRows)
         {
@@ -1999,7 +2130,7 @@ public partial class MainViewModel
                         || row.ThumbFrameId != frame.Id
                         || _dirtyThumbIds.Contains(frame.Id);
             if (!stale && row.Thumb is not null) continue;
-            if (DeferThumbSource(frame, CurrentFrameIndex))
+            if (DeferThumbSource(frame, CurrentFrameIndex, forLayerRow: true))
             {
                 if (row.ThumbFrameId != frame.Id) row.Thumb = null;
                 continue;

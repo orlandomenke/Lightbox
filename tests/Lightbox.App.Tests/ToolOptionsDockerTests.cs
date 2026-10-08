@@ -65,27 +65,28 @@ public sealed class ToolOptionsDockerTests : BrushStateIsolated
             .FirstOrDefault(d => d.PanelId == DockPanelId.ToolOptions);
         Assert.NotNull(docker);
 
-        // And it is the real settings panel, not an empty shell: the brush
-        // category pages moved with it.
-        var categories = docker!.GetVisualDescendants().OfType<ListBox>()
-            .FirstOrDefault(l => l.Name == "BrushCategoryList");
-        Assert.NotNull(categories);
+        // And it is the real settings panel, not an empty shell: a paint tool's
+        // behaviour (smoothing, the pen, edges) moved with it. The brush itself
+        // is in the brush editor since Q211.
+        var behaviour = docker!.GetVisualDescendants().OfType<ScrollViewer>()
+            .FirstOrDefault(l => l.Name == "PaintToolOptions");
+        Assert.NotNull(behaviour);
     }
 
     [AvaloniaFact]
     public void ThePanelFollowsTheActiveTool()
     {
         // Owner: "the tool options docker should be dynamic." The panel shows
-        // the active tool's options the way the bar does — brush editor for
-        // the paint tools, the tool's own controls for the rest.
+        // the active tool's options the way the bar does — how a paint tool
+        // behaves for the paint tools (Q211), the tool's own controls for the rest.
         var (w, vm) = Open();
         vm.OpenToolOptionsCommand.Execute(null);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        var brushPages = w.FindControl<ListBox>("BrushCategoryList")!;
+        var brushPages = w.FindControl<ScrollViewer>("PaintToolOptions")!;
         var toolPanel = w.FindControl<ScrollViewer>("NonPaintToolOptions")!;
 
-        // Brush in hand: the brush editor, not the tool panel.
+        // Brush in hand: the paint tool's behaviour, not the tool panel.
         Assert.Equal(ToolId.Brush, vm.ActiveTool);
         Assert.True(brushPages.IsEffectivelyVisible);
         Assert.False(toolPanel.IsEffectivelyVisible);
@@ -97,7 +98,7 @@ public sealed class ToolOptionsDockerTests : BrushStateIsolated
         Assert.True(toolPanel.IsEffectivelyVisible);
         Assert.Equal("Fill", w.FindControl<TextBlock>("ToolOptionsToolName")!.Text);
 
-        // And back: switching tools never loses the brush editor.
+        // And back: switching tools never loses the paint tool's panel.
         vm.ActiveTool = ToolId.Eraser;
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.True(brushPages.IsEffectivelyVisible);

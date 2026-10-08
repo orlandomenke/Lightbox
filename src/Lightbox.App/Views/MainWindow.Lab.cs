@@ -59,6 +59,7 @@ public partial class MainWindow
     private IpcServer StartIpc()
     {
         TrackLabMenus();
+        TrackResponses();
         return new IpcServer(
             new IpcDocumentApi(_vm) { Lab = LabInstance ? AnswerLab : null },
             LabInstance ? LabPipeName : null);
@@ -77,6 +78,43 @@ public partial class MainWindow
         {
             if (e.Source is Control source && FindMenu(source) is { } menu) _labLastMenu = menu;
         }, handledEventsToo: true);
+    }
+
+    private int _labInputs;
+
+    /// <summary>
+    /// Every key and pointer press or release, marked as it reaches the window
+    /// ("input"), and again at the first frame drawn once everything it set
+    /// off has run ("shown") — the lab's "input to on screen" (Q209).
+    /// </summary>
+    /// <remarks>
+    /// <b>Why ApplicationIdle, then a frame.</b> A handler that posts its real
+    /// work (a deferred compose, a rebuild at Background) returns at once, so
+    /// "the handler returned" would read every deferred stall as instant. Idle
+    /// is when the queue is empty, and the frame after that is the first one
+    /// that can show the result. Work moved off the UI thread — thumbnails —
+    /// is not counted, which is the point of moving it.
+    /// </remarks>
+    private void TrackResponses()
+    {
+        if (!PerfLog.On) return;
+        // On every TopLevel, not this window: a context menu is its own popup
+        // root, and the first runs timed a menu click as "never answered".
+        InputElement.KeyDownEvent.AddClassHandler<TopLevel>((_, e) => Respond("key " + e.Key),
+            Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        InputElement.PointerPressedEvent.AddClassHandler<TopLevel>((_, _) => Respond("press"),
+            Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        InputElement.PointerReleasedEvent.AddClassHandler<TopLevel>((_, _) => Respond("release"),
+            Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    private void Respond(string what)
+    {
+        var id = (++_labInputs).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        PerfLog.Mark("input", id + " " + what);
+        Dispatcher.Post(
+            () => RequestAnimationFrame(_ => PerfLog.Mark("shown", id)),
+            Avalonia.Threading.DispatcherPriority.ApplicationIdle);
     }
 
     private static ContextMenu? FindMenu(Control from)
@@ -172,9 +210,14 @@ public partial class MainWindow
                 c.DataContext is LayerRow row && row.Layer.Name == Str("layer")),
             "folder-row" => LayerList.GetVisualDescendants().OfType<ContentPresenter>().FirstOrDefault(c =>
                 c.DataContext is GroupRow g && g.Group.Name == Str("folder")),
-            // An item of the menu a right-click last opened, by its text.
+            // An item of the menu a right-click last opened, by its text — the
+            // access-key underscore ("Delete and p_ull") is not part of it.
             "menu-item" => _labLastMenu?.GetLogicalDescendants().OfType<MenuItem>()
-                .FirstOrDefault(m => m.IsVisible && m.Header as string == Str("text")),
+                .FirstOrDefault(m => m.IsVisible && (m.Header as string)?.Replace("_", "") == Str("text")),
+            // A button by its tooltip, as an artist finds an icon: the timeline
+            // bar's ＋ has no shortcut, so a scenario has to click it.
+            "tip" => this.GetVisualDescendants().OfType<Button>().FirstOrDefault(b =>
+                b.IsEffectivelyVisible && ToolTip.GetTip(b) as string == Str("text")),
             _ => null,
         };
         if (found is null || !found.IsEffectivelyVisible || found.Bounds.Width <= 0)

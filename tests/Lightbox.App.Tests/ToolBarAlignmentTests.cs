@@ -175,7 +175,7 @@ public sealed class ToolBarAlignmentTests : BrushStateIsolated
         // hands it back. A declared Button.Flyout would be the second copy this
         // has always been watching for.
         var button = Open().GetVisualDescendants().OfType<Button>()
-            .First(b => (b.GetValue(ToolTip.TipProperty) as string)?.StartsWith("All brush parameters") == true);
+            .First(b => b.Name == "ToolOptionsGear");
 
         Assert.Null(button.Flyout);
         // And no command: the click is handled, because opening depends on

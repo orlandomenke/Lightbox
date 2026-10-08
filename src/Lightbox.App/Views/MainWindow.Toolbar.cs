@@ -222,20 +222,4 @@ public partial class MainWindow
         var button = _holdButton ?? SelectToolButton;
         Avalonia.Threading.Dispatcher.UIThread.Post(() => button.ContextFlyout?.Hide());
     }
-
-    /// <summary>Brush-parameter flyout: categories on the left, one page visible at a time.</summary>
-    private void OnBrushCategoryChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (BrushPageGeneral is null) return; // template not built yet
-        var index = BrushCategoryList.SelectedIndex;
-        BrushPageGeneral.IsVisible = index == 0;
-        BrushPageEffects.IsVisible = index == 1;
-        BrushPageMedium.IsVisible = index == 2;
-        BrushPagePressure.IsVisible = index == 3;
-        BrushPagePresets.IsVisible = index == 4;
-
-        if (index == 0) RefreshTipButton();
-        if (index == 3) BuildPressureCurves();
-        if (index == 4) RefreshPresetPage();
-    }
 }

@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4890
+budget: 4431
 
 ## Why it is here despite being XAML
 
@@ -335,4 +335,8 @@ leaves a number nobody can account for. So every reason above stays, and
   paid for the two *Insert blank keyframe* menu lines, which have to sit on the
   Animation menu and the cel menu where an artist looks for them.
 - **→ 4,887** (2026-10-07): File ▸ Recover unsaved work… (B394) — one `MenuItem` line, its handler in `MainWindow.Projects.cs` beside the startup offer it repeats. The reason it is there lives in the dialog's own header comment rather than beside the item, which kept the change to the one line a menu entry cannot avoid.
-- **→ 4,890** (2026-10-08): folder shapes (Q215) — one row-menu item, whose header the row words for what a click will do so keeping and releasing share it, and one hosting line for `ShapeBracket.axaml`, which carries the bracket and the warning chrome off the window as `LinkBracket.axaml` does.
+- **4,887 → 4,428** (2026-10-07, Q211): the brush's five pages left the Tool
+  options docker for the brush editor (`Views/BrushEditor.axaml`), a popup from
+  the bar's gear — Krita's split. What stayed is how a paint tool behaves
+  (smoothing, the pen, anti-aliasing), forty-odd lines in place of five hundred.
+- **→ 4,431** (2026-10-08): folder shapes (Q215) — one row-menu item, whose header the row words for what a click will do so keeping and releasing share it, and one hosting line for `ShapeBracket.axaml`, which carries the bracket and the warning chrome off the window as `LinkBracket.axaml` does. +3 over main's 4,428, which is the size of the change; measured alone on the old tree it was 4,887 → 4,890.

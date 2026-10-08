@@ -291,6 +291,11 @@ public sealed class ShortcutMap
             // Brush sizing by eye. It was Shift+drag on the canvas until Shift
             // became the constraint key on every tool; these are the two keys
             // every other application uses for it.
+            // Krita's two (Q211), unbound by default: Krita puts them on F5 and
+            // F6, and F5 is this app's project refresh. Listed so they can be
+            // found and given a key in Configure.
+            new("brush.editor", "Edit this brush (the brush editor)", "Tools", null),
+            new("brush.presets", "Choose a brush preset", "Tools", null),
             new("brush.smaller", "Smaller brush", "Tools", G(Key.OemOpenBrackets)),
             new("brush.larger", "Larger brush", "Tools", G(Key.OemCloseBrackets)),
             new("select.all", "Select all", "Tools", G(Key.A, KeyModifiers.Control)),

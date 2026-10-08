@@ -13,6 +13,10 @@ using Lightbox.Bench;
 // any calibration or sweep. `dotnet run --project tools/Lightbox.Bench -c Release -- fixture --out x.lightbox.json`
 if (args.Length > 0 && args[0] == "fixture") return Fixture.Run(args);
 
+// Playback's first loop, phase 1: what a scene's playback tiles cost against their
+// budget (docs/DESIGN-playback-first-loop.md). `-- tiles`, or `-- tiles --doc <path>`.
+if (args.Length > 0 && args[0] == "tiles") return TileMemory.Run(args);
+
 var filter = Args("--filter");
 var outPath = Args("--out") ?? FindReportPath();
 

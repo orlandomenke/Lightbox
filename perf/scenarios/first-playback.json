@@ -1,0 +1,18 @@
+{
+  "name": "first-playback",
+  "about": "The owner: initial playback stalls. Play from a freshly opened document for three seconds, stop, then play again. The two phases compare a cold cache with a warm one: when the first frame appears after Space, how many frames are shown, and the longest gap between two.",
+  "fixture": "owner-shape",
+  "window": "maximised",
+  "steps": [
+    {"do": "hover", "at": [0.5, 0.5]},
+    {"do": "phase", "name": "first-play"},
+    {"do": "key", "keys": "space", "measure": "play.first", "after_ms": 3000},
+    {"do": "key", "keys": "space", "measure": "stop", "after_ms": 300},
+    {"do": "settle", "quiet_s": 1.5},
+    {"do": "phase", "name": "second-play"},
+    {"do": "key", "keys": "space", "measure": "play.again", "after_ms": 3000},
+    {"do": "key", "keys": "space", "measure": "stop", "after_ms": 300},
+    {"do": "phase", "name": "stopped"},
+    {"do": "settle", "quiet_s": 1.0}
+  ]
+}

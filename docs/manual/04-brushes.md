@@ -8,9 +8,10 @@ then the **brush preset** button with its **⚙**, then **Size** and
 **Opacity**. All of those are pinned: they stay put whatever tool you switch
 to, and Size and Opacity grey out rather than disappear when the tool in
 hand makes no mark to size. Everything to their right is the tool's own
-quick options — hardness and stabilizer for the brush, variants for the
-selection, kind and spread for the gradient — and folds into the bar's **▾**
-menu when the window gets narrow. The pinned section never folds.
+quick options and folds into the bar's **▾** menu when the window gets
+narrow; the pinned section never folds. For the brush that is what changes
+every few strokes: **Flow**, the **blend mode**, the **eraser** switch (on
+puts the eraser in your hand, off the brush) and the layer's **alpha lock**.
 
 The brush button is pinned for the same reason the colours are: which brush
 you are holding is something you change from any tool. Picking a preset also
@@ -18,18 +19,20 @@ you are holding is something you change from any tool. Picking a preset also
 eraser preset the eraser — so the picker is the way back to painting from
 the selection tool or the fill without visiting the rail.
 
-**⚙**, immediately right of the brush button, opens the **Tool options**
-panel with every parameter, grouped: General, Effects, Medium, Pen pressure,
-Presets. It is a docker, not a flyout — it stays open while you paint and
-test, docks anywhere a panel docks, and is also under **View → Tool
-options**. Like the brush button it is pinned for every tool, the eraser
-included, whose parameters it has always served.
+**⚙**, immediately right of the brush button, opens the **brush editor**
+with a paint tool in hand: the brush itself, whole, in a popup at the button
+(see *The brush editor* below). With any other tool it opens the **Tool
+options** panel.
 
-The panel follows the tool in your hand. With the brush or the eraser it is
-the parameter editor above; pick the fill, the selection, a shape or the
-gradient and it shows that tool's options instead — the depth behind the
-bar's quick reach, laid out vertically with room for labels and sliders. A
-tool whose whole vocabulary fits on the bar says so rather than going blank.
+The **Tool options** panel follows the tool in your hand. With the brush or
+the eraser it holds how the tool *behaves* — smoothing, the pen, edges — and
+never how the brush looks; pick the fill, the selection, a shape or the
+gradient and it shows that tool's options instead, the depth behind the bar's
+quick reach. A tool whose whole vocabulary fits on the bar says so rather than
+going blank. It is a docker, under **View → Tool options**.
+
+That three-way split is Krita's: the bar for what changes every few strokes,
+the panel for how the tool behaves, the editor for the brush.
 
 Which quick options the bar carries is the **workspace's** choice — the ⋮
 beside the workspace picker ticks them on and off (see *Getting started →
@@ -70,6 +73,38 @@ Tag a brush on the **Presets** page: a comma-separated list, whatever you would
 look for it under. There is no fixed vocabulary, because the categories worth
 having are the ones your work has.
 
+#### The brush editor
+
+**⚙** opens it at the button; so does **Edit brush…** at the foot of the Tool
+options panel. It has four parts.
+
+- **The header** names the brush, shows a picture of its mark, says whether it
+  has changed since it was saved, and carries what to do about that: **Reload**,
+  **Overwrite** and **Save new…**. The **⋮** beside them holds tags, delete and
+  the brush library.
+- **The option list** down the left: Tip, Size, Opacity, Flow, Spacing, Shape
+  dynamics, Scatter, Texture, Colour dynamics, Medium and Blend — and Smudge,
+  for a smudge brush. A **check** says whether an option changes the mark at
+  all. Untick Scatter and the brush stops scattering; tick it again and the
+  values you had come back. The options every brush has (a tip, a size, an
+  opacity) cannot be unticked. A paper you imported keeps Texture ticked until
+  you remove the paper with its **✕**.
+- **The chosen option's panel**, with its pen-pressure curve beside the value it
+  drives (see *How the brush answers the pen*).
+- **The scratchpad** on the right, to try the brush on. It paints with the brush
+  exactly as it is now, at its real size, and repaints what is on it whenever a
+  setting changes. Nothing drawn there is ever part of your work, recorded or
+  saved; **Clear** wipes it.
+
+Hardness, the tip and roundness are on **Tip**; the size floor and size jitter
+on **Size**; flow jitter on **Flow**; the jitters of roundness and angle on
+**Shape dynamics**; the paper and its grain on **Texture**; the second colour
+and the hue, saturation and brightness jitters on **Colour dynamics**.
+
+**Edit this brush** and **Choose a brush preset** are in Configure's shortcut
+editor with no key: give them one there. Krita puts them on F5 and F6, and F5
+is the project refresh here.
+
 #### Changing a brush and keeping the change
 
 An **●** next to the brush name means the settings have drifted from the brush
@@ -83,26 +118,27 @@ rather than written into it: the dot stays lit to say so, and **picking the same
 brush again in the picker** throws the changes away and gives you the saved one
 back.
 
-The **Presets** page then gives you three moves:
+The brush editor's header then gives you three moves:
 
 | | |
 | --- | --- |
-| **Update** | Writes your changes back over the brush you started from. |
-| **Save as new** | Keeps both — the original untouched, your version under a new name. |
-| **Delete** | Removes a brush you made. |
+| **Reload** | Throws your changes away and gives you the saved brush back — the same as picking it again. |
+| **Overwrite** | Writes your changes over the brush you started from. |
+| **Save new…** | Keeps both — the original untouched, your version under a new name, with tags if you like. |
 
-**You can update the brushes that ship with Lightbox.** Tweak Pencil, press
-Update, and it stays tweaked across restarts. Nothing is lost doing it:
-**Revert** gives you the original back whenever you want it, and on a shipped
-brush the Delete button *is* Revert — it is not yours to delete, and "delete"
-on one plainly means "give me back the one that came with the app".
+**You can overwrite the brushes that ship with Lightbox.** Tweak Pencil, press
+Overwrite, and it stays tweaked across restarts. Nothing is lost doing it: on a
+shipped brush the **⋮** menu offers **Back to the shipped brush** in place of
+delete — it is not yours to delete, and "delete" on one plainly means "give me
+back the one that came with the app". **Delete this brush**, there, removes a
+brush you made.
 
 Effect brushes (**Smudge**, **Blur**) swap the bar for their own controls —
 strength, radius, and for smudge how much of its own colour it adds. A smudge
 has no opacity in the usual sense, so showing you one would be a lie.
 
-**Smearing or dulling**, and **length**, are on the **⚙ → Effects** page rather
-than on the bar. Smearing copies what was under the last dab onto the next, so
+**Smearing or dulling**, and **length**, are on the brush editor's **Smudge**
+option rather than on the bar. Smearing copies what was under the last dab onto the next, so
 edges and texture streak — drag a smear across stripes and the stripes come
 with it. Dulling picks up one colour from under the dab and lays that down, so
 detail dissolves into a soft blend, which is what a blender is. Length is how
@@ -177,8 +213,9 @@ spray is, and Lightbox leaves the walk exactly as you set it.
 
 #### Stabiliser
 
-The **Per brush** box beside the stabiliser decides what those controls belong
-to. Off, they set one value for the whole application — how it has always
+Smoothing is in the **Tool options** panel with a paint tool in hand: how the
+tool behaves, not how the brush looks. **This brush keeps its own**, under it,
+decides what those controls belong to. Off, they set one value for the whole application — how it has always
 worked. On, this brush keeps its own and takes it along in its preset.
 
 That is what the setting is actually for: an inking brush wants heavy
@@ -189,7 +226,7 @@ the brush draws — only what the controls are pointed at.
 
 #### Blend mode
 
-On the **General** page. It decides how the finished stroke lands on the layer
+On the bar, and on the brush editor's **Blend** option. It decides how the finished stroke lands on the layer
 — Multiply to shade, Screen to glow, and every other mode the layer docker
 offers, because they are the same operation.
 
@@ -200,7 +237,7 @@ and no blend mode does that.
 
 #### Choosing a tip
 
-Also on **General**, as a grid of thumbnails rather than a list of names —
+On the brush editor's **Tip** option, as a grid of thumbnails rather than a list of names —
 nobody knows what a "Cut nib" looks like until they have seen one. **Round** at
 the top is the brush's own dab and the default. **Brush tips…** at the bottom
 opens the workshop.
@@ -234,45 +271,37 @@ opens it for you — a texture you cannot see looks like a broken import.
 
 ## How the brush answers the pen
 
-The **Pen pressure** page gives each thing pressure can drive its own curve.
-Pressure runs left to right, the effect bottom to top, and the dashed diagonal
-is "straight through" so you can see what you have changed.
+Each thing pen pressure can drive has its own curve, and **the curve sits
+beside the setting it drives** in the brush editor: Size's curve under
+Diameter, Flow's under Flow, Hardness's on the Tip option, Roundness's under
+Shape dynamics, Scatter's under Scatter, and for a smudge, colour rate and
+length under Smudge. Pressure runs left to right, the effect bottom to top, and
+the dashed diagonal is "straight through" so you can see what you have changed.
 
 - **Drag** a point to shape the response.
 - **Click** empty space for a new point.
 - **Middle-click** a point to remove it. The two ends stay — you can still drag
   them up and down.
-- **Reset** puts it back to a straight line.
+- **Straight** puts it back to a straight line.
 
-Seven things can be driven: **size**, **transparency**, **hardness**,
-The three wet-medium brushes ship with a tip and a heading rather than a bare
-circle: **Oil** uses the bristle tip turned to the stroke, **Gouache** a chisel
-turned the same way, and **Watercolor** an irregular wash edge with a little
-size and roundness variation and no heading at all — a wash edge is not
-directional. All of that variation is seeded from where each dab lands, so a
-mark is varied and still replays identically.
-
-**Bristle drag and pickup are not on the medium page**, and that is deliberate
-rather than missing. Both need the paint to be pushed along the stroke's own
-direction, which the medium pass does not yet do, so the sliders that used to be
-there moved and changed nothing. A control that does nothing is worse than one
-that is absent: it teaches you the panel cannot be trusted. For the *look* of a
-dragged bristle, use the bristle tip with **Angle follows direction** — which is
-what Oil already does.
-
-**scatter**, **roundness**, and for a smudge, **colour rate** and **smudge
-length**. Untick one and pressure stops touching it entirely.
+Untick **Pressure** above a curve and pressure stops touching that setting
+entirely.
 
 A curve does what no single number can. An exponent can only make the response
 gentler or fiercer; it can never rise and then fall, which is what an ink brush
 that spreads and then floods actually does. Draw that shape and you have it.
 
 A brush you made before curves existed opens showing the response it already
-had, not a straight line — so touching the page never quietly flattens a brush
+had, not a straight line — so touching a curve never quietly flattens a brush
 you had tuned.
 
-**Use pen pressure** at the top is the master switch. Off, the tablet is
-ignored entirely and every curve on the page with it.
+**Pen pressure**, under the editor's option list, is the master switch for the
+brush. Off, the tablet is ignored entirely and every curve with it.
+
+Only pressure is offered so far. The record can hold tilt and speed curves, but
+the engine does not apply them yet, and a sensor that changes nothing would
+teach you the editor cannot be trusted. They will sit beside pressure, on the
+same curves, when it does.
 
 ## Physical media
 
@@ -283,6 +312,21 @@ the same mark, on reload, after undo, and when the inbetweener replays it.
 
 That determinism is not a detail. An effect that varies subtly between similar
 strokes looks fine on one image and *boils* at 12 fps.
+
+The three wet-medium brushes ship with a tip and a heading rather than a bare
+circle: **Oil** uses the bristle tip turned to the stroke, **Gouache** a chisel
+turned the same way, and **Watercolor** an irregular wash edge with a little
+size and roundness variation and no heading at all — a wash edge is not
+directional. All of that variation is seeded from where each dab lands, so a
+mark is varied and still replays identically.
+
+**Bristle drag and pickup are not on the Medium option**, and that is deliberate
+rather than missing. Both need the paint to be pushed along the stroke's own
+direction, which the medium pass does not yet do, so the sliders that used to be
+there moved and changed nothing. A control that does nothing is worse than one
+that is absent: it teaches you the editor cannot be trusted. For the *look* of a
+dragged bristle, use the bristle tip with **Angle follows direction** — which is
+what Oil already does.
 
 **A simulated wash is transparent, and it glazes.** Pigment darkens the way
 pigment does rather than the way a slider does: laying the same watercolour
@@ -545,7 +589,7 @@ smudge that has not moved does nothing at all: a tap with the Smudge brush
 changes nothing, and a tap with the Blender softens whatever edge it lands on.
 
 **How far a smudge carries is set by two things, and they multiply.** *Strength*
-on the bar is how hard each dab pulls; *Length* on **⚙ → Effects** is how much of
+on the bar is how hard each dab pulls; *Length* on the editor's **Smudge** option is how much of
 what it picked up survives into the next dab. Length is the one that decides the
 trail: the shipped Smudge brush is 20 px at a length of 0.75 and carries colour
 about 18 px past the edge of a mark; at 0.5 it is about 8, and at 1.0 about 53 —

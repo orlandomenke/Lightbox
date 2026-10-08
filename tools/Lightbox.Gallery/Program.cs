@@ -157,6 +157,20 @@ public static class Program
             vm.OpenToolOptionsCommand.Execute(null);
             Shoot(main, $"tool-{tool}");
         }
+        // The brush editor (Q211), every option, with the brush in hand. Hosted
+        // in a window of its own rather than its popup: a popup is a second
+        // top level, and the picture is the same.
+        vm.ActiveTool = Lightbox.App.ViewModels.ToolId.Brush;
+        var brushEditor = new Lightbox.App.Views.BrushEditor { DataContext = vm };
+        var editorHost = new Window { SizeToContent = SizeToContent.WidthAndHeight, Content = brushEditor };
+        editorHost.Show();
+        foreach (var option in Lightbox.App.Views.BrushEditor.Options.Where(o => o.Shown?.Invoke(vm) ?? true))
+        {
+            brushEditor.SelectOption(option);
+            Shoot(editorHost, $"brush-editor-{Slug(option.Name)}");
+        }
+        editorHost.Close();
+
         var config = new Lightbox.App.Views.ConfigureWindow(new Lightbox.App.Services.ShortcutMap(), vm);
         config.Show();
         var list = config.FindControl<ListBox>("CategoryList")!;
@@ -182,6 +196,7 @@ public static class Program
         {
             typeof(Lightbox.App.Views.MainWindow), typeof(Lightbox.App.Views.ConfigureWindow),
             typeof(Lightbox.App.Views.ProjectWindow), typeof(Lightbox.App.Views.BrushTipsWindow),
+            typeof(Lightbox.App.Views.BrushEditor), // shot above, with the view model it needs
         };
         var views = typeof(Lightbox.App.Views.MainWindow).Assembly.GetTypes()
             .Where(t => t.Namespace == "Lightbox.App.Views" && typeof(Control).IsAssignableFrom(t) && !t.IsAbstract

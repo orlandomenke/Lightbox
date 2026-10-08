@@ -450,6 +450,15 @@ public partial class MainWindow
                 _ = OpenProjectWindowAsync();
                 e.Handled = true;
                 break;
+            case "brush.editor":
+                OpenBrushEditor(ToolOptionsGear);
+                e.Handled = true;
+                break;
+            case "brush.presets":
+                OnBrushPickerOpen(BrushPickerButton, e);
+                BrushPickerButton.Flyout?.ShowAt(BrushPickerButton);
+                e.Handled = true;
+                break;
             case "project.libraryWindow":
                 OpenLibraryWindow();
                 e.Handled = true;
@@ -924,6 +933,5 @@ public partial class MainWindow
         if (BrushPickerButton?.Flyout is { } picker) picker.Hide();
         await new BrushLibraryWindow(_vm).ShowDialog(this);
         RefreshBrushPickerButton();
-        RefreshPresetPage();
     }
 }

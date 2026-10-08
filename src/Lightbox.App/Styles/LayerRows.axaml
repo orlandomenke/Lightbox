@@ -31,7 +31,28 @@
     <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Padding" Value="2,0" />
   </Style>
-  <!-- The layer being drawn on is "on": the one flat fill every "on" takes (Q203). -->
+  <!--
+    A row in a Ctrl/Shift multi-selection (B400): a bar on the left edge and a
+    fill between hover and active — under the pointer < in the selection <
+    where the brush lands, each a stronger statement than the last.
+
+    HERE, between the base style above and `.active` below, and the order is
+    the whole fix. Avalonia does not rank selectors by specificity: of two
+    styles at the same level, the later one wins. This used to sit in
+    Controls.axaml, which AppStyles includes BEFORE this file, so the base
+    `Border.layerRow` above reset every selected row to Transparent. From the
+    move of these styles here (2026-08-29) until B400, a multi-selection drew
+    nothing at all — five weeks in which every Ctrl/Shift fix worked in the
+    model and was reported by the owner as still broken.
+    `SelectedRowVisibilityTests` reads the drawn brush, not the class.
+  -->
+  <Style Selector="Border.layerRow.selected">
+    <Setter Property="Background" Value="{DynamicResource SelectionWeakBrush}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource SelectionBar}" />
+  </Style>
+  <!-- The layer being drawn on is "on": the one flat fill every "on" takes (Q203).
+       Later than `.selected`, so a row that is both reads as active — and keeps
+       the bar, since the active layer is always in the selection. -->
   <Style Selector="Border.layerRow.active">
     <Setter Property="Background" Value="{DynamicResource ActiveFillBrush}" />
   </Style>
@@ -54,11 +75,12 @@
     <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Padding" Value="2,0" />
   </Style>
-  <!-- A folder picked on its header: a new layer goes inside it. The same
-       brush as the active layer row, because it is the same statement —
-       "this is where you are working". -->
+  <!-- A folder picked on its header: drawn as a selected layer row is (B400),
+       since several can be picked and each is "in the selection". After the
+       base groupRow style above, for the reason `.layerRow.selected` gives. -->
   <Style Selector="Border.groupRow.selected">
-    <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
+    <Setter Property="Background" Value="{DynamicResource SelectionWeakBrush}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource SelectionBar}" />
   </Style>
   <Style Selector="Border.groupRow.hiddenLayer">
     <Setter Property="Opacity" Value="0.35" />

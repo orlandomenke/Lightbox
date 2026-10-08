@@ -96,19 +96,29 @@ run, so overshooting is corrected with one more click.
 
 **Ctrl and Shift work anywhere on the row** — on the eye, the locks, the arrows
 or the name alike. With either key held, a click on a row's button selects the
-row instead of pressing the button. The one exception is Ctrl on the thumbnail,
-which still selects the layer's pixels.
+row instead of pressing the button. The one exception is the thumbnail, as in
+Photoshop: **Ctrl+click** a layer's thumbnail to make its drawing a selection on
+the canvas, **Ctrl+Shift+click** another thumbnail to add that drawing to it, and
+**Ctrl+Alt+click** to take one away.
 
 **The X-sheet picks layers the same way.** Ctrl+click or Shift+click a layer's name on the X-sheet to add it or take the range. It is the same selection the docker keeps, so a set picked in one place is still picked in the other, and a plain click on either goes back to one layer.
 
 **Clicking a folder's header picks the folder**: its header lights up, every
 layer in it (at any depth) is selected, and its top layer becomes the active
-one. An empty folder is picked all the same, with no layer selected. Ctrl+click
-a header to add a folder's layers to what is already selected; Shift+click one
-to range up to it.
+one. An empty folder is picked all the same, with no layer selected.
+**Ctrl+click** another header to pick that folder too, so every picked folder
+lights up, and Ctrl+click a picked one to take it back out. A folder whose
+layers you had all picked one by one counts as picked. **Shift+click** a header
+to range up to it. Ctrl+clicking a layer out of a picked folder unpicks the
+folder, since it is no longer whole.
 
-The selected rows are tinted, and one of them — the last you clicked — is
-tinted more strongly. That one is the **active** layer, and it is where the next
+With folders picked, **Delete** removes the folders with everything in them,
+along with any other picked layers, as one undo step. The eye and the lock on
+any picked folder cover every picked folder.
+
+Every selected row — and every picked folder — has a light bar down its left
+edge and a tint, and one of them — the last you clicked — is tinted more
+strongly. That one is the **active** layer, and it is where the next
 brush stroke lands. There is always exactly one, which is why Ctrl+clicking the
 only selected row does not deselect it: the app would have nowhere to paint.
 
