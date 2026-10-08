@@ -564,7 +564,7 @@ public sealed class ShortcutMap
             // binds Save for Web to — which is the ancestor of this exact command.
             // Ctrl+Shift+E, the other obvious candidate and Krita's own, is taken
             // by the fluid effects window.
-            new("file.saveAsImage", "Save as image (PNG, JPEG, WebP)", "File",
+            new("file.saveAsImage", "Save as image (PNG, JPEG, WebP, SVG)", "File",
                 G(Key.S, KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift)),
 
             // Unbound by default: an export is a few times a day, not a few

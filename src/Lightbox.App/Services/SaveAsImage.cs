@@ -40,11 +40,14 @@ public sealed record ImageSaveResult(
     ImageSaveFormat Format,
     bool LostTransparency)
 {
+    /// <summary>What an SVG save did with each layer, or null for any other format.</summary>
+    public SvgReport? Svg { get; init; }
+
     /// <summary>The one sentence worth putting in front of the artist, or null.</summary>
     public string? Warning => LostTransparency
         ? $"{ImageSaveFormats.Label(Format)} has no transparency — the see-through "
             + "areas were filled in. Save as PNG or WebP to keep them."
-        : null;
+        : Svg?.Notice;
 }
 
 /// <summary>
@@ -102,6 +105,16 @@ public static class SaveAsImage
         cache.PoseResolver = (f, cel) => Skinning.PoseFrameForRender(doc, f, cel, cache.Rig);
 
         var index = Math.Clamp(frameIndex, 0, Math.Max(0, scene.FrameCount - 1));
+
+        // Not an encoding of the composite: SVG is written from the record,
+        // layer by layer, and reports what it could not say as shapes.
+        if (ImageSaveFormats.IsVector(options.Format))
+        {
+            var svg = SvgExporter.Build(doc, index, options.Scale);
+            File.WriteAllText(path, svg.Xml, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            return new ImageSaveResult([path], options.Format, LostTransparency: false) { Svg = svg.Report };
+        }
+
         using var image = SequenceExporter.RenderFrame(doc, cache, index, options.Scale);
         var lostTransparency = Encode(image, path, options);
 
@@ -116,6 +129,12 @@ public static class SaveAsImage
     /// <returns>Whether transparency was present and had to be filled in.</returns>
     internal static bool Encode(SKImage image, string path, ImageSaveOptions options)
     {
+        if (ImageSaveFormats.IsVector(options.Format))
+        {
+            throw new NotSupportedException(
+                $"{ImageSaveFormats.Label(options.Format)} is written from the drawing, not encoded from pixels.");
+        }
+
         var keepsAlpha = ImageSaveFormats.SupportsAlpha(options.Format);
         var transparent = !keepsAlpha && HasTransparency(image);
 

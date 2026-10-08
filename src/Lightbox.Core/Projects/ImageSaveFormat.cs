@@ -5,7 +5,8 @@ namespace Lightbox.Core.Projects;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Exactly the three Skia in this build can encode. That was measured rather
+/// Three raster formats and SVG. The three are exactly what Skia in this build
+/// can encode, and that was measured rather
 /// than assumed: of the fourteen values in <c>SKEncodedImageFormat</c>, eleven —
 /// BMP, GIF, ICO, WBMP, PKM, KTX, ASTC, DNG, HEIF, AVIF and JPEG XL — return
 /// null from <c>SKImage.Encode</c>, because the native library is not built with
@@ -30,17 +31,37 @@ public enum ImageSaveFormat
 
     /// <summary>Lossy but keeps alpha, which is the reason it is here.</summary>
     Webp,
+
+    /// <summary>
+    /// Paths where the marks are geometry and pixels where they are not — written
+    /// by Lightbox itself, not by an image encoder, and for one picture only.
+    /// See <see cref="ImageSaveFormats.IsVector"/>.
+    /// </summary>
+    Svg,
 }
 
 /// <summary>What each format can do, in one place so no caller has to guess.</summary>
 public static class ImageSaveFormats
 {
-    public static readonly ImageSaveFormat[] All = [ImageSaveFormat.Png, ImageSaveFormat.Jpeg, ImageSaveFormat.Webp];
+    /// <summary>Everything a single picture can be saved as.</summary>
+    public static readonly ImageSaveFormat[] All =
+        [ImageSaveFormat.Png, ImageSaveFormat.Jpeg, ImageSaveFormat.Webp, ImageSaveFormat.Svg];
+
+    /// <summary>
+    /// The formats an image encoder writes — and so the ones a run of frames can
+    /// be, since a sequence encodes each rendered frame.
+    /// </summary>
+    public static readonly ImageSaveFormat[] Raster =
+        [ImageSaveFormat.Png, ImageSaveFormat.Jpeg, ImageSaveFormat.Webp];
+
+    /// <summary>Whether the file is written as shapes rather than encoded from pixels.</summary>
+    public static bool IsVector(ImageSaveFormat format) => format is ImageSaveFormat.Svg;
 
     public static string Extension(ImageSaveFormat format) => format switch
     {
         ImageSaveFormat.Jpeg => ".jpg",
         ImageSaveFormat.Webp => ".webp",
+        ImageSaveFormat.Svg => ".svg",
         _ => ".png",
     };
 
@@ -49,6 +70,7 @@ public static class ImageSaveFormats
     {
         ImageSaveFormat.Jpeg => [".jpg", ".jpeg"],
         ImageSaveFormat.Webp => [".webp"],
+        ImageSaveFormat.Svg => [".svg"],
         _ => [".png"],
     };
 
@@ -56,6 +78,7 @@ public static class ImageSaveFormats
     {
         ImageSaveFormat.Jpeg => "JPEG",
         ImageSaveFormat.Webp => "WebP",
+        ImageSaveFormat.Svg => "SVG",
         _ => "PNG",
     };
 
@@ -67,8 +90,9 @@ public static class ImageSaveFormats
     /// </summary>
     public static bool SupportsAlpha(ImageSaveFormat format) => format is not ImageSaveFormat.Jpeg;
 
-    /// <summary>Whether a quality setting means anything. PNG ignores it.</summary>
-    public static bool HasQuality(ImageSaveFormat format) => format is not ImageSaveFormat.Png;
+    /// <summary>Whether a quality setting means anything. PNG and SVG have none.</summary>
+    public static bool HasQuality(ImageSaveFormat format) =>
+        format is ImageSaveFormat.Jpeg or ImageSaveFormat.Webp;
 
     /// <summary>The format for a path's extension, or null when it names none of them.</summary>
     public static ImageSaveFormat? FromExtension(string pathOrExtension)

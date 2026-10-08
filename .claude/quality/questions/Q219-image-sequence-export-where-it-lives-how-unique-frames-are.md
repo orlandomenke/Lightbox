@@ -22,7 +22,12 @@ paths only (a painted document saves nearly empty), a centreline for every
 stroke (editable, and does not look like the canvas), and a bitmap in a wrapper
 (the thing the roadmap item said not to do).
 
-**Not built on this branch.** It is its own objective and gets its own.
+**Built on its own branch** (`feat/export/svg-save`), as `SvgExporter`. Two
+things the answer left to the build, decided there and recorded in the roadmap
+item: the choice is made **per layer, never per stroke**, because marks on a
+layer act on one another; and a layer's paths are **drawn back and compared
+with the layer** before they are trusted, so a mark that only looks like an
+outline in its settings still goes in as pixels.
 
 ### 2. How unique frames are numbered — **an unbroken run by default, timeline numbers as an option**
 

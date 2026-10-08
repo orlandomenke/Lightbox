@@ -32,7 +32,8 @@ public partial class MainWindow
     {
         if (_vm.Doc is not { } doc) return;
 
-        var dialog = new SaveImageDialog(doc.Scene);
+        var frame = _vm.CurrentFrameIndex;
+        var dialog = new SaveImageDialog(doc.Scene, () => SvgExporter.Survey(doc, frame));
         await dialog.ShowDialog(this);
         if (!dialog.Confirmed) return;
 

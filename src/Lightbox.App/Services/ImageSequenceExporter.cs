@@ -193,6 +193,12 @@ public static class ImageSequenceExporter
         Doc doc, string directory, ImageSequenceSettings? settings = null)
     {
         settings ??= ImageSequenceSettings.For(doc.Scene);
+        if (ImageSaveFormats.IsVector(settings.Format))
+        {
+            throw new NotSupportedException(
+                $"A sequence of {ImageSaveFormats.Label(settings.Format)} frames is not built. "
+                + "Save a single frame with Save as image, or export PNG, JPEG or WebP.");
+        }
         Directory.CreateDirectory(directory);
         var scene = doc.Scene;
 

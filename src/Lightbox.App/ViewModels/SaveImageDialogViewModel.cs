@@ -41,6 +41,52 @@ public sealed partial class SaveImageDialogViewModel : ObservableObject
         LooksTransparent = scene.TransparentBackground || scene.Layers.Exists(l => l.IsBackground);
     }
 
+    /// <param name="scene">The document's scene.</param>
+    /// <param name="svgSurvey">
+    /// How to find out what an SVG save would do with each layer. A function
+    /// rather than a value because the answer costs a render of every layer,
+    /// and a PNG save should not pay for a question it never asks.
+    /// </param>
+    public SaveImageDialogViewModel(Scene scene, Func<SvgReport>? svgSurvey) : this(scene) =>
+        _svgSurvey = svgSurvey;
+
+    private readonly Func<SvgReport>? _svgSurvey;
+
+    /// <summary>
+    /// Which layers an SVG save will write as pixels, said before the save —
+    /// or null when the format is not SVG, or every layer is paths.
+    /// </summary>
+    public string? SvgNotice
+    {
+        get
+        {
+            if (!ImageSaveFormats.IsVector(Format) || _svgSurvey is null) return null;
+            if (!_surveyed)
+            {
+                // Asked once, whatever comes back. This is read by a binding on
+                // the UI thread, where an exception is not marked handled, so a
+                // survey that fails becomes a sentence — and is not run again on
+                // every read to fail again.
+                _surveyed = true;
+                try
+                {
+                    _svgNotice = _svgSurvey().Notice;
+                }
+                catch (Exception ex)
+                {
+                    _svgNotice = "This drawing could not be checked for which layers would be saved "
+                        + $"as pixels ({ex.Message}). Saving as SVG may not work for it.";
+                }
+            }
+            return _svgNotice;
+        }
+    }
+
+    private bool _surveyed;
+    private string? _svgNotice;
+
+    public bool HasSvgNotice => SvgNotice is not null;
+
     /// <summary>Parameterless for the XAML designer only.</summary>
     public SaveImageDialogViewModel() : this(new Scene()) { }
 
@@ -48,6 +94,8 @@ public sealed partial class SaveImageDialogViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasQuality))]
     [NotifyPropertyChangedFor(nameof(KeepsTransparency))]
     [NotifyPropertyChangedFor(nameof(MayLoseTransparency))]
+    [NotifyPropertyChangedFor(nameof(SvgNotice))]
+    [NotifyPropertyChangedFor(nameof(HasSvgNotice))]
     [NotifyPropertyChangedFor(nameof(Summary))]
     private ImageSaveFormat _format = ImageSaveFormat.Png;
 

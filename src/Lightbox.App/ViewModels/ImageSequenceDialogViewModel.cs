@@ -115,7 +115,11 @@ public sealed partial class ImageSequenceDialogViewModel : ObservableObject
     /// <summary>A document with no tags shows no picker rather than an empty one.</summary>
     public bool HasTags => Tags.Count > 0;
 
-    public IReadOnlyList<ImageSaveFormat> Formats => ImageSaveFormats.All;
+    /// <summary>
+    /// The encoded formats only. A run of SVG frames is not built, and offering
+    /// it here would be a menu entry that could not do what it says.
+    /// </summary>
+    public IReadOnlyList<ImageSaveFormat> Formats => ImageSaveFormats.Raster;
 
     public bool HasQuality => ImageSaveFormats.HasQuality(Format);
 
