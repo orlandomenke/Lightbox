@@ -120,6 +120,17 @@
                          Increment="4" FormatString="0"
                          ToolTip.Tip="How long the bone is, in document pixels — the same thing dragging its tip changes." />
         </DockPanel>
+        <!-- Q217: how far either side of the joint a drawing blends between
+             this bone and its parent. Absent on a root, which has no joint. -->
+        <DockPanel IsVisible="{Binding SelectedBoneHasJoint}">
+          <TextBlock Text="Joint" Width="{StaticResource SizeLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" Opacity="0.7" />
+          <Button DockPanel.Dock="Right" Content="Reset" Command="{Binding ResetSelectedBoneJointZoneCommand}"
+                  IsVisible="{Binding SelectedBoneJointZoneIsSet}"
+                  ToolTip.Tip="Back to the default: a quarter of the shorter of this bone and its parent." />
+          <NumericUpDown Value="{Binding SelectedBoneJointZone, Mode=TwoWay}" Minimum="0" Maximum="4000"
+                         Increment="2" FormatString="0"
+                         ToolTip.Tip="How far either side of this joint a drawing blends between this bone and its parent, in pixels. Everything farther away follows its own bone rigidly, so a straight line stays straight. 0 is a hinge. New binds and joint-weighted layers use it; Auto-bind again to apply it to strokes already bound." />
+        </DockPanel>
         <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
           <Button Content="Add child" Command="{Binding AddChildBoneCommand}"
                   ToolTip.Tip="Grow a bone from this one's tip, already joined to it. Shift-drag a tip on the canvas does the same and lets you aim it." />

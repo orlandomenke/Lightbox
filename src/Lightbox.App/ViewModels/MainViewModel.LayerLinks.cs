@@ -218,11 +218,18 @@ public sealed partial class MainViewModel
     /// </remarks>
     public void SetLayerBone(string? boneId)
     {
-        if (ActiveLayer is not { } layer || layer.BoneId == boneId) return;
+        // Binding to the whole skeleton now is a new bind (Q217), weighted by
+        // joint; re-choosing it on a layer bound before upgrades that layer.
+        var jointWeights = boneId == "" ? true : (bool?)null;
+        if (ActiveLayer is not { } layer || (layer.BoneId == boneId && layer.JointWeights == jointWeights)) return;
         var id = layer.Id;
         _editor.Perform(doc =>
         {
-            if (doc.Scene.Layers.FirstOrDefault(l => l.Id == id) is { } target) target.BoneId = boneId;
+            if (doc.Scene.Layers.FirstOrDefault(l => l.Id == id) is { } target)
+            {
+                target.BoneId = boneId;
+                target.JointWeights = jointWeights;
+            }
         });
         NotifyLinkSurface();
         InvalidateRiggedFrames();
