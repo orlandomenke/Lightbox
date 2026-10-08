@@ -81,8 +81,9 @@ public static class MemoryBudget
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Named rather than inlined because the artist's setting clamps against
-    /// the ceiling too</b> (<c>MainViewModel.FrameCacheBudgetMb</c>). Two ceilings
+    /// <b>Named rather than inlined because the artist's setting clamped against
+    /// the ceiling too</b> — until Q221, when one figure for every picture cache
+    /// replaced it and <see cref="PicturesCeilingBytes"/> took the role. Two ceilings
     /// that disagree is how a preference ends up offering a value the cache will
     /// not honour: the setting reads back something other than what was typed,
     /// with nothing to explain why.
@@ -192,4 +193,17 @@ public static class MemoryBudget
     /// </remarks>
     public static long LayerTextures() =>
         Share(1.0 / 16, 64L * 1024 * 1024, 1L * 1024 * 1024 * 1024);
+
+    /// <summary>
+    /// Every picture the application holds, together: an eighth of the machine
+    /// (Q221) — 1 GB on the minimum spec, 4 GB on a 32 GB machine. The separate
+    /// caps below summed to a third of it, and nothing held them to that sum.
+    /// </summary>
+    public static long Pictures() =>
+        Share(1.0 / 8, PicturesFloorBytes, PicturesCeilingBytes);
+
+    /// <summary>The least the artist's setting may go to: below it a 1080p frame's layers do not fit.</summary>
+    public const long PicturesFloorBytes = 512L * 1024 * 1024;
+
+    public const long PicturesCeilingBytes = 16L * 1024 * 1024 * 1024;
 }

@@ -1326,6 +1326,10 @@ public partial class MainViewModel
         }
 
         NoteMemory();
+        // The overall limit (Q221), between publishes and never while playing:
+        // playback evicts the most recent on purpose (B28), and a global
+        // least-recently-used pass would undo that. Stop catches up.
+        if (!IsPlaying) Lightbox.Raster.PictureMemory.Enforce();
 
         // The whole build, in its parts, for the headroom band's advice: it
         // names a cause only from these (the compose time alone, which is all
@@ -1987,7 +1991,10 @@ public partial class MainViewModel
         _prewarm.Changed ??= OnPrewarmChanged;
 
         var jobs = StrokeWarmJobs() ?? [];
-        var idle = IdleWarmingActive && !_idleWarmFull;
+        var idle = IdleWarmingActive && !_idleWarmFull
+            // Under the overall limit too (Q221): warming past it would only
+            // have the broker take back what the warm just made, every publish.
+            && Lightbox.Raster.PictureMemory.Total < Lightbox.Raster.PictureMemory.Brokered;
         if (idle)
         {
             var tileNative = Scene.Camera is null

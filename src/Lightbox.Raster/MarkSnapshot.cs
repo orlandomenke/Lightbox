@@ -43,7 +43,7 @@ namespace Lightbox.Raster;
 /// deliberately strict and the failure is always <c>false</c>.
 /// </para>
 /// </remarks>
-public sealed class MarkSnapshot : IDisposable
+public sealed class MarkSnapshot : IDisposable, IPictureStore
 {
     /// <summary>
     /// Bytes of saved patches held across the whole history.
@@ -99,6 +99,9 @@ public sealed class MarkSnapshot : IDisposable
         public required List<Patch> Patches { get; init; }
 
         public required long Bytes { get; init; }
+
+        /// <summary>When it was filed (Q221): undo pixels are used, if ever, in filing order.</summary>
+        public long Used { get; } = PictureMemory.Clock();
     }
 
     private readonly Dictionary<long, Step> _steps = [];
@@ -336,6 +339,29 @@ public sealed class MarkSnapshot : IDisposable
     /// Oldest first, because the oldest step is the one an artist is least
     /// likely to reach — and losing it costs a slower undo, never the edit.
     /// </summary>
+    // ---- the overall limit (Q221) -----------------------------------------------
+
+    /// <summary>
+    /// The oldest step's pixels. Losing them costs nothing but speed: its undo
+    /// replays the record instead (<c>AMarkTooBigForTheBudgetIsNotSavedAndUndoesAnyway</c>).
+    /// </summary>
+    long? IPictureStore.OldestEvictable =>
+        _order.Count > 0 && _steps.TryGetValue(_order[0], out var step) ? step.Used : null;
+
+    long IPictureStore.EvictOldest()
+    {
+        while (_order.Count > 0)
+        {
+            var oldest = _order[0];
+            _order.RemoveAt(0);
+            if (!_steps.Remove(oldest, out var step)) continue;
+            Bytes -= step.Bytes;
+            Evictions++;
+            return step.Bytes;
+        }
+        return 0;
+    }
+
     private void Evict()
     {
         while (_order.Count > 0 && (Bytes > ByteBudget || _order.Count > MaxSteps))

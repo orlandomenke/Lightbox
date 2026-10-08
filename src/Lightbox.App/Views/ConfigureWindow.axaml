@@ -109,12 +109,12 @@
         </StackPanel>
 
         <StackPanel Spacing="{StaticResource Space6}">
-          <TextBlock Text="Frame cache" FontWeight="SemiBold" />
+          <TextBlock Text="Memory for pictures" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
-                     Text="Rendered frames kept in memory so scrubbing and onion skin stay instant. Raising this helps long scenes; lowering it frees memory on a large canvas." />
+                     Text="Everything Lightbox keeps drawn in memory — still frames, playback, onion skin, undo pixels — shares this one limit, and the pictures used longest ago make room first. Raising it helps long scenes; lowering it frees memory for the rest of the machine. Starts at an eighth of this computer's memory." />
           <DockPanel>
             <NumericUpDown DockPanel.Dock="Right" x:Name="CacheBudgetBox" Width="{StaticResource SizeSettingsField}"
-                           Minimum="64" Maximum="4096" Increment="64" FormatString="0"
+                           Minimum="512" Maximum="16384" Increment="256" FormatString="0"
                            ValueChanged="OnCacheBudgetChanged" />
             <TextBlock Text="Megabytes" VerticalAlignment="Center" />
           </DockPanel>

@@ -143,6 +143,11 @@ public partial class MainViewModel
         // `HasDocument` is what everything else asks.
         _editor = new DocumentEditor(StartupDoc());
         _activeLayerIndex = FirstPaintableLayer(_editor.Doc);
+        // The four picture stores on this thread answer to the one limit (Q221).
+        Lightbox.Raster.PictureMemory.Register(_cache);
+        Lightbox.Raster.PictureMemory.Register(_tileFrames);
+        Lightbox.Raster.PictureMemory.Register(_tileFlats);
+        Lightbox.Raster.PictureMemory.Register(_markSnapshots);
         _editor.Changed += OnDocumentChanged;
         EffectsPanel = new EffectsViewModel(this);
         // The live rig: a frame with bound strokes renders posed for the
@@ -189,6 +194,7 @@ public partial class MainViewModel
         _selectionManager.SelectionChanged += OnGuideSelectionChanged;
         _clock.Tick += OnPlaybackTick;
         Settings = AppSettings.Load();
+        if (Settings.MemoryForPicturesMb is { } pictureMb) ApplyPictureLimit(pictureMb * 1024L * 1024L);
         // Through the normaliser on the way in: the file is input, and a
         // hand-edited 0.1 must not produce a window nobody can read (Q200).
         Settings.UiScale = UiScale.Normalise(Settings.UiScale);

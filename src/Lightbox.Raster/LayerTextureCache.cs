@@ -78,8 +78,20 @@ public sealed class LayerTextureCache : IDisposable
     /// refusing an allocation — which <see cref="GpuComposite"/> handles by
     /// falling back to CPU, so the failure mode is "no faster" rather than
     /// "broken".
+    /// <para>
+    /// <b>An eighth of the overall picture limit, when that is less</b> (Q221):
+    /// this cache lives on the render thread, where the limit cannot evict it, so
+    /// it holds to a slice instead — read live, so changing the limit applies
+    /// here without a restart. Set explicitly, as the tests do, it is that.
+    /// </para>
     /// </remarks>
-    public long BudgetBytes { get; set; } = MemoryBudget.LayerTextures();
+    public long BudgetBytes
+    {
+        get => _budget ?? Math.Min(MemoryBudget.LayerTextures(), PictureMemory.RenderSlice);
+        set => _budget = value;
+    }
+
+    private long? _budget;
 
     public long ResidentBytes { get; private set; }
 
