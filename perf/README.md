@@ -21,6 +21,9 @@ folder holding it, so an installed alpha build can be measured against a branch.
 - **It takes the mouse and keyboard.** Keep your hands off until it prints `done`. If you
   move the mouse between steps the run stops and is reported as `interrupted` — it is
   not counted, and nothing is left half-done in your own profile.
+- **A locked machine cannot be measured.** Windows refuses synthetic input while the
+  session is locked; the lab checks before it starts and stops with exit code 3 and a
+  plain message, rather than reporting every run as interrupted.
 - **Run it when the machine is quiet.** Another build or test suite on the same machine
   shows up as slowness. The first transform-undo runs measured opening at 18 s and
   27 s on the same build, minutes apart, with other work going on.
