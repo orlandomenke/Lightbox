@@ -192,7 +192,10 @@ public static class MemoryBudget
     /// residency never survives a frame and the feature is pure overhead.
     /// </remarks>
     public static long LayerTextures() =>
-        Share(1.0 / 16, 64L * 1024 * 1024, 1L * 1024 * 1024 * 1024);
+        Share(1.0 / 16, LayerTexturesFloorBytes, 1L * 1024 * 1024 * 1024);
+
+    /// <summary>The least the layer textures get, from the machine or from a slice of the picture limit.</summary>
+    public const long LayerTexturesFloorBytes = 64L * 1024 * 1024;
 
     /// <summary>
     /// Every picture the application holds, together: an eighth of the machine

@@ -123,6 +123,30 @@ public class PictureMemoryStoreTests
         Assert.True(((IPictureStore)cache).OldestEvictable >= afterClear);
     }
 
+    /// <summary>
+    /// A render-thread slice never cuts a cache below its own floor. Found on a
+    /// CI runner with about 6 GB free: an eighth of its limit gave the compose
+    /// cache 96 MB, under the 128 MB at which a loop stops fitting at all.
+    /// </summary>
+    [Fact]
+    public void ASmallLimitSlicesTheRenderThreadCachesNoLowerThanTheirFloors()
+    {
+        var previousLimit = PictureMemory.Limit;
+        try
+        {
+            PictureMemory.Limit = MemoryBudget.PicturesFloorBytes; // slice: 64 MB
+
+            Assert.Equal(128L * 1024 * 1024, new ComposeCache(1024L * 1024 * 1024).BudgetBytes);
+            Assert.Equal(1024L * 1024, new ComposeCache(1024L * 1024).BudgetBytes); // its own cap still holds
+            using var textures = new LayerTextureCache();
+            Assert.True(textures.BudgetBytes >= 64L * 1024 * 1024);
+        }
+        finally
+        {
+            PictureMemory.Limit = previousLimit;
+        }
+    }
+
     [Fact]
     public void UndoPixelsGoOldestStepFirst()
     {

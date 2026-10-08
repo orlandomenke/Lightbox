@@ -87,7 +87,11 @@ public sealed class LayerTextureCache : IDisposable
     /// </remarks>
     public long BudgetBytes
     {
-        get => _budget ?? Math.Min(MemoryBudget.LayerTextures(), PictureMemory.RenderSlice);
+        // Never below its own floor, however small the slice: there the cache
+        // stops holding a frame's layers at all.
+        get => _budget ?? Math.Min(
+            MemoryBudget.LayerTextures(),
+            Math.Max(MemoryBudget.LayerTexturesFloorBytes, PictureMemory.RenderSlice));
         set => _budget = value;
     }
 

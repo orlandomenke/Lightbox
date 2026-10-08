@@ -52,7 +52,10 @@ is the oldest, and it stops when nothing more may go.
 **The two render-thread caches get a slice each.** Layer textures and finished
 frames live on the render thread, where the UI thread cannot evict safely. Their
 budgets become fixed slices of the limit: an eighth each, which is 512 MB on this
-machine and 128 MB on the minimum spec, against 1 GB each before. The brokered
+machine and 128 MB on the minimum spec, against 1 GB each before. A slice never
+goes below the cache's own floor (128 MB for finished frames, 64 MB for textures),
+where it would stop holding a loop or a frame's layers at all. So on a very small
+limit, the six together can exceed it by the difference. The brokered
 stores share the remaining three quarters (`PictureMemory.Brokered`), so the six
 together stay within the limit. The still cache's own cap is set to that share:
 which store gives way is the broker's call, not a fixed split.
