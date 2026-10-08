@@ -1324,6 +1324,8 @@ public partial class MainViewModel
             }
         }
 
+        NoteMemory();
+
         if (ms > WorstBuild.TotalMs)
         {
             // **When, and what was under the pen.** The owner reports the stall on

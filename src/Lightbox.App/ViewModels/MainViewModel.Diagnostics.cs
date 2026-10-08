@@ -628,6 +628,30 @@ public partial class MainViewModel
             : $"{bytes / (1024.0 * 1024):0} MB images")
             + (backend == "unknown" ? "" : $" · {backend}");
         Performance.DescribeDocument(scene.Width, scene.Height, scene.Layers.Count, drawings.Count, bytes);
+        NoteMemory(force: true);
+    }
+
+    private long _memoryNotedAt;
+
+    /// <summary>
+    /// Where an open document's memory is, for the performance lab: the caches,
+    /// the undo history's depth, the managed heap (which holds what undo keeps)
+    /// and the process total. At most every two seconds, and only with the perf
+    /// log on — the "MB images" label counts the still images alone.
+    /// </summary>
+    internal void NoteMemory(bool force = false)
+    {
+        if (!PerfLog.On) return;
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (!force && now - _memoryNotedAt < 2 * System.Diagnostics.Stopwatch.Frequency) return;
+        _memoryNotedAt = now;
+        static string Mb(long b) => (b / (1024.0 * 1024.0)).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+        var (undo, redo) = _editor.Depth;
+        using var self = System.Diagnostics.Process.GetCurrentProcess();
+        PerfLog.Mark("memory", string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"stills={Mb(_cache.CachedBytes)}/{_cache.CachedFrames} tiles={Mb(_tileFrames.AllocatedBytes)}/{_tileFrames.CachedFrames} " +
+            $"ring={Mb(_composeRing.AllocatedBytes)} marks={Mb(_markSnapshots.Bytes)} undo={undo} redo={redo} " +
+            $"heap={Mb(GC.GetTotalMemory(false))} private={Mb(self.PrivateMemorySize64)}"));
     }
 
     /// <summary>
