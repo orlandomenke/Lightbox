@@ -38,7 +38,7 @@ internal static class ComposeCacheHost
     /// a cache is larger than any working set it could serve.
     /// </remarks>
     private static readonly long Budget = MemoryBudget.Share(
-        fraction: 1.0 / 12, floorBytes: 128L * 1024 * 1024, ceilingBytes: 1024L * 1024 * 1024);
+        fraction: 1.0 / 12, floorBytes: ComposeCache.SliceFloorBytes, ceilingBytes: 1024L * 1024 * 1024);
 
     internal static ComposeCache Shared { get; } = new(Budget);
 

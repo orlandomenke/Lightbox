@@ -47,7 +47,7 @@ namespace Lightbox.App.Rendering;
 /// thread only ever reads bitmaps it was handed and that are pinned for it.
 /// </para>
 /// </remarks>
-public sealed class TileFlattenCache : IDisposable
+public sealed class TileFlattenCache : IDisposable, Lightbox.Raster.IPictureStore
 {
     /// <summary>
     /// Flattened bytes held before the least recently used is evicted.
@@ -67,6 +67,9 @@ public sealed class TileFlattenCache : IDisposable
 
     private readonly Dictionary<Key, LinkedListNode<(Key Key, SKBitmap Bitmap)>> _map = [];
     private readonly LinkedList<(Key Key, SKBitmap Bitmap)> _lru = [];
+
+    /// <summary>When each flatten was last fetched or put in (Q221).</summary>
+    private readonly Dictionary<Key, long> _used = [];
     private readonly Dictionary<SKBitmap, int> _pins = [];
     private readonly HashSet<SKBitmap> _awaitingUnpin = [];
 
@@ -135,6 +138,7 @@ public sealed class TileFlattenCache : IDisposable
 
         _lru.Remove(node);
         _lru.AddFirst(node);
+        _used[key] = Lightbox.Raster.PictureMemory.Clock();
         Hits++;
         return node.Value.Bitmap;
     }
@@ -197,6 +201,7 @@ public sealed class TileFlattenCache : IDisposable
     {
         foreach (var (_, bitmap) in _lru) DisposeOrDefer(bitmap);
         _lru.Clear();
+        _used.Clear();
         _map.Clear();
         CachedBytes = 0;
     }
@@ -215,8 +220,40 @@ public sealed class TileFlattenCache : IDisposable
         }
     }
 
+    // ---- the overall limit (Q221) -----------------------------------------------
+
+    long Lightbox.Raster.IPictureStore.Bytes => CachedBytes;
+
+    /// <summary>
+    /// The least recently used flatten that is not pinned, keeping the newest —
+    /// the one about to be drawn, for <see cref="Evict"/>'s reason.
+    /// </summary>
+    long? Lightbox.Raster.IPictureStore.OldestEvictable => OldestEvictableNode() is { } n ? UsedOf(n.Value.Key) : null;
+
+    long Lightbox.Raster.IPictureStore.EvictOldest()
+    {
+        if (OldestEvictableNode() is not { } node) return 0;
+        var bytes = BytesOf(node.Value.Bitmap);
+        Remove(node);
+        Evictions++;
+        return bytes;
+    }
+
+    private LinkedListNode<(Key Key, SKBitmap Bitmap)>? OldestEvictableNode()
+    {
+        for (var node = _lru.Last; node is not null && node != _lru.First; node = node.Previous)
+        {
+            if (!_pins.ContainsKey(node.Value.Bitmap)) return node;
+        }
+        return null;
+    }
+
+    private long UsedOf(Key key) =>
+        _used.TryGetValue(key, out var t) ? t : _used[key] = Lightbox.Raster.PictureMemory.Clock();
+
     private void Remove(LinkedListNode<(Key Key, SKBitmap Bitmap)> node)
     {
+        _used.Remove(node.Value.Key);
         CachedBytes -= BytesOf(node.Value.Bitmap);
         _map.Remove(node.Value.Key);
         _lru.Remove(node);

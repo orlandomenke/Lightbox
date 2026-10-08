@@ -146,31 +146,4 @@ public class MemoryBudgetTests(ITestOutputHelper output)
         Assert.InRange(FrameBitmapCache.ByteBudget, 64 * Mb, 4 * Gb);
         Assert.InRange(Rendering.TileFrameCache.ByteBudget, 64 * Mb, 2 * Gb);
     }
-
-    /// <summary>
-    /// <b>The artist's floor is allowed below the derived one, and that is the
-    /// design.</b> The derived floor is what a minimum-spec machine needs for the
-    /// cache to earn its keep; the setting's floor is how far somebody may go
-    /// when they have decided they would rather have the memory back. The
-    /// <em>ceiling</em> is shared, because past it the cache holds bytes it will
-    /// never spend no matter who asked.
-    /// </summary>
-    [AvaloniaFact]
-    public void TheSettingsCeilingIsTheDerivationsCeiling()
-    {
-        var vm = new ViewModels.MainViewModel(null);
-        var previous = FrameBitmapCache.ByteBudget;
-        try
-        {
-            vm.FrameCacheBudgetMb = int.MaxValue;
-            Assert.Equal(MemoryBudget.FrameCacheCeilingBytes / Mb, vm.FrameCacheBudgetMb);
-
-            vm.FrameCacheBudgetMb = 1;
-            Assert.Equal(64, vm.FrameCacheBudgetMb);
-        }
-        finally
-        {
-            FrameBitmapCache.ByteBudget = previous;
-        }
-    }
 }

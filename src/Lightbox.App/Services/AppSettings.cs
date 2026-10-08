@@ -308,6 +308,19 @@ public sealed class AppSettings
     public string? SymbolPlacementChoice { get; set; }
 
     /// <summary>
+    /// Memory for pictures, in megabytes, when the artist has set it (Q221).
+    /// </summary>
+    /// <remarks>
+    /// Absent unless set: unset is an eighth of whichever machine this is, so a
+    /// settings file carried to another computer does not carry this one's size
+    /// with it. Replaces the still-image "frame cache" figure, which was never
+    /// saved.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? MemoryForPicturesMb { get; set; }
+
+    /// <summary>
     /// Whether a human picked the canvas quality.
     /// </summary>
     /// <remarks>
