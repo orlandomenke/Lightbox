@@ -129,10 +129,46 @@ VK = {
 }
 
 
+class InputRefused(Exception):
+    """Windows would not take synthetic input: no run can measure anything now."""
+
+
+LOCKED = ("Windows refused the lab's mouse and keyboard input. The session is most likely "
+          "locked (or a UAC or sign-in screen is up); unlock it and run again.")
+
+
 def _send(*inputs: INPUT) -> None:
     arr = (INPUT * len(inputs))(*inputs)
     if user32.SendInput(len(inputs), arr, ctypes.sizeof(INPUT)) != len(inputs):
-        raise OSError(ctypes.get_last_error(), "SendInput was refused")
+        raise InputRefused(f"{LOCKED} (SendInput error {ctypes.get_last_error()})")
+
+
+def input_accepted() -> bool:
+    """Whether the lab can drive the desktop at all.
+
+    A locked session cannot be driven, and says so two ways: GetCursorPos fails
+    (leaving the point at 0,0, which read as "somebody moved the mouse") and
+    SendInput is refused. Without this check every run of an A/B started, was
+    reported as interrupted by a move nobody made, and the next keystroke
+    stopped the whole thing with a traceback (2026-10-08, an A/B left to run on
+    a machine that locked). The pointer is checked as well as the input, because
+    a mouse move of nothing was seen to be accepted on a locked session.
+    """
+    pt = wt.POINT()
+    if not user32.GetCursorPos(ctypes.byref(pt)):
+        return False
+    still = INPUT(type=0)  # INPUT_MOUSE, a relative move of 0,0
+    try:
+        _send(still)
+        return True
+    except InputRefused:
+        return False
+
+
+def require_input() -> None:
+    if not input_accepted():
+        print(LOCKED)
+        sys.exit(3)
 
 
 # Keys Windows calls "extended". Sent without the flag, Delete is the numpad's Del,
@@ -171,7 +207,9 @@ class Pointer:
 
     def where(self) -> tuple[int, int]:
         pt = wt.POINT()
-        user32.GetCursorPos(ctypes.byref(pt))
+        if not user32.GetCursorPos(ctypes.byref(pt)):
+            # Not a move: the desktop cannot be read, as when the session locks.
+            raise InputRefused(f"{LOCKED} (GetCursorPos error {ctypes.get_last_error()})")
         return pt.x, pt.y
 
     def guard(self) -> None:
@@ -525,6 +563,8 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
         log.settle(quiet=1.5, timeout=120, hwnd=hwnd)
     except Interrupted as stop:
         outcome = f"interrupted: {stop}"
+    except InputRefused as refused:
+        outcome = f"refused: {refused}"
     except (TimeoutError, RuntimeError) as failed:
         outcome = f"failed: {failed}"
     finally:
@@ -750,6 +790,7 @@ def cmd_fixture(args) -> None:
 
 def cmd_run(args) -> None:
     make_dpi_aware()
+    require_input()
     scenario = load_scenario(args.scenario)
     exe = resolve_exe(args.build)
     folder = RUNS / f"{stamp()}-{scenario['name']}-{args.tag}"
@@ -759,6 +800,9 @@ def cmd_run(args) -> None:
     for i in range(args.runs):
         r = run_once(scenario, exe, folder / f"run-{i + 1}", args.presentmon)
         print(f"  run {i + 1}: {r['outcome']}")
+        if r["outcome"].startswith("refused"):
+            print(f"\nSTOPPED: {LOCKED}")
+            sys.exit(3)
         results.append(r)
     summary = {"scenario": scenario["name"], "exe": str(exe), "runs": results, "aggregate": aggregate(results)}
     (folder / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -790,6 +834,7 @@ def cmd_check(args) -> None:
 
 def cmd_ab(args) -> None:
     make_dpi_aware()
+    require_input()
     scenario = load_scenario(args.scenario)
     a, b = resolve_exe(args.a), resolve_exe(args.b)
     folder = RUNS / f"{stamp()}-{scenario['name']}-ab"
@@ -802,6 +847,9 @@ def cmd_ab(args) -> None:
         for label, exe, sink in order:
             r = run_once(scenario, exe, folder / f"{label}-{i + 1}", args.presentmon)
             print(f"  {label} {i + 1}: {r['outcome']}")
+            if r["outcome"].startswith("refused"):
+                print(f"\nSTOPPED: {LOCKED}")
+                sys.exit(3)
             sink.append(r)
     agg_a, agg_b = aggregate(ra), aggregate(rb)
     rows = verdict(agg_a, agg_b, args.tolerance)
