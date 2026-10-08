@@ -22,7 +22,7 @@ public enum SvgLayerForm
 public sealed record SvgLayerReport(string Name, SvgLayerForm Form);
 
 /// <summary>
-/// What an SVG save did with each layer — the half of Q219's answer that says
+/// What an SVG save did with each layer — the half of Q220's answer that says
 /// "and reported".
 /// </summary>
 /// <param name="Layers">Bottom to top, one entry per layer that wrote anything.</param>
@@ -64,7 +64,7 @@ public sealed record SvgDocument(string Xml, SvgReport Report);
 
 /// <summary>
 /// The drawing as SVG: paths where the marks are geometry, pixels where they
-/// are not, and a report of which (Q219).
+/// are not, and a report of which (Q220).
 /// </summary>
 /// <remarks>
 /// <para>

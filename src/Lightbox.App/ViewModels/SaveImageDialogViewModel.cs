@@ -134,7 +134,7 @@ public sealed partial class SaveImageDialogViewModel : ObservableObject
 
     /// <summary>
     /// One sentence naming what is about to be written. One file, always — a
-    /// run of frames is <c>Export image sequence…</c> (Q219).
+    /// run of frames is <c>Export image sequence…</c> (Q220).
     /// </summary>
     public string Summary
     {

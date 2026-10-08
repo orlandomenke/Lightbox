@@ -6,7 +6,7 @@ using Lightbox.Core.Projects;
 namespace Lightbox.App.ViewModels;
 
 /// <summary>
-/// The choices behind <c>File ▸ Export image sequence…</c> (Q219).
+/// The choices behind <c>File ▸ Export image sequence…</c> (Q220).
 /// </summary>
 /// <remarks>
 /// <para>

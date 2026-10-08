@@ -1,4 +1,4 @@
-# Q219 · Image sequence export: where it lives, how unique frames are numbered, and what an SVG save contains — **answered 2026-10-08**
+# Q220 · Image sequence export: where it lives, how unique frames are numbered, and what an SVG save contains — **answered 2026-10-08**
 
 Raised by the owner, 2026-10-08: *"let's get into save as; I want to be able to
 save as png, svg and jpg (jpeg) files. The same for exporting/render animation

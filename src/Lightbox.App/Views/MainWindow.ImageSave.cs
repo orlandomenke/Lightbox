@@ -69,7 +69,7 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// <c>File ▸ Export image sequence…</c> (Q219): the choices first, then the
+    /// <c>File ▸ Export image sequence…</c> (Q220): the choices first, then the
     /// folder, so the summary sentence has been read before anything is picked.
     /// </summary>
     private async void OnExportImageSequenceClicked(object? sender, RoutedEventArgs e)

@@ -10,7 +10,7 @@ namespace Lightbox.App.Tests;
 
 /// <summary>
 /// The choices in <c>File ▸ Export image sequence…</c>, and the window that
-/// shows them (Q219).
+/// shows them (Q220).
 /// </summary>
 /// <remarks>
 /// The artist reads and types frame numbers from one, the way the timeline
@@ -371,7 +371,7 @@ public class ImageSequenceDialogTests(Xunit.ITestOutputHelper output)
         Assert.Equal("File", definition.Category);
     }
 
-    // ---- one place for sequences (Q219) ----------------------------------------
+    // ---- one place for sequences (Q220) ----------------------------------------
 
     [Fact]
     public void SaveAsImageWritesOnePictureAndNoLongerOffersEveryFrame()

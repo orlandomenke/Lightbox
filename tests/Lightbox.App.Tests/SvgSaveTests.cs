@@ -9,7 +9,7 @@ using SkiaSharp;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// Saving the drawing as SVG (Q219, part 1): what is geometry goes in as
+/// Saving the drawing as SVG (Q220, part 1): what is geometry goes in as
 /// paths, what is not goes in as pixels, and the file says which.
 /// </summary>
 /// <remarks>
