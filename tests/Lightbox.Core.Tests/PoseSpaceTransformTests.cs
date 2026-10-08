@@ -343,9 +343,13 @@ public class PoseSpaceTransformTests(ITestOutputHelper output)
         // Wholly on a: a plain translation at rest, since a did not move.
         Assert.Equal(70, stroke.Points[0].X, 9);
         Assert.Equal(0, stroke.Points[0].Y, 9);
-        // At the pinch: untouched.
-        Assert.Equal(100, stroke.Points[1].X, 9);
-        Assert.Equal(0, stroke.Points[1].Y, 9);
+        // At the pinch: untouched. The end, not index 1: a two-point line whose
+        // weights vary is densified for the write-back now (B404), as the
+        // write-back chord always meant it to be — the pair used to slip
+        // through Densify untouched.
+        Assert.Equal(100, stroke.Points[^1].X, 9);
+        Assert.Equal(0, stroke.Points[^1].Y, 9);
+        Assert.All(stroke.Points, p => Assert.True(double.IsFinite(p.X) && double.IsFinite(p.Y)));
     }
 
     [Fact]
