@@ -109,6 +109,50 @@ public class FillHoverPreviewTests(ITestOutputHelper output) : BrushStateIsolate
     }
 
     [AvaloniaFact]
+    public void ChangingFrameRetracesThePreviewForTheNewFrame()
+    {
+        // Reported 2026-10-08: "even on other frames we still see a ghost of
+        // the previous fill." The preview was traced on frame 0's box and
+        // nothing re-traced it when the playhead moved, so frame 1 — which has
+        // no box — showed frame 0's region in the fill colour.
+        var vm = VmWithShape();
+        vm.AddFrameCommand.Execute(null);
+        vm.CurrentFrameIndex = 0;
+        vm.ActiveTool = ToolId.Fill;
+        IReadOnlyList<List<StrokePoint>>? shown = null;
+        vm.FillPreviewChanged += (contours, _, _) => shown = contours;
+
+        vm.UpdatePointerContext(150, 100, KeyModifiers.None);
+        Flush();
+        Assert.NotNull(shown);
+        var onTheBox = PathAreaProxy(shown!);
+
+        vm.CurrentFrameIndex = 1;
+        Flush();
+        output.WriteLine($"frame 0 region ~{onTheBox:F0}, frame 1 region ~{(shown is null ? 0 : PathAreaProxy(shown)):F0}");
+        Assert.True(shown is null || PathAreaProxy(shown) != onTheBox,
+            "frame 1 still shows the region traced on frame 0");
+    }
+
+    [AvaloniaFact]
+    public void ChangingFrameWithAnotherToolLeavesNoPreview()
+    {
+        var vm = VmWithShape();
+        vm.AddFrameCommand.Execute(null);
+        vm.CurrentFrameIndex = 0;
+        vm.ActiveTool = ToolId.Fill;
+        IReadOnlyList<List<StrokePoint>>? shown = null;
+        vm.FillPreviewChanged += (contours, _, _) => shown = contours;
+        vm.UpdatePointerContext(150, 100, KeyModifiers.None);
+        Flush();
+        vm.FillAt(150, 100);
+        vm.ActiveTool = ToolId.Eraser;
+        vm.CurrentFrameIndex = 1;
+        Flush();
+        Assert.Null(shown);
+    }
+
+    [AvaloniaFact]
     public void LeavingTheCanvasStraightAfterAFillTakesTheOutlineOffToo()
     {
         var vm = VmWithShape();
