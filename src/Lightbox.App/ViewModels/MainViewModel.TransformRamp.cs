@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Lightbox.App.Rendering;
 using Lightbox.App.Services;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Geometry;
@@ -86,6 +87,7 @@ public partial class MainViewModel
     {
         _rampBoxBefore = _rampBox;
         _rampBox = box;
+        if (RampOverFrames && box is not null && box != _rampSettledBox) ArmRampSettle();
         if (RampOverFrames && box is { Mirrors: true })
         {
             AiStatus = "A mirror cannot be ramped — it would pass through a flat line on the way. Turn the ramp off to mirror.";
@@ -129,6 +131,9 @@ public partial class MainViewModel
         _rampBox = null;
         _rampBoxBefore = null;
         _rampPlan = null;
+        _rampSettleTimer?.Stop();
+        _rampSettledBox = null;
+        _rampSettledBefore = null;
         if (RampOverFrames) RampOverFrames = false;
         OnPropertyChanged(nameof(RampAvailable));
     }
@@ -204,6 +209,61 @@ public partial class MainViewModel
 
     private Func<Layer, int, SKMatrix?>? _passRampPreview;
 
+
+    // ---- near live, rest on pause (Q216, the owner's pick for the ghosts' cost) ----
+
+    /// <summary>The box as it was at the last pause; the far ghosts show its shares.</summary>
+    private AffineParts? _rampSettledBox;
+
+    /// <summary>The settled box before the latest settle — the repaint covers where they were.</summary>
+    private AffineParts? _rampSettledBefore;
+
+    /// <summary>How long the pen has to rest before the far ghosts catch up.</summary>
+    internal static readonly TimeSpan RampSettleDelay = TimeSpan.FromMilliseconds(120);
+
+    private Avalonia.Threading.DispatcherTimer? _rampSettleTimer;
+
+    /// <summary>Whether a box change is waiting for the pen to rest.</summary>
+    internal bool RampSettlePending => _rampSettleTimer?.IsEnabled == true;
+
+    private void ArmRampSettle()
+    {
+        _rampSettleTimer ??= new Avalonia.Threading.DispatcherTimer(RampSettleDelay, Avalonia.Threading.DispatcherPriority.Background, (_, _) => SettleRamp());
+        _rampSettleTimer.Stop();
+        _rampSettleTimer.Start();
+    }
+
+    /// <summary>
+    /// The pen has rested: bring the far ghosts to the box as it is now, in one
+    /// repaint. Called by the pause timer; tests call it directly.
+    /// </summary>
+    internal void SettleRamp()
+    {
+        _rampSettleTimer?.Stop();
+        if (!RampApplies || _rampBox is not { } box || _rampSettledBox == box) return;
+        _rampSettledBefore = _rampSettledBox;
+        _rampSettledBox = box;
+        if (RampDirtyRegion() is { } dirty) _publish.MarkDirty(dirty);
+        else _publish.InvalidateWholeCanvas();
+        RequestSnapshot();
+    }
+
+    /// <summary>The far ghosts' matrix: the settled box's share, or no move before the first pause.</summary>
+    private SKMatrix? RampSettledPreviewAt(Layer layer, int index) =>
+        _rampSettledBox is { } settled ? MatrixOf(settled.At(RampShareAt(layer, index))) : SKMatrix.Identity;
+
+    private Func<Layer, int, SKMatrix?>? _passRampSettledPreview;
+
+    /// <summary>
+    /// The far ghosts composited once into one document-sized bitmap, each
+    /// through its own settled matrix — reused for every event until the next
+    /// pause changes them.
+    /// </summary>
+    private SKBitmap? RampFarSheetFor(Layer layer, IReadOnlyList<ScenePassBuilder.PassSpec> far) =>
+        GhostSheetFor(layer, far, keepMatrices: true);
+
+    private Func<Layer, IReadOnlyList<ScenePassBuilder.PassSpec>, SKBitmap?>? _passRampFarSheet;
+
     /// <summary>
     /// The doc-space region a ramped preview step changes, or null when the ramp
     /// is off.
@@ -226,6 +286,9 @@ public partial class MainViewModel
         {
             region.Union(MatrixOf(now.At(share)).MapRect(bounds));
             if (before is { } b) region.Union(MatrixOf(b.At(share)).MapRect(bounds));
+            // The far ghosts stand at the settled box, and a settle moves them.
+            if (_rampSettledBox is { } s) region.Union(MatrixOf(s.At(share)).MapRect(bounds));
+            if (_rampSettledBefore is { } sb) region.Union(MatrixOf(sb.At(share)).MapRect(bounds));
         }
         region.Inflate(2, 2);
         return SKRectI.Ceiling(region);

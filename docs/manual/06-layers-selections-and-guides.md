@@ -916,9 +916,10 @@ What to know:
   whole drawings, so it is not offered while a selection is up. A mirror cannot
   be ramped — it would pass through a flat line on the way — and Enter says so
   rather than mirroring everything.
-- **Ghosts cost more under a ramp.** Each one is drawn at its own share, so they
-  cannot be drawn as one; with deep onion skin on a large canvas the drag is
-  heavier than an ordinary transform.
+- **The nearest ghost each side follows the drag live; the rest catch up when
+  you pause.** Stop moving for a moment and every ghost stands at its share, so
+  you read the whole ramp each time you stop — and however deep the onion skin,
+  the drag itself only redraws the two nearest.
 - The ramp switches itself off when the transform ends; the next one starts
   without it.
 

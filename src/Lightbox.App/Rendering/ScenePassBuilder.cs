@@ -229,7 +229,9 @@ internal static class ScenePassBuilder
         bool GhostsFollow = false,
         IReadOnlySet<string>? TransformFrameIds = null,
         Func<Layer, IReadOnlyList<PassSpec>, SKBitmap?>? GhostSheet = null,
-        Func<Layer, int, SKMatrix?>? RampPreview = null)
+        Func<Layer, int, SKMatrix?>? RampPreview = null,
+        Func<Layer, int, SKMatrix?>? RampSettledPreview = null,
+        Func<Layer, IReadOnlyList<PassSpec>, SKBitmap?>? RampFarSheet = null)
     {
         internal static readonly LiveEdit None = new();
     }
@@ -428,12 +430,18 @@ internal static class ScenePassBuilder
             // Ghosts ride their layer's plane — a ghost is the same drawing at
             // another time, so it parallaxes exactly as the drawing does.
             var ghostDrag = GhostDrag(live);
-            var ghosts = GhostSpecsFor(layer, scene, state, parallax, ghostDrag, live.RampPreview);
+            var ghosts = GhostSpecsCore(
+                layer, scene, state, parallax, ghostDrag, live.RampPreview, live.RampSettledPreview, out var farGhosts);
             // A ramp gives every ghost its own share, so they share no matrix
-            // and cannot be one sheet (Q216).
+            // and cannot be one sheet (Q216) — but the far ones only move at a
+            // pause, so they can be one sheet between pauses.
             if (ghostDrag is { } gd && live.RampPreview is null)
             {
                 ghosts = AsOneSheet(layer, ghosts, gd.FrameIds, live.GhostSheet);
+            }
+            else if (live.RampPreview is not null && live.RampFarSheet is { } farSheetFor)
+            {
+                ghosts = FarGhostsAsOneSheet(layer, ghosts, farGhosts, farSheetFor);
             }
             if (!state.Onion.DrawOver) passes.AddRange(ghosts);
 
@@ -789,8 +797,25 @@ internal static class ScenePassBuilder
     internal static IReadOnlyList<PassSpec> GhostSpecsFor(
         Layer layer, Scene scene, State state, SKMatrix? parallax = null,
         (SKMatrix Preview, IReadOnlySet<string> FrameIds)? drag = null,
-        Func<Layer, int, SKMatrix?>? ramp = null)
+        Func<Layer, int, SKMatrix?>? ramp = null) =>
+        GhostSpecsCore(layer, scene, state, parallax, drag, ramp, null, out _);
+
+    /// <param name="settled">
+    /// Under a ramp, the share the far ghosts show: the box as it was at the
+    /// last pause (Q216, the owner's "near live, rest on pause"). Null means
+    /// every ghost follows <paramref name="ramp"/> live.
+    /// </param>
+    /// <param name="farCount">
+    /// How many of the returned passes, from the front, are far ghosts — the
+    /// pinned ones and every ghost more than one step away. They come first by
+    /// construction (furthest first), which is what lets them be one sheet.
+    /// </param>
+    private static IReadOnlyList<PassSpec> GhostSpecsCore(
+        Layer layer, Scene scene, State state, SKMatrix? parallax,
+        (SKMatrix Preview, IReadOnlySet<string> FrameIds)? drag,
+        Func<Layer, int, SKMatrix?>? ramp, Func<Layer, int, SKMatrix?>? settled, out int farCount)
     {
+        farCount = 0;
         var onion = state.Onion;
         // Ghosts are a drawing aid. During playback they are noise, and the
         // one thing playback has to show is the animation.
@@ -833,7 +858,8 @@ internal static class ScenePassBuilder
             passes.Add(new PassSpec(
                 pinned, index, null,
                 index < state.FrameIndex ? previous : next,
-                onion.Opacity, Matrix: GhostMatrix(layer, pinned, index, parallax, drag, ramp), Shapes: ghostShapes));
+                onion.Opacity, Matrix: GhostMatrix(layer, pinned, index, parallax, drag, settled ?? ramp), Shapes: ghostShapes));
+            farCount++;
         }
 
         // Furthest first so the nearest ghost ends up on top of the others,
@@ -848,9 +874,39 @@ internal static class ScenePassBuilder
                 ghost.Frame, ghost.Index, null,
                 ghost.Before ? previous : next,
                 OnionSkin.OpacityAt(ghost.Steps, onion.Opacity, onion.Falloff),
-                Matrix: GhostMatrix(layer, ghost.Frame, ghost.Index, parallax, drag, ramp), Shapes: ghostShapes));
+                Matrix: GhostMatrix(layer, ghost.Frame, ghost.Index, parallax, drag, ghost.Steps > 1 ? settled ?? ramp : ramp),
+                Shapes: ghostShapes));
+            if (ghost.Steps > 1) farCount++;
         }
         return passes;
+    }
+
+    /// <summary>
+    /// Under a ramp, the far ghosts as one untransformed sheet, the near ones
+    /// as they are.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q216, the owner's pick after the perf-warden measured ~2 ms per ramped
+    /// ghost per event.</b> The far ghosts stand still between pauses, but a
+    /// ghost standing still at a turned position is still a resample every
+    /// publish — the matrix is the cost, not the change. Composited once at the
+    /// pause into a sheet, they cost one plain blit per event however many there
+    /// are, and only the nearest ghost each side is resampled live.
+    /// </remarks>
+    private static IReadOnlyList<PassSpec> FarGhostsAsOneSheet(
+        Layer layer, IReadOnlyList<PassSpec> ghosts, int farCount,
+        Func<Layer, IReadOnlyList<PassSpec>, SKBitmap?> sheetFor)
+    {
+        if (farCount == 0) return ghosts;
+        var far = new List<PassSpec>(farCount);
+        for (var i = 0; i < farCount; i++) far.Add(ghosts[i]);
+        if (sheetFor(layer, far) is not { } sheet) return ghosts;
+        var result = new List<PassSpec>(ghosts.Count - farCount + 1)
+        {
+            new(null, far[0].CelIndex, sheet, null, 1.0, Shapes: far[0].Shapes),
+        };
+        for (var i = farCount; i < ghosts.Count; i++) result.Add(ghosts[i]);
+        return result;
     }
 
     /// <summary>

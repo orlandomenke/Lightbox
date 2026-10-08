@@ -272,6 +272,85 @@ public class TransformRampTests : BrushStateIsolated
         vm.CancelTransform();
     }
 
+    // ---- near live, rest on pause (the owner's pick for the ghosts' cost) ----
+
+    /// <summary>
+    /// Five drawings in place, playhead on the last, two ghosts back, a ramp of
+    /// 200 to the right: cel 3 (near) gets 150, cel 2 (far) gets 100.
+    /// </summary>
+    private static (MainViewModel Vm, Func<RenderSnapshot?> Latest) FarAndNear()
+    {
+        var vm = InPlace(5);
+        vm.CurrentFrameIndex = 4;
+        vm.Onion.Enabled = true;
+        vm.Onion.Before = 2;
+        vm.Onion.After = 0;
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+        Assert.True(vm.BeginLayerTransform());
+        vm.RampOverFrames = true;
+        vm.SetTransformBox(new AffineParts(0, 0, 1, 1, 0, 200, 0));
+        vm.PreviewTransform(SkiaSharp.SKMatrix.CreateTranslation(200, 0));
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        return (vm, () => latest);
+    }
+
+    private static bool InkedAt(RenderSnapshot? s, int x, int y)
+    {
+        Assert.NotNull(s);
+        using var bmp = SkiaSharp.SKBitmap.FromImage(s!.Image)!;
+        var c = bmp.GetPixel(x, y);
+        return c.Alpha > 20 && (c.Red < 235 || c.Green < 235 || c.Blue < 235);
+    }
+
+    [AvaloniaFact]
+    public void WhileTheBoxMovesTheFarGhostsWaitForAPause()
+    {
+        var (vm, latest) = FarAndNear();
+        Assert.True(InkedAt(latest(), 130, 100), "the far ghost should still be where it was");
+        Assert.False(InkedAt(latest(), 215, 100), "the far ghost moved before the pen paused");
+        Assert.True(InkedAt(latest(), 280, 100), "the near ghost should follow live (cel 3: +150)");
+        vm.CancelTransform();
+    }
+
+    [AvaloniaFact]
+    public void APauseBringsTheFarGhostsToTheirShare()
+    {
+        var (vm, latest) = FarAndNear();
+        vm.SettleRamp();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.True(InkedAt(latest(), 215, 100), "the far ghost did not catch up (cel 2: +100)");
+        Assert.False(InkedAt(latest(), 130, 100), "the far ghost was left behind at the start");
+        vm.CancelTransform();
+    }
+
+    [AvaloniaFact]
+    public void EveryBoxChangeArmsThePause()
+    {
+        var (vm, _) = FarAndNear();
+        Assert.True(vm.RampSettlePending);
+        vm.SettleRamp();
+        Assert.False(vm.RampSettlePending);
+        vm.SetTransformBox(new AffineParts(0, 0, 1, 1, 0, 120, 0));
+        Assert.True(vm.RampSettlePending);
+        vm.CancelTransform();
+        Assert.False(vm.RampSettlePending);   // nothing left to settle once the session is gone
+    }
+
+    [AvaloniaFact]
+    public void ASettleRepaintsWhereTheFarGhostsGo()
+    {
+        // The settle is not a pointer event, so it is the one moment the far
+        // ghosts move — the repaint must reach them, at the box they settle to.
+        var (vm, _) = FarAndNear();
+        vm.SettleRamp();
+        var region = vm.RampDirtyRegion();
+        Assert.NotNull(region);
+        Assert.True(region!.Value.Contains(215, 100), $"the settled far ghost (x 200..260) is outside {region}");
+        vm.CancelTransform();
+    }
+
     [Fact]
     public void EveryEaseHasAName()
     {
