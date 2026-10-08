@@ -107,6 +107,28 @@ from `main`. So:
   anywhere, and rewrites the citations *this branch wrote* for it. Not the
   others: the id it collided with is older, and every mention of it in the tree
   already means the entry keeping the number.
+- **When the branch filed neither entry — or both — the later one moves**, by
+  the date of the commit that filed it, and the report prints both commits so
+  the choice can be checked. This is the duplicate that is already on `main`
+  when the branch is cut. It used to fall through to filename order and to move
+  whatever lines the branch running it had added: on 2026-10-08 that renamed the
+  *earlier* of two Q219s and pointed another question's citations at it (B410).
+  A bare id cannot say which of two same-numbered entries it means, so only the
+  lines `git blame` attributes to the moving entry's own filing commit go with
+  it — attributed per line, not matched by text, so a line you wrote later that
+  reads the same as one of the commit's stays put. **Every other mention is
+  printed as `left alone — check by hand`, and that list is work, not noise**:
+  every citation written by any other commit is in it, including your own, and
+  so is any path that has become a symlink. Three entries under one number
+  leave in date order, each to a number of its own.
+  **"Later" means landed later, not filed later**: the date is the committer
+  date, which a rebase or a squash rewrites, so a question filed first on a
+  branch rebased last is the one that moves. The report says so beside the
+  dates, labels each entry as dated, held by no commit yet, or one git could
+  not date (assumed newest — an assumption), and says whenever any two entries
+  tied and ledger order settled it. For a bug the filing commit is found by its
+  title, so a retitled bug can read as newer than it is — read the dates before
+  accepting the renumber.
 - **The pre-push hook runs the fix for you** and still refuses the push, because
   a repair made during a push is not in the commits being pushed. It stands down
   mid-merge, and never touches a *lost* id — putting an entry back is a judgement
