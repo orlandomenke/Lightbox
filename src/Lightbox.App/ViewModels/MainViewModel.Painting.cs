@@ -1805,6 +1805,10 @@ public partial class MainViewModel
         // mid-drawing has to change the smoothing with them.
         _stabilizer.Settings = EffectiveStabilisation;
         _stabilizer.Begin(startX, startY);
+        // A frame shown from tiles whose stills are still being warmed: wait
+        // for the warm rather than render them again here (one-picture-cache
+        // phase 1). Before the line below, which would drop them.
+        JoinStillsForStroke();
         // An idle warm stops queueing and drops to one worker, which finishes
         // the render in hand: the cores are the stroke's now (phase 2b). Its
         // finished work is kept; the commit's flush decides what is still good.

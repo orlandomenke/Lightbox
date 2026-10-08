@@ -134,6 +134,45 @@ public class PausedOnTilesTests : BrushStateIsolated
     }
 
     /// <summary>
+    /// A stroke begun the instant a frame arrives, before its stills have, waits
+    /// for the warm already rendering them instead of rendering them again on
+    /// the UI thread. It cancelled the warm and did them one after another:
+    /// 271–367 ms at pen-down at 1080p, against main's ~90 (perf-warden).
+    /// </summary>
+    [AvaloniaFact]
+    public void AStrokeBeforeTheStillsArriveRendersNoneOnTheUIThread()
+    {
+        var posted = new System.Collections.Concurrent.ConcurrentQueue<Action>();
+        Lightbox.App.Services.ThumbnailWorker.Post = posted.Enqueue;
+        try
+        {
+            var vm = Vm(1.0, onion: false);
+            for (var l = 0; l < 3; l++) vm.AddPaintedLayerCommand.Execute(null);
+            // On the layer that has a drawing here: a stroke on a hold starts a
+            // new, empty drawing, which no warm could have made beforehand.
+            vm.ActiveLayerIndex = 1;
+            vm.PausedOnTiles = true;
+            Assert.True(vm.Prewarm.WaitForIdle(TimeSpan.FromSeconds(20)));
+            while (posted.TryDequeue(out var stale)) stale();
+
+            vm.FrameCache.Clear(); // arriving at the frame
+            Publish(vm);
+            Assert.True(vm.PausedTilesNow, "not vacuous: the stills have not arrived");
+            var misses = vm.FrameCache.Misses;
+            vm.BeginStroke(300, 200, 1);
+            vm.MoveStroke(310, 205, 1);
+            vm.PublishSnapshot();
+            vm.EndStroke();
+
+            Assert.Equal(misses, vm.FrameCache.Misses);
+        }
+        finally
+        {
+            Lightbox.App.Services.ThumbnailWorker.Post = null;
+        }
+    }
+
+    /// <summary>
     /// Paging through drawings while paused leaves no stills behind: the frame
     /// on screen keeps its own, warmed for the next stroke, and a frame the
     /// playhead has left gives them back.

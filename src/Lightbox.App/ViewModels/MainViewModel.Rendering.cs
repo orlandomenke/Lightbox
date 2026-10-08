@@ -2014,7 +2014,11 @@ public partial class MainViewModel
                 && !Lightbox.Raster.EffectPasses.AnyLive(Scene);
             jobs.AddRange(PlaybackWarmJobs(PlaybackRangeInPlayOrder(), tileNative, ComposeScale));
         }
-        if (jobs.Count > 0) _prewarm.Request(jobs, idle ? FramePrewarmer.IdleWorkers : 1);
+        // The frame on screen's stills are wanted by the next stroke, so they
+        // get every worker the idle warm would; nothing is being drawn while
+        // this runs (it returns while a stroke is in progress).
+        var forStroke = jobs.Count > 0 && jobs[0].Wanted;
+        if (jobs.Count > 0) _prewarm.Request(jobs, idle || forStroke ? FramePrewarmer.IdleWorkers : 1);
     }
 
     /// <summary>Whether idle time renders the playback range: the artist's switch, and a UI to deliver to.</summary>
@@ -2149,6 +2153,35 @@ public partial class MainViewModel
 
     /// <summary>Whether this publish shows the paused canvas from tiles.</summary>
     internal bool PausedTilesNow => PausedIdle && StrokeWarmJobs() is not null;
+
+    /// <summary>
+    /// A stroke begun on a frame shown from tiles, before its stills arrived:
+    /// wait for the warm that is rendering them, then take them in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Measured before it existed</b> (perf-warden, 2026-10-08, seven
+    /// layers): a stroke begun straight after arriving cost 271–367 ms at
+    /// pen-down at 1080p and 631–965 ms at 4K, against main's ~90 and ~250. The
+    /// stroke cancelled the warm and rendered the same stills on this thread,
+    /// one after another, while the warm's workers finished their copies.
+    /// </para>
+    /// <para>
+    /// So the warm is narrowed to what the frame on screen is missing, on every
+    /// worker, and the stroke waits for it — a wait of about one still's render
+    /// instead of all of them in turn. Bounded: whatever has not arrived when it
+    /// times out is rendered here as before.
+    /// </para>
+    /// </remarks>
+    private void JoinStillsForStroke()
+    {
+        if (!PausedOnTiles || IsPlaying || StrokeWarmJobs() is not { } missing) return;
+        _prewarm.Request(missing, FramePrewarmer.IdleWorkers);
+        _prewarm.WaitForIdle(StrokeJoinTimeout);
+        TakeWarmedFrames();
+    }
+
+    private static readonly TimeSpan StrokeJoinTimeout = TimeSpan.FromSeconds(2);
 
     /// <summary>Whether the last publish showed the paused canvas from tiles.</summary>
     private bool _lastPublishPausedOnTiles;

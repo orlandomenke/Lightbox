@@ -93,9 +93,25 @@ Each lands alone, behind the tests named, and changes nothing an artist sees.
 
      Seven layers, local probe. Memory is measured by the lab's
      `memory-session`, A/B.
-   - **Not yet:** a stroke begun before the stills arrive renders them at
-     pen-down. That is the cost arrival used to pay, now paid only when the pen
-     is faster than the warm.
+   - **A stroke begun before the stills arrive** waits for the warm rendering
+     them (`JoinStillsForStroke`), rather than cancelling it and rendering them
+     itself one by one. Perf-warden measured that version at 271–367 ms at
+     pen-down at 1080p, against main's ~90. What is left is a single moment,
+     which a sweep of the gap between arriving and pen-down shows (seven
+     layers, minimum and median of four):
+
+     | pen-down after arriving | 0 ms | 100 ms | 250 ms | 500 ms | 1 s |
+     |---|---|---|---|---|---|
+     | 1080p | 238 / 363 | 4.9 / 5.0 | 4.9 / 5.2 | 4.3 / 4.7 | 4.1 / 5.5 |
+     | 4K | 483 / 681 | 44 / 55 | 38 / 48 | 46 / 56 | 39 / 53 |
+
+     On main the UI thread is frozen for about 210 ms on arriving at 1080p, so
+     no stroke can start sooner than that, and then pen-down costs about 90 ms
+     whatever the gap. A pen that lands in the same instant as the frame pays
+     roughly what main paid in total (arrival plus pen-down), and from 100 ms on
+     both moments are cheaper. That instant is not fixable here: the warm's
+     in-flight tile renders hold the cores while the ring and the layer-stack
+     bake are rebuilt.
 2. **Readers stop materialising stills** for frames that have tiles: one pixel
    (colour pick, brush ring), a region (eraser probe, flood fill's region, the
    effect brush's backdrop) and undo pixels. `TileStore` reads a pixel or copies
