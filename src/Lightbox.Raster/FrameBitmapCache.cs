@@ -26,6 +26,9 @@ public sealed class FrameBitmapCache : IDisposable
 
     private const int MaxFrames = 96;
 
+    /// <summary>How many frames the cache holds at most, whatever the byte budget.</summary>
+    public static int MaxEntries => MaxFrames;
+
     /// <summary>
     /// Which end of the queue eviction takes from.
     /// </summary>
@@ -561,6 +564,35 @@ public sealed class FrameBitmapCache : IDisposable
         var node = _lru.AddLast(new Entry(key, frame.Id, bmp, width, height, outputScale));
         _map[key] = node;
         CachedBytes += bytes;
+        return true;
+    }
+
+    /// <summary>
+    /// A frame rendered off the UI thread that the screen wants <em>now</em> —
+    /// taken in the way a miss is, evicting the least recently used to make room.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="InsertWarm"/> never evicts, because a guess must not push out
+    /// a frame in use. That is right for a guess and wrong for the stills the
+    /// paused picture is about to draw: once the cache held its 96 frames every
+    /// such warm was refused, the idle warm asked for them again on every drain
+    /// — 1,009 renders in two minutes on eight cores after one Stop (B408) — and
+    /// Stop's tile hold, which waits for them, never ended. These are not a
+    /// guess; the publish would fetch them, and evict, anyway.
+    /// </remarks>
+    public bool InsertWanted(
+        Frame frame, int width, int height, double outputScale, int celIndex, SKBitmap bmp)
+    {
+        if (!CanCache(frame)) return false;
+        var key = KeyOf(frame, width, height, outputScale, celIndex);
+        if (_map.ContainsKey(key)) return false;
+
+        // At the most-recent end, as a fetch would put it: eviction takes from
+        // the far end, and never the only entry, so this one stays.
+        var node = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale));
+        _map[key] = node;
+        CachedBytes += BytesOf(bmp);
+        Evict();
         return true;
     }
 
