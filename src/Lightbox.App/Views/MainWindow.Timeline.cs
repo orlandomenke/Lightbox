@@ -25,6 +25,161 @@ namespace Lightbox.App.Views;
 /// </remarks>
 public partial class MainWindow
 {
+    // ---- the chosen layer, shown -------------------------------------------------
+
+    /// <summary>
+    /// Choosing a layer brings its row into view in the timeline and the
+    /// X-sheet, wherever it was chosen.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The layer docker, the timeline and the sheet are three lists of the
+    /// same layers, each scrolling on its own. On a document with more layers
+    /// than fit, picking one in the docker used to leave the other two showing
+    /// whatever they showed before.
+    /// </para>
+    /// <para>
+    /// <b>Any change of the active layer, not only a click in the docker</b>:
+    /// the keyboard's layer up and down and the canvas's own picking want the
+    /// same thing, and a choice made in the timeline itself is a row already
+    /// showing, for which the smallest scroll is none.
+    /// </para>
+    /// <para>
+    /// <b>Posted rather than done on the spot</b>, because the change arrives
+    /// before the rows it names have been laid out — a layer just added has no
+    /// container yet — and coalesced, so a burst of changes is one scroll.
+    /// </para>
+    /// </remarks>
+    private void WireLayerReveal()
+    {
+        _vm.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MainViewModel.ActiveLayerIndex)) QueueLayerReveal();
+        };
+        // The timeline and the sheet are tabs of one docker: whichever was
+        // behind when the layer was chosen catches up when it comes forward.
+        // "Comes forward" is asked two ways because a tab is hidden two ways —
+        // its docker made invisible, or its content never laid out — and
+        // either ends with one of these changing.
+        foreach (var docker in new Control[] { XsheetDocker, TimelineDocker })
+        {
+            docker.PropertyChanged += (_, args) =>
+            {
+                if (args.Property == IsVisibleProperty && args.NewValue is true) QueueLayerReveal();
+            };
+        }
+        foreach (var list in new Control[] { XsheetLayerList, TimelineTrackView })
+        {
+            list.PropertyChanged += (_, args) =>
+            {
+                if (args.Property == BoundsProperty
+                    && args.OldValue is Rect { Height: <= 0 } && args.NewValue is Rect { Height: > 0 })
+                {
+                    QueueLayerReveal();
+                }
+            };
+        }
+    }
+
+    private bool _layerRevealQueued;
+
+    private void QueueLayerReveal()
+    {
+        if (_layerRevealQueued) return;
+        _layerRevealQueued = true;
+        // The window's own dispatcher, not the ambient one (B93).
+        Dispatcher.Post(
+            () =>
+            {
+                _layerRevealQueued = false;
+                RevealActiveLayer();
+            },
+            Avalonia.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void RevealActiveLayer()
+    {
+        var index = ActiveLayerRowIndex(_vm);
+        if (index < 0) return;
+
+        if (XsheetLayerList.ContainerFromIndex(index) is { } sheetRow)
+        {
+            RevealVertically(sheetRow, 0, sheetRow.Bounds.Height);
+        }
+        var row = TimelineRowOfActiveLayer(_vm);
+        RevealVertically(TimelineTrackView, TrackView.RulerHeight + row * TrackView.RowPitch, TrackView.RowPitch);
+    }
+
+    /// <summary>The active layer's place in <see cref="MainViewModel.LayerRows"/>, or -1.</summary>
+    private static int ActiveLayerRowIndex(MainViewModel vm)
+    {
+        var layers = vm.Doc.Scene.Layers;
+        if (vm.ActiveLayerIndex < 0 || vm.ActiveLayerIndex >= layers.Count) return -1;
+        var active = layers[vm.ActiveLayerIndex];
+        for (var i = 0; i < vm.LayerRows.Count; i++)
+        {
+            if (ReferenceEquals(vm.LayerRows[i].Layer, active)) return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// The timeline row the active layer is drawn on, or -1.
+    /// </summary>
+    /// <remarks>
+    /// The timeline's first rows are not layers — the camera, then the
+    /// armature and its bones — and the layers follow in the order of
+    /// <see cref="MainViewModel.LayerRows"/>. How many come first is
+    /// <see cref="MainViewModel.TracksAboveLayers"/>, the one place that
+    /// counts them; a second count here would be free to disagree with it.
+    /// </remarks>
+    internal static int TimelineRowOfActiveLayer(MainViewModel vm) =>
+        ActiveLayerRowIndex(vm) is var index and >= 0 ? vm.TracksAboveLayers + index : -1;
+
+    /// <summary>
+    /// Scroll every list above <paramref name="control"/> just far enough to
+    /// show the span from <paramref name="y"/> down <paramref name="height"/> of it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Every scroller, not the nearest.</b> The sheet has a scroller of its
+    /// own inside the docker's, and the docker's gives it all the height it
+    /// asks for — so the inner one never scrolls vertically and the outer one
+    /// is the one that has to move. Which of them scrolls is a fact about the
+    /// layout, so each is asked.
+    /// </para>
+    /// <para>
+    /// Vertical only. The sheet scrolls along the frames as well, and finding
+    /// a layer must not cost the artist their place in time.
+    /// </para>
+    /// <para>
+    /// <b>What an inner list was just scrolled by is carried outward.</b> A
+    /// new offset does not move anything until the next layout, so the row's
+    /// position in an outer list is still the old one; it is corrected by the
+    /// amount already scrolled rather than read back stale.
+    /// </para>
+    /// </remarks>
+    internal static void RevealVertically(Control control, double y, double height)
+    {
+        if (!control.IsEffectivelyVisible || height <= 0) return;
+        var alreadyScrolled = 0.0;
+        foreach (var scroller in control.GetVisualAncestors().OfType<ScrollViewer>())
+        {
+            if (scroller.VerticalScrollBarVisibility == ScrollBarVisibility.Disabled) continue;
+            if (control.TranslatePoint(new Point(0, y), scroller) is not { } inView) continue;
+
+            var offset = scroller.Offset.Y;
+            var top = inView.Y - alreadyScrolled + offset;
+            var furthest = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
+            var target = Math.Clamp(
+                Input.ScrollReveal.Offset(offset, scroller.Viewport.Height, top, top + height), 0, furthest);
+            if (Math.Abs(target - offset) <= 0.5) continue;
+            scroller.Offset = scroller.Offset.WithY(target);
+            alreadyScrolled += target - offset;
+        }
+    }
+
+
     // ---- timeline cell context menu -----------------------------------------
 
     private static FrameCell? CellOf(object? sender) => (sender as Control)?.DataContext as FrameCell;

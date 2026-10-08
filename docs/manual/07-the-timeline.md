@@ -23,6 +23,12 @@ nothing you do in one is invisible in another:
 | **X-sheet** | The exposure sheet — the grid described below, where cels are edited, exposed, re-timed and annotated. |
 | **Graph editor** | Value over time for the things that interpolate: the camera's position, zoom and rotation (drag a key dot — up and down for value, sideways to retime; a chip shows the value as you drag), and the **measured spacing** of your drawings — how far the ink actually moves between poses, the spacing chart read off the art itself. Even spacing is constant speed; widening is an ease; a spike is the drawing that pops. **Double-click** the plot to key the camera's framing at that frame (it keys what is already there, so nothing jumps — then drag it). **Right-click a key** for its easing into the next key, and to remove it. The **legend** on the bar toggles each curve, and its swatch says which colour is whose; the dashed **Spacing (intended)** curve is the same travel redistributed by the easing picked on the X-sheet bar — where the hollow dots and the filled ones disagree is the drawing that misses the ease. Spacing curves read the active layer. With one curve showing, the axis carries its numbers. |
 
+**The layer you are on is always in view.** Choose a layer — in the Layers
+docker, with the keyboard, or by picking on the canvas — and the Timeline and
+the X-sheet scroll just far enough to show its row, including the one that is
+behind as a tab when you bring it forward. A row already showing does not move,
+and the sheet keeps its place along the frames: only up and down changes.
+
 ## The X-sheet
 
 One row per layer, one cell per frame. Click a cell to go there; the current one
