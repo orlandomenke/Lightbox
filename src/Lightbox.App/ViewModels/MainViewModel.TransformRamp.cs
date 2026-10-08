@@ -180,6 +180,9 @@ public partial class MainViewModel
     private double RampShareAt(Layer layer, int index)
     {
         if (RampPlanNow() is not { } plan || !ReferenceEquals(plan.Layer, layer)) return 1;
+        // Outside the range nothing changes — not even a hold of the last
+        // drawing running on past the end, which the commit keys as it was.
+        if (index < plan.Start || index > plan.End) return 0;
         if (StartOf(layer, index, plan.Start) is not { } p || p > plan.End) return 0;
         return plan.Shares.TryGetValue(p, out var share) ? share : 0;
     }
@@ -237,6 +240,25 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// The whole drawing under a new id: anchors, collision shapes, the timing
+    /// chart, correctives and provenance included, because the copy stands in
+    /// for the drawing at that place and an export reads all of them.
+    /// </summary>
+    /// <remarks>
+    /// Not <c>KeyedCopyOf</c>, which a held cel uses and which keeps strokes,
+    /// pixels and placements only. Stroke ids are kept, as <see cref="Frame.Clone"/>
+    /// keeps them, because a corrective names its strokes by id. The checkpoint
+    /// is dropped: it is a render of the old strokes, and derived.
+    /// </remarks>
+    internal static Frame RampCopyOf(Frame drawing)
+    {
+        var copy = drawing.Clone();
+        copy.Id = Ids.NewId("f");
+        copy.Checkpoint = null;
+        return copy;
+    }
+
+    /// <summary>
     /// Apply the ramp: each drawing in the range through its own share of the
     /// box, reused drawings split into copies first, as one undo step.
     /// </summary>
@@ -259,10 +281,16 @@ public partial class MainViewModel
         if (jobs.Count == 0)
         {
             CancelTransform();
+            AiStatus = "Nothing to ramp: the range holds one drawing from its first frame, which gets none of the transform.";
             return;
         }
         var copyAt = new HashSet<int>();
         var keptOriginal = new HashSet<string>();
+        int? trailingKey = null;
+        var afterEnd = plan.End + 1;
+        bool HeldPastTheEnd(int position) =>
+            afterEnd < layer.Cels.Count && layer.Cels[afterEnd].Frame is null
+            && ExposureSheet.KeyIndexAtOrBefore(layer, afterEnd) == position;
         foreach (var (position, frame, _) in jobs)
         {
             var outside = false;
@@ -276,14 +304,21 @@ public partial class MainViewModel
             var firstInRange = Enumerable.Range(plan.Start, plan.End - plan.Start + 1)
                 .First(k => ReferenceEquals(layer.Cels[k].Frame, frame));
             var heldByAZeroShare = firstInRange < position;
-            if (outside || heldByAZeroShare || !keptOriginal.Add(frame.Id)) copyAt.Add(position);
+            // The last drawing can be held on past the range's end. Those
+            // frames are outside the ramp, so they keep the drawing as it was:
+            // the range gets a copy and the first frame after it is keyed with
+            // the original (the adversary's trailing-hold case).
+            if (HeldPastTheEnd(position)) trailingKey = position;
+            if (outside || heldByAZeroShare || trailingKey == position || !keptOriginal.Add(frame.Id)) copyAt.Add(position);
         }
 
         // B381: the pose is resolved from the drawings as they are now, before
-        // any copy exists — a copy is the same drawing, so it travels the same way.
+        // any copy exists — a copy is the same drawing, so it travels the same
+        // way. At the drawing's own position, not the playhead: that is where
+        // its ghost was posed while the box was dragged (adversary, claim 6).
         var movers = jobs.ConvertAll(j =>
-            Skinning.PoseSpaceMover(Doc, j.Original, CurrentFrameIndex, _cache.Rig, j.Parts.Map()));
-        var copies = jobs.ConvertAll(j => copyAt.Contains(j.Position) ? KeyedCopyOf(j.Original) : null);
+            Skinning.PoseSpaceMover(Doc, j.Original, j.Position, _cache.Rig, j.Parts.Map()));
+        var copies = jobs.ConvertAll(j => copyAt.Contains(j.Position) ? RampCopyOf(j.Original) : null);
 
         _transform.ClearPreview();
         _transform.ClearBands();
@@ -303,6 +338,7 @@ public partial class MainViewModel
                     {
                         layer.Cels[position].Frame = copy;
                         target = copy;
+                        if (trailingKey == position) layer.Cels[afterEnd].Frame = original;
                     }
                     var map = parts.Map();
                     var travel = new ClipTravel(map);

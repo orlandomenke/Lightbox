@@ -120,6 +120,28 @@ public class TransformRampTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void ACopyCarriesWhatTheDrawingOwns_NotJustItsLines()
+    {
+        // A split copy stands in for the drawing at that place, and a sprite
+        // export reads its anchors and collision boxes — the held-cel copy the
+        // first version used kept strokes and pixels only.
+        var vm = InPlace(3);
+        var layer = LayerOf(vm);
+        var first = layer.Cels[0].Frame!;
+        first.Anchors = new() { ["hand"] = new AnchorPoint(120, 90) };
+        first.Shapes = new() { ["hurt"] = new ShapeBox(100, 80, 60, 40) };
+        layer.Cels[2].Frame = first;
+
+        Ramp(vm, 100);
+
+        var copy = LayerOf(vm).Cels[2].Frame!;
+        Assert.NotEqual(first.Id, copy.Id);
+        Assert.True(copy.Anchors?.ContainsKey("hand"), "the copy lost its anchor");
+        Assert.True(copy.Shapes?.ContainsKey("hurt"), "the copy lost its collision box");
+        Assert.Equal(first.Strokes.Select(s => s.Id), copy.Strokes.Select(s => s.Id)); // correctives name strokes by id
+    }
+
+    [AvaloniaFact]
     public void ADrawingAlsoShownOutsideTheRangeIsCopiedAndTheOutsideStays()
     {
         // Marked cels 1..3; drawing 3 is the same drawing as cel 0, outside.
@@ -140,6 +162,29 @@ public class TransformRampTests : BrushStateIsolated
         Assert.Equal(150, X(vm, 2), 3);
         Assert.NotSame(shared, layer.Cels[3].Frame);
         Assert.Equal(200, X(vm, 3), 3);
+    }
+
+    [AvaloniaFact]
+    public void TheLastDrawingHeldPastTheRangeStaysAsItWasAfterIt()
+    {
+        // Adversary: 0:A 1:B 2:hold 3:hold 4:C with 0..2 marked — B is the
+        // last drawing in the ramp, and its hold runs on into frames 3, outside.
+        var vm = InPlace(5);
+        vm.ClearCelAt(vm.LayerRows[^1].Cells.First(c => c.Index == 2));
+        vm.ClearCelAt(vm.LayerRows[^1].Cells.First(c => c.Index == 3));
+        var b = LayerOf(vm).Cels[1].Frame!;
+        foreach (var i in new[] { 0, 1, 2 }) vm.ToggleCelSelection(vm.LayerRows[^1].Cells.First(c => c.Index == i));
+        vm.TransformScope = TransformScope.CelRange;
+
+        Assert.True(vm.BeginTransform());
+        vm.RampOverFrames = true;
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 100, 0);
+
+        var layer = LayerOf(vm);
+        Assert.Equal(200, X(vm, 1), 3);                  // B in the ramp: all of it
+        Assert.Null(layer.Cels[2].Frame);                 // still held inside the range
+        Assert.Equal(b.Id, layer.Cels[3].Frame!.Id);      // the frame after it keys the original…
+        Assert.Equal(100, X(vm, 3), 3);                   // …as it was
     }
 
     [AvaloniaFact]

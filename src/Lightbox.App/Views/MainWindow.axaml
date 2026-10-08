@@ -2353,7 +2353,8 @@
                                   ToolTip.Tip="What the transform applies to: this drawing, this frame on every layer, every frame of this layer, the marked cels, or everything" />
                       </DockPanel>
                       <DockPanel IsVisible="{Binding RampAvailable}">
-                        <CheckBox x:Name="TransformRampToggle" Content="Ramp" IsChecked="{Binding RampOverFrames}" Width="{StaticResource SizeDockerLabel}" ToolTip.Tip="Build the transform up over the frames: none of it on the first drawing, the whole box on the last. The box is what the last drawing gets." />
+                        <TextBlock Text="Ramp" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" FontSize="{StaticResource TypeBody}" />
+                        <CheckBox x:Name="TransformRampToggle" IsChecked="{Binding RampOverFrames}" VerticalAlignment="Center" ToolTip.Tip="Build the transform up over the frames: none of it on the first drawing, the whole box on the last. The box is what the last drawing gets." />
                         <ComboBox ItemsSource="{Binding RampEaseChoices}" SelectedItem="{Binding RampOverFramesEase}" IsEnabled="{Binding RampOverFrames}" HorizontalAlignment="Stretch" Margin="{StaticResource GapBefore}" DisplayMemberBinding="{Binding Converter={x:Static vm:RampEaseText.Converter}}" ToolTip.Tip="How each drawing's share grows from the first to the last" />
                       </DockPanel>
                       <DockPanel>

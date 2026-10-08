@@ -909,7 +909,9 @@ What to know:
   first drawing again at the end cannot have it at both ends of a walk, so each
   later place gets its own copy, and the status line says how many were made.
   Drawings outside the ramp are never changed — one that also shows outside it
-  is copied at every place inside it. Ctrl+Z puts it all back.
+  is copied at every place inside it, and when the last drawing is held on past
+  the marked cels, the first frame after them keeps it as it was. Ctrl+Z puts
+  it all back.
 - **Box only.** Perspective, bands and the cage apply in full, and a ramp needs
   whole drawings, so it is not offered while a selection is up. A mirror cannot
   be ramped — it would pass through a flat line on the way — and Enter says so
