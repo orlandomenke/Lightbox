@@ -177,6 +177,14 @@ members joins the folder, dropping beside a loose row leaves it — and the whol
 drop is one undo step. A drag moves the one row you picked up; the ▲/▼ buttons
 remain the way to move a multi-selection as a block.
 
+**Hold the drag near the top or bottom of the docker and the list scrolls
+towards you**, so a layer can be dropped on a row that was not showing. It
+starts after a moment's pause — a row picked up near the edge does not send the
+list running — and then keeps scrolling while you hold still — faster the closer to the edge, fastest
+if you drag past it — and stops when you move back to the middle, reach the end
+of the list, or let go. The drop line follows the row that is now under the
+pointer.
+
 **Every part of the docker is a place to drop**, including the thin gaps between
 rows and the indent in front of a folder's layers: each belongs to the nearest
 row. Letting go outside the docker cancels the drag. A pen has to travel a

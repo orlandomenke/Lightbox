@@ -536,10 +536,10 @@ public sealed class ShortcutMap
             // bindable is the requirement.
             new("timeline.copyKeys", "Copy selected keys (camera, pose, cels)", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
             new("timeline.pasteKeys", "Paste keys at playhead", "Timeline", null, ShortcutContext.Panel, DockPanelId.Timeline),
-            new("canvas.nudgeLeft", "Nudge selection left", "Canvas", G(Key.Left), ShortcutContext.Canvas),
-            new("canvas.nudgeRight", "Nudge selection right", "Canvas", G(Key.Right), ShortcutContext.Canvas),
-            new("canvas.nudgeUp", "Nudge selection up", "Canvas", G(Key.Up), ShortcutContext.Canvas),
-            new("canvas.nudgeDown", "Nudge selection down", "Canvas", G(Key.Down), ShortcutContext.Canvas),
+            new("canvas.nudgeLeft", "Nudge selection left — or previous frame", "Canvas", G(Key.Left), ShortcutContext.Canvas),
+            new("canvas.nudgeRight", "Nudge selection right — or next frame", "Canvas", G(Key.Right), ShortcutContext.Canvas),
+            new("canvas.nudgeUp", "Nudge selection up — or previous drawing", "Canvas", G(Key.Up), ShortcutContext.Canvas),
+            new("canvas.nudgeDown", "Nudge selection down — or next drawing", "Canvas", G(Key.Down), ShortcutContext.Canvas),
             new("docker.layerAbove", "Select the layer above", "Dockers", G(Key.Up), ShortcutContext.Panel, DockPanelId.Layers),
             new("docker.layerBelow", "Select the layer below", "Dockers", G(Key.Down), ShortcutContext.Panel, DockPanelId.Layers),
 

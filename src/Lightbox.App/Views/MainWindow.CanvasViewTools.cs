@@ -244,6 +244,15 @@ public partial class MainWindow
         return accel ? TextKey.Shortcut : TextKey.Character;
     }
 
+    /// <summary>See the registration in the constructor (B417).</summary>
+    private void OnArrowWithNothingFocused(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down)) return;
+        var focused = FocusManager?.GetFocusedElement();
+        if (focused is not null && !ReferenceEquals(focused, this)) return;
+        OnKeyDown(sender, e);
+    }
+
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         // Don't hijack keys while the user is typing (layer rename, color hex, AI prompt).
@@ -663,17 +672,18 @@ public partial class MainWindow
             case "timeline.nextKey":
                 _vm.NextKeyframeCommand.Execute(null);
                 break;
+            // With nothing to nudge, the arrows flip the animation instead.
             case "canvas.nudgeLeft":
-                _vm.NudgeSelection(-1, 0);
+                _vm.NudgeSelectionOrFlip(-1, 0);
                 break;
             case "canvas.nudgeRight":
-                _vm.NudgeSelection(1, 0);
+                _vm.NudgeSelectionOrFlip(1, 0);
                 break;
             case "canvas.nudgeUp":
-                _vm.NudgeSelection(0, -1);
+                _vm.NudgeSelectionOrFlip(0, -1);
                 break;
             case "canvas.nudgeDown":
-                _vm.NudgeSelection(0, 1);
+                _vm.NudgeSelectionOrFlip(0, 1);
                 break;
             // Layer walking: rows show topmost first, so "above" is a higher scene index.
             case "docker.layerAbove":
