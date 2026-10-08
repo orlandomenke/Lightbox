@@ -439,7 +439,11 @@ each part of it.
 - **Auto-bind**: weight the selected strokes against the whole skeleton by
   distance. It gets a character most of the way; the last stretch — armpits,
   hips, anywhere two bones share one drawing — is what the heat view and the
-  weight brush are for.
+  weight brush are for. Every point's weights add up to the whole, so a
+  drawing keeps up with the rig however far it moves. A straight line drawn
+  with the line tool bends along with the bones like any other line; on a
+  layer that follows the whole skeleton it poses exactly as the same line
+  drawn freehand.
 - The **heat view** shows the selected bone's influence over the current
   drawing, blue (none) through red (owned), while the **weight brush is
   armed** — in Bind and Pose the ink stays clean. The dots sit on the

@@ -154,6 +154,82 @@ public class SkinningTests
         }
     }
 
+    /// <summary>100 px bones end to end along +x, each glued to its parent's tip.</summary>
+    private static Armature Chain(int bones)
+    {
+        var chain = new Armature();
+        for (var i = 0; i < bones; i++)
+        {
+            chain.Bones.Add(i == 0
+                ? new Bone { Id = "b0", Length = 100 }
+                : new Bone { Id = $"b{i}", ParentId = $"b{i - 1}", Connected = true, Length = 100 });
+        }
+        return chain;
+    }
+
+    private static Stroke FreehandLine(double toX, double y = 10)
+    {
+        var points = new List<StrokePoint>();
+        for (var x = 0.0; x <= toX; x += 5) points.Add(new StrokePoint(x, y, 1));
+        return new Stroke { Points = points };
+    }
+
+    [Fact]
+    public void AutoBindWeightsSumToOneAfterThePrune_SoTheDrawingKeepsUpWithTheRig()
+    {
+        // B405: the prune dropped influences under 1% and kept the rest as
+        // they were, so a point summed to ~0.98 and Blend held the remainder
+        // at rest. Moving the whole rig 300 px left points 4.7 px behind.
+        var chain = Chain(4);
+        var stroke = FreehandLine(400);
+        Skinning.AutoBind(stroke, chain);
+
+        for (var i = 0; i < stroke.Points.Count; i++)
+        {
+            var sum = stroke.Weights!.Sum(b => b.WeightAt(i));
+            Assert.True(Math.Abs(sum - 1) < 1e-12, $"point {i} sums to {sum:R}");
+        }
+        var posed = Skinning.PoseStroke(stroke, chain,
+            new Dictionary<string, BonePose> { ["b0"] = new() { X = 300 } });
+        var lag = Enumerable.Range(0, posed.Points.Count)
+            .Max(i => Math.Abs(posed.Points[i].X - posed.RestPoints![i].X - 300));
+        Assert.True(lag < 1e-9, $"a point trailed the moved rig by {lag:F3} px");
+    }
+
+    [Fact]
+    public void ALayerBoundTwoPointLineBendsAtTheJointInsteadOfPivoting()
+    {
+        // B404: Densify leaves a pair alone, so a line-tool line was posed as
+        // its two ends and drawn as the chord between them — the whole line
+        // pivoting, with 72 px between neighbouring posed points at 90°.
+        var arm = Chain(2);
+        var line = new Stroke { Points = [new StrokePoint(0, 10, 1), new StrokePoint(200, 10, 1)] };
+        var freehand = FreehandLine(200);
+        var pose = new Dictionary<string, BonePose> { ["b1"] = new() { RotationDeg = 90 } };
+
+        var posed = Skinning.PoseStroke(line, arm, pose, wholeSkeleton: true);
+        var reference = Skinning.PoseStroke(freehand, arm, pose, wholeSkeleton: true);
+
+        Assert.True(posed.Points.Count > 2, "the pair was posed whole");
+        double MaxStepChange(Stroke s) => Enumerable.Range(1, s.Points.Count - 1).Max(i =>
+            Math.Abs(GeometryOps.Dist(s.Points[i], s.Points[i - 1]) - GeometryOps.Dist(s.RestPoints![i], s.RestPoints[i - 1])));
+        Assert.True(MaxStepChange(posed) < 3, $"posed line jumps {MaxStepChange(posed):F1} px between neighbours");
+        // And it poses as the same line drawn freehand would: weighted where it is.
+        double At(Stroke s, double x)
+        {
+            var i = Enumerable.Range(0, s.RestPoints!.Count).MinBy(k => Math.Abs(s.RestPoints[k].X - x));
+            return Math.Abs(s.Points[i].X - s.RestPoints[i].X) + Math.Abs(s.Points[i].Y - s.RestPoints[i].Y);
+        }
+        foreach (var x in new[] { 40.0, 80.0, 150.0, 190.0 })
+        {
+            // Within a pixel or 2% of the move: the two lines are sampled at
+            // slightly different rest positions, and near the tip everything
+            // moves ~176 px.
+            Assert.True(Math.Abs(At(posed, x) - At(reference, x)) < Math.Max(1.0, 0.02 * At(reference, x)),
+                $"at rest x {x}: the line moved {At(posed, x):F1} px, the freehand line {At(reference, x):F1} px");
+        }
+    }
+
     [Fact]
     public void BakingAPoseWritesOrdinaryStrokes()
     {
