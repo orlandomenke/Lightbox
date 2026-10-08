@@ -3107,9 +3107,9 @@ public static class BrushEngine
             canvas.Scale(1f, (float)roundness);
             if (!footprintOnly)
             {
-                SetRoundPaint(round, SKPoint.Empty, radius, hardness, dabColor);
+                var shader = SetRoundPaint(round, SKPoint.Empty, radius, hardness, dabColor);
                 canvas.DrawCircle(SKPoint.Empty, radius, round);
-                ReleaseShader(round);
+                ReleaseShader(round, shader);
             }
             canvas.Restore();
             if (footprint is not null)
@@ -3126,9 +3126,9 @@ public static class BrushEngine
 
         if (!footprintOnly)
         {
-            SetRoundPaint(round, pos, radius, hardness, dabColor);
+            var shader = SetRoundPaint(round, pos, radius, hardness, dabColor);
             canvas.DrawCircle(pos, radius, round);
-            ReleaseShader(round);
+            ReleaseShader(round, shader);
         }
         if (footprint is not null) StampFootprint(footprint, pos, radius, hardness, brush.AntiAlias);
     }
@@ -3160,9 +3160,13 @@ public static class BrushEngine
     }
 
     /// <summary>Dispose the dab's gradient now rather than leave it to a finalizer.</summary>
-    private static void ReleaseShader(SKPaint paint)
+    /// <remarks>
+    /// Handed the shader it made rather than reading <c>paint.Shader</c> back: the
+    /// getter builds a managed wrapper per call, which is the per-dab garbage this
+    /// exists to remove (the adversarial review's note).
+    /// </remarks>
+    private static void ReleaseShader(SKPaint paint, SKShader? shader)
     {
-        var shader = paint.Shader;
         if (shader is null) return;
         paint.Shader = null;
         shader.Dispose();
@@ -3225,9 +3229,10 @@ public static class BrushEngine
         var rim = new SKColor(0, 255, widthByte);
         var paint = DabPaint(ref t_footprintPaint, antiAlias);
         paint.BlendMode = SKBlendMode.Lighten;
-        paint.Shader = TwoStopRadial(centre, radius, core, rim, hardness);
+        var shader = TwoStopRadial(centre, radius, core, rim, hardness);
+        paint.Shader = shader;
         footprint.DrawCircle(centre, radius, paint);
-        ReleaseShader(paint);
+        ReleaseShader(paint, shader);
     }
 
     /// <summary>
@@ -3247,14 +3252,17 @@ public static class BrushEngine
     public static int CeilingReachPx(BrushSettings brush, double bufferScale) =>
         (int)Math.Ceiling(RadiusAt(brush, 1) * Math.Max(bufferScale, 0.0001)) + 2;
 
-    private static void SetRoundPaint(SKPaint paint, SKPoint centre, float radius, float hardness, SKColor color)
+    /// <returns>The gradient it installed, for the caller to release; null for a hard dab.</returns>
+    private static SKShader? SetRoundPaint(SKPaint paint, SKPoint centre, float radius, float hardness, SKColor color)
     {
         if (hardness >= 0.999f)
         {
             paint.Color = color;
-            return;
+            return null;
         }
-        paint.Shader = TwoStopRadial(centre, radius, color, color.WithAlpha(0), hardness);
+        var shader = TwoStopRadial(centre, radius, color, color.WithAlpha(0), hardness);
+        paint.Shader = shader;
+        return shader;
     }
 
     /// <summary>
