@@ -28,6 +28,20 @@ public static class EdgeScroll
     /// <summary>Pixels per tick at the edge and beyond — about a thousand a second.</summary>
     public const double Fastest = 18;
 
+    /// <summary>
+    /// How many ticks a drag has to stay in the band before anything moves —
+    /// about a quarter of a second.
+    /// </summary>
+    /// <remarks>
+    /// Found in review. A drag is often only crossing an edge on its way
+    /// somewhere else — a swatch going to the canvas passes the bottom of
+    /// whatever lies between — and a row picked up near the edge of its own
+    /// list is in the band from the first move. Without a pause both scroll a
+    /// list the artist was not asking to scroll. The pause is per visit: leave
+    /// the band and come back, and it waits again.
+    /// </remarks>
+    public const int DwellTicks = 15;
+
     /// <param name="y">The pointer, measured down from the top of what shows.</param>
     /// <param name="height">How much of the list shows.</param>
     /// <returns>Pixels to scroll per tick: negative is up, zero is leave it alone.</returns>
@@ -76,12 +90,21 @@ public sealed class DragEdgeScroller
 {
     private readonly DispatcherTimer _timer;
     private double _speed;
+    private int _waited;
 
     public DragEdgeScroller()
     {
         _timer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Input, (_, _) => Tick());
         _timer.Stop();
     }
+
+    /// <summary>
+    /// For tests: never start the timer, so that <see cref="Tick"/> called by
+    /// hand is the only clock there is.
+    /// </summary>
+    internal bool Manual { get; set; }
+
+    internal bool ClockIsRunning => _timer.IsEnabled;
 
     /// <summary>The list being scrolled, or null when nothing is.</summary>
     public ScrollViewer? Target { get; private set; }
@@ -103,14 +126,19 @@ public sealed class DragEdgeScroller
     /// <summary>The drag is at <paramref name="inScroller"/>, in that list's own coordinates.</summary>
     public void Track(ScrollViewer scroller, Point inScroller)
     {
-        _speed = EdgeScroll.Speed(inScroller.Y, scroller.Bounds.Height);
+        // The room that shows, not the control's own box: a horizontal bar
+        // along the bottom is not part of what a row can be dropped on.
+        var height = scroller.Viewport.Height > 0 ? scroller.Viewport.Height : scroller.Bounds.Height;
+        _speed = EdgeScroll.Speed(inScroller.Y, height);
         if (_speed == 0)
         {
             Stop();
             return;
         }
+        // A different list is a new visit, and waits from the start.
+        if (!ReferenceEquals(Target, scroller)) _waited = 0;
         Target = scroller;
-        if (!_timer.IsEnabled) _timer.Start();
+        if (!Manual && !_timer.IsEnabled) _timer.Start();
     }
 
     /// <summary>
@@ -135,15 +163,25 @@ public sealed class DragEdgeScroller
     public void Stop()
     {
         _speed = 0;
+        _waited = 0;
         Target = null;
         _timer.Stop();
     }
 
     /// <summary>One step of the clock.</summary>
-    /// <returns>Whether the list moved — false at the end of it, and when nothing is being scrolled.</returns>
+    /// <returns>
+    /// Whether there is anything still to do: true while waiting out the dwell
+    /// and while the list moves, false at the end of the list and when nothing
+    /// is being scrolled.
+    /// </returns>
     internal bool Tick()
     {
         if (Target is not { } scroller || _speed == 0) return false;
+        if (_waited < EdgeScroll.DwellTicks)
+        {
+            _waited++;
+            return true;
+        }
 
         var offset = scroller.Offset.Y;
         var furthest = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);

@@ -110,6 +110,10 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
         for (var i = 0; i < vm.Doc.Scene.Layers.Count; i++) vm.Doc.Scene.Layers[i].Name = $"L{i:00}";
         vm.ActiveLayerIndex = Layers - 1;
         Pump();
+        // The tests are the clock. Left running, the real timer ticks whenever
+        // a test pumps the dispatcher, and how often depends on how busy the
+        // machine is.
+        window.EdgeScroll.Manual = true;
         return (window, vm);
     }
 
@@ -136,6 +140,20 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
         }
     }
 
+    /// <summary>
+    /// Turn the clock through the pause before scrolling starts, checking that
+    /// nothing moves during it.
+    /// </summary>
+    private static void WaitOutTheDwell(MainWindow window, ScrollViewer scroller)
+    {
+        var before = scroller.Offset.Y;
+        for (var i = 0; i < EdgeScroll.DwellTicks; i++)
+        {
+            Assert.True(window.EdgeScroll.Tick(), $"dwell tick {i} reported nothing pending");
+        }
+        Assert.Equal(before, scroller.Offset.Y);
+    }
+
     [AvaloniaFact]
     public void TheLayerDockerReallyNeedsScrolling()
     {
@@ -156,6 +174,7 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
 
         PickUpAndHoldAt(window, list, edge);
         // The pointer is now still. Nothing but the clock moves the list.
+        WaitOutTheDwell(window, scroller);
         var offsets = new List<double> { scroller.Offset.Y };
         for (var i = 0; i < 5; i++)
         {
@@ -221,6 +240,7 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
         }
 
         Assert.True(window.EdgeScroll.IsScrolling, "the drag never reached the top band");
+        WaitOutTheDwell(window, scroller);
         var before = scroller.Offset.Y;
         Assert.True(window.EdgeScroll.Tick());
         Assert.True(window.EdgeScroll.Tick());
@@ -296,6 +316,143 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
         Assert.True(landed > lastVisibleBefore, $"{landed} is not past {lastVisibleBefore}");
     }
 
+    // ---- what the review found (adversary, 2026-10-08) --------------------------
+
+    [AvaloniaFact]
+    public void ADragOnlyPassingThroughTheBandScrollsNothing()
+    {
+        // A swatch on its way to the canvas crosses the bottom of whatever is
+        // in between. Scrolling starts after a pause, so crossing is free —
+        // and so is picking up a row that happens to sit near the edge.
+        var (window, _) = Open();
+        var list = window.FindControl<ItemsControl>("LayerList")!;
+        var scroller = Scrolling(list);
+        var edge = scroller.TranslatePoint(new Point(scroller.Bounds.Width / 2, scroller.Bounds.Height - 6), window)!.Value;
+        PickUpAndHoldAt(window, list, edge);
+
+        for (var i = 0; i < EdgeScroll.DwellTicks - 1; i++) window.EdgeScroll.Tick();
+        var middle = scroller.TranslatePoint(new Point(scroller.Bounds.Width / 2, scroller.Bounds.Height / 2), window)!.Value;
+        window.MouseMove(middle, RawInputModifiers.LeftMouseButton);
+        Pump();
+
+        Assert.False(window.EdgeScroll.Tick());
+        Assert.Equal(0, scroller.Offset.Y);
+        window.MouseUp(middle, MouseButton.Left);
+        Pump();
+    }
+
+    [AvaloniaFact]
+    public void ComingBackToTheEdgeWaitsAgain()
+    {
+        var (window, _) = Open();
+        var list = window.FindControl<ItemsControl>("LayerList")!;
+        var scroller = Scrolling(list);
+        var edge = scroller.TranslatePoint(new Point(scroller.Bounds.Width / 2, scroller.Bounds.Height - 6), window)!.Value;
+        var middle = scroller.TranslatePoint(new Point(scroller.Bounds.Width / 2, scroller.Bounds.Height / 2), window)!.Value;
+        PickUpAndHoldAt(window, list, edge);
+        WaitOutTheDwell(window, scroller);
+        Assert.True(window.EdgeScroll.Tick());
+        window.MouseMove(middle, RawInputModifiers.LeftMouseButton);
+        Pump();
+
+        window.MouseMove(edge, RawInputModifiers.LeftMouseButton);
+        Pump();
+
+        // The pause is per visit to the band, not once per drag.
+        WaitOutTheDwell(window, scroller);
+        window.MouseUp(edge, MouseButton.Left);
+        Pump();
+    }
+
+    [AvaloniaFact]
+    public void TheDropLineIsOnTheRowTheDropWillLandOn()
+    {
+        // After the list scrolls under a still pointer, the line has to be
+        // worked out from where the rows are NOW. Worked out before the layout
+        // caught up it sat a step behind — up to eighteen pixels, which at the
+        // end of the list is a different row from the one the drop lands on.
+        var (window, vm) = Open();
+        var list = window.FindControl<ItemsControl>("LayerList")!;
+        var scroller = Scrolling(list);
+        var edge = scroller.TranslatePoint(new Point(scroller.Bounds.Width / 2, scroller.Bounds.Height - 6), window)!.Value;
+        PickUpAndHoldAt(window, list, edge);
+        // Part of the way down, with no layout pass between the ticks but the
+        // one the re-aim does for itself. Not to the end, and not where it
+        // started: no line is the right answer where a drop would change
+        // nothing — on the carried row, just above its neighbour, under the
+        // paper — and this needs a place where there is one.
+        WaitOutTheDwell(window, scroller);
+        for (var i = 0; i < 20; i++) Assert.True(window.EdgeScroll.Tick());
+
+        var hinted = vm.LayerPanelItems.Single(i => i is LayerRow { DropHint: not LayerDropHint.None });
+        Pump();
+        var pointerY = scroller.Bounds.Height - 6;
+        var under = Enumerable.Range(0, vm.LayerPanelItems.Count)
+            .Select(i => (Item: vm.LayerPanelItems[i], Row: list.ContainerFromIndex(i) as Control))
+            .Where(r => r.Row is not null)
+            .Select(r => (r.Item, Top: r.Row!.TranslatePoint(new Point(0, 0), scroller)!.Value.Y, r.Row!.Bounds.Height))
+            .OrderBy(r => Math.Min(Math.Abs(r.Top - pointerY), Math.Abs(r.Top + r.Height - pointerY))
+                * (pointerY >= r.Top && pointerY <= r.Top + r.Height ? 0 : 1))
+            .First().Item;
+
+        output.WriteLine($"line on {((LayerRow)hinted).Name}; pointer over {((LayerRow)under).Name}");
+        Assert.Same(under, hinted);
+        window.MouseUp(edge, MouseButton.Left);
+        Pump();
+    }
+
+    [AvaloniaFact]
+    public void ARealDragOverReachesTheScrollerAndLeavingOrDroppingStopsIt()
+    {
+        // The wiring itself, not the scroller called by hand: the events an
+        // operating-system drag raises, bubbling to the window.
+        var (window, vm) = Open();
+        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Xsheet);
+        Pump();
+        var sheet = Scrolling(window.FindControl<ItemsControl>("XsheetLayerList")!);
+        var atEdge = new Point(sheet.Bounds.Width / 2, sheet.Bounds.Height - 5);
+        var transfer = new DataTransfer();
+        transfer.Add(DataTransferItem.Create(DataFormat.CreateInProcessFormat<string>("lightbox-test"), "x"));
+        DragEventArgs Raise(Avalonia.Interactivity.RoutedEvent<DragEventArgs> what)
+        {
+            var args = new DragEventArgs(what, transfer, sheet, atEdge, KeyModifiers.None);
+            sheet.RaiseEvent(args);
+            return args;
+        }
+
+        Raise(DragDrop.DragOverEvent);
+        Assert.True(window.EdgeScroll.IsScrolling, "a drag over the edge of a list did not reach the scroller");
+        Assert.Same(sheet, window.EdgeScroll.Target);
+
+        Raise(DragDrop.DragLeaveEvent);
+        Assert.False(window.EdgeScroll.IsScrolling, "leaving did not stop it");
+
+        Raise(DragDrop.DragOverEvent);
+        Assert.True(window.EdgeScroll.IsScrolling);
+        Raise(DragDrop.DropEvent);
+        Assert.False(window.EdgeScroll.IsScrolling, "dropping did not stop it");
+    }
+
+    [AvaloniaFact]
+    public void OutsideATestTheClockRunsWhileADragIsHeldAndStopsWithIt()
+    {
+        // Everything above turns the clock by hand. This is the one check that
+        // there is a real clock, and that it is not left running.
+        var (window, _) = Open();
+        window.EdgeScroll.Manual = false;
+        var scroller = Scrolling(window.FindControl<ItemsControl>("LayerList")!);
+
+        Assert.False(window.EdgeScroll.ClockIsRunning);
+        window.EdgeScroll.Track(scroller, new Point(10, scroller.Viewport.Height - 3));
+        Assert.True(window.EdgeScroll.ClockIsRunning);
+        window.EdgeScroll.Track(scroller, new Point(10, scroller.Viewport.Height / 2));
+        Assert.False(window.EdgeScroll.ClockIsRunning);
+        window.EdgeScroll.Track(scroller, new Point(10, 2));
+        Assert.True(window.EdgeScroll.ClockIsRunning);
+        window.EdgeScroll.Stop();
+        Assert.False(window.EdgeScroll.ClockIsRunning);
+    }
+
     // ---- any other drag: found by where the pointer is ---------------------------
 
     [AvaloniaFact]
@@ -313,6 +470,7 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
 
         Assert.True(window.EdgeScroll.IsScrolling);
         Assert.Same(sheet, window.EdgeScroll.Target);
+        WaitOutTheDwell(window, sheet);
         var before = sheet.Offset.Y;
         Assert.True(window.EdgeScroll.Tick());
         Assert.True(sheet.Offset.Y > before);

@@ -1243,7 +1243,16 @@ public partial class MainWindow : IFollowsUiScale
         // re-aim the layer drag's drop line without waiting for a move.
         EdgeScroll.Scrolled += () =>
         {
-            if (_layerDragging && _layerDragCandidate is { } carried) AimLayerDrop(carried);
+            if (!_layerDragging || _layerDragCandidate is not { } carried) return;
+            if (_layerDragScroller is not { } scroller) return;
+            // The new offset moves nothing until the next layout, and the line
+            // has to be on the row that is under the pointer now — the one the
+            // drop will land on — not the one that was there a tick ago.
+            scroller.UpdateLayout();
+            if (scroller.TranslatePoint(_layerDragInScroller, LayerList) is { } inList)
+            {
+                AimLayerDrop(carried, inList.Y);
+            }
         };
         // Drags the operating system runs — swatches, cels, symbols, project
         // rows — report where they are and nothing else, so whichever list is
@@ -1430,8 +1439,18 @@ public partial class MainWindow : IFollowsUiScale
     /// </summary>
     internal Input.DragEdgeScroller EdgeScroll { get; } = new();
 
-    /// <summary>Where the layer drag last was, in the window, for re-aiming after a scroll.</summary>
-    private Point _layerDragAt;
+    /// <summary>
+    /// Where the layer drag last was, in the list's own scroller, for re-aiming
+    /// after a scroll.
+    /// </summary>
+    /// <remarks>
+    /// In the scroller's coordinates because the scroller is the one thing
+    /// here that stays put: the list moves under the pointer when it scrolls,
+    /// and the window is the wrong window altogether once the docker has been
+    /// floated out into its own.
+    /// </remarks>
+    private ScrollViewer? _layerDragScroller;
+    private Point _layerDragInScroller;
 
     private object? _layerDragCandidate;
     private Point _layerDragFrom;
@@ -1492,16 +1511,17 @@ public partial class MainWindow : IFollowsUiScale
             e.Pointer.Capture(LayerList);
         }
 
-        _layerDragAt = e.GetPosition(this);
-        if (Input.DragEdgeScroller.ScrollingAbove(LayerList) is { } scroller)
+        _layerDragScroller = Input.DragEdgeScroller.ScrollingAbove(LayerList);
+        if (_layerDragScroller is { } scroller)
         {
-            EdgeScroll.Track(scroller, e.GetPosition(scroller));
+            _layerDragInScroller = e.GetPosition(scroller);
+            EdgeScroll.Track(scroller, _layerDragInScroller);
         }
         else
         {
             EdgeScroll.Stop();
         }
-        AimLayerDrop(carried);
+        AimLayerDrop(carried, e.GetPosition(LayerList).Y);
         var name = carried switch { LayerRow r => r.Name, GroupRow g => g.Name, _ => "" };
         DragGhost.Show(name, e.GetPosition(this));
         e.Handled = true;
@@ -1540,6 +1560,7 @@ public partial class MainWindow : IFollowsUiScale
         _layerDragCandidate = null;
         _layerDragPointer = null;
         _layerDragging = false;
+        _layerDragScroller = null;
         EdgeScroll.Stop();
         DragGhost.Hide();
         _vm.ClearLayerDropHints();
@@ -1571,18 +1592,10 @@ public partial class MainWindow : IFollowsUiScale
         return (item, _vm.LayerDropHintFor(carried, item, fraction));
     }
 
-    /// <summary>
-    /// Show the drop line for where the layer drag is now.
-    /// </summary>
-    /// <remarks>
-    /// From the pointer's place in the window rather than from an event, so it
-    /// can be asked again after the list has scrolled under a pointer that did
-    /// not move.
-    /// </remarks>
-    private void AimLayerDrop(object carried)
+    /// <summary>Show the drop line for a drag at this height in the list.</summary>
+    private void AimLayerDrop(object carried, double yInList)
     {
-        if (this.TranslatePoint(_layerDragAt, LayerList) is not { } inList) return;
-        var (item, hint) = LayerDropUnder(carried, inList.Y);
+        var (item, hint) = LayerDropUnder(carried, yInList);
         _vm.ShowLayerDropHint(hint == LayerDropHint.None ? null : item, hint);
     }
 
