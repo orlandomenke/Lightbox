@@ -74,6 +74,19 @@ public sealed class Bone
     /// </summary>
     public BoneJiggle? Jiggle { get; set; }
 
+    /// <summary>
+    /// How far either side of this bone's joint with its parent a drawing
+    /// blends between the two (Q217), in document pixels — null, and absent,
+    /// for the default, which <see cref="Skinning.JointZoneOf"/> derives from
+    /// the two bones' lengths.
+    /// </summary>
+    /// <remarks>
+    /// Read by joint weighting only: everything farther than this from where
+    /// the bones meet follows its own bone rigidly, so a straight line along
+    /// the bone stays straight. Zero makes the joint a hinge with no blend.
+    /// </remarks>
+    public double? JointZone { get; set; }
+
     /// <summary>A copy holding no reference in common with this one.</summary>
     public Bone Clone()
     {

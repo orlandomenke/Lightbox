@@ -1376,7 +1376,8 @@ public sealed partial class MainViewModel
             if (target is null) return;
             baked = Skinning.BakeFrame(
                 target, armature, ArmatureOps.EffectivePoseAt(armature, doc.Scene.PoseTrack, index),
-                doc.Scene.RiggedBoneOf(doc.Scene.Layers[ActiveLayerIndex]));
+                doc.Scene.RiggedBoneOf(doc.Scene.Layers[ActiveLayerIndex]),
+                doc.Scene.UsesJointWeights(doc.Scene.Layers[ActiveLayerIndex]));
         });
         if (baked > 0)
         {
@@ -1498,7 +1499,7 @@ public sealed partial class MainViewModel
                 baked = Skinning.BakeFrame(
                     target, armature,
                     ArmatureOps.EffectivePoseAt(armature, doc.Scene.PoseTrack, index),
-                    doc.Scene.RiggedBoneOf(layer));
+                    doc.Scene.RiggedBoneOf(layer), doc.Scene.UsesJointWeights(layer));
             }
         });
 

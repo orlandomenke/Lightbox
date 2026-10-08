@@ -166,7 +166,8 @@ public static class Skinning
         Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose,
         IReadOnlyList<BoneBinding>? fallback = null,
         IReadOnlyList<PointOffset>? correction = null,
-        bool wholeSkeleton = false)
+        bool wholeSkeleton = false,
+        bool jointWeights = false)
     {
         var bindings = stroke.Weights is { Count: > 0 } own ? own : fallback;
         var auto = bindings is not { Count: > 0 } && wholeSkeleton;
@@ -181,7 +182,7 @@ public static class Skinning
         {
             rest = DenseRest(source);
             List<BoneBinding> derived;
-            (derived, weights) = AutoWeights(rest, armature, pose: null);
+            (derived, weights) = AutoWeights(rest, armature, pose: null, jointWeights);
             if (derived.Count == 0) return stroke;
             bindings = derived;
         }
@@ -238,9 +239,10 @@ public static class Skinning
     /// afterwards still follow the rig. Baking is what freezes a drawing, and
     /// unrigging the layer is a separate thing an artist asks for separately.
     /// </remarks>
+    /// <param name="jointWeights">The layer's binding weighs by joint (Q217) — <see cref="Scene.UsesJointWeights"/>.</param>
     public static int BakeFrame(
         Frame frame, Armature armature, IReadOnlyDictionary<string, BonePose>? pose,
-        string? layerBone = null)
+        string? layerBone = null, bool jointWeights = false)
     {
         var named = layerBone is { Length: > 0 }
             ? new List<BoneBinding> { new() { BoneId = layerBone } }
@@ -258,7 +260,7 @@ public static class Skinning
             var fallback = own ? null : named;
             var posed = PoseStroke(
                 stroke, armature, pose, fallback, corrections.GetValueOrDefault(stroke.Id),
-                wholeSkeleton: !own && named is null);
+                wholeSkeleton: !own && named is null, jointWeights);
             if (ReferenceEquals(posed, stroke)) continue;
             frame.Strokes[i] = posed;
             baked++;
@@ -314,7 +316,9 @@ public static class Skinning
         // stroke: a whole cutout limb is one binding, and building it four
         // hundred times for four hundred lines would be the cost that makes a
         // rigged layer feel slower than a rigged stroke.
-        var layerBone = index.LayerOf(frame) is { } layer ? doc.Scene.RiggedBoneOf(layer) : null;
+        var layer = index.LayerOf(frame);
+        var layerBone = layer is not null ? doc.Scene.RiggedBoneOf(layer) : null;
+        var jointWeights = layer is not null && doc.Scene.UsesJointWeights(layer);
         var named = NamedBinding(layerBone);
 
         var copy = frame.Clone();
@@ -330,7 +334,7 @@ public static class Skinning
             if (!own && (layerBone is null || !TakesLayerBinding(stroke))) continue;
             var posed = PoseStroke(
                 stroke, armature, pose, own ? null : named, corrections.GetValueOrDefault(stroke.Id),
-                wholeSkeleton: !own && named is null);
+                wholeSkeleton: !own && named is null, jointWeights);
             if (ReferenceEquals(posed, stroke)) continue;
             if (ghostOverBudget && BrushCostOf.Settings(stroke.Brush) == BrushCost.Expressive)
                 GhostCentreline(posed);
@@ -410,11 +414,16 @@ public static class Skinning
     }
 
     /// <summary>Weights for a stroke that follows the whole skeleton, without touching it.</summary>
-    private static IReadOnlyList<BoneBinding>? AutoBoundFor(Stroke stroke, Armature armature)
+    /// <remarks>
+    /// On the control points as they are — the transform's write-back is one
+    /// point in, one point out — and with the layer's own weighting, so an
+    /// edit on a layer bound before Q217 is mapped as that layer poses.
+    /// </remarks>
+    private static IReadOnlyList<BoneBinding>? AutoBoundFor(Stroke stroke, Armature armature, bool jointWeights)
     {
-        var scratch = stroke.Clone(newId: false);
-        AutoBind(scratch, armature);
-        return scratch.Weights;
+        if (armature.Bones.Count == 0 || stroke.Points.Count == 0) return null;
+        var (bindings, _) = AutoWeights(stroke.Points, armature, pose: null, jointWeights);
+        return bindings.Count > 0 ? bindings : null;
     }
 
     /// <summary>
@@ -542,8 +551,56 @@ public static class Skinning
         Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose = null)
     {
         if (armature.Bones.Count == 0 || stroke.Points.Count == 0) return;
-        var (bindings, _) = AutoWeights(stroke.Points, armature, pose);
+        // A bind made now is a new bind (Q217): weighted by joint, and a span
+        // too long to carry its own blend gets the points it needs first.
+        var (bindings, weights) = AutoWeights(stroke.Points, armature, pose, jointWeights: true);
+        if (WithJointPoints(stroke.Points, weights) is { } denser)
+        {
+            stroke.Points = denser;
+            (bindings, _) = AutoWeights(stroke.Points, armature, pose, jointWeights: true);
+        }
         stroke.Weights = bindings.Count > 0 ? bindings : null;
+    }
+
+    /// <summary>
+    /// The stroke's points with every long span whose two ends follow the
+    /// rig differently subdivided — or null when no span needs it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Weights live on control points and are interpolated between them, so a
+    /// line drawn as two points carries one blend from end to end however the
+    /// weighting is computed: the whole line bends. Joint weighting only keeps
+    /// a line straight along a bone if there are points on either side of the
+    /// joint to hold the two rigid stretches and the blend between them.
+    /// </para>
+    /// <para>
+    /// Only spans whose ends differ — a span wholly on one bone moves rigidly
+    /// already, and a pen stroke sampled every pixel or two never has a span
+    /// long enough — so a drawing gains points where a joint crosses it and
+    /// nowhere else. The subdivision is the curve the brush already draws
+    /// (<see cref="GeometryOps.AppendSpan"/>), at the write-back's chord.
+    /// </para>
+    /// </remarks>
+    private static List<StrokePoint>? WithJointPoints(IReadOnlyList<StrokePoint> points, double[][] weights)
+    {
+        List<StrokePoint>? output = null;
+        for (var i = 0; i + 1 < points.Count; i++)
+        {
+            var differs = false;
+            for (var b = 0; b < weights[i].Length && !differs; b++)
+                differs = Math.Abs(weights[i][b] - weights[i + 1][b]) > 1e-9;
+            var split = differs && GeometryOps.Dist(points[i], points[i + 1]) > WriteBackChord;
+            if (split && output is null)
+            {
+                output = new List<StrokePoint>(points.Count * 2);
+                for (var k = 0; k <= i; k++) output.Add(points[k]);
+            }
+            if (output is null) continue;
+            if (split) GeometryOps.AppendSpan(output, points, i, WriteBackChord);
+            else output.Add(points[i + 1]);
+        }
+        return output;
     }
 
     /// <summary>
@@ -559,27 +616,23 @@ public static class Skinning
     /// for sparsity; it must not change where a point goes.
     /// </remarks>
     private static (List<BoneBinding> Bindings, double[][] Weights) AutoWeights(
-        IReadOnlyList<StrokePoint> points, Armature armature, IReadOnlyDictionary<string, BonePose>? pose)
+        IReadOnlyList<StrokePoint> points, Armature armature, IReadOnlyDictionary<string, BonePose>? pose,
+        bool jointWeights = false)
     {
         var count = points.Count;
         var bones = armature.Bones;
         var placements = ArmatureOps.Solve(armature, pose);
-        var w = new double[bones.Count][];
+        var distance = new double[bones.Count][];
         for (var b = 0; b < bones.Count; b++)
         {
             var placement = placements[bones[b].Id];
             var a = new StrokePoint(placement.X, placement.Y, 1);
             var (tx, ty) = placement.Tip(bones[b].Length);
             var tip = new StrokePoint(tx, ty, 1);
-            w[b] = new double[count];
-            for (var i = 0; i < count; i++)
-            {
-                var d = GeometryOps.DistToSegment(points[i], a, tip);
-                // +1 keeps the on-bone case finite and gives the falloff a
-                // knee about a pixel out rather than a pole.
-                w[b][i] = 1.0 / ((d + 1) * (d + 1));
-            }
+            distance[b] = new double[count];
+            for (var i = 0; i < count; i++) distance[b][i] = GeometryOps.DistToSegment(points[i], a, tip);
         }
+        var w = jointWeights ? JointFalloff(armature, distance, count) : InverseSquare(distance, count);
 
         for (var i = 0; i < count; i++)
         {
@@ -724,11 +777,12 @@ public static class Skinning
     /// the whole skeleton, otherwise a bone id.
     /// </param>
     private static IReadOnlyList<BoneBinding>? BindingsFor(
-        Stroke stroke, Armature armature, string? layerBone, IReadOnlyList<BoneBinding>? named)
+        Stroke stroke, Armature armature, string? layerBone, IReadOnlyList<BoneBinding>? named,
+        bool jointWeights = false)
     {
         if (stroke.Weights is { Count: > 0 } own) return own;
         if (layerBone is null || !TakesLayerBinding(stroke)) return null;
-        return named ?? AutoBoundFor(stroke, armature);
+        return named ?? AutoBoundFor(stroke, armature, jointWeights);
     }
 
     private static IReadOnlyList<BoneBinding>? NamedBinding(string? layerBone) =>
@@ -852,12 +906,14 @@ public static class Skinning
 
         var pose = ArmatureOps.EffectivePoseAt(armature, doc.Scene.PoseTrack, frameIndex);
         var corrections = CorrectiveOps.Resolve(frame.Correctives, pose);
-        var layerBone = index.LayerOf(frame) is { } layer ? doc.Scene.RiggedBoneOf(layer) : null;
+        var layer = index.LayerOf(frame);
+        var layerBone = layer is not null ? doc.Scene.RiggedBoneOf(layer) : null;
+        var jointWeights = layer is not null && doc.Scene.UsesJointWeights(layer);
         var named = NamedBinding(layerBone);
         var deltas = Deltas(armature, pose);
         return stroke =>
         {
-            var bindings = BindingsFor(stroke, armature, layerBone, named);
+            var bindings = BindingsFor(stroke, armature, layerBone, named, jointWeights);
             if (!TransformInPose(
                     stroke, armature, pose, bindings, corrections.GetValueOrDefault(stroke.Id), map, deltas))
             {
@@ -1019,6 +1075,97 @@ public static class Skinning
         GeometryOps.AppendSpan(output, points, 0, maxChord);
         return output;
     }
+
+    /// <summary>
+    /// The weighting every bind before Q217 was made with: inverse-square on
+    /// the distance to each bone, every bone weighing in everywhere. Kept
+    /// exactly, because a layer bound with it must keep posing as it did.
+    /// </summary>
+    private static double[][] InverseSquare(double[][] distance, int count)
+    {
+        var w = new double[distance.Length][];
+        for (var b = 0; b < distance.Length; b++)
+        {
+            w[b] = new double[count];
+            // +1 keeps the on-bone case finite and gives the falloff a knee
+            // about a pixel out rather than a pole.
+            for (var i = 0; i < count; i++) w[b][i] = 1.0 / ((distance[b][i] + 1) * (distance[b][i] + 1));
+        }
+        return w;
+    }
+
+    /// <summary>
+    /// Joint weighting (Q217): a point follows the bone it is nearest
+    /// rigidly, and blends toward another bone only where the two distances
+    /// are within the joint's zone of each other — a smoothstep from all of
+    /// the near bone to half and half where the point is equidistant.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Measured on the two-bone arm that prompted it: the old weighting moved
+    /// the line over the upper arm by 7 px when only the forearm turned; here
+    /// everything farther than the zone from the elbow does not move at all.
+    /// </para>
+    /// <para>
+    /// Continuous by construction: where the nearest bone changes, the two
+    /// are equidistant and both formulas give one half, so a line crossing
+    /// from one bone's territory to another's never kinks. Each other bone's
+    /// share is <c>q/(1−q)</c> of the near bone's, which is exactly <c>q</c>
+    /// after normalising when one neighbour is in reach and stays consistent
+    /// when two are (a hip). Pure arithmetic in armature order — deterministic.
+    /// </para>
+    /// </remarks>
+    private static double[][] JointFalloff(Armature armature, double[][] distance, int count)
+    {
+        var bones = armature.Bones;
+        var w = new double[bones.Count][];
+        for (var b = 0; b < bones.Count; b++) w[b] = new double[count];
+        for (var i = 0; i < count; i++)
+        {
+            var near = 0;
+            for (var b = 1; b < bones.Count; b++)
+                if (distance[b][i] < distance[near][i]) near = b;
+            w[near][i] = 1;
+            for (var b = 0; b < bones.Count; b++)
+            {
+                if (b == near) continue;
+                var zone = ZoneBetween(armature, bones[near], bones[b]);
+                if (zone <= 0) continue;
+                var x = (distance[near][i] - distance[b][i]) / zone; // ≤ 0
+                if (x <= -1) continue;
+                var t = (x + 1) / 2;
+                var q = t * t * (3 - 2 * t); // 0 at the zone's edge, ½ when equidistant
+                w[b][i] = q >= 0.5 ? 1 : q / (1 - q);
+            }
+        }
+        return w;
+    }
+
+    /// <summary>The blend zone between two bones: their joint's when they meet, the narrower default when they do not.</summary>
+    private static double ZoneBetween(Armature armature, Bone a, Bone b)
+    {
+        if (a.ParentId == b.Id) return JointZoneOf(armature, a);
+        if (b.ParentId == a.Id) return JointZoneOf(armature, b);
+        return Math.Min(JointZoneOf(armature, a), JointZoneOf(armature, b));
+    }
+
+    /// <summary>
+    /// How far either side of <paramref name="bone"/>'s joint with its parent
+    /// a drawing blends: <see cref="Bone.JointZone"/> when the artist set it,
+    /// otherwise a quarter of the shorter of the two bones — 25 px on a
+    /// 100 px arm, wide enough to read as a bend rather than a fold, narrow
+    /// enough that most of the limb stays rigid.
+    /// </summary>
+    public static double JointZoneOf(Armature armature, Bone bone)
+    {
+        if (bone.JointZone is { } set) return Math.Max(0, set);
+        var parent = bone.ParentId is { } id ? armature.Bones.FirstOrDefault(b => b.Id == id) : null;
+        var shorter = parent is null ? bone.Length : Math.Min(bone.Length, parent.Length);
+        return Math.Max(2.0, shorter * DefaultJointZoneFraction);
+    }
+
+    /// <summary>The default joint zone as a fraction of the shorter bone (Q217).</summary>
+    public const double DefaultJointZoneFraction = 0.25;
 
     private static double MeanWeight(BoneBinding binding, int pointCount)
     {
