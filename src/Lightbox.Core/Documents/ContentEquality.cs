@@ -79,6 +79,13 @@ public static class ContentEquality
         var tb = Expression.Variable(t, "tb");
         var next = Expression.Add(depth, Expression.Constant(1));
 
+        var compared = t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Count(p => p.GetIndexParameters().Length == 0 && p.GetMethod is { IsPublic: true });
+        // Nothing to read is not "nothing differs": content in private fields, or
+        // an opaque wrapper, would compare equal for any two instances and be
+        // shared. Two distinct instances of such a type count as changed.
+        if (compared == 0) return static (_, _, _) => false;
+
         Expression all = Expression.Constant(true);
         foreach (var written in t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                      .Where(p => p.GetIndexParameters().Length == 0

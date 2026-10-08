@@ -23,6 +23,23 @@ public class ContentEqualityTests(ITestOutputHelper output)
         Assert.True(ContentEquality.Same(frame, frame.Clone()));
     }
 
+    /// <summary>
+    /// A type whose content the compare cannot see — no public property to read
+    /// — counts as changed. Read as same, any two instances would be shared.
+    /// </summary>
+    [Fact]
+    public void ATypeWithNothingToCompareCountsAsChanged()
+    {
+        Assert.False(ContentEquality.Same(new Opaque(1), new Opaque(1)));
+        var one = new Opaque(1);
+        Assert.True(ContentEquality.Same(one, one)); // the same instance is still the same
+    }
+
+    private sealed class Opaque(int content)
+    {
+        public override string ToString() => content.ToString();
+    }
+
     /// <summary>Hash01 seeds dabs from the bits: 0.0 and -0.0 are different drawings.</summary>
     [Fact]
     public void DoublesCompareByTheirBits()

@@ -73,10 +73,16 @@ public static class FrameTranslate
                     path.Nodes[i] = n with { X = n.X + dx, Y = n.Y + dy };
                 }
             }
+            // A new sample, never the shared one moved (B414): every copy of the
+            // stroke holds the same sample, the ones undo restores from included.
             if (stroke.Baked is { PngBase64.Length: > 0 } baked)
             {
-                baked.X = (int)Math.Round(baked.X + dx);
-                baked.Y = (int)Math.Round(baked.Y + dy);
+                stroke.Baked = new BakedSample
+                {
+                    PngBase64 = baked.PngBase64,
+                    X = (int)Math.Round(baked.X + dx),
+                    Y = (int)Math.Round(baked.Y + dy),
+                };
             }
         }
 

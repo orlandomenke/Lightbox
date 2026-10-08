@@ -73,6 +73,28 @@ compiled once per type, rather than a list someone has to keep up to date.
 - **Errs strict.** Anything the walker cannot classify counts as changed. A wrong
   "changed" costs one copy; a wrong "same" costs a drawing.
 
+## What review found
+
+The sensitivity review blocked this change once, and two of its notes changed code
+as well as text.
+
+- **Redo no longer returns the objects that were live before the undo.** On
+  main, redo handed back the very document instance. Now it thaws a new one. 19
+  delta steps wrote to objects they had captured (guides, reference strips,
+  weight painting), so redoing them after a redone structural edit would change
+  nothing on screen. That was already reachable on main in the other order, and
+  is fixed separately as B413, which this change needs first.
+- **Shared samples were mutable.** `BakedSample` and `StrokeCheckpoint` are shared
+  by every copy of a stroke, so a change in place would rewrite every undo state
+  at once, and the compare could never notice, because the two sides are the same
+  object. Both are now init-only. Making them so found one writer, the nudge to
+  spacing (B414).
+- **A type with nothing to compare fails closed.** A type with no public property
+  would otherwise compare equal for any two instances.
+- **Cels sharing one frame object** are split into two frames with the same id
+  on redo as well as on undo. Save and load split them the same way, so this
+  matches the file.
+
 ## What it costs
 
 - **Structural edit:** the compare replaces most of the clone, at about the same
