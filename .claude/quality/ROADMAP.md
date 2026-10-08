@@ -465,11 +465,30 @@ the test needs relaxing.
     all ask it — a masked layer cannot look different in two of them. Shaped
     passes refuse the fold and the tile path; merge-down bakes the mask in and
     clears it. The one known preview gap is B280 (transform drag).
-- [x] Clipping masks `evidence: LayerShapes.BaseOf, AClippedLayerDescribesItsBaseAndTheBasesMask, ConsecutiveClippedLayersShareTheFirstUnclippedBase, AClippedLayerAtTheBottomRendersUnclipped, TheDescribedListSkipsAClippedLayerOverNothing, ClippingIsUndoableAndAbsentWhenReleased, AClippedUpperLayerBakesCarvedToTheLowersContent`
+- [x] Clipping masks `evidence: LayerShapes.BaseOf, AClippedLayerDescribesItsBaseAndTheBasesMask, ConsecutiveClippedLayersShareTheFirstUnclippedBase, AClippedLayerAtTheBottomRendersUnclipped, TheDescribedListSkipsAClippedLayerOverNothing, ClippingIsUndoableAndAbsentWhenReleased, AClippedUpperLayerBakesCarvedToTheLowersContent, AClipStopsAtTheFolderItSitsIn`
   - Positional, Photoshop's rule: the base is the first unclipped layer
     beneath, consecutive clipped layers share it, and the base's own mask
     carves what clips to it. A flag rather than a base id, so reordering
     means what the artist's drag means. Ctrl+Alt+G, the convention.
+- [x] Folder shapes — Krita's inherit alpha, set once per folder `evidence: LayerGroup.ShapeLayerId, LayerShapes.FolderShapingOf, ShapeBracket, EveryLayerAboveTheShapeIsCarvedByTheUnionBeneathIt, TheShadeShowsInsideEitherFlatAndNowhereElse, TheShadeOffTheFlatDisappearsAndComesBackOnRelease, ALayerKeptInsideAFolderShapeBakesCarvedWhenMergedIntoTheShape, AnAgentCanKeepAFoldersLayersInsideAShape`
+  - **Q215: the folder is the unit, the union is the shape.** A folder names
+    one layer as its shape; every layer above it in the folder is carved by
+    the union of everything from the folder's bottom up to it — so one shading
+    layer stays inside skin, hair and cloth flats together, which Photoshop's
+    one-base clip cannot do. Set once, so a layer added above later is kept
+    inside with no toggle. An id on the folder rather than a flag on each
+    layer: one shape per folder, and the docker can name it.
+  - **Through the one seam.** `LayerShapes` describes the union as a
+    `ShapeSpec` with `Or` members, and `SceneRenderer.ApplyShapes` builds it
+    inside the save-layer the in-flight mask stroke already used, so every
+    compositor gets it and the work stays bounded by the region drawn. A
+    document with no folder shape pays one scan of its folders per layer.
+  - **Clarity was the request.** The docker draws an amber bracket from the
+    kept layers down to the shape and a **!** with the reason when a carve
+    shows nothing — the confusion Krita's inherit alpha leaves the artist
+    with. Not taken: dimming outside the shape while painting.
+  - Known gap: a reference-sheet view copies layers, not folders, so a folder
+    shape does not carve there.
 - [x] Adjustment layers `evidence: Layer.Adjusts, EffectsViewModel, EffectsDockerTests, AnAdjustmentPassFiltersTheBackdrop, AnAdjustmentIsCarvedByItsShapesAndFadedByItsOpacity, AnAdjustmentLayerLandsAboveTheActiveOneCarryingItsEffect, AnAdjustmentLayerChangesThePublishedComposite, AnAdjustmentLayerDescribesOneBackdropPassAndNoCelFetch`
   - **Q151 held: an effect-carrying layer, not a new mechanism.** It rides
     the effects record below, applied to the composite beneath it and scoped

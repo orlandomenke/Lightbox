@@ -97,6 +97,22 @@ public sealed class LayerGroup
     public string? Under { get; set; }
 
     /// <summary>
+    /// The layer whose top edge is this folder's <b>shape</b> (Q215): every
+    /// layer above it in the folder shows only where the layers from the
+    /// folder's bottom up to and including it have content — Krita's inherit
+    /// alpha, set once for the folder rather than on each layer above. Null,
+    /// and absent, on every folder that does not keep its layers inside.
+    /// </summary>
+    /// <remarks>
+    /// An id rather than a flag on the layer, so a folder has one shape at
+    /// most and the docker can say which. The shape is everything up to that
+    /// layer — the union, so one shading layer stays inside skin, hair and
+    /// cloth flats together. An id that no longer names a layer inside this
+    /// folder carves nothing, and <see cref="FolderTree.Settle"/> clears it.
+    /// </remarks>
+    public string? ShapeLayerId { get; set; }
+
+    /// <summary>
     /// Set by an edit that put this folder in its slot on purpose, so
     /// <see cref="FolderTree.Settle"/> takes the slot as given rather than
     /// keeping the old one. Never saved, and cleared by the settle that reads it.

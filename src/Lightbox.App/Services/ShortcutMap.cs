@@ -468,6 +468,10 @@ public sealed class ShortcutMap
             // for from the canvas while colouring, not only from the docker.
             new("docker.clipToBelow", "Clip layer to the one below", "Dockers",
                 G(Key.G, KeyModifiers.Control | KeyModifiers.Alt)),
+            // The folder's version of the clip (Q215), on the clip's key with
+            // Shift: Krita's inherit alpha has no default key to borrow.
+            new("docker.folderShape", "Keep layers above inside this one", "Dockers",
+                G(Key.G, KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift)),
             // Photoshop's and Krita's key for wrapping the selection in a
             // folder, global like theirs (Q204).
             new("docker.groupLayers", "Group layers into a folder", "Dockers", G(Key.G, KeyModifiers.Control)),

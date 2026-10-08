@@ -35,6 +35,7 @@ public static class TileMemory
     public static int Run(string[] args)
     {
         if (args.Contains("--scaling")) return Scaling(Fixture.Build(Fixture.Shape.OwnerShape));
+        if (args.Contains("--compare")) return Compare();
         var docAt = Arg(args, "--doc");
         var cases = docAt is not null
             ? [("your document", DocJson.Load(docAt))]
@@ -174,6 +175,72 @@ public static class TileMemory
                               $"(GC {GC.CollectionCount(0)}/{GC.CollectionCount(1)}/{GC.CollectionCount(2)}, pause {GC.GetTotalPauseDuration().TotalSeconds:0.0} s)");
         }
         return 0;
+    }
+
+    /// <summary>
+    /// Phase 2a's question: does rendering a drawing once over the whole canvas and
+    /// cutting it into tiles give the same bytes as stamping each stroke per tile —
+    /// and how much faster is it? Same pixels is the bar; a faster route that is not
+    /// bit-identical is a different picture (invariant 1).
+    /// </summary>
+    private static int Compare()
+    {
+        foreach (var (name, shape) in new[]
+        {
+            ("1080p", Fixture.Shape.OwnerShape),
+            ("4K", Fixture.Shape.OwnerShape with { Width = 3840, Height = 2160 }),
+        })
+        {
+            var doc = Fixture.Build(shape);
+            var scene = doc.Scene;
+            var info = new SkiaSharp.SKImageInfo(scene.Width, scene.Height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Premul);
+            var frames = scene.Layers.SelectMany(l => l.Cels.Select(c => c.Frame).OfType<Frame>())
+                .GroupBy(f => f.Id).Select(g => g.First()).Where(f => TileFrameCache.CanTileFrame(f)).ToList();
+            double byTile = 0, whole = 0;
+            int identical = 0, differing = 0;
+            long worstBytes = 0;
+            foreach (var frame in frames)
+            {
+                using var a = new TileStore();
+                var sw = Stopwatch.StartNew();
+                TiledRasterizer.Rasterize(a, frame.Strokes, info);
+                byTile += sw.Elapsed.TotalMilliseconds;
+
+                using var b = new TileStore();
+                sw.Restart();
+                TiledRasterizer.RasterizeWhole(b, frame.Strokes, info);
+                whole += sw.Elapsed.TotalMilliseconds;
+
+                var diff = DifferingBytes(a, b, scene.Width, scene.Height);
+                if (diff == 0) identical++;
+                else { differing++; worstBytes = Math.Max(worstBytes, diff); }
+            }
+            Console.WriteLine($"{name}: {frames.Count} drawings | per tile {byTile / 1000:0.0} s, whole then cut {whole / 1000:0.0} s " +
+                              $"({byTile / Math.Max(1, whole):0.0}x) | identical {identical}, differing {differing}" +
+                              (differing > 0 ? $" (worst {worstBytes} bytes differ)" : ""));
+        }
+        return 0;
+    }
+
+    /// <summary>Bytes that differ between two stores; a tile one lacks counts as transparent.</summary>
+    private static long DifferingBytes(TileStore a, TileStore b, int w, int h)
+    {
+        var ta = a.Intersecting(0, 0, w, h).ToDictionary(t => t.Coord, t => t.Bitmap);
+        var tb = b.Intersecting(0, 0, w, h).ToDictionary(t => t.Coord, t => t.Bitmap);
+        long differ = 0;
+        foreach (var coord in ta.Keys.Union(tb.Keys))
+        {
+            var pa = ta.TryGetValue(coord, out var x) ? x.Bytes : null;
+            var pb = tb.TryGetValue(coord, out var y) ? y.Bytes : null;
+            var n = Math.Max(pa?.Length ?? 0, pb?.Length ?? 0);
+            for (var i = 0; i < n; i++)
+            {
+                var va = pa is not null && i < pa.Length ? pa[i] : (byte)0;
+                var vb = pb is not null && i < pb.Length ? pb[i] : (byte)0;
+                if (va != vb) differ++;
+            }
+        }
+        return differ;
     }
 
     private static string Fits(long bytes, long budget) =>

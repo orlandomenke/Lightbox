@@ -378,12 +378,55 @@ leaving its silhouette. A clipped layer's row shows an accent bar, and
 several clipped layers in a row all clip to the first unclipped layer
 beneath them, so lines / colour / shading stacks work as they do elsewhere.
 
+**A clip stays inside its folder.** The base is always a layer in the same
+folder, so a clipped layer at the bottom of a folder shows unclipped rather
+than clipping to something outside it, and a layer just above a folder does
+not clip into it.
+
 Because the base layer is an ordinary layer, **an animated matte is just a
 clipping mask over an animated base**: animate the base's cels and everything
 clipped to it follows, with holds and exposure exactly as the sheet says. If
 the base has a mask of its own, the clipped layers respect it too. A clipped
 layer with nothing below it, or whose base shows nothing on this frame,
 simply shows nothing there.
+
+### Keeping a folder's layers inside a shape
+
+This is the colouring setup: flats at the bottom of a folder, and shading,
+highlights and texture above them that can never go outside the lines. Krita
+calls it *inherit alpha*. Here it is set once for the folder rather than on
+every layer.
+
+Right-click the **top flat** and choose **Keep layers above inside this**
+(**Ctrl+Alt+Shift+G** for the active layer). From then on, every layer above
+it **in the same folder** shows only where that layer **or any layer under
+it in the folder** has content. One shading layer over separate skin, hair
+and clothes flats stays inside all three, and a layer you add above later is
+kept inside too, with nothing to switch on.
+
+- **The docker shows it.** An amber line runs down the left of every layer
+  that is kept inside and ends on a dot beside the shape layer. Hover the line
+  to see which layer and folder it means.
+- **Nothing is cut.** Strokes that run outside are hidden, not erased.
+  **Stop keeping layers inside** (the same menu, on the shape layer) shows
+  them all again, and every change is an undo step.
+- **It stays in its folder.** Layers outside the folder are never affected.
+  It needs a folder: on a layer that is in none, the command tells you to put
+  it in one first rather than doing nothing.
+- **When something shows nothing, the row says why.** A **!** appears on a
+  layer kept inside a shape whose layers are all hidden, and on a clipped
+  layer with nothing below it in its folder. Hover it for the reason.
+- **Masks count.** A flat's own mask trims its part of the shape, exactly as
+  it trims the flat.
+- **Merging keeps the look.** Merging a kept-inside layer down into the shape
+  layer bakes the trim into the merged drawing. Merging the shape layer down
+  moves the shape to the layer it merged into, unless that layer is outside
+  the folder: then the folder keeps nothing inside any more (one undo brings
+  it back). Dragging the shape layer out of the folder, or deleting it,
+  releases the folder the same way.
+
+Clipping and this work together: a layer can be clipped to the one below
+*and* kept inside its folder's shape, and shows only where both allow.
 
 Both masks and clipping reach every render the same way: the canvas, exports,
 thumbnails and the AI's view of the document all show the carved result.

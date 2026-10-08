@@ -98,6 +98,47 @@ public sealed class ThumbnailWorkerTests : BrushStateIsolated
     }
 
     /// <summary>
+    /// Jumping to a frame renders no layer thumbnail on the UI thread, even when
+    /// the sheet's own thumbnails are all held and the full-size sources are not.
+    /// </summary>
+    /// <remarks>
+    /// The performance lab, 2026-10-07: every click on a cel spent ~820 ms in the
+    /// layer docker's thumbnails, ten 80 ms renders of each layer's drawing,
+    /// on revisits as much as first visits. A drawing whose sheet thumbnail was
+    /// held skipped the worker and rendered its source inline, and on a document
+    /// bigger than the frame cache those sources are evicted between jumps.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AJumpRendersNoLayerThumbnailOnTheUiThread_AndEveryRowGetsItsPicture()
+    {
+        var doc = DocumentFactory.CreateDoc(1920, 1080); // big enough that a thumbnail source is drawn below full scale
+        doc.Scene.Layers.Clear();
+        for (var l = 0; l < 4; l++)
+        {
+            var layer = new Layer { Name = $"L{l}" };
+            for (var i = 0; i < 6; i++) layer.Cels.Add(new Cel { Frame = Drawing($"l{l}d{i}", i + l) });
+            doc.Scene.Layers.Add(layer);
+        }
+        doc.Scene.FrameCount = 6;
+        var vm = new MainViewModel(null);
+        vm.ReplaceDocument(doc);
+        DeliverUntilQuiet();
+        Assert.All(KeyedCells(vm), c => Assert.NotNull(c.Thumb)); // the sheet's thumbnails are all held
+
+        vm.FrameCache.Clear(); // the sources evicted, as on a document over the cache's budget
+        var renderedBefore = vm.LayerThumbRenders;
+        vm.CurrentFrameIndex = 4;
+
+        // Counted, not read off the cache's miss ring: the canvas's own misses
+        // for the frame and its neighbours fill that ring and push these out.
+        Assert.Equal(renderedBefore, vm.LayerThumbRenders);
+
+        DeliverUntilQuiet();
+        Assert.All(vm.LayerRows, r => Assert.NotNull(r.Thumb));
+        Assert.All(vm.LayerRows, r => Assert.Equal($"l{vm.Doc.Scene.Layers.IndexOf(r.Layer)}d4", r.ThumbFrameId));
+    }
+
+    /// <summary>
     /// A render begun before the drawing changed is thrown away, never installed
     /// — it would otherwise also reach the canvas, through the cache they share —
     /// and the drawing is asked for again.

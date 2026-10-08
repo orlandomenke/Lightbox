@@ -233,6 +233,34 @@ public sealed partial class LayerRow : ObservableObject
     /// <summary>Composites only where the layer below has content.</summary>
     public bool IsClipped => Layer.IsClipped;
 
+    /// <summary>This layer is its folder's shape (Q215): the layers above it in the folder stay inside it.</summary>
+    public bool IsFolderShape => _owner.IsFolderShape(Layer);
+
+    /// <summary>The row menu's one item for it, worded for what a click will do.</summary>
+    public string FolderShapeMenuText =>
+        IsFolderShape ? "Stop keeping layers inside" : "Keep layers above inside this";
+
+    /// <summary>Which piece of the folder-shape bracket this row draws.</summary>
+    public LayerShapeMark ShapeMark => _owner.ShapeMarkOf(Layer);
+
+    /// <summary>The bracket's corner: the topmost layer kept inside.</summary>
+    public bool IsKeptTop => ShapeMark == LayerShapeMark.KeptTop;
+
+    /// <summary>The bracket's line: a kept layer with another above it.</summary>
+    public bool IsKeptMiddle => ShapeMark == LayerShapeMark.Kept;
+
+    /// <summary>Anything for the bracket to draw on this row.</summary>
+    public bool HasShapeMark => ShapeMark != LayerShapeMark.None;
+
+    /// <summary>What the bracket means here, in words.</summary>
+    public string ShapeTip => _owner.ShapeTipOf(Layer);
+
+    /// <summary>Why a clip or a folder shape is showing nothing or not carving, or null.</summary>
+    public string? ShapeWarning => _owner.ShapeWarningOf(Layer);
+
+    /// <summary>Whether the row has a warning to show.</summary>
+    public bool HasShapeWarning => ShapeWarning is not null;
+
     /// <summary>No mask yet — the menu offers the two ways to add one.</summary>
     public bool CanAddMask => !HasMask;
 
@@ -256,6 +284,15 @@ public sealed partial class LayerRow : ObservableObject
         OnPropertyChanged(nameof(MaskInverted));
         OnPropertyChanged(nameof(IsEditingMask));
         OnPropertyChanged(nameof(IsClipped));
+        OnPropertyChanged(nameof(IsFolderShape));
+        OnPropertyChanged(nameof(FolderShapeMenuText));
+        OnPropertyChanged(nameof(ShapeMark));
+        OnPropertyChanged(nameof(IsKeptTop));
+        OnPropertyChanged(nameof(IsKeptMiddle));
+        OnPropertyChanged(nameof(HasShapeMark));
+        OnPropertyChanged(nameof(ShapeTip));
+        OnPropertyChanged(nameof(ShapeWarning));
+        OnPropertyChanged(nameof(HasShapeWarning));
         OnPropertyChanged(nameof(CanAddMask));
         OnPropertyChanged(nameof(CanDisableMask));
         OnPropertyChanged(nameof(HasEffects));

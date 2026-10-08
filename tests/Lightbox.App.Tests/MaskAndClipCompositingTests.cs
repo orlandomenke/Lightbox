@@ -188,6 +188,36 @@ public class MaskAndClipCompositingTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void AClipStopsAtTheFolderItSitsIn()
+    {
+        // Q215: a folder looks like a boundary, so it is one. The clipped
+        // layer at the bottom of the folder has nothing of its own folder
+        // beneath it, and renders unclipped rather than reaching past the
+        // folder to a layer the artist never put it on.
+        var outside = LayerWith("Background");
+        var shade = LayerWith("Shade");
+        shade.ClipToBelow = true;
+        shade.GroupId = "group-character";
+        var scene = SceneWith(outside, shade);
+
+        Assert.Null(LayerShapes.BaseOf(scene.Layers, 1));
+        Assert.Null(LayerShapes.For(scene, 1, 0));
+        Assert.False(LayerShapes.Carves(scene, 1));
+
+        // Inside the folder the rule is unchanged.
+        var fill = LayerWith("Fill");
+        fill.GroupId = "group-character";
+        var inside = SceneWith(outside, fill, shade);
+        Assert.Same(fill, LayerShapes.BaseOf(inside.Layers, 2));
+
+        // And a layer above the folder does not clip into it.
+        var top = LayerWith("Top");
+        top.ClipToBelow = true;
+        var above = SceneWith(fill, top);
+        Assert.Null(LayerShapes.BaseOf(above.Layers, 1));
+    }
+
+    [Fact]
     public void ConsecutiveClippedLayersShareTheFirstUnclippedBase()
     {
         var fill = LayerWith("Fill");
