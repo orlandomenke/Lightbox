@@ -293,6 +293,34 @@ public class SymbolBrowserTests : IDisposable
         Assert.Single(FrameOf(vm).Placements!);
     }
 
+    /// <summary>
+    /// B415. Redoing a placement puts back the placement as undo took it out,
+    /// not the object the step was made with: a move edits that object in place,
+    /// and after a structural undo swaps the document only a copy is moved back.
+    /// </summary>
+    [AvaloniaFact]
+    public void RedoingAPlacementPutsItWhereItWasPlacedNotWhereItWasLaterMoved()
+    {
+        var vm = WithProject();
+        var sword = Add(vm, "Sword", SymbolKind.Prop);
+        var placed = vm.PlaceSymbol(sword.Id, 100, 100)!;
+        vm.Selection.SelectPlacement(placed.Id);
+        Assert.True(vm.BeginPlacementMove(100, 100));
+        vm.UpdatePlacementMove(130, 100, axisLock: false);
+        vm.EndPlacementMove();
+        Assert.Equal(130, FrameOf(vm).Placements!.Single(p => p.Id == placed.Id).X, 3);
+
+        vm.PanelEditor.Perform(d => d.Scene.Layers[0].Name += "!", "Rename");
+        vm.UndoCommand.Execute(null); // the rename: the document is swapped
+        vm.UndoCommand.Execute(null); // the move
+        vm.UndoCommand.Execute(null); // the placement
+        vm.RedoCommand.Execute(null); // the placement, where it was placed
+
+        Assert.Equal(100, FrameOf(vm).Placements!.Single(p => p.Id == placed.Id).X, 3);
+        vm.RedoCommand.Execute(null);
+        Assert.Equal(130, FrameOf(vm).Placements!.Single(p => p.Id == placed.Id).X, 3);
+    }
+
     [AvaloniaFact]
     public void PlaceGoesToTheMiddleAndADropGoesWhereItWasDropped()
     {

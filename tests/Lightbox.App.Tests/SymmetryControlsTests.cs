@@ -68,6 +68,31 @@ public class SymmetryControlsTests : BrushStateIsolated
         Assert.Null(vm.ActiveSymmetry);
     }
 
+    /// <summary>
+    /// B415. A drag moves the axis in place; after a structural undo swaps the
+    /// document, undoing the drag moves a copy back. Redoing the placement must
+    /// put back the axis as undo took it out, not the dragged original.
+    /// </summary>
+    [AvaloniaFact]
+    public void RedoingTheAxisPlacementPutsItWhereItWasPlaced()
+    {
+        var vm = Vm();
+        vm.SymmetryEnabled = true;
+        vm.BeginSymmetryDrag();
+        vm.DragSymmetryCentreBy(20, 0);
+        vm.EndSymmetryDrag();
+
+        vm.PanelEditor.Perform(d => d.Scene.Layers[0].Name += "!", "Rename");
+        vm.UndoCommand.Execute(null); // the rename: the document is swapped
+        vm.UndoCommand.Execute(null); // the drag
+        vm.UndoCommand.Execute(null); // the placement
+        vm.RedoCommand.Execute(null);
+
+        Assert.Equal(W / 2.0, vm.Doc.Scene.Symmetry!.CenterX, 6);
+        vm.RedoCommand.Execute(null);
+        Assert.Equal(W / 2.0 + 20, vm.Doc.Scene.Symmetry!.CenterX, 6);
+    }
+
     [AvaloniaFact]
     public void TheAxisCanBeDraggedAndTurned()
     {

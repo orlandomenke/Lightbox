@@ -250,20 +250,25 @@ public sealed partial class MainViewModel
         project.Symbols[symbol.Id] = symbol;
         SymbolRegistry.Register(symbol);
 
+        // B415: what undo takes out is what redo puts back, as it was in the
+        // document, not the objects this step was made with.
+        var placementIn = placement;
+        IReadOnlyList<Stroke> strokesOut = taken;
         _editor.PerformDelta(
             apply: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
+                strokesOut = [.. frame.Strokes];
                 frame.Strokes.Clear();
                 frame.Placements ??= [];
-                frame.Placements.Add(placement);
+                frame.Placements.Add(placementIn);
             },
             revert: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
-                frame.Placements?.RemoveAll(p => p.Id == placement.Id);
+                placementIn = TakeEvery(frame.Placements, p => p.Id == placement.Id) ?? placementIn;
                 if (frame.Placements is { Count: 0 }) frame.Placements = null;
-                frame.Strokes.AddRange(taken);
+                frame.Strokes.AddRange(strokesOut);
             },
             affectedFrameId: frameId);
 
@@ -533,22 +538,31 @@ public sealed partial class MainViewModel
         project.Symbols[symbol.Id] = symbol;
         SymbolRegistry.Register(symbol);
 
+        // B415: what undo takes out is what redo puts back, as it was in the
+        // document, not the objects this step was made with.
+        var placementIn = placement;
+        var carveIn = carve;
+        IReadOnlyList<Stroke> removedOut = removed;
         _editor.PerformDelta(
             apply: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
-                if (carve is not null) frame.Strokes.Add(carve);
-                else frame.Strokes.RemoveAll(k => removedIds.Contains(k.Id));
+                if (carveIn is not null) frame.Strokes.Add(carveIn);
+                else
+                {
+                    removedOut = frame.Strokes.Where(k => removedIds.Contains(k.Id)).ToList();
+                    frame.Strokes.RemoveAll(k => removedIds.Contains(k.Id));
+                }
                 frame.Placements ??= [];
-                frame.Placements.Add(placement);
+                frame.Placements.Add(placementIn);
             },
             revert: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
-                frame.Placements?.RemoveAll(p => p.Id == placement.Id);
+                placementIn = TakeEvery(frame.Placements, p => p.Id == placement.Id) ?? placementIn;
                 if (frame.Placements is { Count: 0 }) frame.Placements = null;
-                if (carve is not null) frame.Strokes.RemoveAll(k => k.Id == carve.Id);
-                else frame.Strokes.AddRange(removed);
+                if (carve is not null) carveIn = TakeEvery(frame.Strokes, k => k.Id == carve.Id) ?? carveIn;
+                else frame.Strokes.AddRange(removedOut);
             },
             affectedFrameId: frameId);
 
@@ -1019,17 +1033,20 @@ public sealed partial class MainViewModel
             SeenVersion = symbol.Version,
         };
         var frameId = target.Id;
+        // B415: what undo takes out is what redo puts back, as it was in the
+        // document, not the objects this step was made with.
+        var placementIn = placement;
         _editor.PerformDelta(
             apply: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
                 frame.Placements ??= [];
-                frame.Placements.Add(placement);
+                frame.Placements.Add(placementIn);
             },
             revert: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
-                frame.Placements?.RemoveAll(p => p.Id == placement.Id);
+                placementIn = TakeEvery(frame.Placements, p => p.Id == placement.Id) ?? placementIn;
                 // Back to absent, not to empty: a cel that no longer places
                 // anything must serialize as one that never did.
                 if (frame.Placements is { Count: 0 }) frame.Placements = null;
@@ -1089,6 +1106,10 @@ public sealed partial class MainViewModel
         // Apply all placements and frame group in one undo step
         var initialFrameId = initialTarget.Id;
         var activeLayerId = ActiveLayer.Id;
+        // B415: what undo takes out is what redo puts back, as it was in the
+        // document, not the objects this step was made with.
+        var groupIn = frameGroup;
+        var placementsIn = placements;
         _editor.PerformDelta(
             apply: doc =>
             {
@@ -1096,7 +1117,7 @@ public sealed partial class MainViewModel
 
                 // Ensure frame group list exists
                 doc.Scene.FrameGroups ??= [];
-                doc.Scene.FrameGroups.Add(frameGroup);
+                doc.Scene.FrameGroups.Add(groupIn);
 
                 // Place on each frame of the active layer
                 // **B132 fixed here.** This used to return early on
@@ -1114,7 +1135,7 @@ public sealed partial class MainViewModel
                     var frameIdx = startFrameIndex + i;
                     if (ExposureSheet.ExposedFrame(activeLayer, frameIdx) is not { } target) continue;
                     target.Placements ??= [];
-                    target.Placements.Add(placements[i]);
+                    target.Placements.Add(placementsIn[i]);
                 }
             },
             revert: doc =>
@@ -1122,21 +1143,24 @@ public sealed partial class MainViewModel
                 if (doc.Scene is not { FrameGroups: not null }) return;
 
                 // Remove frame group
-                doc.Scene.FrameGroups.RemoveAll(g => g.Id == groupId);
+                groupIn = TakeEvery(doc.Scene.FrameGroups, g => g.Id == groupId) ?? groupIn;
 
-                // Remove placements
+                // Remove placements, keeping them for the redo
                 var placementIds = new HashSet<string>(placements.Select(p => p.Id));
+                var takenOut = new Dictionary<string, SymbolPlacement>();
                 foreach (var layer in doc.Scene.Layers)
                 {
                     foreach (var cel in layer.Cels)
                     {
                         if (cel.Frame is Frame painted && painted.Placements is not null)
                         {
+                            foreach (var p in painted.Placements.Where(p => placementIds.Contains(p.Id))) takenOut[p.Id] = p;
                             painted.Placements.RemoveAll(p => placementIds.Contains(p.Id));
                             if (painted.Placements.Count == 0) painted.Placements = null;
                         }
                     }
                 }
+                placementsIn = placementsIn.Select(p => takenOut.GetValueOrDefault(p.Id) ?? p).ToList();
             },
             affectedFrameId: initialFrameId);
 
@@ -1155,11 +1179,14 @@ public sealed partial class MainViewModel
         if (index < 0) return false;
 
         var frameId = target.Id;
+        // B415: what undo takes out is what redo puts back, as it was in the
+        // document, not the objects this step was made with.
+        var placementOut = placement;
         _editor.PerformDelta(
             apply: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
-                frame.Placements?.RemoveAll(p => p.Id == placement.Id);
+                placementOut = TakeEvery(frame.Placements, p => p.Id == placement.Id) ?? placementOut;
                 if (frame.Placements is { Count: 0 }) frame.Placements = null;
             },
             revert: doc =>
@@ -1168,7 +1195,7 @@ public sealed partial class MainViewModel
                 frame.Placements ??= [];
                 // Back where it was, so undo does not reorder what draws over
                 // what.
-                frame.Placements.Insert(Math.Min(index, frame.Placements.Count), placement);
+                frame.Placements.Insert(Math.Min(index, frame.Placements.Count), placementOut);
             },
             affectedFrameId: frameId);
 
@@ -1410,20 +1437,26 @@ public sealed partial class MainViewModel
         if (baked.Count == 0) return false;
 
         var frameId = target.Id;
+        // B415: what undo takes out is what redo puts back, as it was in the
+        // document, not the objects this step was made with.
+        var placementOut = placement;
+        IReadOnlyList<Stroke> bakedIn = baked;
+        var bakedIds = baked.Select(b => b.Id).ToHashSet();
         _editor.PerformDelta(
             apply: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
-                frame.Placements?.RemoveAll(p => p.Id == placement.Id);
+                placementOut = TakeEvery(frame.Placements, p => p.Id == placement.Id) ?? placementOut;
                 if (frame.Placements is { Count: 0 }) frame.Placements = null;
-                frame.Strokes.AddRange(baked);
+                frame.Strokes.AddRange(bakedIn);
             },
             revert: doc =>
             {
                 if (FrameIn(doc, frameId) is not { } frame) return;
-                foreach (var stroke in baked) frame.Strokes.RemoveAll(s => s.Id == stroke.Id);
+                if (frame.Strokes.Where(s => bakedIds.Contains(s.Id)).ToList() is { Count: > 0 } live) bakedIn = live;
+                frame.Strokes.RemoveAll(s => bakedIds.Contains(s.Id));
                 frame.Placements ??= [];
-                frame.Placements.Insert(Math.Min(index, frame.Placements.Count), placement);
+                frame.Placements.Insert(Math.Min(index, frame.Placements.Count), placementOut);
             },
             affectedFrameId: frameId);
 

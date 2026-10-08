@@ -88,8 +88,12 @@ public partial class MainViewModel
                 // undoing it finds the scene through the document it is handed,
                 // so a snapshot undo in between cannot leave it writing into a
                 // scene that is no longer the document's.
+                // B415: an exchange, so a redo puts back the axis as undo found it.
+                SymmetryAxis? other = axis;
                 _editor.PerformDelta(
-                    d => d.Scene.Symmetry = axis, d => d.Scene.Symmetry = null, label: "Place symmetry axis");
+                    d => (d.Scene.Symmetry, other) = (other, d.Scene.Symmetry),
+                    d => (d.Scene.Symmetry, other) = (other, d.Scene.Symmetry),
+                    label: "Place symmetry axis");
             }
 
             ResyncSymmetry();

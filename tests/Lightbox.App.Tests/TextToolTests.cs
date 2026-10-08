@@ -250,6 +250,43 @@ public class TextToolTests
         Assert.Single(Glyphs(vm));
     }
 
+    /// <summary>
+    /// B415, from its review: a letter of the caption removed while it is being
+    /// retyped (a redo inside the text session reaches the document) must not
+    /// make the retype's undo throw. The undo had already taken the new letters
+    /// out when it failed, so the caption and its history both went.
+    /// </summary>
+    [AvaloniaFact]
+    public void UndoingARetypeAfterALetterWentFromUnderItPutsBackWhatItTook()
+    {
+        var vm = Typing();
+        vm.TextSize = 96;
+        vm.BeginText(40, 120);
+        vm.TypeIntoText("OK");
+        vm.CommitText();
+        var two = Glyphs(vm);
+        Assert.Equal(2, two.Count);
+
+        vm.BeginText(Inside(two[0]).X, Inside(two[0]).Y); // picks the caption up to retype
+        var gone = two[1];
+        var frameId = vm.PaintedCel().Id;
+        vm.PanelEditor.PerformDelta(
+            d => FrameOf(d, frameId).Strokes.RemoveAll(s => s.Id == gone.Id),
+            d => FrameOf(d, frameId).Strokes.Add(gone),
+            label: "Delete");
+        vm.TextCaretToEdge(end: true);
+        vm.TypeIntoText("!");
+        vm.CommitText();
+
+        var thrown = Record.Exception(() => vm.UndoCommand.Execute(null));
+        Assert.Null(thrown);
+        vm.UndoCommand.Execute(null); // the deletion
+        Assert.Equal(2, Glyphs(vm).Count);
+    }
+
+    private static Frame FrameOf(Doc doc, string frameId) =>
+        doc.Scene.Layers.SelectMany(l => l.Cels).Select(c => c.Frame).OfType<Frame>().First(f => f.Id == frameId);
+
     [AvaloniaFact]
     public void PickingTypeUpAndSettingItAgainLeavesItsFontAlone()
     {

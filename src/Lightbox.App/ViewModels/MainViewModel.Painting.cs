@@ -981,14 +981,19 @@ public partial class MainViewModel
         // the exposure sheet — a bigger surprise than the stray stroke, and one
         // an artist is far less likely to spot.
         _lastAutoKeyRevision = _editor.NextRevision;
+        // B415: an exchange. Each direction puts in what the other took out, so
+        // a redo restores the drawing as undo found it, not as it was made: the
+        // object made here can still hold strokes a later undo removed from a
+        // copy of it.
+        Frame? other = fresh;
         _editor.PerformDelta(
             apply: doc =>
             {
-                if (CelIn(doc, layerId, index) is { } cel) cel.Frame = fresh;
+                if (CelIn(doc, layerId, index) is { } cel) (cel.Frame, other) = (other, cel.Frame);
             },
             revert: doc =>
             {
-                if (CelIn(doc, layerId, index) is { } cel) cel.Frame = null;
+                if (CelIn(doc, layerId, index) is { } cel) (cel.Frame, other) = (other, cel.Frame);
             },
             label: "New drawing");
         return PaintTarget();
@@ -2024,15 +2029,19 @@ public partial class MainViewModel
         _committingScopedEdit = true;
         try
         {
+            // B415: what undo takes out is what redo puts back — the stroke as it
+            // is in the document, not as it was made, which can differ once a
+            // structural undo has swapped the document for a copy.
+            var inDocument = stroke;
             _editor.PerformDelta(
                 apply: doc =>
                 {
                     if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
-                    StrokeListIn(doc, frameId)?.Add(stroke);
+                    StrokeListIn(doc, frameId)?.Add(inDocument);
                 },
                 revert: doc =>
                 {
-                    RemoveStrokeById(doc, frameId, stroke.Id);
+                    inDocument = RemoveStrokeById(doc, frameId, stroke.Id) ?? inDocument;
                     if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
                 },
                 affectedFrameId: frameId,
@@ -3923,16 +3932,20 @@ public partial class MainViewModel
         _committingScopedEdit = true;
         try
         {
+            // B415: what undo takes out is what redo puts back — the stroke as it
+            // is in the document, not as it was made, which can differ once a
+            // structural undo has swapped the document for a copy.
+            var inDocument = stroke;
             _editor.PerformDelta(
                 label: "Stroke",
                 apply: doc =>
                 {
                     if (clip is { } c) addedClip = doc.ClipRegions.TryAdd(c.Id, c.Region);
-                    StrokeListIn(doc, frameId)?.Add(stroke);
+                    StrokeListIn(doc, frameId)?.Add(inDocument);
                 },
                 revert: doc =>
                 {
-                    RemoveStrokeById(doc, frameId, stroke.Id);
+                    inDocument = RemoveStrokeById(doc, frameId, stroke.Id) ?? inDocument;
                     if (clip is { } c && addedClip) doc.ClipRegions.Remove(c.Id);
                 },
                 affectedFrameId: frameId,

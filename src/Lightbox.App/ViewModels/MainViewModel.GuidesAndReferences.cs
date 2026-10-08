@@ -884,10 +884,13 @@ public partial class MainViewModel
         var copies = GuideSetFit.Onto(set, AuthoredCanvas.Of(Scene));
         foreach (var copy in copies) copy.Id = Ids.NewId("gd");
         var ids = copies.Select(c => c.Id).ToHashSet();
+        // B415: redo puts back the guides undo took out, as they were.
+        IReadOnlyList<Guide> guidesIn = copies;
         _editor.PerformDelta(
-            apply: doc => (doc.Scene.Guides ??= []).AddRange(copies),
+            apply: doc => (doc.Scene.Guides ??= []).AddRange(guidesIn),
             revert: doc =>
             {
+                if (doc.Scene.Guides?.Where(g => ids.Contains(g.Id)).ToList() is { Count: > 0 } live) guidesIn = live;
                 doc.Scene.Guides?.RemoveAll(g => ids.Contains(g.Id));
                 if (doc.Scene.Guides is { Count: 0 }) doc.Scene.Guides = null;
             });

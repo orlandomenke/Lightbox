@@ -1697,11 +1697,36 @@ public partial class MainViewModel
     /// snapshot-undo in between replaces the whole instance tree.
     /// </summary>
     /// <summary>Remove a stroke by id — reference equality dies when a snapshot-undo swaps in a cloned tree.</summary>
-    private static void RemoveStrokeById(Doc doc, string frameId, string strokeId)
+    /// <summary>Take a stroke out of a drawing by id; the stroke taken, or null when it was not there.</summary>
+    private static Stroke? RemoveStrokeById(Doc doc, string frameId, string strokeId) =>
+        TakeLast(StrokeListIn(doc, frameId), s => s.Id == strokeId);
+
+    /// <summary>
+    /// Take every match out of a list, as <c>RemoveAll</c> did, and hand back the
+    /// last for the redo (B415). For placements, carves and frame groups, whose
+    /// undo always removed every match: a file written while B415 was open can
+    /// hold one twice, and their undo still leaves none.
+    /// </summary>
+    private static T? TakeEvery<T>(List<T>? list, Predicate<T> match) where T : class
     {
-        var list = StrokeListIn(doc, frameId);
-        var index = list?.FindLastIndex(s => s.Id == strokeId) ?? -1;
-        if (index >= 0) list!.RemoveAt(index);
+        var last = list?.FindLast(match);
+        list?.RemoveAll(match);
+        return last;
+    }
+
+    /// <summary>
+    /// Take the last match out of a list and hand it back (B415): an undo keeps
+    /// what it took out of the document, so its redo can put that back rather
+    /// than the object the step was made with. One match only, as stroke undo
+    /// always took — a stroke held twice keeps its other copy, as on main.
+    /// </summary>
+    private static T? TakeLast<T>(List<T>? list, Predicate<T> match) where T : class
+    {
+        var index = list?.FindLastIndex(match) ?? -1;
+        if (index < 0) return null;
+        var item = list![index];
+        list.RemoveAt(index);
+        return item;
     }
 
     private static List<Stroke>? StrokeListIn(Doc doc, string frameId)
