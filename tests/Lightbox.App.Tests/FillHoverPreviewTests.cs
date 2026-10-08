@@ -84,6 +84,48 @@ public class FillHoverPreviewTests(ITestOutputHelper output) : BrushStateIsolate
     }
 
     [AvaloniaFact]
+    public void SwitchingToolsStraightAfterAFillTakesTheOutlineOffTheCanvas()
+    {
+        // Reported 2026-10-08: "whenever I erase a fill the previous outline
+        // keeps an outline that is unerasable". It was never paint. The fill
+        // made the preview forget its region without telling the canvas (no
+        // flicker, by design) and queued a re-trace; switching to the eraser
+        // before that ran asked to clear, found nothing stored and returned —
+        // so the canvas kept drawing the filled region's outline for good.
+        var vm = VmWithShape();
+        vm.ActiveTool = ToolId.Fill;
+        IReadOnlyList<List<StrokePoint>>? shown = null;
+        vm.FillPreviewChanged += (contours, _, _) => shown = contours;
+
+        vm.UpdatePointerContext(150, 100, KeyModifiers.None);
+        Flush();
+        Assert.NotNull(shown);
+
+        vm.FillAt(150, 100);              // forgets the region, queues a re-trace
+        vm.ActiveTool = ToolId.Eraser;    // before the re-trace has run
+        Flush();
+
+        Assert.Null(shown);
+    }
+
+    [AvaloniaFact]
+    public void LeavingTheCanvasStraightAfterAFillTakesTheOutlineOffToo()
+    {
+        var vm = VmWithShape();
+        vm.ActiveTool = ToolId.Fill;
+        IReadOnlyList<List<StrokePoint>>? shown = null;
+        vm.FillPreviewChanged += (contours, _, _) => shown = contours;
+
+        vm.UpdatePointerContext(150, 100, KeyModifiers.None);
+        Flush();
+        vm.FillAt(150, 100);
+        vm.ClearPointerContext();
+        Flush();
+
+        Assert.Null(shown);
+    }
+
+    [AvaloniaFact]
     public void AHoverInsideTheTracedRegionDoesNotRetrace()
     {
         var vm = VmWithShape();

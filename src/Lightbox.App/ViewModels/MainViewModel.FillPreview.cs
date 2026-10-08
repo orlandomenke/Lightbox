@@ -35,6 +35,15 @@ public partial class MainViewModel
 
     private bool _fillPreviewComputing;
 
+    /// <summary>
+    /// Whether the canvas was last told to draw an outline — what is on screen,
+    /// kept apart from what is stored (B418). <see cref="ForgetFillPreviewRegion"/>
+    /// drops the stored region without telling the canvas, so "nothing stored"
+    /// is not "nothing shown", and clearing by the stored one left the outline
+    /// of a just-filled region drawn for good when the tool changed first.
+    /// </summary>
+    private bool _fillPreviewShown;
+
     /// <summary>The preview to draw: contours (null clears), whether it is the wand's, and the fill colour.</summary>
     public event Action<IReadOnlyList<List<StrokePoint>>?, bool, string>? FillPreviewChanged;
 
@@ -73,7 +82,7 @@ public partial class MainViewModel
             if (!wand && _fillPreviewColor != ColorHex)
             {
                 _fillPreviewColor = ColorHex;
-                FillPreviewChanged?.Invoke(_fillPreviewContours, wand, ColorHex);
+                ShowFillPreview(_fillPreviewContours, wand, ColorHex);
             }
             return;
         }
@@ -117,7 +126,7 @@ public partial class MainViewModel
             _fillPreviewColor = ColorHex;
             _fillPreviewRegion?.Dispose();
             _fillPreviewRegion = BrushEngine.PathFromContours(contours);
-            FillPreviewChanged?.Invoke(contours, wand, ColorHex);
+            ShowFillPreview(contours, wand, ColorHex);
             settled = true;
         }
         finally
@@ -131,12 +140,18 @@ public partial class MainViewModel
 
     private void ClearFillPreview()
     {
-        if (_fillPreviewContours is null && _fillPreviewRegion is null) return;
         _fillPreviewContours = null;
         _fillPreviewColor = null;
         _fillPreviewRegion?.Dispose();
         _fillPreviewRegion = null;
-        FillPreviewChanged?.Invoke(null, false, ColorHex);
+        // By what the canvas shows, not by what is stored (B418).
+        if (_fillPreviewShown) ShowFillPreview(null, false, ColorHex);
+    }
+
+    private void ShowFillPreview(IReadOnlyList<List<StrokePoint>>? contours, bool wand, string color)
+    {
+        _fillPreviewShown = contours is not null;
+        FillPreviewChanged?.Invoke(contours, wand, color);
     }
 
     /// <summary>
