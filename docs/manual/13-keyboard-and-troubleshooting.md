@@ -256,8 +256,14 @@ not overrule it however slow the machine gets. You can change it back at any
 time in Configure, and it will stay changed.
 
 **Measured now**, at the bottom of that page, shows the current cost per
-repaint and per frame, the headroom left, and what is worth changing about the
-document if there is none.
+repaint and per frame, the headroom left, and — when the canvas is struggling or
+has paused more than twice in the last minute — what the time went on. It names a
+cause only when it measured it: putting the canvas on screen, rendering drawings
+that were not ready, or compositing the layers. It suggests a remedy only for
+that cause (merging layers only when compositing is what is slow; raising the
+frame cache only when it is full), and when no single thing is to blame it says
+how slow it is and points you to **Help ▸ Write a render report** rather than
+guessing.
 
 ## When something goes wrong
 
