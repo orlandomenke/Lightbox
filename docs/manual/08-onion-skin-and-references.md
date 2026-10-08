@@ -10,6 +10,11 @@ so onion skin out of the box is one drawing each way — raise them to see furth
 belong to, so multi-layer onion reads correctly, and they are off during
 playback — the one thing playback has to show is the animation.
 
+**A ghost shows what its own frame shows.** A layer that is clipped, or kept
+inside its folder's shape, ghosts only the part that frame displays — carved by
+the shape *at that frame*, so shading over a moving flat ghosts inside where
+the flat was. Its mask carves the ghosts the same way.
+
 **The same controls are on both the Timeline and the X-sheet bars**, because
 onion skin belongs to you rather than to whichever view of the animation you
 have up. They used to be on the X-sheet's bar alone, which made the Timeline tab

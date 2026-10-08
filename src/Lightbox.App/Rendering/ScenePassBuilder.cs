@@ -843,14 +843,18 @@ internal static class ScenePassBuilder
 
         var passes = new List<PassSpec>();
 
-        // A ghost is this layer at another time, and the layer's mask is one
-        // drawing held across all of them (Q148) — so ghosts are carved by it
-        // too, or the onion would show content the render hides. Clipping is
-        // deliberately not applied here: the base is another layer's drawing
-        // at another frame, and a ghost is a drawing aid for THIS layer's arc.
-        List<LayerShapes.ShapeSpec>? ghostShapes = layer.IsMasked
-            ? [new LayerShapes.ShapeSpec(layer.Mask!.Frame, layer.Mask.IsInverted)]
-            : null;
+        // A ghost is this layer at another time, carved the way the layer is
+        // carved at THAT time: its mask (Q148), its clip and its folder's shape
+        // (Q215), each read at the ghost's own frame. Clipping used to be left
+        // out on the argument that a ghost is a drawing aid for this layer's
+        // arc; the owner's report is the answer to that — "I see the previous
+        // frame's all painted areas instead of the alpha clipped one" — so a
+        // ghost shows what that frame shows. A carve with nothing in it at the
+        // ghost's frame means the ghost shows nothing, as the layer would.
+        var layerIndex = scene.Layers.IndexOf(layer);
+        List<LayerShapes.ShapeSpec>? ShapesAt(int index) => layerIndex >= 0
+            ? LayerShapes.For(scene, layerIndex, index)
+            : layer.IsMasked ? [new LayerShapes.ShapeSpec(layer.Mask!.Frame, layer.Mask.IsInverted)] : null;
 
         // Pinned first, so they sit furthest back: they are the reference the
         // near ghosts and the current drawing are being placed against.
@@ -858,10 +862,12 @@ internal static class ScenePassBuilder
         {
             if (index == state.FrameIndex) continue;
             if (ExposureSheet.ExposedFrame(layer, index) is not { } pinned) continue;
+            var pinnedShapes = ShapesAt(index);
+            if (pinnedShapes is { Count: 0 }) continue;
             passes.Add(new PassSpec(
                 pinned, index, null,
                 index < state.FrameIndex ? previous : next,
-                onion.Opacity, Matrix: GhostMatrix(layer, pinned, index, parallax, drag, settled ?? ramp), Shapes: ghostShapes));
+                onion.Opacity, Matrix: GhostMatrix(layer, pinned, index, parallax, drag, settled ?? ramp), Shapes: pinnedShapes));
             farCount++;
         }
 
@@ -871,6 +877,8 @@ internal static class ScenePassBuilder
             layer, state.FrameIndex, onion.Before, onion.After, onion.KeysOnly);
         foreach (var ghost in around.OrderByDescending(g => g.Steps))
         {
+            var ghostShapes = ShapesAt(ghost.Index);
+            if (ghostShapes is { Count: 0 }) continue;
             passes.Add(new PassSpec(
                 // The ghost's own position, not the playhead's: a rig-bound
                 // ghost must show the pose it holds where it lives.
