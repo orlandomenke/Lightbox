@@ -146,6 +146,14 @@
         </StackPanel>
 
         <StackPanel Spacing="{StaticResource Space6}">
+          <TextBlock Text="Prepare playback while idle" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
+                     Text="While you are not drawing or playing, Lightbox renders the playback range in the background, so play starts at full speed instead of rendering each frame as it reaches it. It stops the moment you draw or press play. Turn it off to save battery — the cost is the processor working for a few seconds after each change." />
+          <CheckBox x:Name="WarmPlaybackBox" Content="Prepare playback while idle"
+                    IsCheckedChanged="OnWarmPlaybackChanged" />
+        </StackPanel>
+
+        <StackPanel Spacing="{StaticResource Space6}">
           <TextBlock Text="Composite layers on the GPU" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
                      Text="Blending layers on the graphics card helps most on a large canvas with many layers — but the layer images have to reach the card first, and on a laptop with shared graphics memory that transfer competes with the drawing itself. It is not faster everywhere. Left on Automatic, Lightbox blends the same layers both ways once at startup and keeps whichever this machine is quicker at." />

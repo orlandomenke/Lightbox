@@ -151,11 +151,32 @@ public sealed class FramePrewarmer : IDisposable
     private readonly Queue<Warmed> _ready = new();
 
     private int _generation;
-    private bool _running;
+    private int _running;
+    private int _workers = 1;
     private bool _disposed;
 
-    /// <summary>The key of the job the worker is on, so it is not asked for twice.</summary>
-    private string? _inFlight;
+    /// <summary>Keys being rendered right now, one per worker.</summary>
+    private readonly HashSet<string> _inFlight = [];
+
+    /// <summary>
+    /// How many workers an idle warm may use (playback phase 2b, Q214).
+    /// </summary>
+    /// <remarks>
+    /// <b>Half the logical processors, at most eight, and measured rather than
+    /// assumed.</b> After phase 2a the owner-shaped scene rendered 1.0x on one
+    /// worker, 2.4x on four, 2.8x on eight and <em>1.9x</em> on fifteen of sixteen
+    /// logical processors (`tiles --scaling`): past the physical cores, extra
+    /// workers fight for the same memory bandwidth and lose. Q214 said "all
+    /// cores but one"; the measurement says what that is worth.
+    /// </remarks>
+    public static int IdleWorkers => Math.Clamp(Environment.ProcessorCount / 2, 1, 8);
+
+    /// <summary>
+    /// Told, on a worker thread, when a result is ready or the last worker has
+    /// stopped — so an idle warm can be taken in without waiting for a publish.
+    /// The view model posts a drain to the UI thread; nothing here touches it.
+    /// </summary>
+    public Action? Changed { get; set; }
 
     /// <summary>Frames rasterized off-thread and offered to the caches.</summary>
     public int Rendered { get; private set; }
@@ -189,7 +210,7 @@ public sealed class FramePrewarmer : IDisposable
     {
         get
         {
-            lock (_gate) return _running || _pending.Count > 0;
+            lock (_gate) return _running > 0 || _pending.Count > 0;
         }
     }
 
@@ -215,14 +236,20 @@ public sealed class FramePrewarmer : IDisposable
     /// cache had meanwhile been given the first copy.
     /// </para>
     /// </remarks>
-    public void Request(IReadOnlyList<WarmRequest> jobs)
+    /// <param name="workers">
+    /// How many renders may run at once: one while playing (B29 — never compete
+    /// with the tick for cores), <see cref="IdleWorkers"/> at idle. A worker over
+    /// the new count finishes the render in hand and stops.
+    /// </param>
+    public void Request(IReadOnlyList<WarmRequest> jobs, int workers = 1)
     {
+        var start = 0;
         lock (_gate)
         {
             if (_disposed) return;
+            _workers = Math.Max(1, workers);
 
-            var accountedFor = new HashSet<string>();
-            if (_inFlight is { } busy) accountedFor.Add(busy);
+            var accountedFor = new HashSet<string>(_inFlight);
             foreach (var done in _ready) accountedFor.Add(done.Request.Key);
 
             _pending.Clear();
@@ -236,10 +263,11 @@ public sealed class FramePrewarmer : IDisposable
                 if (Rig.IsPosed(job.Frame)) continue;
                 if (accountedFor.Add(job.Key)) _pending.Enqueue(job);
             }
-            if (_running || _pending.Count == 0) return;
-            _running = true;
+            start = Math.Min(_workers - _running, _pending.Count);
+            if (start <= 0) return;
+            _running += start;
         }
-        Task.Run(Work);
+        for (var i = 0; i < start; i++) Task.Run(Work);
     }
 
     /// <summary>
@@ -295,7 +323,7 @@ public sealed class FramePrewarmer : IDisposable
             // generation check, so it no longer accounts for anything: a caller
             // asking for that frame again after the flush wants a fresh render,
             // not the one being thrown away.
-            _inFlight = null;
+            _inFlight.Clear();
             drop = [.. _ready];
             _ready.Clear();
         }
@@ -349,15 +377,19 @@ public sealed class FramePrewarmer : IDisposable
             int generation;
             lock (_gate)
             {
-                if (_disposed || _pending.Count == 0)
+                // Out of work, or one worker too many since playback asked for
+                // fewer: this one stops, and says so if it was the last.
+                if (_disposed || _pending.Count == 0 || _running > _workers)
                 {
-                    _running = false;
-                    _inFlight = null;
+                    _running--;
+                    var last = _running == 0;
+                    if (last) _inFlight.Clear();
+                    if (last && !_disposed) ThreadPool.QueueUserWorkItem(_ => Changed?.Invoke());
                     return;
                 }
                 job = _pending.Dequeue();
                 generation = _generation;
-                _inFlight = job.Key;
+                _inFlight.Add(job.Key);
             }
 
             Warmed? made;
@@ -375,7 +407,7 @@ public sealed class FramePrewarmer : IDisposable
 
             lock (_gate)
             {
-                _inFlight = null;
+                _inFlight.Remove(job.Key);
                 if (made is null)
                 {
                     Failed++;
@@ -390,6 +422,7 @@ public sealed class FramePrewarmer : IDisposable
                 _ready.Enqueue(made);
                 Rendered++;
             }
+            Changed?.Invoke();
         }
     }
 

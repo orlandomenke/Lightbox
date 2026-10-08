@@ -193,6 +193,17 @@ public sealed class AppSettings
     public bool RasterCheckpoints { get; set; } = true;
 
     /// <summary>
+    /// Render the playback range in the background while the artist is idle, so
+    /// pressing play finds it ready (playback phase 2b, Q214).
+    /// </summary>
+    /// <remarks>
+    /// On by default, the owner's choice: the cost is CPU — fans and battery — for
+    /// a few seconds after an edit, and it stops the moment a stroke begins or
+    /// play is pressed. The switch is for a laptop on battery.
+    /// </remarks>
+    public bool WarmPlaybackAtIdle { get; set; } = true;
+
+    /// <summary>
     /// The pitch a new grid guide is made with, in document pixels.
     /// </summary>
     /// <remarks>

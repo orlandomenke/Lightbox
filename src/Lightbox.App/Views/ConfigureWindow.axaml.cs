@@ -1095,6 +1095,7 @@ public partial class ConfigureWindow : Window
         UndoDepthBox.Value = _vm.UndoDepth;
         CacheBudgetBox.Value = _vm.FrameCacheBudgetMb;
         RasterCheckpointsBox.IsChecked = _vm.RasterCheckpoints;
+        WarmPlaybackBox.IsChecked = _vm.WarmPlaybackAtIdle;
         GpuCompositeBox.ItemsSource = _vm.GpuCompositingChoices;
         GpuCompositeBox.SelectedItem = _vm.GpuCompositingMode;
         DesktopCompositorBox.IsChecked = _vm.PresentThroughDesktopCompositor;
@@ -1125,6 +1126,13 @@ public partial class ConfigureWindow : Window
     {
         if (_loadingPerformance || _vm is null) return;
         _vm.RasterCheckpoints = RasterCheckpointsBox.IsChecked == true;
+    }
+
+    /// <summary>Whether idle time renders the playback range (Q214).</summary>
+    private void OnWarmPlaybackChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingPerformance || _vm is null) return;
+        _vm.WarmPlaybackAtIdle = WarmPlaybackBox.IsChecked == true;
     }
 
     private void OnGpuCompositeChanged(object? sender, SelectionChangedEventArgs e)
