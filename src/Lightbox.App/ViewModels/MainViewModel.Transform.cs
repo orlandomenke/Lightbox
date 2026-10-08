@@ -363,8 +363,10 @@ public partial class MainViewModel
     /// <see cref="EndGuideDrag"/> does and for the same reason: the guides are
     /// already sitting at the end of the drag, so undo has to return them to
     /// where they were picked up rather than to the last pointer event. The
-    /// guides are held by reference rather than by index, because an undo can
-    /// replace the list and leave an index pointing at a different guide.
+    /// guides are found by id each time the step runs, not held by reference
+    /// or by index (B413): undoing a structural edit replaces the document, so
+    /// a held guide is no longer the one on screen, and removing a guide moves
+    /// the indices.
     /// </remarks>
     private void MoveGuidesBy(double dx, double dy)
     {
@@ -376,19 +378,21 @@ public partial class MainViewModel
             guide.X -= dx;
             guide.Y -= dy;
         }
+        var ids = moved.Select(g => g.Id).ToHashSet();
+        IEnumerable<Guide> Moved(Doc d) => d.Scene.Guides?.Where(g => ids.Contains(g.Id)) ?? [];
         _editor.PerformDelta(
-            _ =>
+            d =>
             {
-                foreach (var guide in moved)
+                foreach (var guide in Moved(d))
                 {
                     guide.X += dx;
                     guide.Y += dy;
                 }
                 NotifyGuidesView();
             },
-            _ =>
+            d =>
             {
-                foreach (var guide in moved)
+                foreach (var guide in Moved(d))
                 {
                     guide.X -= dx;
                     guide.Y -= dy;
@@ -461,8 +465,8 @@ public partial class MainViewModel
     /// </para>
     /// <para>
     /// Rewound and replayed like the guides, for the reason on
-    /// <see cref="MoveGuidesBy"/>, and holding the cells by reference for the
-    /// same one.
+    /// <see cref="MoveGuidesBy"/>, and finding the cells afresh for the same
+    /// one: a cell has no id, so by its strip's id and its place in the strip.
     /// </para>
     /// </remarks>
     private void MoveRefBoxesBy(double dx, double dy)
@@ -475,19 +479,27 @@ public partial class MainViewModel
             cell.Dx -= dx;
             cell.Dy -= dy;
         }
+        var places = (Scene.References ?? [])
+            .SelectMany(strip => strip.Cells.Select((cell, index) => (strip.Id, index, cell)))
+            .Where(p => moved.Contains(p.cell))
+            .Select(p => (p.Id, p.index))
+            .ToList();
+        IEnumerable<ReferenceCell> Moved(Doc d) => places
+            .Select(p => d.Scene.References?.Find(r => r.Id == p.Id) is { } r && p.index < r.Cells.Count ? r.Cells[p.index] : null)
+            .OfType<ReferenceCell>();
         _editor.PerformDelta(
-            _ =>
+            d =>
             {
-                foreach (var cell in moved)
+                foreach (var cell in Moved(d))
                 {
                     cell.Dx += dx;
                     cell.Dy += dy;
                 }
                 NotifyReference();
             },
-            _ =>
+            d =>
             {
-                foreach (var cell in moved)
+                foreach (var cell in Moved(d))
                 {
                     cell.Dx -= dx;
                     cell.Dy -= dy;
