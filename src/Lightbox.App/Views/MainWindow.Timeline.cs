@@ -417,7 +417,7 @@ public partial class MainWindow
 
     // ---- multi-cel selection (Ctrl+click, Shift+click, drag) --------------------
 
-    /// <summary>A plain drag across the sheet selects a block (Q207); Alt+drag moves a cel.</summary>
+    /// <summary>A drag from an empty cel selects a block (Q207); a drag from a drawing moves it.</summary>
     private readonly Input.CelBlockSelectGesture _celSelect = new();
 
     private static FrameCell? CellUnder(object? source) =>
@@ -454,14 +454,14 @@ public partial class MainWindow
             e.Handled = true;
             return;
         }
-        // Remember the press so a later move can turn it into a drag: Alt
-        // carries the drawing along its row, a plain drag selects a block (Q207).
-        // Exactly one of the two is armed, so they cannot both claim the press.
-        var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
-        _celDrag.Press(cell, e.GetPosition(this), leftButton: true, keyed: alt && cell.IsKeyed && !cell.IsVirtual);
+        // Remember the press so a later move can turn it into a drag. Which
+        // drag is CelPressRouting's call, and it arms exactly one of the two,
+        // so they cannot both claim the press.
+        var press = Input.CelPressRouting.For(cell, e.KeyModifiers.HasFlag(KeyModifiers.Alt));
+        _celDrag.Press(cell, e.GetPosition(this), leftButton: true, keyed: press == Input.CelPress.Move);
         _celDragPress = _celDrag.Candidate is null ? null : e;
-        if (alt) _celSelect.Cancel();
-        else _celSelect.Press(cell, e.GetPosition(this), leftButton: true);
+        if (press == Input.CelPress.Select) _celSelect.Press(cell, e.GetPosition(this), leftButton: true);
+        else _celSelect.Cancel();
     }
 
     /// <summary>
