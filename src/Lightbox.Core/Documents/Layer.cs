@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Lightbox.Core.Documents;
@@ -39,6 +40,14 @@ public enum LayerBlendMode
 /// </summary>
 public sealed class Cel
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public Frame? Frame { get; set; }
 
     /// <summary>A copy holding no reference in common with this one.</summary>
@@ -72,6 +81,14 @@ public sealed class Cel
 /// </remarks>
 public sealed class LayerGroup
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("group");
 
     public string Name { get; set; } = "Folder";
@@ -185,6 +202,14 @@ public sealed class LayerGroup
 /// </remarks>
 public sealed class LayerLink
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("link");
 
     public string Name { get; set; } = "Linked";
@@ -247,6 +272,14 @@ public sealed class LayerLink
 /// </remarks>
 public sealed class LayerMask
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>The mask's drawing. Coverage is opacity.</summary>
     public Frame Frame { get; set; } = new();
 
@@ -280,6 +313,14 @@ public sealed class LayerMask
 
 public sealed class Layer
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("layer");
 
     public string Name { get; set; } = "Layer";

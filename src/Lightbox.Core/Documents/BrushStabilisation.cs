@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>The stabilizer algorithms (raster input smoothing).</summary>
@@ -51,6 +53,14 @@ public enum SmoothingMode
 /// </remarks>
 public sealed class BrushStabilisation
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public SmoothingMode Mode { get; set; } = SmoothingMode.Laplacian;
 
     /// <summary>Window size for moving average / Savitzky–Golay (odd, 3–25).</summary>

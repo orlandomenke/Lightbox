@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>What varies the weight of a traced outline along its length.</summary>
@@ -99,6 +101,14 @@ public enum OutlinedBands
 /// </remarks>
 public sealed class LineTreatment
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>The brush that draws the outline. Null falls back to the tool's current brush.</summary>
     public string? BrushPresetId { get; set; }
 
@@ -257,6 +267,7 @@ public sealed class LineTreatment
 
     public LineTreatment Clone() => new()
     {
+        Unknown = Unknown,
         BrushPresetId = BrushPresetId, Offset = Offset, Covers = Covers,
         CoverageAngleDeg = CoverageAngleDeg, CoverageSpreadDeg = CoverageSpreadDeg,
         LightAngleDeg = LightAngleDeg, ShadeOffset = ShadeOffset,
