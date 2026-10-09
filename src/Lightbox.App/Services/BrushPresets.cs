@@ -274,6 +274,11 @@ public static class BuiltInPresets
                     // goes green. Still a slider — an artist who wants the
                     // under-paint to flow with the wash can turn it back up.
                     PressureWater = 0.8, Rewetting = 0,
+                    // B434: a loaded brush runs out. At 1 a wash grew heavier along
+                    // every stroke whose pressure rose, which is every stroke a hand
+                    // draws; at 0.85 the depletion and the hand cancel over the first
+                    // fifths and the wash then fades and narrows.
+                    PaintLoad = 0.85,
                 },
             },
         },

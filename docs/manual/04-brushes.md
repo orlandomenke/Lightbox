@@ -358,7 +358,10 @@ yet build a ridge where they meet.
 out. Below that the mark begins full and fades as you draw, and at low values
 it is gone within a short scrape — that is dry-brush, and it works whether or
 not a medium is switched on. The length scale follows the brush size, so
-resizing a brush does not change how far its paint goes.
+resizing a brush does not change how far its paint goes. The shipped
+**Watercolor** starts a little short of full, so a long wash fades and narrows
+toward its end the way a real one does rather than growing heavier as your
+hand presses on; turn it up to 1 for a wash that never runs out.
 
 **Wetness** is how far the paint travels. A wet mark spreads past where the
 brush went, more so the longer the flow runs — a 40-pixel stroke reaches nearly
