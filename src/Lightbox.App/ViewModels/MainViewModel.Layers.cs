@@ -2041,7 +2041,8 @@ public partial class MainViewModel
         var scale = ThumbSourceScale(Scene.Width, Scene.Height);
         if (_cache.Holds(frame, Scene.Width, Scene.Height, scale, celIndex)) return false;
         if (!FrameBitmapCache.CanCache(frame)) return false; // samples live: never cached, never deferred
-        worker.Request(frame, Scene.Width, Scene.Height, scale, celIndex);
+        worker.Request(
+            frame, Scene.Width, Scene.Height, scale, celIndex, new SkiaSharp.SKPointI(Scene.Left, Scene.Top));
         return true;
     }
 

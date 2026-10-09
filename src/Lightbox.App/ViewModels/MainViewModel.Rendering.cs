@@ -474,11 +474,13 @@ public partial class MainViewModel
         _prewarm.Flush();
         _idleWarmFull = false;
         _holdTilesAfterStop = false;
-        if (TryRestoreFrameRegion(frameId, repaintBounds, revision))
+        // Neither region path on paper that has moved (B409): their rectangles
+        // are in a space where the paper starts at zero.
+        if (!PaperHasMoved && TryRestoreFrameRegion(frameId, repaintBounds, revision))
         {
             FrameRegionRestores++;
         }
-        else if (TryRepaintFrameRegion(frameId, repaintBounds))
+        else if (!PaperHasMoved && TryRepaintFrameRegion(frameId, repaintBounds))
         {
             FrameRegionRepaints++;
         }
@@ -967,8 +969,39 @@ public partial class MainViewModel
     /// into the cached tiles when playback holds this frame as tiles. Both
     /// are invariant 6's shape: work proportional to the stroke.
     /// </summary>
+    /// <summary>
+    /// Whether the paper's corner is somewhere other than stroke (0, 0) — the
+    /// canvas has been grown or cropped on its left or top (B409).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The frame cache renders such a document correctly: the origin reaches
+    /// <c>FrameRasterizer.Materialize</c> and every picture that comes out of
+    /// the cache. <b>The fast paths around the cache do not know it yet</b> —
+    /// appending one stroke to a cached drawing, restoring or replaying a
+    /// region for undo, the playback tiles, the warms — and each of them
+    /// indexes a bitmap as though the paper started at zero. On paper that has
+    /// moved, each stands down and the drawing is rebuilt from its record,
+    /// which is exact. That is the same trade B382 made for a posed drawing:
+    /// slower on the documents it applies to, and right.
+    /// </para>
+    /// <para>
+    /// Teaching the fast paths the origin is the roadmap's remaining stage for
+    /// B409. Until then this is what keeps a grown document from being fast
+    /// and wrong.
+    /// </para>
+    /// </remarks>
+    private bool PaperHasMoved => Scene.Left != 0 || Scene.Top != 0;
+
     private void AppendToFrameRender(Lightbox.Core.Documents.Frame target, Stroke stroke)
     {
+        if (PaperHasMoved)
+        {
+            // See PaperHasMoved: the stamp below would land in surface pixels
+            // worked out with no origin. The record has the mark; rebuild.
+            InvalidateFrameRender(target.Id);
+            return;
+        }
         if (_cache.Rig.IsPosed(target))
         {
             // B382. A posed drawing's cached pixels are a pose of the record,
@@ -2002,6 +2035,9 @@ public partial class MainViewModel
                 && !Lightbox.Raster.EffectPasses.AnyLive(Scene);
             jobs.AddRange(PlaybackWarmJobs(PlaybackRangeInPlayOrder(), tileNative, ComposeScale));
         }
+        // No warms on paper that has moved (B409): a warm renders off this
+        // thread with no origin and would be adopted as the drawing.
+        if (PaperHasMoved) jobs.Clear();
         if (jobs.Count > 0) _prewarm.Request(jobs, idle ? FramePrewarmer.IdleWorkers : 1);
     }
 
@@ -2241,7 +2277,9 @@ public partial class MainViewModel
         // An empty list still supersedes: everything the playhead was going to
         // need is already held, so anything still queued is a frame it has
         // passed.
-        _prewarm.Request(PlaybackWarmJobs(ahead, tileNativeDoc, renderScale));
+        // As above: nothing is warmed for paper that has moved (B409). An
+        // empty request still supersedes what was queued.
+        _prewarm.Request(PaperHasMoved ? [] : PlaybackWarmJobs(ahead, tileNativeDoc, renderScale));
     }
 
     /// <summary>

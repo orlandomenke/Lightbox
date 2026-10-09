@@ -46,7 +46,8 @@ public sealed class ThumbnailWorker : IDisposable
     /// <summary>A drawing's thumbnail source, rendered and waiting to be installed.</summary>
     public sealed record Made(Frame Frame, int Width, int Height, double Scale, int Cel, SKBitmap Bitmap);
 
-    private sealed record Job(Frame Frame, int Width, int Height, double Scale, int Cel, long Generation);
+    private sealed record Job(
+        Frame Frame, int Width, int Height, double Scale, int Cel, long Generation, SKPointI Origin);
 
     private readonly Action<Action> _post;
     private readonly Func<Made, bool> _install;
@@ -82,13 +83,17 @@ public sealed class ThumbnailWorker : IDisposable
     public int Discarded { get; private set; }
 
     /// <summary>Ask for a drawing's source, unless one is already on its way. UI thread.</summary>
-    public void Request(Frame frame, int width, int height, double scale, int cel)
+    /// <param name="origin">
+    /// The paper's corner (B409), read by the caller on the thread that owns
+    /// the document: this renders on a worker with no document in hand.
+    /// </param>
+    public void Request(Frame frame, int width, int height, double scale, int cel, SKPointI origin = default)
     {
         if (_disposed) return;
         var generation = GenerationOf(frame.Id);
         if (_pending.TryGetValue(frame.Id, out var asked) && asked == generation) return;
         _pending[frame.Id] = generation;
-        _queue.Add(new Job(frame, width, height, scale, cel, generation));
+        _queue.Add(new Job(frame, width, height, scale, cel, generation, origin));
     }
 
     /// <summary>This drawing changed: anything rendered from before is stale. UI thread.</summary>
@@ -120,7 +125,8 @@ public sealed class ThumbnailWorker : IDisposable
             SKBitmap? bmp = null;
             try
             {
-                bmp = FrameBitmapCache.RenderDetached(job.Frame, job.Width, job.Height, job.Scale, job.Cel);
+                bmp = FrameBitmapCache.RenderDetached(
+                    job.Frame, job.Width, job.Height, job.Scale, job.Cel, job.Origin);
             }
             catch (Exception)
             {
