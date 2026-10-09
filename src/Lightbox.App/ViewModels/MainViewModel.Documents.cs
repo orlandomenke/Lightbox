@@ -187,7 +187,15 @@ public partial class MainViewModel
             Remember(root, RecentKind.Project);
             AiStatus = $"Opened project “{project.Name}”.";
         }
-        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+        // NotSupported is ProjectIo refusing an earlier alpha's project with a
+        // sentence written for the artist (Q36): shown as it is, not thrown past
+        // the status strip from a click.
+        catch (NotSupportedException ex)
+        {
+            AiStatus = ex.Message;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException
+                                       or System.Text.Json.JsonException or UnauthorizedAccessException)
         {
             AiStatus = $"Could not open that project: {ex.Message}";
         }
