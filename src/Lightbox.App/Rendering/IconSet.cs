@@ -37,6 +37,7 @@ public static class IconSet
     public const string LockOpen = "IconLockOpen";
     public const string LockClosed = "IconLockClosed";
     public const string AlphaLock = "IconAlphaLock";
+    public const string Pin = "IconPin";
     public const string OnionOn = "IconOnionOn";
     public const string OnionOff = "IconOnionOff";
 
@@ -143,7 +144,7 @@ public static class IconSet
     /// </remarks>
     public static IReadOnlyList<string> All { get; } =
     [
-        EyeOpen, EyeClosed, LockOpen, LockClosed, AlphaLock, OnionOn, OnionOff,
+        EyeOpen, EyeClosed, LockOpen, LockClosed, AlphaLock, Pin, OnionOn, OnionOff,
         Brush, Eraser, Fill, Picker, Gradient, Move, Crop, Bone, Pen, Width, Arrow, Points, Text,
         ShapeLine, ShapeRect, ShapeEllipse, ShapePolygon,
         SelectLasso, SelectBox, SelectEllipse, SelectPolygon, SelectWand,

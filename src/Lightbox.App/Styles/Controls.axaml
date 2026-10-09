@@ -461,6 +461,11 @@
     <Setter Property="Opacity" Value="0.45" />
     <Setter Property="Stroke" Value="{DynamicResource TextSecondaryBrush}" />
   </Style>
+  <!-- Pinned to the Timeline and the X-sheet (Q227). One drawing, dim when
+       off like the alpha lock: a pin has no "open" picture to change to. -->
+  <Style Selector="ToggleButton.pin Path">
+    <Setter Property="Data" Value="{StaticResource IconPin}" />
+  </Style>
   <Style Selector="ToggleButton.alpha Path">
     <Setter Property="Data" Value="{StaticResource IconAlphaLock}" />
   </Style>

@@ -50,6 +50,24 @@ need the first's rows:
 3. **Dragging the summary.** Until it lands a folder's row is read-only: it
    names no key, so nothing can be selected, dragged or deleted through it.
 
+## Pinning, as it landed
+
+- **`Layer.SheetPinned`, `LayerGroup.SheetPinned`, `Scene.SheetPinnedOnly`** —
+  all `bool?`, true or absent. `FolderTree.SheetRows` applies them after the
+  fold.
+- **The switch with nothing pinned shows everything**, and is hidden until
+  something is pinned. Met for the first time as "switch on, sheet empty", an
+  empty sheet reads as a lost document rather than as a filter.
+- **The folders a kept row sits in stay**, unpinned or not, so the sheet is
+  still a tree and can still be folded. Their other layers do not. A kept
+  folder's summary still counts everything inside it, shown or not.
+- **Folding beats pinning and beats the active layer**: a folded folder shows
+  one row whatever is pinned or being drawn on inside it.
+- The pin is on a layer's menu in the Layers docker and on the X-sheet, on a
+  folder's header menu, and on a folder's X-sheet row. An X-sheet layer row has
+  no pin column: its columns are fixed by the ruler above them.
+- Two commands in `ShortcutMap`, unbound by default.
+
 ## What it costs
 
 - **A row index is no longer a layer index plus an offset.** Folder rows sit

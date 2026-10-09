@@ -112,6 +112,13 @@ public sealed class LayerGroup
     /// </remarks>
     public bool? SheetCollapsed { get; set; }
 
+    /// <summary>
+    /// Pinned to the Timeline and the X-sheet (Q227): with the scene's
+    /// <see cref="Scene.SheetPinnedOnly"/> on, the folder and everything inside
+    /// it keep their rows. True or null, never false, so it is absent unless used.
+    /// </summary>
+    public bool? SheetPinned { get; set; }
+
     /// <summary>The folder this one is inside, or null at the top level.</summary>
     public string? ParentId { get; set; }
 
@@ -427,6 +434,14 @@ public sealed class Layer
 
     /// <summary>Whether this layer participates in onion-skin ghosting.</summary>
     public bool OnionEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Pinned to the Timeline and the X-sheet (Q227): with the scene's
+    /// <see cref="Scene.SheetPinnedOnly"/> on, this layer keeps its row. A view
+    /// preference — it changes no pixel. True or null, never false, so it is
+    /// absent unless used.
+    /// </summary>
+    public bool? SheetPinned { get; set; }
 
     public double Opacity { get; set; } = 1;
 

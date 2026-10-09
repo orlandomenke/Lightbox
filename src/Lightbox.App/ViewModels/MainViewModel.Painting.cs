@@ -509,6 +509,13 @@ public partial class MainViewModel
         _lastStrokeEnd = null;
         PruneStrokeSelection();   // and neither is a line picked on the old one
         foreach (var row in LayerRows) row.IsActive = row.SceneIndex == value;
+        // Pinned only never hides the layer being drawn on (Q227), so which
+        // rows the sheet shows depends on which layer that is.
+        if (SheetPinnedOnly)
+        {
+            RebuildSheetRows();
+            DropSelectionOffTheSheet();
+        }
         SyncLayerSelectionToActive(value);
         OnPropertyChanged(nameof(FrameCells));
         OnPropertyChanged(nameof(TimelineTracks));

@@ -185,6 +185,14 @@ public static class Program
             vm.Workspace.Activate(id);
             Shoot(main, $"folders-{id}");
         }
+        // Pinned only: the character and the notes, with the effects folder gone.
+        vm.SheetRows.OfType<Lightbox.App.ViewModels.SheetFolderRow>().Single(f => f.Name == "Character").Pinned = true;
+        vm.LayerRows.Single(r => r.Name == "Notes").SheetPinned = true;
+        vm.ActiveLayerIndex = vm.LayerRows.Single(r => r.Name == "Line").SceneIndex;
+        vm.SheetPinnedOnly = true;
+        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Xsheet);
+        Shoot(main, "folders-pinned-only");
+        vm.SheetPinnedOnly = false;
 
         // The brush editor (Q211), every option, with the brush in hand. Hosted
         // in a window of its own rather than its popup: a popup is a second

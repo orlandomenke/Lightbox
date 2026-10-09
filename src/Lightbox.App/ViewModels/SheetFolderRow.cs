@@ -42,6 +42,18 @@ public sealed partial class SheetFolderRow : ObservableObject
     [ObservableProperty]
     private bool _collapsed;
 
+    /// <summary>Pinned to the sheet: with Pinned only on, the folder and everything inside keep their rows.</summary>
+    [ObservableProperty]
+    private bool _pinned;
+
+    /// <summary>Set while the row is being brought in line with the folder, so that is not mistaken for a click.</summary>
+    internal bool Syncing { get; set; }
+
+    partial void OnPinnedChanged(bool value)
+    {
+        if (!Syncing) _owner.SetSheetPinned(Group, value);
+    }
+
     /// <summary>How many folders this one is inside.</summary>
     [ObservableProperty]
     private int _depth;

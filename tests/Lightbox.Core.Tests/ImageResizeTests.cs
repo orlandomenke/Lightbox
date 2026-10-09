@@ -322,6 +322,9 @@ public class ImageResizeTests
             // carries rescaling kernel params with the registry's reach
             // knowledge, which Core does not have.
             nameof(Scene.Effects),
+            // Which rows the Timeline and the X-sheet show (Q227): a way of
+            // looking at the sheet, with no place on the paper in it.
+            nameof(Scene.SheetPinnedOnly),
         };
 
         var actual = typeof(Scene)
