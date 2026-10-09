@@ -35,9 +35,13 @@ public sealed partial class GroupRow : ObservableObject
         _syncing = true;
         Name = group.Name;
         Visible = group.Visible;
+        HiddenByFolder = _owner.IsFolderHiddenByFolder(group);
         Locked = group.Locked;
+        LockedByFolder = _owner.IsFolderLockedByFolder(group);
         Collapsed = group.Collapsed;
-        Color = group.Color;
+        SheetPinned = group.SheetPinned == true;
+        Color = _owner.FolderColorOf(group);
+        HasOwnColor = group.Color is not null;
         _syncing = false;
     }
 
@@ -51,10 +55,47 @@ public sealed partial class GroupRow : ObservableObject
     /// <summary>How many folders this one is inside (Q204); the docker indents by it.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Indent))]
+    [NotifyPropertyChangedFor(nameof(CanInheritColor))]
     private int _depth;
 
     /// <summary>The left margin <see cref="Depth"/> asks for.</summary>
     public Avalonia.Thickness Indent => new(Depth * LayerRow.IndentStep, 0, 0, 0);
+
+    /// <summary>Pinned to the Timeline and the X-sheet (Q227). The folder's sheet row sets the same fact.</summary>
+    [ObservableProperty]
+    private bool _sheetPinned;
+
+    partial void OnSheetPinnedChanged(bool value)
+    {
+        if (!_syncing) _owner.SetSheetPinned(Group, value);
+    }
+
+    /// <summary>
+    /// A folder this one is inside is locked, so this one refuses edits too —
+    /// whatever its own padlock says. The docker shuts the padlock for it.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EditsBlocked))]
+    private bool _lockedByFolder;
+
+    /// <summary>Locked, for either reason. Drives how the header is drawn.</summary>
+    public bool EditsBlocked => Locked || LockedByFolder;
+
+    /// <summary>
+    /// A folder this row is inside is hidden, so the row draws nothing whatever
+    /// its own eye says. The docker shuts the eye and dims the row for it.
+    /// </summary>
+    /// <remarks>
+    /// Reported, never written back: the row's own <see cref="Visible"/> is
+    /// left as the artist set it, so showing the folder again restores exactly
+    /// what was there — including the rows that were hidden in their own right.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDimmed))]
+    private bool _hiddenByFolder;
+
+    /// <summary>Not drawn on the canvas, for either reason. Drives the dimmed row.</summary>
+    public bool IsDimmed => !Visible || HiddenByFolder;
 
     [ObservableProperty]
     private string _name = "";
@@ -72,13 +113,42 @@ public sealed partial class GroupRow : ObservableObject
     [ObservableProperty]
     private bool _isRenaming;
 
+    /// <summary>
+    /// The colour the header shows: the folder's own, or the one it takes from
+    /// the folder it is inside (Q226). Setting it chooses a colour.
+    /// </summary>
     [ObservableProperty]
-    private string _color = "#4a6ea9";
+    [NotifyPropertyChangedFor(nameof(ColorBrush))]
+    [NotifyPropertyChangedFor(nameof(TintBrush))]
+    private string _color = LayerGroup.DefaultColor;
+
+    /// <summary>The folder chose its colour, rather than showing its parent's.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanInheritColor))]
+    private bool _hasOwnColor;
+
+    /// <summary>A subfolder with a colour of its own can go back to its parent's.</summary>
+    public bool CanInheritColor => HasOwnColor && Depth > 0;
 
     /// <summary>The folder's accent color for the header bar.</summary>
     public Avalonia.Media.IBrush ColorBrush =>
         Avalonia.Media.Brush.Parse(Color);
 
+    /// <summary>How strongly a folder's colour washes its own header row, of 255.</summary>
+    internal const byte HeaderWashAlpha = 0x40;
+
+    /// <summary>The colour as a wash over the whole header row.</summary>
+    public Avalonia.Media.IBrush? TintBrush => LayerRow.Wash(Color, HeaderWashAlpha);
+
+    /// <summary>
+    /// Choose a colour, or with null go back to showing the parent's.
+    /// </summary>
+    /// <remarks>
+    /// Not the <see cref="Color"/> setter, because picking the colour a
+    /// subfolder already inherits is no change to that property and would be
+    /// dropped — and it is a real choice: the subfolder stops following.
+    /// </remarks>
+    public void PickColor(string? color) => _owner.SetGroupColor(Group, color);
 
     /// <summary>
     /// What a drop here would do, while a drag is over this row.
@@ -109,17 +179,18 @@ public sealed partial class GroupRow : ObservableObject
 
     partial void OnColorChanged(string value)
     {
-        OnPropertyChanged(nameof(ColorBrush));
         if (!_syncing) _owner.SetGroupColor(Group, value);
     }
 
     partial void OnLockedChanged(bool value)
     {
+        OnPropertyChanged(nameof(EditsBlocked));
         if (!_syncing) _owner.SetGroupLocked(Group, value);
     }
 
     partial void OnVisibleChanged(bool value)
     {
+        OnPropertyChanged(nameof(IsDimmed));
         if (!_syncing) _owner.SetGroupVisible(Group, value);
     }
 
@@ -189,8 +260,6 @@ public sealed partial class LayerRow : ObservableObject
     /// <summary>Paint only where the layer already has content.</summary>
     [ObservableProperty]
     private bool _alphaLocked;
-
-    private bool _lockedByFolder;
 
     [ObservableProperty]
     private bool _onionEnabled = true;
@@ -314,11 +383,53 @@ public sealed partial class LayerRow : ObservableObject
     /// <summary>The left margin <see cref="Depth"/> asks for.</summary>
     public Avalonia.Thickness Indent => new(Depth * IndentStep, 0, 0, 0);
 
+    /// <summary>
+    /// A folder this row is inside is hidden, so the row draws nothing whatever
+    /// its own eye says. The docker shuts the eye and dims the row for it.
+    /// </summary>
+    /// <remarks>
+    /// Reported, never written back: the row's own <see cref="Visible"/> is
+    /// left as the artist set it, so showing the folder again restores exactly
+    /// what was there — including the rows that were hidden in their own right.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDimmed))]
+    private bool _hiddenByFolder;
+
+    /// <summary>Not drawn on the canvas, for either reason. Drives the dimmed row.</summary>
+    public bool IsDimmed => !Visible || HiddenByFolder;
+
     /// <summary>In a link — the docker marks it, or the artist cannot tell it is one drawing.</summary>
     public bool IsLinked => Layer.LinkId is not null;
 
     /// <summary>The link's accent colour, for the docker's marker.</summary>
     public string LinkColor => _owner.LinkColorOf(Layer);
+
+    /// <summary>The colour of the folder this layer is in (Q226), or null for a loose layer.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TintBrush))]
+    private string? _folderColor;
+
+    /// <summary>How strongly a folder's colour washes the layers inside it, of 255.</summary>
+    /// <remarks>
+    /// Fainter than the header's, so the header still reads as the head of the
+    /// band, and faint enough that the active and selected fills — translucent
+    /// white, drawn over it — are what the eye finds first.
+    /// </remarks>
+    internal const byte MemberWashAlpha = 0x1c;
+
+    /// <summary>The folder's colour as a wash over the whole row; null when loose.</summary>
+    public Avalonia.Media.IBrush? TintBrush => Wash(FolderColor, MemberWashAlpha);
+
+    /// <summary>
+    /// A colour at a fixed, low alpha. Immutable for <see cref="LinkBrush"/>'s
+    /// reason; null for no colour and for one a crafted file made unreadable.
+    /// </summary>
+    internal static Avalonia.Media.IBrush? Wash(string? hex, byte alpha) =>
+        hex is not null && Avalonia.Media.Color.TryParse(hex, out var c)
+            ? new Avalonia.Media.Immutable.ImmutableSolidColorBrush(
+                Avalonia.Media.Color.FromArgb(alpha, c.R, c.G, c.B))
+            : null;
 
     /// <summary>The bracket's brush.</summary>
     /// <remarks>
@@ -381,7 +492,9 @@ public sealed partial class LayerRow : ObservableObject
         Locked = layer.Locked;
         AlphaLocked = layer.AlphaLocked;
         OnionEnabled = layer.OnionEnabled;
-        _lockedByFolder = _owner.IsLayerLockedByFolder(layer);
+        SheetPinned = layer.SheetPinned == true;
+        LockedByFolder = _owner.IsLayerLockedByFolder(layer);
+        HiddenByFolder = _owner.IsLayerHiddenByFolder(layer);
         _syncing = false;
         OnPropertyChanged(nameof(IsGrouped));
         SyncLinkFromModel();
@@ -395,6 +508,7 @@ public sealed partial class LayerRow : ObservableObject
 
     partial void OnVisibleChanged(bool value)
     {
+        OnPropertyChanged(nameof(IsDimmed));
         if (!_syncing) _owner.SetLayerVisible(Layer, value);
     }
 
@@ -413,10 +527,38 @@ public sealed partial class LayerRow : ObservableObject
     /// Whether this row refuses edits, folder included. Drives the dimmed row
     /// so a layer locked by its folder does not look editable.
     /// </summary>
-    public bool EditsBlocked => Locked || _lockedByFolder;
+    public bool EditsBlocked => Locked || LockedByFolder;
+
+    /// <summary>
+    /// Locked only because a folder above is. The padlock is drawn shut for it
+    /// while the layer's own lock stays as it was set.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EditsBlocked))]
+    private bool _lockedByFolder;
 
     partial void OnOnionEnabledChanged(bool value)
     {
         if (!_syncing) _owner.SetLayerOnionEnabled(Layer, value);
+    }
+
+    /// <summary>
+    /// Pinned to the Timeline and the X-sheet (Q227): with Pinned only on, this
+    /// layer keeps its row there whether or not it is the one being drawn on.
+    /// </summary>
+    [ObservableProperty]
+    private bool _sheetPinned;
+
+    partial void OnSheetPinnedChanged(bool value)
+    {
+        if (!_syncing) _owner.SetSheetPinned(Layer, value);
+    }
+
+    /// <summary>Re-read the pin alone, for a change that came from somewhere other than this row.</summary>
+    internal void SyncSheetPin()
+    {
+        _syncing = true;
+        SheetPinned = Layer.SheetPinned == true;
+        _syncing = false;
     }
 }

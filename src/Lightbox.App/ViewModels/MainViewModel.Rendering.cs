@@ -474,11 +474,13 @@ public partial class MainViewModel
         _prewarm.Flush();
         _idleWarmFull = false;
         _holdTilesAfterStop = false;
-        if (TryRestoreFrameRegion(frameId, repaintBounds, revision))
+        // Neither region path on paper that has moved (B409): their rectangles
+        // are in a space where the paper starts at zero.
+        if (!PaperHasMoved && TryRestoreFrameRegion(frameId, repaintBounds, revision))
         {
             FrameRegionRestores++;
         }
-        else if (TryRepaintFrameRegion(frameId, repaintBounds))
+        else if (!PaperHasMoved && TryRepaintFrameRegion(frameId, repaintBounds))
         {
             FrameRegionRepaints++;
         }
@@ -963,12 +965,43 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// Whether the paper's corner is somewhere other than stroke (0, 0) — the
+    /// canvas has been grown or cropped on its left or top (B409).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The frame cache renders such a document correctly: the origin reaches
+    /// <c>FrameRasterizer.Materialize</c> and every picture that comes out of
+    /// the cache. <b>The fast paths around the cache do not know it yet</b> —
+    /// appending one stroke to a cached drawing, restoring or replaying a
+    /// region for undo, the playback tiles, the warms — and each of them
+    /// indexes a bitmap as though the paper started at zero. On paper that has
+    /// moved, each stands down and the drawing is rebuilt from its record,
+    /// which is exact. That is the same trade B382 made for a posed drawing:
+    /// slower on the documents it applies to, and right.
+    /// </para>
+    /// <para>
+    /// Teaching the fast paths the origin is the roadmap's remaining stage for
+    /// B409. Until then this is what keeps a grown document from being fast
+    /// and wrong.
+    /// </para>
+    /// </remarks>
+    private bool PaperHasMoved => Scene.Left != 0 || Scene.Top != 0;
+
+    /// <summary>
     /// Commit one stroke's pixels incrementally — onto the cached bitmap, and
     /// into the cached tiles when playback holds this frame as tiles. Both
     /// are invariant 6's shape: work proportional to the stroke.
     /// </summary>
     private void AppendToFrameRender(Lightbox.Core.Documents.Frame target, Stroke stroke)
     {
+        if (PaperHasMoved)
+        {
+            // See PaperHasMoved: the stamp below would land in surface pixels
+            // worked out with no origin. The record has the mark; rebuild.
+            InvalidateFrameRender(target.Id);
+            return;
+        }
         if (_cache.Rig.IsPosed(target))
         {
             // B382. A posed drawing's cached pixels are a pose of the record,
@@ -1433,6 +1466,11 @@ public partial class MainViewModel
         }
         using var perf = PerfLog.Begin(IsPlaying ? "publish.play" : "publish", publisher);
         PublishCount++;
+        // A frame arrived at with its drawings not cached: render them on the
+        // workers, all at once, before this publish asks for them one by one.
+        // Not while Stop holds the playback tiles: that frame is shown at
+        // once and its stills arrive in the background (Q218).
+        if (!IsPlaying && !_strokeBuilder.IsActive && !_holdTilesAfterStop) RenderMissingStillsInParallel();
         // B178: publishing outran drawing 1.5× in the field capture — 757
         // published against 339 ticks — and which of PublishSnapshot's 45 call
         // sites supply the surplus is a question for a counter, not a grep.
@@ -2006,6 +2044,9 @@ public partial class MainViewModel
                 && !Lightbox.Raster.EffectPasses.AnyLive(Scene);
             jobs.AddRange(PlaybackWarmJobs(PlaybackRangeInPlayOrder(), tileNative, ComposeScale));
         }
+        // No warms on paper that has moved (B409): a warm renders off this
+        // thread with no origin and would be adopted as the drawing.
+        if (PaperHasMoved) jobs.Clear();
         if (jobs.Count > 0) _prewarm.Request(jobs, idle ? FramePrewarmer.IdleWorkers : 1);
     }
 
@@ -2158,6 +2199,83 @@ public partial class MainViewModel
         for (var i = start; i < from; i++) yield return i;
     }
 
+    /// <summary>
+    /// Render the frame on screen's missing stills on the prewarmer's workers,
+    /// in parallel, and wait for them, rather than have the publish render them
+    /// one after another on this thread.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Found by the lab on a large document</b> (2026-10-09, 30 layers, 200
+    /// drawings): a flip took 3.6 s at 1080p and 12.5 s at 4K, nearly all of it
+    /// the UI thread rendering layer after layer (<c>raster.miss</c>) while the
+    /// other cores idled. The wait is now about the slowest drawing rather than
+    /// all of them in turn.
+    /// </para>
+    /// <para>
+    /// Only when more than one is missing: a single still costs the same either
+    /// way — an undo, a stroke — and the hand-off would only add latency.
+    /// </para>
+    /// </remarks>
+    /// <summary>The most <see cref="RenderMissingStillsInParallel"/> has rendered at once — for tests.</summary>
+    internal int LargestParallelRender { get; set; }
+
+    /// <summary>What <see cref="RenderMissingStillsInParallel"/> rendered last — for tests.</summary>
+    internal IReadOnlyList<(string FrameId, int Cel)> LastParallelBatch { get; private set; } = [];
+
+    private void RenderMissingStillsInParallel()
+    {
+        var scene = Scene;
+        var missing = StillImagesNeeded()
+            .Where(s => !_cache.Holds(s.Frame, scene.Width, scene.Height, 1.0, s.Cel)
+                        // A posed drawing renders through the cache's pose
+                        // resolver, which a detached render does not have.
+                        && !_cache.Rig.IsPosed(s.Frame))
+            .DistinctBy(s => (s.Frame.Id, s.Cel))
+            // The frame's own drawings before its ghosts (stable, so layer order
+            // holds within each), so a cut below takes ghosts rather than layers.
+            .OrderBy(s => s.Cel == CurrentFrameIndex ? 0 : 1)
+            // No more than the cache can hold: past it the batch would evict its
+            // own first renders for the publish to render again, and every one is
+            // in hand before any is taken in — 30 layers at 4K with onion ghosts
+            // is several GB. The rest render the ordinary way.
+            .Take(StillsTheCacheCanHold(scene.Width, scene.Height))
+            .ToList();
+        if (missing.Count < 2) return;
+
+        // Rendered here and waited for here, not handed to the prewarmer: its
+        // queue also holds playback tiles for other frames, and waiting for it
+        // waited for those too — an undo at 4K went from 0.3 to 3.5 s in the
+        // lab before this was separated.
+        LargestParallelRender = Math.Max(LargestParallelRender, missing.Count);
+        LastParallelBatch = missing.Select(s => (s.Frame.Id, s.Cel)).ToList();
+        var rendered = new SKBitmap[missing.Count];
+        // The cores go to the renders this publish is waiting for, not to guesses.
+        using var held = _prewarm.Hold();
+        try
+        {
+            Parallel.For(0, missing.Count, new ParallelOptions { MaxDegreeOfParallelism = FramePrewarmer.IdleWorkers },
+                i => rendered[i] = FrameBitmapCache.RenderDetached(
+                    missing[i].Frame, scene.Width, scene.Height, celIndex: missing[i].Cel));
+        }
+        catch
+        {
+            // One render failed: the others finished, and nothing will take them in.
+            foreach (var bmp in rendered) bmp?.Dispose();
+            throw;
+        }
+        for (var i = 0; i < missing.Count; i++)
+        {
+            if (!_cache.InsertWanted(missing[i].Frame, scene.Width, scene.Height, 1.0, missing[i].Cel, rendered[i]))
+            {
+                rendered[i].Dispose();
+            }
+        }
+    }
+
+    private static int StillsTheCacheCanHold(int width, int height) =>
+        (int)Math.Min(FrameBitmapCache.MaxEntries, FrameBitmapCache.ByteBudget / Math.Max(1L, (long)width * height * 4));
+
     private List<Services.WarmRequest>? StrokeWarmJobs()
     {
         var scene = Scene;
@@ -2190,6 +2308,11 @@ public partial class MainViewModel
     private void TakeWarmedFrames() => _prewarm.Drain(warmed =>
     {
         var want = warmed.Request;
+        // A warm is rendered with no origin, and none is asked for on paper
+        // whose corner has moved. One that arrives there was asked for before
+        // the paper moved (B409): not adopted, since the cache would key it by
+        // the corner the paper has now.
+        if (PaperHasMoved) return false;
         bool taken, held;
         if (want.Want == WarmProduct.Tiles)
         {
@@ -2245,7 +2368,9 @@ public partial class MainViewModel
         // An empty list still supersedes: everything the playhead was going to
         // need is already held, so anything still queued is a frame it has
         // passed.
-        _prewarm.Request(PlaybackWarmJobs(ahead, tileNativeDoc, renderScale));
+        // As above: nothing is warmed for paper that has moved (B409). An
+        // empty request still supersedes what was queued.
+        _prewarm.Request(PaperHasMoved ? [] : PlaybackWarmJobs(ahead, tileNativeDoc, renderScale));
     }
 
     /// <summary>

@@ -5,16 +5,15 @@ namespace Lightbox.App.Input;
 
 /// <summary>
 /// The press-then-move decision behind dragging a block of cels into the
-/// selection (Q207) — a plain drag across the X-sheet.
+/// selection (Q207) — a drag across the X-sheet that starts on an empty cel.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>A plain drag selects; Alt+drag moves a cel.</b> The owner's call. It
-/// swapped what a plain drag meant: before, it picked a drawing up and carried
-/// it along its row, and a block could only be built a click at a time. The
-/// move kept its gesture under Alt, so <see cref="CelDragGesture"/> is armed
-/// only when Alt is held and this one only when it is not — the two can never
-/// both claim a press.
+/// <b>Armed only where <see cref="CelPressRouting"/> says so.</b> Q207 gave
+/// every plain drag to this gesture and put the cel move under Alt; the move
+/// has since taken the drags that start on a drawing, and this one keeps the
+/// ones that start on an empty cel. <see cref="CelDragGesture"/> is armed for
+/// the one and this for the other, so the two can never both claim a press.
 /// </para>
 /// <para>
 /// The same threshold as the cel drag, for the same reason: a pen tip wobbles

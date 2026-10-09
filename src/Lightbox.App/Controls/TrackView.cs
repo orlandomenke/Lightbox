@@ -61,6 +61,12 @@ public enum TrackKind
 
     /// <summary>One bone's keys, shown when the armature row is expanded.</summary>
     Bone,
+
+    /// <summary>
+    /// A layer folder (Q227): every frame where anything inside it is drawn.
+    /// Coloured by position like a layer, since it stands among them.
+    /// </summary>
+    Folder,
 }
 
 /// <summary>
@@ -532,7 +538,16 @@ public class TrackView : Control
 
                 var at = new Point(XAtFrame(key, FrameWidth), y);
                 var isBreakdown = i < track.Breakdowns.Count && track.Breakdowns[i];
-                if (isBreakdown)
+                if (track.Kind == TrackKind.Folder)
+                {
+                    // A square, not a dot: a dot is one drawing, and this is
+                    // "something inside is drawn here". Same colour, same
+                    // place on the rail, so the row still reads as a track.
+                    var half = DotRadius - 1;
+                    context.DrawRectangle(new SolidColorBrush(colour), null,
+                        new RoundedRect(new Rect(at.X - half, at.Y - half, half * 2, half * 2), 1.5));
+                }
+                else if (isBreakdown)
                 {
                     context.DrawEllipse(null, new Pen(new SolidColorBrush(colour), 2), at, DotRadius - 1, DotRadius - 1);
                 }

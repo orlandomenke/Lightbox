@@ -1,0 +1,59 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.XsheetFolderRow"
+             x:DataType="vm:SheetFolderRow">
+  <!--
+    A folder's row on the X-sheet (Q227): the chevron that folds it there, its
+    name, and a strip of cells marking every frame anything inside it is drawn
+    on. Off the window because the window is on a ratchet, and because nothing
+    here needs the window: the row's one verb is on its own view model.
+
+    Laid out on the layer row's columns — tile, tile, an 88 wide name, then a
+    cell per frame at the sheet's own width — so the strip lines up under the
+    ruler with the cels above and below it. The chevron takes the eye's column
+    and the pin takes the column where a layer has its onion switch.
+  -->
+  <Border Classes="layerRow">
+    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}">
+      <Button Classes="icon" Background="Transparent" Command="{Binding ToggleFoldCommand}"
+              ToolTip.Tip="Fold or open this folder on the Timeline and the X-sheet. The Layers docker folds separately.">
+        <Panel>
+          <Path Classes="icon" Width="{StaticResource SizeIcon9}" Height="{StaticResource SizeIcon9}" Data="{StaticResource IconChevronDown}"
+                IsVisible="{Binding !Collapsed}" />
+          <Path Classes="icon" Width="{StaticResource SizeIcon9}" Height="{StaticResource SizeIcon9}" Data="{StaticResource IconChevronRight}"
+                IsVisible="{Binding Collapsed}" />
+        </Panel>
+      </Button>
+      <ToggleButton Classes="icon glyph pin" IsChecked="{Binding Pinned}"
+                    ToolTip.Tip="Pin this folder: with Pinned only on, it and everything inside it stay on the Timeline and the X-sheet"><Path /></ToggleButton>
+      <TextBlock Width="{StaticResource SizeXsheetName}" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
+      <!-- Drag a mark along the strip to retime everything inside the folder on
+           that frame (Q227). Transparent rather than null, so a press between
+           two marks still reaches the strip. -->
+      <ItemsControl x:Name="Strip" ItemsSource="{Binding Cells}" Background="Transparent"
+                    PointerPressed="OnStripPressed" PointerMoved="OnStripMoved"
+                    PointerReleased="OnStripReleased" PointerCaptureLost="OnStripCaptureLost"
+                    ToolTip.Tip="Drag a mark to move every drawing inside this folder on that frame">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:FrameCell">
+            <Border Classes="folderCel"
+                    Classes.current="{Binding IsCurrent}"
+                    Classes.virtualCell="{Binding IsVirtual}"
+                    Classes.dim="{Binding OutOfRange}"
+                    Width="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineFrameWidth}"
+                    Height="{Binding $parent[Window].((vm:MainViewModel)DataContext).TimelineRowHeight}">
+              <Border Classes="folderMark" IsVisible="{Binding IsKeyed}" />
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </Border>
+</UserControl>

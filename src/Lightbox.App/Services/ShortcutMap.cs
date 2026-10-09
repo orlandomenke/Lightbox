@@ -383,6 +383,11 @@ public sealed class ShortcutMap
             new("canvas.walkReport", "Show walk cycle readout", "Canvas", null),
             new("timeline.nudgeToSpacing", "Nudge drawing to its spacing target", "Timeline", null),
             new("timeline.detectContacts", "Detect contacts and mark them", "Timeline", null),
+            // Pinning (Q227). No default gestures: which rows the sheet shows
+            // is set up once per scene, not reached for mid-stroke, and a key
+            // spent here is a key the drawing verbs cannot have.
+            new("timeline.pinnedOnly", "Show only pinned rows (Timeline and X-sheet)", "Timeline", null),
+            new("timeline.pinLayer", "Pin or unpin the active layer to the timeline", "Timeline", null),
             new("canvas.analyseThroughCamera", "Analyse through the camera (spacing and jump arc)", "Canvas", null),
             // No default gestures either, for motionTrail's reason — and both
             // switch the trail on with them, so neither ever toggles nothing.

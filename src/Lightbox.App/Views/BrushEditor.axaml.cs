@@ -49,7 +49,21 @@ public partial class BrushEditor : UserControl
         IReadOnlyDictionary<string, object?> Off,
         (BrushDynamic Target, string Label)[] Curves,
         string? CurvePanel = null,
-        Func<MainViewModel, bool>? Shown = null);
+        Func<MainViewModel, bool>? Shown = null,
+        OptionGroup Group = OptionGroup.Basics);
+
+    /// <summary>The families the list is ruled into, in the order they appear.</summary>
+    internal enum OptionGroup
+    {
+        /// <summary>What every brush has: a tip, a size, opacity, flow, spacing.</summary>
+        Basics,
+
+        /// <summary>What a brush may add to the mark: shape, scatter, texture, colour.</summary>
+        Dynamics,
+
+        /// <summary>How its paint behaves: smudge, medium, blend.</summary>
+        Paint,
+    }
 
     private static readonly Dictionary<string, object?> None = [];
 
@@ -62,10 +76,10 @@ public partial class BrushEditor : UserControl
         new("Spacing", "OptionSpacing", true, None, []),
         new("Shape dynamics", "OptionShape", false,
             new Dictionary<string, object?> { [nameof(MainViewModel.BrushRoundnessJitter)] = 0.0, [nameof(MainViewModel.BrushRotationJitter)] = 0.0 },
-            [(BrushDynamic.Roundness, "Roundness")], "CurvesShape"),
+            [(BrushDynamic.Roundness, "Roundness")], "CurvesShape", Group: OptionGroup.Dynamics),
         new("Scatter", "OptionScatter", false,
             new Dictionary<string, object?> { [nameof(MainViewModel.BrushScatter)] = 0.0 },
-            [(BrushDynamic.Scatter, "Scatter")], "CurvesScatter"),
+            [(BrushDynamic.Scatter, "Scatter")], "CurvesScatter", Group: OptionGroup.Dynamics),
         new("Texture", "OptionTexture", false,
             new Dictionary<string, object?>
             {
@@ -73,7 +87,7 @@ public partial class BrushEditor : UserControl
                 [nameof(MainViewModel.BrushGranulation)] = 0.0,
                 [nameof(MainViewModel.BrushWetEdge)] = 0.0,
             },
-            []),
+            [], Group: OptionGroup.Dynamics),
         new("Colour dynamics", "OptionColour", false,
             new Dictionary<string, object?>
             {
@@ -83,14 +97,14 @@ public partial class BrushEditor : UserControl
                 [nameof(MainViewModel.BrushSaturationJitter)] = 0.0,
                 [nameof(MainViewModel.BrushBrightnessJitter)] = 0.0,
             },
-            []),
+            [], Group: OptionGroup.Dynamics),
         new("Smudge", "OptionSmudge", true, None,
             [(BrushDynamic.ColorRate, "Colour rate"), (BrushDynamic.SmudgeLength, "Length")], "CurvesSmudge",
-            Shown: vm => vm.IsSmudgeBrush),
+            Shown: vm => vm.IsSmudgeBrush, Group: OptionGroup.Paint),
         new("Medium", "OptionMedium", false,
             new Dictionary<string, object?> { [nameof(MainViewModel.BrushMedium)] = MediumKind.None },
-            []),
-        new("Blend", "OptionBlend", true, None, []),
+            [], Group: OptionGroup.Paint),
+        new("Blend", "OptionBlend", true, None, [], Group: OptionGroup.Paint),
     ];
 
     /// <summary>
@@ -163,7 +177,11 @@ public partial class BrushEditor : UserControl
             DockPanel.SetDock(check, Dock.Left);
             row.Children.Add(check);
             row.Children.Add(label);
-            items.Add(new ListBoxItem { Content = row, Tag = option });
+            var item = new ListBoxItem { Content = row, Tag = option };
+            // Ruled off from the family before it. Read off the option before,
+            // not off a fixed name: Smudge leads its family only when shown.
+            if (items.Count > 0 && ((Option)items[^1].Tag!).Group != option.Group) item.Classes.Add("groupStart");
+            items.Add(item);
         }
         OptionList.ItemsSource = items;
         OptionList.SelectedItem = items.FirstOrDefault(i => ReferenceEquals(i.Tag, keep)) ?? items.FirstOrDefault();

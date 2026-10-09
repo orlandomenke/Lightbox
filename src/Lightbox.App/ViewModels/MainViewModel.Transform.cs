@@ -1176,10 +1176,10 @@ public partial class MainViewModel
             }
             else
             {
-                stay = FrameRasterizer.Rasterize(rest, Scene.Width, Scene.Height);
+                stay = FrameRasterizer.Rasterize(rest, Scene.Width, Scene.Height, origin: new SkiaSharp.SKPointI(Scene.Left, Scene.Top));
             }
             parts = new TransformSession.Parts(
-                FrameRasterizer.Rasterize(moving, Scene.Width, Scene.Height), stay, Owned: true);
+                FrameRasterizer.Rasterize(moving, Scene.Width, Scene.Height, origin: new SkiaSharp.SKPointI(Scene.Left, Scene.Top)), stay, Owned: true);
         }
         else
         {

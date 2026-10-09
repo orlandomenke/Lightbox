@@ -352,6 +352,14 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         var key = string.Create(
             CultureInfo.InvariantCulture,
             $"{frame.Id}|{width}x{height}@{outputScale:0.####}");
+        // Paper of the same size with a different corner is a different
+        // picture: grown on the left and cropped on the right by the same
+        // amount, the size is unchanged and every pixel has moved.
+        var origin = Origin;
+        if (origin != default)
+        {
+            key = string.Create(CultureInfo.InvariantCulture, $"{key}+{origin.X},{origin.Y}");
+        }
         // A placed symbol and a rig-moved drawing share the same property: the
         // frame's pixels depend on where the playhead is, so the timeline
         // position joins the key. Everything else keys by id alone.
@@ -377,6 +385,51 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     /// pair that disagree gives one pose a key that says "any position".
     /// </remarks>
     public RigIndex Rig { get; set; } = RigIndex.Empty;
+
+    /// <summary>
+    /// Where the paper's top-left corner sits in stroke coordinates, for every
+    /// frame this cache renders (B409).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On the cache rather than on each fetch, the way <see cref="Rig"/> is:
+    /// it is a fact about the document the cache is rendering, there are two
+    /// dozen places that fetch, and one of them forgetting it would put one
+    /// layer in the wrong place on a grown document and nowhere else.
+    /// </para>
+    /// <para>
+    /// It joins the key only when it is not zero, so a document nobody has
+    /// resized keys — and renders — exactly as it always did.
+    /// </para>
+    /// </remarks>
+    public SKPointI Origin
+    {
+        get => OriginSource?.Invoke() ?? _origin;
+        set
+        {
+            // A cache that follows a document is not also told. Agreeing with
+            // it is harmless — an export handed the live cache says the same
+            // corner the document does. Disagreeing is a second document being
+            // rendered through the first one's cache, and it is refused here
+            // rather than drawn in the wrong place.
+            if (OriginSource is { } source && source() != value)
+            {
+                throw new InvalidOperationException(
+                    "This cache takes its origin from its owner; it cannot be given another.");
+            }
+            _origin = value;
+        }
+    }
+
+    private SKPointI _origin;
+
+    /// <summary>
+    /// Asks the owner for the origin at every fetch, for an owner whose
+    /// document can change under it: a resize, a crop, the undo of either, a
+    /// switch of tab. A cache that had to be told would be told by most of
+    /// those and not by the one somebody adds next.
+    /// </summary>
+    public Func<SKPointI>? OriginSource { get; set; }
 
     /// <summary>
     /// Turns a frame into what a render at a timeline position should see —
@@ -526,9 +579,16 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     /// <see cref="System.Collections.Concurrent.ConcurrentDictionary{TKey,TValue}"/>,
     /// so reads race with nothing.
     /// </remarks>
+    /// <param name="origin">
+    /// The paper's corner (B409). Passed rather than read from a cache because
+    /// this runs with no cache in hand, possibly on another thread; the caller
+    /// reads <see cref="Origin"/> on the thread that owns the document and
+    /// hands the value over.
+    /// </param>
     public static SKBitmap RenderDetached(
-        Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0) =>
-        Render(frame, width, height, outputScale, celIndex, backdrop: null);
+        Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0,
+        SKPointI origin = default) =>
+        FrameRasterizer.Materialize(frame, width, height, outputScale, celIndex, backdrop: null, origin: origin);
 
     /// <summary>
     /// Take ownership of a bitmap rendered elsewhere, or refuse it. False means
@@ -601,14 +661,14 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         return true;
     }
 
-    private static SKBitmap Render(
+    private SKBitmap Render(
         Frame frame, int width, int height, double outputScale, int celIndex, SKBitmap? backdrop,
         StrokeCheckpoint? checkpoint = null) =>
         // Baseline-then-strokes, in one call. The vector arm used to skip
         // straight to `Rasterize` because a `VectorFrame` had no baseline to
         // consider; `Materialize` treats an absent one as nothing to draw.
         FrameRasterizer.Materialize(
-            frame, width, height, outputScale, celIndex, backdrop, checkpoint);
+            frame, width, height, outputScale, celIndex, backdrop, checkpoint, Origin);
 
     /// <summary>
     /// The byte budget wins. It used to be gated behind the frame floor, so at

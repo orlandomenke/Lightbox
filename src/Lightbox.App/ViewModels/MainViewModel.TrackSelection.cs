@@ -45,9 +45,9 @@ public partial class MainViewModel
         if (trackIndex < 0 || frame < 0) return null;
         if (Scene.Camera is not null && trackIndex == 0) return TimelineKey.Camera(frame);
         if (IsPoseTrack(trackIndex)) return TimelineKey.Pose(frame, BoneOfTrack(trackIndex));
-        var rowIndex = trackIndex - TracksAboveLayers;
-        if (rowIndex < 0 || rowIndex >= LayerRows.Count) return null;
-        return TimelineKey.Cel(LayerRows[rowIndex].SceneIndex, frame);
+        // A folder's row is a summary of the layers inside it and names no
+        // key of its own.
+        return SheetItemAtTrack(trackIndex) is LayerRow row ? TimelineKey.Cel(row.SceneIndex, frame) : null;
     }
 
     /// <summary>The row a key is drawn on, or -1 when it is not on screen.</summary>
@@ -67,10 +67,7 @@ public partial class MainViewModel
                 return offset < 0 ? -1 : first + 1 + offset;
             }
             default:
-            {
-                var row = LayerRows.ToList().FindIndex(r => r.SceneIndex == key.LayerIndex);
-                return row < 0 ? -1 : TracksAboveLayers + row;
-            }
+                return TrackOfLayer(key.LayerIndex);
         }
     }
 

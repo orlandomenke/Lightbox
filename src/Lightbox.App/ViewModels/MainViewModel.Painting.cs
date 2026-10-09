@@ -509,6 +509,13 @@ public partial class MainViewModel
         _lastStrokeEnd = null;
         PruneStrokeSelection();   // and neither is a line picked on the old one
         foreach (var row in LayerRows) row.IsActive = row.SceneIndex == value;
+        // Pinned only never hides the layer being drawn on (Q227), so which
+        // rows the sheet shows depends on which layer that is.
+        if (SheetPinnedOnly)
+        {
+            RebuildSheetRows();
+            DropSelectionOffTheSheet();
+        }
         SyncLayerSelectionToActive(value);
         OnPropertyChanged(nameof(FrameCells));
         OnPropertyChanged(nameof(TimelineTracks));
@@ -695,8 +702,14 @@ public partial class MainViewModel
                     Lightbox.App.Controls.TrackKind.Camera));
             }
             tracks.AddRange(PoseTracks());
-            foreach (var row in LayerRows)
+            foreach (var item in SheetRows)
             {
+                if (item is SheetFolderRow folder)
+                {
+                    tracks.Add(FolderTrack(folder));
+                    continue;
+                }
+                if (item is not LayerRow row) continue;
                 var keys = new List<int>();
                 var holdEnds = new List<int>();
                 var breakdowns = new List<bool>();
@@ -715,7 +728,7 @@ public partial class MainViewModel
                     }
                     holdEnds.Add(end);
                 }
-                tracks.Add(new Lightbox.App.Controls.TrackRow(row.Name, keys, holdEnds, breakdowns));
+                tracks.Add(new Lightbox.App.Controls.TrackRow(Indented(row.Name, row.Depth), keys, holdEnds, breakdowns));
             }
             return tracks;
         }
@@ -829,6 +842,11 @@ public partial class MainViewModel
     /// </summary>
     public void ToggleTrackFold(int trackIndex)
     {
+        if (SheetItemAtTrack(trackIndex) is SheetFolderRow folder && !IsPoseTrack(trackIndex))
+        {
+            ToggleSheetFold(folder);
+            return;
+        }
         if (!IsPoseTrack(trackIndex)) return;
         if (BoneOfTrack(trackIndex) is { } boneId)
         {
@@ -3942,7 +3960,10 @@ public partial class MainViewModel
         // posed drawing the render is rebuilt from the record rather than
         // appended to, so there is no before/after pair to measure across; an
         // eraser there is recorded like any other mark.
-        var erasure = IsErasure(stroke) && !_cache.Rig.IsPosed(target)
+        // Nor on paper whose corner has moved (B409), for the same reason:
+        // AppendToFrameRender rebuilds there rather than stamps, so the probe
+        // would read one unchanged picture twice and call a real erasure empty.
+        var erasure = IsErasure(stroke) && !_cache.Rig.IsPosed(target) && !PaperHasMoved
             ? StrokeChangeProbe.Open(stroke, _cache.Get(target, Scene.Width, Scene.Height))
             : null;
 

@@ -81,11 +81,43 @@ public sealed class LayerGroup
     /// <summary>Locking a folder locks every layer inside it.</summary>
     public bool Locked { get; set; }
 
-    /// <summary>Header accent color in the docker (hex, e.g. "#4a6ea9").</summary>
-    public string Color { get; set; } = "#4a6ea9";
+    /// <summary>What a folder with no colour of its own, and no parent with one, shows.</summary>
+    public const string DefaultColor = "#4a6ea9";
+
+    /// <summary>
+    /// The colour chosen for this folder in the docker (hex), or null — and
+    /// absent from the file — when none was: it then shows its parent's, which
+    /// <see cref="FolderTree.ColorOf(Scene, LayerGroup)"/> resolves.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than a default, because "this folder is blue" and "this
+    /// folder never chose" have to be different things for a subfolder to
+    /// follow its parent. A file from before this wrote a colour on every
+    /// folder and reads back as it was written: those folders chose.
+    /// </remarks>
+    public string? Color { get; set; }
 
     /// <summary>Docker-only view preference (not undoable).</summary>
     public bool Collapsed { get; set; }
+
+    /// <summary>
+    /// Folded on the Timeline and the X-sheet (Q227): the folder shows as one
+    /// summary row there and the layers inside it have none. Its own state,
+    /// apart from <see cref="Collapsed"/> — the Layers docker's — because the
+    /// two are folded for different reasons. A view preference, not undoable.
+    /// </summary>
+    /// <remarks>
+    /// Nullable so that it is absent unless used: true when folded, null — and
+    /// no key in the file — otherwise. Never false.
+    /// </remarks>
+    public bool? SheetCollapsed { get; set; }
+
+    /// <summary>
+    /// Pinned to the Timeline and the X-sheet (Q227): with the scene's
+    /// <see cref="Scene.SheetPinnedOnly"/> on, the folder and everything inside
+    /// it keep their rows. True or null, never false, so it is absent unless used.
+    /// </summary>
+    public bool? SheetPinned { get; set; }
 
     /// <summary>The folder this one is inside, or null at the top level.</summary>
     public string? ParentId { get; set; }
@@ -402,6 +434,14 @@ public sealed class Layer
 
     /// <summary>Whether this layer participates in onion-skin ghosting.</summary>
     public bool OnionEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Pinned to the Timeline and the X-sheet (Q227): with the scene's
+    /// <see cref="Scene.SheetPinnedOnly"/> on, this layer keeps its row. A view
+    /// preference — it changes no pixel. True or null, never false, so it is
+    /// absent unless used.
+    /// </summary>
+    public bool? SheetPinned { get; set; }
 
     public double Opacity { get; set; } = 1;
 

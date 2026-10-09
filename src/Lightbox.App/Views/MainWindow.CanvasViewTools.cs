@@ -729,6 +729,12 @@ public partial class MainWindow
             case "timeline.detectContacts":
                 _vm.DetectContacts();
                 break;
+            case "timeline.pinnedOnly":
+                _vm.SheetPinnedOnly = !_vm.SheetPinnedOnly;
+                break;
+            case "timeline.pinLayer":
+                _vm.ToggleActiveLayerSheetPin();
+                break;
             case "canvas.analyseThroughCamera":
                 _vm.AnalyseThroughCamera = !_vm.AnalyseThroughCamera;
                 break;

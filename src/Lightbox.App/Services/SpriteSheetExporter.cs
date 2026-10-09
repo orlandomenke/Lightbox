@@ -783,6 +783,9 @@ public static class SpriteSheetExporter
         Scene scene, FrameBitmapCache cache, int index, HashSet<string> skipLayerIds)
     {
         using var hold = cache.HoldFetches(); // B392
+        // Before anything fetches — an adjustment layer's mask comes out of
+        // this cache too, and can be the first thing asked for.
+        At(cache, scene);
         var passes = new List<RenderPass>();
         for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {
@@ -804,7 +807,7 @@ public static class SpriteSheetExporter
             var shapes = LayerShapes.For(scene, layerIndex, index);
             if (shapes is { Count: 0 }) continue;
             passes.Add(new RenderPass(
-                cache.Get(frame, scene.Width, scene.Height, celIndex: index), null, layer.Opacity,
+                At(cache, scene).Get(frame, scene.Width, scene.Height, celIndex: index), null, layer.Opacity,
                 SceneRenderer.ToSkia(layer.BlendMode),
                 Shapes: LayerShapes.Resolve(shapes, cache, scene.Width, scene.Height, index),
                 Effect: EffectPasses.SelfFilter(layer, index),
@@ -905,7 +908,7 @@ public static class SpriteSheetExporter
             if (!seen.Add(frame.Id)) continue;   // a hold is the same drawing
 
             any = true;
-            var image = cache.Get(frame, scene.Width, scene.Height, celIndex: i);
+            var image = At(cache, scene).Get(frame, scene.Width, scene.Height, celIndex: i);
             if (!FillsCanvas(image)) return false;
         }
         return any;
@@ -1132,4 +1135,18 @@ public static class SpriteSheetExporter
         [property: JsonPropertyName("x")] double X,
         [property: JsonPropertyName("y")] double Y,
         [property: JsonPropertyName("angle")] double? Angle = null);
+
+    /// <summary>
+    /// The cache, told which corner this document's paper has (B409).
+    /// </summary>
+    /// <remarks>
+    /// One cache serves every document of a grouped sheet and each has its own
+    /// origin, so it is said at each fetch; the origin is part of the cache's
+    /// key, so two documents cannot be handed one another's pixels.
+    /// </remarks>
+    private static FrameBitmapCache At(FrameBitmapCache cache, Scene scene)
+    {
+        cache.Origin = new SKPointI(scene.Left, scene.Top);
+        return cache;
+    }
 }
