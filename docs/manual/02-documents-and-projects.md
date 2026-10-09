@@ -51,6 +51,15 @@ the paper grows: anchor top-left and it all appears on the right and below;
 anchor centre and it splits evenly. Crop by giving a smaller number, and the
 anchor decides which edge is kept.
 
+Paper added on the **left or top** is the less travelled case and has two rough
+edges today. While the pen is down, the stroke is previewed where the paper
+*used* to be — the distance you grew it by, up and to the left — and jumps to
+the right place when you lift. A stroke begun in the new margin shows nothing
+until it is finished. What lands, what is saved and what is exported are all
+correct; it is only the preview. Such a document also repaints more slowly
+after each stroke and each undo. *Planned:* both. Paper added on the right or
+bottom has neither.
+
 **Resize image** (`Ctrl+Alt+I`) scales the artwork itself. Everything moves and
 everything scales with it — line positions, brush sizes, textures, guides,
 symbol placements. **Keep proportions** is on by default here, because scaling
