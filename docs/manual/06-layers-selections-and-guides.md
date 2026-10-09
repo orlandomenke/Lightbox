@@ -971,6 +971,12 @@ exactly where it was. It works with any of the selection shapes, and however
 little of a drawing you take: a marquee over one corner of one line moves that
 corner.
 
+**Pixels move too.** A layer that is pixels rather than strokes — an imported
+image, a PSD layer, or a layer a merge had to flatten — moves the same way: the
+pixels inside the selection go, the rest stay, cut at the selection's edge.
+Ctrl+T, the Move tool and every transform mode (perspective, bands, the cage)
+treat them alike, and a layer holding both pixels and strokes moves both.
+
 **What counts as inside is the ink, not where the pen went.** A selection made
 on one layer works on every layer you then pick, and it takes whatever paint of
 theirs lies inside it: select the colour layer's pixels, switch to the line
