@@ -92,7 +92,7 @@ public static partial class Catalog
         Head("Texture");
         page.Children.Add(BuiltLabelRow("Surface", new ComboBox { ItemsSource = new[] { "None", "Cold press", "Canvas" }, SelectedIndex = 0 }));
         page.Children.Add(new Button { Content = "Paper image…" });
-        Slide("Grain size", 40); Slide("Depth", 50); Slide("Granulation", 0); Slide("Wet edge", 0);
+        Slide("Grain size", 40); Slide("Depth", 50); Slide("Tooth", 0); Slide("Granulation", 0); Slide("Wet edge", 0);
         Head("Transfer"); Slide("Flow jitter", 0);
         Head("Color dynamics");
         page.Children.Add(BuiltLabelRow("Second color", new Border { Height = 20, Background = Brush("SurfaceElevatedBrush") }));
@@ -353,7 +353,7 @@ public static partial class Catalog
             ("Editor · Spacing", "General", "Spacing"),
             ("Editor · Shape dynamics", "Effects + Pen pressure", "Roundness jitter · Angle jitter · roundness curve"),
             ("Editor · Scatter", "Effects + Pen pressure", "Scatter · scatter curve"),
-            ("Editor · Texture", "Effects", "Surface · Paper image · Grain size · Depth · Granulation · Wet edge"),
+            ("Editor · Texture", "Effects", "Surface · Paper image · Grain size · Depth · Tooth · Granulation · Wet edge"),
             ("Editor · Colour dynamics", "Effects", "Second colour · Toward second · Hue · Saturation · Brightness jitter"),
             ("Editor · Smudge", "Effects + Pen pressure", "Mode · Length · Radius · Colour rate · their curves (smudge brushes only)"),
             ("Editor · Medium", "Medium", "Medium · Fluid (6) · Pigment (4) · Paper (3) · Interaction (3) · Body (3)"),

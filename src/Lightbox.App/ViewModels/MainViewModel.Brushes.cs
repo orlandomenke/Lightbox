@@ -603,6 +603,16 @@ public partial class MainViewModel
         set => SetBrush(s => s.TextureDepth = Math.Clamp(value, 0, 1));
     }
 
+    /// <summary>
+    /// How much of the texture's bite pressure fills in. Zero is off and
+    /// writes nothing to the record (the optional-settings rule).
+    /// </summary>
+    public double BrushTexturePressure
+    {
+        get => GetBrush(s => s.TexturePressure ?? 0);
+        set => SetBrush(s => s.TexturePressure = value <= 0 ? null : Math.Clamp(value, 0, 1));
+    }
+
     /// <summary>Empty means colour dynamics drift only in hue/saturation/value.</summary>
     public string BrushSecondaryColor
     {
@@ -1178,7 +1188,7 @@ public partial class MainViewModel
         nameof(BrushCursorRoundness), nameof(BrushCursorAngle),
         nameof(BrushSizeJitter), nameof(BrushMinimumDiameter), nameof(BrushRoundness),
         nameof(BrushRoundnessJitter), nameof(BrushAngleFollowsDirection), nameof(BrushFlowJitter),
-        nameof(BrushTextureSurface), nameof(BrushTextureScale), nameof(BrushTextureDepth),
+        nameof(BrushTextureSurface), nameof(BrushTextureScale), nameof(BrushTextureDepth), nameof(BrushTexturePressure),
         nameof(BrushSecondaryColor), nameof(BrushColorJitter), nameof(BrushHueJitter),
         nameof(BrushSaturationJitter), nameof(BrushBrightnessJitter),
         nameof(IsSmudgeBrush), nameof(IsEffectBrush), nameof(ShowsEffectOptions), nameof(EffectStrength),

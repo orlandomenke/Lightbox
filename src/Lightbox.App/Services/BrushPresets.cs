@@ -146,10 +146,15 @@ public static class BuiltInPresets
         {
             Id = "builtin-pencil",
             Name = "Pencil",
+            // Graphite caught on the paper's tooth: a light touch marks the
+            // peaks, a hard press fills the valleys (TexturePressure), over a
+            // fine cold-press grain. docs/DESIGN-pencil-tooth.md has why.
             Settings = new BrushSettings
             {
-                Size = 3, Hardness = 0.9, Opacity = 1, Flow = 0.85, Spacing = 0.12,
-                Granulation = 0.15, PressureFlowGamma = 1,
+                Size = 4, Hardness = 0.7, Opacity = 1, Flow = 0.9, Spacing = 0.1,
+                PressureFlowGamma = 0.8,
+                TextureSurface = PaperKind.ColdPress, TextureScale = 2, TextureDepth = 0.8,
+                TexturePressure = 0.8,
             },
         },
         new()
@@ -258,11 +263,13 @@ public static class BuiltInPresets
                     // boundary, and settles into the tooth as it dries.
                     Wetness = 0.85, Viscosity = 0.1, Drag = 0.25, FlowSteps = 16,
                     // B35 — EdgePull 0.7 left the centre at 3/255 alpha: a
-                    // white line down the middle of every stroke. The rim is a
-                    // wash that pooled and dried at its boundary, not something
-                    // every mark does. Measured centre/flank alpha: 0.05 at
-                    // 0.70, 0.42 at 0.20, 1.74 with no pull at all.
-                    Absorbency = 0.35, EdgePull = 0.06,
+                    // white line down the middle of every stroke, and 0.06 was
+                    // as high as it could go. B431 found why: the capillary
+                    // term carved a channel down the medial axis at any pull.
+                    // With the interior draining evenly to the fringe instead,
+                    // the pull is back to where a wash pools at its edge the
+                    // way the owner asked — darkest at the rim, a wash within.
+                    Absorbency = 0.35, EdgePull = 0.45,
                     PigmentDensity = 0.5, Granularity = 0.6, Hiding = 0.05,
                     Paper = PaperKind.ColdPress, PaperScale = 14, PaperInfluence = 0.7,
                     // A light touch is mostly water: paler, and it blooms.

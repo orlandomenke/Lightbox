@@ -330,7 +330,7 @@ internal static class Presets
         {
             Kind = MediumKind.Watercolour,
             Wetness = 0.85, Viscosity = 0.1, Drag = 0.25, FlowSteps = 16,
-            Absorbency = 0.35, EdgePull = 0.06,
+            Absorbency = 0.35, EdgePull = 0.45,
             PigmentDensity = 0.5, Granularity = 0.6, Hiding = 0.05,
             Paper = PaperKind.ColdPress, PaperScale = 14, PaperInfluence = 0.7,
             PressureWater = 0.8, Rewetting = 0.6,

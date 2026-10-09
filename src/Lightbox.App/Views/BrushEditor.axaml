@@ -296,6 +296,12 @@
                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
             <Slider Value="{Binding BrushTextureDepth}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
           </DockPanel>
+          <DockPanel ToolTip.Tip="How far pressure fills the paper's tooth: a light touch catches the peaks, a hard press reaches the valleys. Does nothing without a paper and a Depth above zero.">
+            <TextBlock Text="Tooth" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
+            <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushTexturePressure}" Minimum="0" Maximum="1"
+                           Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
+            <Slider Value="{Binding BrushTexturePressure}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+          </DockPanel>
           <DockPanel ToolTip.Tip="The flat grain used when no texture surface is chosen.">
             <TextBlock Text="Granulation" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"
