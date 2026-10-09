@@ -113,15 +113,39 @@ public sealed class FluidLattice
     private const int GaussSeidelSweeps = 4;
 
     /// <summary>
-    /// Fraction of a cell's pigment the capillary term can move in one step at
-    /// EdgePull 1 in water deep enough to carry it. High on purpose: the term
-    /// advects one cell per step, so this is what sets how far pigment travels
-    /// before it settles, and a rim twenty cells from the middle of a wash
-    /// needs most of a cell's worth of movement per step to be reached at all.
-    /// Mobility and deposition are what hold it back — see
-    /// <see cref="CapillaryPull"/>.
+    /// Fraction of an interior cell's mobile pigment the capillary term moves
+    /// to the fringe in one step at EdgePull 1. It used to be 0.9, when the
+    /// term walked pigment one cell per step and a rim twenty cells from the
+    /// middle needed most of a cell's movement per step to be reached at all.
+    /// The transfer is direct now (B431), so the rate is the share of a
+    /// cell's mobile pigment that leaves per step, against the quarter that
+    /// <see cref="Deposit"/> binds in place: at this value a dried disc at
+    /// EdgePull 1 reads a rim 1.3× its core (0.46× with the pull off) and a
+    /// stroke keeps 55 % of its middle, a drying puddle's look at the top of
+    /// the slider. Half this value (0.056) never let the rim overtake the
+    /// middle at any setting; left at 0.9 the interior emptied in two steps,
+    /// measured as a centre of 24 against 92 with the pull off.
     /// </summary>
-    private const float EdgeRate = 0.9f;
+    private const float EdgeRate = 0.12f;
+
+    /// <summary>
+    /// How much of the wet region's deepest distance to dry paper is fringe:
+    /// the band that receives what the interior gives (B431). A share rather
+    /// than a count, so a broad wash grows a broader rim than a thin line.
+    /// </summary>
+    private const float RimShare = 0.2f;
+
+    /// <summary>
+    /// The fringe is never narrower than this many cells, so a thin line still
+    /// has an edge to pool at. Compared in the chamfer's units, which are
+    /// <see cref="ChamferOrth"/> per cell — a floor written in cells was 0.3
+    /// of one, and a stroke under ten cells wide had no fringe at all, so the
+    /// pull silently did nothing on exactly the lines it was meant to keep.
+    /// </summary>
+    private const float MinRimCells = 1.5f;
+
+    /// <summary>One orthogonal step of <see cref="BuildDryDistance"/>'s chamfer, so its distances are in fifths of a cell.</summary>
+    private const float ChamferOrth = 5f;
 
     private const float DepositBase = 0.25f;
     private const float LiftBase = 0.06f;
@@ -832,89 +856,95 @@ public sealed class FluidLattice
     /// stays. The water makes a round trip and nets out; the pigment does not.
     /// Modelling only the residue is both cheaper and closer to what you see.
     ///
-    /// <b>The potential is the distance to dry paper, not the thinness of the
-    /// film.</b> Thinness was the first reading and it made a mess: the water
-    /// field inside a wash is bumpy — the paper's tooth is in it, and so is
-    /// every eddy the flow left behind — so "climb toward thinner" is local
-    /// gradient ascent on a noisy surface with hundreds of local maxima. Every
-    /// one is a trap. Pigment walked two cells, found a dip, and stopped there,
-    /// so raising EdgePull mottled the interior instead of building a rim:
-    /// measured across a stroke, interior variation went from 5% of the mean at
-    /// EdgePull 0 to 74% at 1, while the edge barely darkened. That is the
-    /// "looks like noise rather than pigment" complaint, in a number.
+    /// <b>The interior drains evenly and the fringe receives (B431).</b> Two
+    /// earlier readings each left a mark that was not in the water. Climbing
+    /// toward thinner film was gradient ascent on a noisy surface, and raising
+    /// EdgePull mottled the interior instead of building a rim. Walking pigment
+    /// cell to cell downhill in the distance to dry paper fixed that and left a
+    /// subtler one: the cells on the stroke's medial axis — where that distance
+    /// peaks — give pigment outward to both sides and, having no neighbour
+    /// further in, receive none back. A channel a few cells wide ran down the
+    /// exact middle of every wash, at any pull above zero: the pale seam the
+    /// owner saw, and the reason the Watercolor preset's EdgePull sat at 0.06
+    /// where nothing pools. In a drying wash the outward flow is driven by
+    /// evaporation at the contact line and carries pigment from the <em>whole</em>
+    /// interior at once, so that is what this does: every interior cell gives a
+    /// share of its mobile pigment, and the fringe band takes the sum, weighted
+    /// toward the cells whose film is thinnest — the contact-line pinning that
+    /// makes a coffee ring a ring. No cell is a source with no inflow, so there
+    /// is nothing to carve.
     ///
-    /// A chamfer distance field has no local extrema by construction — every
-    /// wet cell has a strictly closer neighbour until the boundary — so pigment
-    /// that starts moving keeps moving until it arrives. It costs two raster
-    /// sweeps, which is less than the smoothing pass the old comment here
-    /// feared, and it is the honest way to say "toward the edge".
+    /// The fringe is the band of wet cells within a share of the region's
+    /// deepest distance to dry paper, so a wide wash grows a wider rim than a
+    /// thin line does. Mobility gates both halves: deep water gives, a film
+    /// about to dry receives. Dry cells take nothing, because pigment must not
+    /// be dragged onto dry paper.
     ///
-    /// Mobility gates the rate, and that is where the water depth went. Deep
-    /// water carries pigment; a film about to dry pins it. So the drift stops
-    /// exactly where the film thins, which is at the rim — the contact-line
-    /// pinning that makes a coffee ring a ring. Dry neighbours are excluded
-    /// outright, because distance says dry paper is the closest thing of all
-    /// and pigment must not be dragged onto it.
-    ///
-    /// Transfers accumulate into a scratch buffer rather than being applied in
-    /// place. In place would still be deterministic, but it would bias the rim
-    /// toward +x/+y, because cells later in the scan would see pigment their
-    /// neighbours had already donated.
+    /// Determinism: two fixed-order passes over the cells and one total, with
+    /// the same float arithmetic every run. Conservation: what the interior
+    /// gives is exactly what the fringe receives, to rounding.
     /// </summary>
     private void CapillaryPull(float edge)
     {
         float[] water = _water, dist = _dist;
         var cells = _w * _h;
+        var rate = Clamped(edge * EdgeRate, 0f, MaxTransfer);
+        if (rate <= 0f) return;
         BuildDryDistance();
 
-        for (var c = 0; c < 4; c++) _suspB[c].AsSpan(0, cells).Clear();
-
-        float[] s0 = _susp[0], s1 = _susp[1], s2 = _susp[2], s3 = _susp[3];
-        float[] t0 = _suspB[0], t1 = _suspB[1], t2 = _suspB[2], t3 = _suspB[3];
-
-        var rate = Clamped(edge * EdgeRate, 0f, MaxTransfer);
-
-        for (var y = 0; y < _h; y++)
+        // The fringe band, from the region's deepest point.
+        var deepest = 0f;
+        for (var i = 0; i < cells; i++)
         {
-            var row = y * _w;
-            for (var x = 0; x < _w; x++)
-            {
-                var i = row + x;
-                var w = water[i];
-                if (w <= WetEps) continue;
-
-                // Downhill in distance, and only into cells that are wet.
-                var d0 = dist[i];
-                var gL = x > 0 && water[i - 1] > WetEps ? Math.Max(0f, d0 - dist[i - 1]) : 0f;
-                var gR = x < _w - 1 && water[i + 1] > WetEps ? Math.Max(0f, d0 - dist[i + 1]) : 0f;
-                var gU = y > 0 && water[i - _w] > WetEps ? Math.Max(0f, d0 - dist[i - _w]) : 0f;
-                var gD = y < _h - 1 && water[i + _w] > WetEps ? Math.Max(0f, d0 - dist[i + _w]) : 0f;
-
-                var sum = gL + gR + gU + gD;
-                if (sum <= 0) continue;
-
-                var frac = rate * (w / (w + WaterHold));
-                var norm = frac / sum;
-                var kL = gL * norm;
-                var kR = gR * norm;
-                var kU = gU * norm;
-                var kD = gD * norm;
-
-                int iL = i - 1, iR = i + 1, iU = i - _w, iD = i + _w;
-
-                // Same split as transport, with a negative "keep": what leaves
-                // the donor is exactly what the four neighbours receive.
-                Scatter(s0, t0, i, iL, iR, iU, iD, -frac, kL, kR, kU, kD);
-                Scatter(s1, t1, i, iL, iR, iU, iD, -frac, kL, kR, kU, kD);
-                Scatter(s2, t2, i, iL, iR, iU, iD, -frac, kL, kR, kU, kD);
-                Scatter(s3, t3, i, iL, iR, iU, iD, -frac, kL, kR, kU, kD);
-            }
+            if (water[i] > WetEps && dist[i] > deepest) deepest = dist[i];
         }
+        if (deepest <= 0f) return;
+        var band = Math.Max(MinRimCells * ChamferOrth, deepest * RimShare);
 
+        // Receiving weight per fringe cell, and its total. Thin film pins.
+        var weights = _suspB[3].AsSpan(0, cells);
+        weights.Clear();
+        var totalWeight = 0f;
+        for (var i = 0; i < cells; i++)
+        {
+            var w = water[i];
+            if (w <= WetEps || dist[i] > band) continue;
+            var pinned = 1f - w / (w + WaterHold);
+            weights[i] = pinned;
+            totalWeight += pinned;
+        }
+        if (totalWeight <= 0f) return;
+
+        // The mass (channel 0) and the three colour channels, through the same
+        // weights. They live in channel 3's scratch, which nothing reads until
+        // Transport clears it at the next step.
         for (var c = 0; c < 4; c++)
         {
-            float[] s = _susp[c], d = _suspB[c];
-            for (var i = 0; i < cells; i++) s[i] = Clamped(s[i] + d[i], 0f, float.MaxValue);
+            Drain(_susp[c], water, dist, band, rate, weights, totalWeight, cells);
+        }
+    }
+
+    /// <summary>Interior cells give a share of their mobile pigment; the fringe takes the sum.</summary>
+    private static void Drain(
+        float[] susp, float[] water, float[] dist, float band, float rate,
+        ReadOnlySpan<float> weights, float totalWeight, int cells)
+    {
+        var removed = 0f;
+        for (var i = 0; i < cells; i++)
+        {
+            var w = water[i];
+            if (w <= WetEps || dist[i] <= band) continue;
+            var give = susp[i] * rate * (w / (w + WaterHold));
+            if (give <= 0f) continue;
+            susp[i] -= give;
+            removed += give;
+        }
+        if (removed <= 0f) return;
+        var perWeight = removed / totalWeight;
+        for (var i = 0; i < cells; i++)
+        {
+            var k = weights[i];
+            if (k > 0f) susp[i] += k * perWeight;
         }
     }
 
@@ -940,7 +970,7 @@ public sealed class FluidLattice
     /// </remarks>
     private void BuildDryDistance()
     {
-        const float Orth = 5f, Diag = 7f, Knight = 11f;
+        const float Orth = ChamferOrth, Diag = 7f, Knight = 11f;
         const float Far = 1e9f;
 
         float[] water = _water, d = _dist;
