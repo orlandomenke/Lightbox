@@ -1466,6 +1466,9 @@ public partial class MainViewModel
         }
         using var perf = PerfLog.Begin(IsPlaying ? "publish.play" : "publish", publisher);
         PublishCount++;
+        // What this publish fetches is the frame on screen: the still cache
+        // keeps it, and the last publish's, whatever the budget says.
+        using var onScreen = _cache.Publishing();
         // A frame arrived at with its drawings not cached: render them on the
         // workers, all at once, before this publish asks for them one by one.
         // Not while Stop holds the playback tiles: that frame is shown at

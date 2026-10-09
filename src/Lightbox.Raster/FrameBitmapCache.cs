@@ -79,6 +79,9 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     {
         /// <summary>When it was last fetched or put in, on <see cref="PictureMemory.Clock"/> (Q221).</summary>
         public long Used { get; init; } = PictureMemory.Clock();
+
+        /// <summary>The publish that last used it, or -1 (<see cref="BeginPublish"/>).</summary>
+        public long Publish { get; init; } = -1;
     }
 
     private readonly Dictionary<string, LinkedListNode<Entry>> _map = [];
@@ -502,7 +505,7 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         {
             Hits++;
             _lru.Remove(node);
-            node.Value = node.Value with { Used = PictureMemory.Clock() };
+            node.Value = node.Value with { Used = PictureMemory.Clock(), Publish = Stamp(node.Value.Publish) };
             _lru.AddFirst(node);
             return Held(node.Value.Bmp);
         }
@@ -535,7 +538,7 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         // keeps that true by construction rather than by coincidence.
         var checkpoint = ReferenceEquals(source, frame) ? CheckpointResolver?.Invoke(frame) : null;
         var bmp = Render(source, width, height, outputScale, celIndex, backdrop, checkpoint);
-        var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale));
+        var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale) { Publish = Stamp(-1) });
         _map[key] = newNode;
         CachedBytes += BytesOf(bmp);
 
@@ -654,7 +657,8 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
 
         // At the most-recent end, as a fetch would put it: eviction takes from
         // the far end, and never the only entry, so this one stays.
-        var node = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale));
+        // Inside a publish it is the frame on screen, as a fetch would be.
+        var node = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale) { Publish = Stamp(-1) });
         _map[key] = node;
         CachedBytes += BytesOf(bmp);
         Evict();
@@ -683,8 +687,22 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         // Under MostRecent this is the node just inserted's neighbour rather
         // than the node itself: evicting what was only this moment put in
         // would make the cache a no-op on the very frame being shown.
-        LinkedListNode<Entry>? Victim() =>
-            Eviction == EvictionOrder.LeastRecent ? _lru.Last : _lru.First?.Next ?? _lru.First;
+        LinkedListNode<Entry>? Victim()
+        {
+            if (Eviction == EvictionOrder.LeastRecent)
+            {
+                for (var n = _lru.Last; n is not null; n = n.Previous)
+                {
+                    if (!Protected(n.Value)) return n;
+                }
+                return null;
+            }
+            for (var n = _lru.First?.Next ?? _lru.First; n is not null; n = n.Next)
+            {
+                if (!Protected(n.Value)) return n;
+            }
+            return null;
+        }
 
         while (_lru.Count > MaxFrames && Victim() is { } a) RemoveNode(a);
         while (_lru.Count > MinFrames && CachedBytes > ByteBudget && Victim() is { } b) RemoveNode(b);
@@ -866,6 +884,57 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         }
     }
 
+    /// <summary>
+    /// A publish is starting: what it fetches, and what the one before it
+    /// fetched, are the frame on screen, and are not evicted to make room for
+    /// each other (<see cref="Protected"/>).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Found by the lab on a large document</b> (2026-10-09): 30 layers at 4K
+    /// with onion ghosts need ~3 GB for one frame, more than the byte budget, so
+    /// each publish evicted the drawings it had just made and rendered them
+    /// again — 542 renders of 203 drawings and 204 s of UI time in the flip test.
+    /// </para>
+    /// <para>
+    /// <b>The overshoot is one frame's worth</b>, and the rest of the cache still
+    /// answers to the budget. Starting a publish also evicts, so a frame the
+    /// playhead has left goes back under the budget at once rather than at the
+    /// next miss. Only fetches inside a publish are protected: an export or a
+    /// background render that walks the document never is, or it would hold every
+    /// frame it touched.
+    /// </para>
+    /// </remarks>
+    public void BeginPublish()
+    {
+        _publish++;
+        _inPublish = true;
+        Evict();
+    }
+
+    /// <summary>The publish has composed; fetches after this are not the frame on screen.</summary>
+    public void EndPublish() => _inPublish = false;
+
+    /// <summary><see cref="BeginPublish"/> now, <see cref="EndPublish"/> when disposed, on every path out.</summary>
+    public PublishScope Publishing()
+    {
+        BeginPublish();
+        return new PublishScope(this);
+    }
+
+    public readonly struct PublishScope(FrameBitmapCache cache) : IDisposable
+    {
+        public void Dispose() => cache.EndPublish();
+    }
+
+    private long _publish;
+    private bool _inPublish;
+
+    private long Stamp(long previous) => _inPublish ? _publish : previous;
+
+    /// <summary>Used by this publish or the last: the frame on screen, which eviction leaves alone.</summary>
+    private bool Protected(Entry e) => _publish > 0 && e.Publish >= _publish - 1;
+
     public void Clear()
     {
         // Deferring here too, not just on eviction: closing a document while a
@@ -911,7 +980,7 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         if (_lru.Count <= MinFrames) return null;
         for (var node = _lru.Last; node is not null; node = node.Previous)
         {
-            if (!_pins.ContainsKey(node.Value.Bmp)) return node;
+            if (!_pins.ContainsKey(node.Value.Bmp) && !Protected(node.Value)) return node;
         }
         return null;
     }

@@ -32,6 +32,21 @@ replaces the still-image "frame cache budget" (Q221). That figure was never
 saved, so nothing carries over; the new one is saved only once the artist sets it. Undo's *document copies* are not pictures; they are the
 next piece of work, not this one.
 
+## The default became a quarter (2026-10-09)
+
+The owner set the aim plainly: responsiveness, not memory. Memory only matters
+when it makes the app slower. The lab then surveyed a 30-layer, 200-drawing
+document. At 4K, flipping between drawings rendered 200 of 203 drawings two to
+four times each (542 renders, 204 s of UI time), because a few frames' worth of
+drawings outgrew the eighth-of-the-machine limit and were evicted before the
+playhead came back.
+
+So the default is now a quarter of the machine: 8 GB on a 32 GB computer and
+2 GB on the 8 GB minimum spec. The still cache follows the limit instead of its
+own older 4 GB ceiling. The setting still goes either way. The ceiling of half
+the machine keeps it well clear of paging, which would cost far more time than
+any re-render.
+
 ## How the caches give memory back
 
 **The four UI-thread stores are brokered.** Still images, playback tiles,
