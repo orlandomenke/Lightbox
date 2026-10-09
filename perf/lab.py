@@ -12,6 +12,7 @@ first: a run takes the mouse and keyboard for its duration, and aborts if you mo
 What it relies on in the app, all absent unless the lab asks for it:
   LIGHTBOX_PERF_LOG     one JSON line per action, and a heartbeat logging every UI stall
   LIGHTBOX_PROFILE_DIR  a throwaway profile, so a run never touches the artist's own
+  LIGHTBOX_BRUSH        the brush to put in hand at launch (only with the profile above)
   <file>.lightbox.json  on the command line: open it straight away and log "ready"
 """
 from __future__ import annotations
@@ -63,6 +64,11 @@ PRESETS = {
     # A small named sheet for behaviour checks: Ink A . . B . . . ., Color X . Y . . . . .,
     # Shade and Line inside a folder named Character.
     "sheet": ["--preset", "sheet"],
+    # One empty drawing layer over the paper: what a paint scenario needs is a canvas,
+    # and a document with art in it would make the brush pay for compositing it.
+    "blank-1080p": ["--layers", "1", "--drawings", "1", "--strokes", "0", "--frames", "1"],
+    "blank-4k": ["--width", "3840", "--height", "2160",
+                 "--layers", "1", "--drawings", "1", "--strokes", "0", "--frames", "1"],
 }
 
 
@@ -499,6 +505,23 @@ def resolve_exe(build: str | None) -> Path:
     return exe.resolve()
 
 
+def brush_of(scenario: dict) -> tuple[str, float | None] | None:
+    """The scenario's brush as (preset id, size or None), from `"brush": "id[:size]"`."""
+    spec = scenario.get("brush")
+    if not spec:
+        return None
+    preset, _, size = str(spec).partition(":")
+    return preset.strip(), (float(size) if size else None)
+
+
+def brush_line(preset: str, size: float | None) -> str:
+    """What the app logs for that brush: `<id> size <n>`, the size as the app prints a double."""
+    if size is None:
+        return preset
+    shown = str(int(size)) if float(size).is_integer() else repr(float(size))
+    return f"{preset} size {shown}"
+
+
 def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     log = Log(out / "perf.jsonl")
@@ -506,6 +529,12 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
     env["LIGHTBOX_LAB"] = "1"  # the explicit opt-in: only the lab makes a lab instance
     env["LIGHTBOX_PROFILE_DIR"] = str((out / "profile").resolve())
     env["LIGHTBOX_PERF_LOG"] = str(log.path.resolve())
+    brush = brush_of(scenario)
+    # Set for this run or cleared: a shell that exports LIGHTBOX_BRUSH must not put a
+    # brush in hand for a scenario that never asked for one (the adversary's case).
+    env.pop("LIGHTBOX_BRUSH", None)
+    if brush is not None:
+        env["LIGHTBOX_BRUSH"] = str(scenario["brush"])
     fixture = ensure_fixture(scenario.get("fixture", "owner-shape"))
 
     proc = subprocess.Popen([str(exe), str(fixture)], env=env, cwd=str(out),
@@ -525,6 +554,15 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
     outcome = "ok"
     try:
         ready = log.wait_for("ready", timeout=float(scenario.get("open_timeout_s", 120)))
+        if brush is not None:
+            # The app says which brush it put in hand, and at what size, before it is
+            # ready. A run that measured some other brush — or the same brush clamped to
+            # another size — is not this scenario (the September harness's rule: every
+            # unverified effect-brush row turned out to be Ink).
+            taken = next((l.get("d", "") for l in log.lines if l["ev"] == "brush"), None)
+            want = brush_line(*brush)
+            if taken is None or not (taken == want if brush[1] is not None else taken.startswith(brush[0] + " ")):
+                raise RuntimeError(f"the app did not take the brush {want!r} (it logged {taken!r})")
         place = Placement(**json.loads(ready["d"]))
         hwnd = window_of(proc.pid)
         if hwnd is None:
@@ -577,6 +615,7 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
         log.poll()
     metrics = summarise(log.lines, marks)
     result = {"scenario": scenario["name"], "exe": str(exe), "build": build_of(log.lines),
+              "brush": next((l.get("d") for l in log.lines if l["ev"] == "brush"), None),
               "outcome": outcome, "metrics": metrics, "checks": checks,
               # Raw, so a run can be re-read step by step (first round against second).
               "marks": marks}
@@ -620,7 +659,13 @@ def build_of(lines: list[dict]) -> str | None:
 # ---- what a run says -----------------------------------------------------------------
 
 MARKS = ("stall", "hang", "start", "ready", "document.opened", "playhead", "play.start",
-         "clock", "input", "shown")
+         "clock", "input", "shown", "brush")
+
+# Backdated spans that describe how long something WAITED, not what the app was doing:
+# a frame's pen->screen overlaps every stall on its way and would be blamed for all of
+# them, summing past the stall's own length (the adversary measured 150 ms of blame
+# on a 100 ms stall). They are symptoms, and they stay out of the blame.
+SYMPTOMS = ("pen.screen", "tip.screen")
 
 
 def summarise(lines: list[dict], marks: list[dict] | None = None) -> dict:
@@ -631,21 +676,28 @@ def summarise(lines: list[dict], marks: list[dict] | None = None) -> dict:
     ready_t = next((l["t"] for l in lines if l["ev"] == "ready"), 0.0)
     after = [l for l in lines if l["t"] >= ready_t]  # opening is its own scenario
     by: dict[str, list[float]] = {}
+    values: dict[str, list[float]] = {}
     for l in after:
         if l["ev"] in MARKS:
+            continue
+        if "v" in l:
+            # A count, not a time: how many points behind the pen a live pass landed.
+            values.setdefault(l["ev"], []).append(float(l["v"]))
             continue
         # An edit is named by its history label, so each X-sheet verb is its own row.
         key = f'{l["ev"]}:{l.get("d", "")}' if l["ev"].startswith("edit") else l["ev"]
         by.setdefault(key, []).append(l["ms"])
     actions = {k: {"n": len(v), "total_ms": round(sum(v), 1), "median_ms": round(statistics.median(v), 2),
                    "worst_ms": round(max(v), 1)} for k, v in sorted(by.items())}
+    counts = {k: {"n": len(v), "median": round(statistics.median(v), 1), "worst": round(max(v), 1)}
+              for k, v in sorted(values.items())}
 
     stalls = [l for l in after if l["ev"] == "stall"]
     blame: dict[str, float] = {}
     for s in stalls:
         s0, s1 = s["t"], s["t"] + s["ms"]
         for l in after:
-            if l["ev"] in ("stall", "hang") or l["ms"] <= 0:
+            if l["ev"] in ("stall", "hang") or l["ev"] in SYMPTOMS or l["ms"] <= 0:
                 continue
             overlap = min(s1, l["t"] + l["ms"]) - max(s0, l["t"])
             if overlap > 0:
@@ -655,6 +707,7 @@ def summarise(lines: list[dict], marks: list[dict] | None = None) -> dict:
     responses, phases = responses_and_phases(lines, marks or [])
     return {
         "actions": actions,
+        "counts": counts,
         "responses": responses,
         "phases": phases,
         "stalls": {
@@ -735,6 +788,9 @@ def flat(metrics: dict) -> dict[str, float]:
     for name, a in metrics["actions"].items():
         out[f"{name}.median_ms"] = a["median_ms"]
         out[f"{name}.worst_ms"] = a["worst_ms"]
+    for name, c in metrics.get("counts", {}).items():
+        out[f"{name}.median"] = c["median"]
+        out[f"{name}.worst"] = c["worst"]
     for label, r in metrics.get("responses", {}).items():
         for part in ("response", "queued", "first_publish"):
             if r[part]["n"]:
@@ -764,8 +820,11 @@ def verdict(a: dict[str, float], b: dict[str, float], tolerance: float) -> list[
         if va is None or vb is None:
             rows.append((k, va or 0.0, vb or 0.0, "only one side"))
             continue
-        # Under a few ms the timer and the scheduler are the measurement.
-        if max(va, vb) < 5:
+        # Under a few ms the timer and the scheduler are the measurement. A count
+        # (points behind the pen, frames) has no such floor: one to five points
+        # behind is 8 to 42 ms of trailing at 120 Hz, which is the thing measured.
+        floor = 5 if k.endswith("_ms") else 1
+        if max(va, vb) < floor:
             call = "same"
         elif vb > va * (1 + tolerance):
             call = "REGRESSION"
@@ -788,12 +847,25 @@ def cmd_fixture(args) -> None:
         print(ensure_fixture(preset, rebuild=True))
 
 
+def with_brush(scenario: dict, override: str | None) -> dict:
+    """`--brush id[:size]` replaces the scenario's own; the folder name carries whichever won."""
+    if override:
+        scenario["brush"] = override
+    return scenario
+
+
+def folder_name(scenario: dict, tail: str) -> str:
+    brush = brush_of(scenario)
+    part = f"-{brush[0].removeprefix('builtin-')}" if brush else ""
+    return f"{stamp()}-{scenario['name']}{part}-{tail}"
+
+
 def cmd_run(args) -> None:
     make_dpi_aware()
     require_input()
-    scenario = load_scenario(args.scenario)
+    scenario = with_brush(load_scenario(args.scenario), args.brush)
     exe = resolve_exe(args.build)
-    folder = RUNS / f"{stamp()}-{scenario['name']}-{args.tag}"
+    folder = RUNS / folder_name(scenario, args.tag)
     print(f"{scenario['name']}: {args.runs} run(s) of {exe}\n  results in {folder}\n"
           "  hands off the mouse and keyboard until it says done.")
     results = []
@@ -804,7 +876,8 @@ def cmd_run(args) -> None:
             print(f"\nSTOPPED: {LOCKED}")
             sys.exit(3)
         results.append(r)
-    summary = {"scenario": scenario["name"], "exe": str(exe), "runs": results, "aggregate": aggregate(results)}
+    summary = {"scenario": scenario["name"], "brush": scenario.get("brush"), "exe": str(exe),
+               "runs": results, "aggregate": aggregate(results)}
     (folder / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print_report(summary)
     print(f"done — {folder / 'summary.json'}")
@@ -835,9 +908,9 @@ def cmd_check(args) -> None:
 def cmd_ab(args) -> None:
     make_dpi_aware()
     require_input()
-    scenario = load_scenario(args.scenario)
+    scenario = with_brush(load_scenario(args.scenario), args.brush)
     a, b = resolve_exe(args.a), resolve_exe(args.b)
-    folder = RUNS / f"{stamp()}-{scenario['name']}-ab"
+    folder = RUNS / folder_name(scenario, "ab")
     print(f"{scenario['name']}: A/B, {args.runs} interleaved pair(s)\n  A {a}\n  B {b}\n"
           f"  results in {folder}\n  hands off the mouse and keyboard until it says done.")
     ra, rb = [], []
@@ -853,7 +926,8 @@ def cmd_ab(args) -> None:
             sink.append(r)
     agg_a, agg_b = aggregate(ra), aggregate(rb)
     rows = verdict(agg_a, agg_b, args.tolerance)
-    summary = {"scenario": scenario["name"], "a": str(a), "b": str(b), "aggregate_a": agg_a,
+    summary = {"scenario": scenario["name"], "brush": scenario.get("brush"), "a": str(a), "b": str(b),
+               "aggregate_a": agg_a,
                "aggregate_b": agg_b, "verdict": rows, "runs_a": ra, "runs_b": rb}
     (folder / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(f"\n{'metric':44} {'A':>10} {'B':>10}  call")
@@ -871,7 +945,8 @@ def cmd_ab(args) -> None:
 
 def print_report(summary: dict) -> None:
     good = [r for r in summary["runs"] if r["outcome"] == "ok"]
-    print(f"\n{summary['scenario']}: {len(good)}/{len(summary['runs'])} good run(s)")
+    brush = f" with {summary['brush']}" if summary.get("brush") else ""
+    print(f"\n{summary['scenario']}{brush}: {len(good)}/{len(summary['runs'])} good run(s)")
     for k, v in summary["aggregate"].items():
         print(f"  {k:44} {v:10.1f}")
     if good:
@@ -901,6 +976,7 @@ def main() -> None:
     r.add_argument("--runs", type=int, default=3)
     r.add_argument("--tag", default="adhoc")
     r.add_argument("--presentmon", help="path to presentmon.exe, to record what reached the screen")
+    r.add_argument("--brush", help="preset id, optionally :size — replaces the scenario's brush, e.g. builtin-ink:60")
     r.set_defaults(go=cmd_run)
     ab = sub.add_parser("ab", help="run a scenario against two builds, interleaved, with a verdict")
     ab.add_argument("scenario")
@@ -909,6 +985,7 @@ def main() -> None:
     ab.add_argument("--runs", type=int, default=3)
     ab.add_argument("--tolerance", type=float, default=0.15, help="relative change that counts (default 0.15)")
     ab.add_argument("--presentmon")
+    ab.add_argument("--brush", help="preset id, optionally :size — replaces the scenario's brush on both sides")
     ab.set_defaults(go=cmd_ab)
     c = sub.add_parser("check", help="run a behaviour scenario once and check its expectations")
     c.add_argument("scenario")

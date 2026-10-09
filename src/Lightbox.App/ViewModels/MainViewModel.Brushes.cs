@@ -317,6 +317,9 @@ public partial class MainViewModel
         PaletteDocker.Load(Doc);
         GradientDocker.Load(Doc);
         LoadBrushState();
+        // The lab's brush, if it asked for one — and only in its own profile.
+        ApplyBrushOverride(
+            Environment.GetEnvironmentVariable("LIGHTBOX_BRUSH"), Lightbox.Core.ProfileFolder.Overridden);
         SyncLayerChoices();
         SyncLayerRows();
         RefreshThumbnails();

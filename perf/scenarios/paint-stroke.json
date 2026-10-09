@@ -1,0 +1,19 @@
+{
+  "name": "paint-stroke",
+  "about": "Four strokes across a blank 1080p canvas with the brush named in `brush`, each 70% of the width in 1.5 s at 120 events a second — the gesture behind every drawing-latency report. Measures the UI cost of each pointer batch (stroke.move), how long ink took to reach the screen (pen.screen, tip.screen), each live pass of a textured or simulated brush (live.pass) and how many points behind the pen it landed (live.behind), and the pen-up commit (stroke.commit). Run it with --brush builtin-ink:60 as the control; the four rows stay apart so a wet brush does not re-wet its own last stroke.",
+  "fixture": "blank-1080p",
+  "brush": "builtin-watercolor-wet:60",
+  "repeat": 1,
+  "steps": [
+    {"do": "hover", "at": [0.5, 0.5]},
+    {"do": "key", "keys": "b", "after_ms": 200},
+    {"do": "drag", "from": [0.15, 0.30], "by": [0.70, 0.0], "ms": 1500, "hz": 120},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.15, 0.45], "by": [0.70, 0.0], "ms": 1500, "hz": 120},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.15, 0.60], "by": [0.70, 0.0], "ms": 1500, "hz": 120},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.15, 0.75], "by": [0.70, 0.0], "ms": 1500, "hz": 120},
+    {"do": "settle", "quiet_s": 1.0}
+  ]
+}

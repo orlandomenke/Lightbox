@@ -28,14 +28,17 @@ folder holding it, so an installed alpha build can be measured against a branch.
   shows up as slowness. The first transform-undo runs measured opening at 18 s and
   27 s on the same build, minutes apart, with other work going on.
 - **Nothing touches your profile or your keys.** Every run gets its own throwaway
-  profile (`LIGHTBOX_PROFILE_DIR`), and `ANTHROPIC_API_KEY` and the other AI variables
+  profile (`LIGHTBOX_PROFILE_DIR`) — which is also the only place the app honours
+  `LIGHTBOX_BRUSH`, the brush a paint scenario asks for, because the brush in hand is
+  saved to the profile at exit and a run must never leave one in yours — and `ANTHROPIC_API_KEY` and the other AI variables
   are removed from the app's environment — every `*_API_KEY` and the Ollama
   variables, by rule. AI features therefore do not run — never
   use the lab to judge AI output (the art-director's note).
 - **No private document is ever used.** Fixtures are generated from a seed by
   `tools/Lightbox.Bench` (`fixture` command). `owner-shape` matches the counts of the
   document that prompted all this — 11 layers, 64 drawings, ~1,260 strokes, 1920×1080,
-  ~7.9 MB — and contains none of its art.
+  ~7.9 MB — and contains none of its art. `blank-1080p` and `blank-4k` are one empty
+  drawing layer over the paper, for the paint scenario.
 
 ## What a run reports
 
@@ -50,7 +53,17 @@ can see.
 | `open.longest_stall_ms` | the longest freeze while opening |
 | `<action>.median_ms` / `.worst_ms` | the action's own cost: `undo`, `transform.begin`, `transform.commit`, `thumbnails`, `publish` (one screen update), `frame.add`, … |
 | `stalls.total_ms` / `.longest_ms` | how long the app did not answer, after opening |
-| stalls overlapped | which actions were running during the stalls — nested actions both count, so these overlap |
+| `stroke.move.median_ms` / `.worst_ms` | what one pointer batch costs the UI thread while painting: stamp, preview, publish request |
+| `pen.screen.median_ms` / `.worst_ms` | per drawn frame that carried fresh ink: the oldest pointer event in it → on screen. The artist's number |
+| `tip.screen.median_ms` / `.worst_ms` | the same frame's newest event → on screen: how stale the ink under the nib is, without the coalescing term |
+| `live.pass.median_ms` / `.worst_ms` | one live pass of a textured or simulated brush (wet edge, grain, medium), off the UI thread |
+| `live.behind.median` / `.worst` | when that pass landed, how many stroke points the pen had added since it started — the trailing you see. Points, not ms: at the drag's `hz` one point is one event, give or take the near-duplicate samples the stroke drops |
+| `stroke.commit.median_ms` / `.worst_ms` | the pen-up hitch: append, probe, undo record |
+| stalls overlapped | which actions were running during the stalls — nested actions both count, so these overlap. `pen.screen` and `tip.screen` are left out: they are how long ink waited, not what the app was doing |
+
+The paint metrics are **upper bounds**: while the log is on, every pointer batch and every
+drawn ink frame writes a line, and that write sits inside the very numbers it reports.
+Small, and the same on both sides of an A/B — but not zero, so compare, do not quote.
 
 Across runs, **"worst" and "longest" are judged on the minimum** (contention only ever
 adds to them) and everything else on the median. `ab` interleaves the two builds and
@@ -84,6 +97,7 @@ start a move drag a little off it (`transform-undo` uses `[0.53, 0.53]`).
 | `open-document` | opening the owner-shaped document |
 | `transform-undo` | select all, transform, move, commit, undo — three rounds |
 | `flip-keys` | flipping key to key with 1 and 2 |
+| `paint-stroke` | four strokes across a blank canvas with the brush in `brush` (`"id[:size]"`); `--brush builtin-ink:60` overrides it, and is the control |
 
 Planned, from the owner's list: first playback, adding a frame, click-to-jump on the
 timeline (scrubbing is fine; jumping is not), and the X-sheet operations that lag.

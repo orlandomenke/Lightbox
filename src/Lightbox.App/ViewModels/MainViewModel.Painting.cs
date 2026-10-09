@@ -2144,6 +2144,10 @@ public partial class MainViewModel
     public void MoveStrokeBatch(IReadOnlyList<PointerSample> samples)
     {
         if (!_strokeBuilder.IsActive) return;
+        // What one pointer batch costs the UI thread, for the lab's paint
+        // scenario: the stamp, the preview flush and the publish request. Off,
+        // this is one static read (Q209).
+        using var perf = PerfLog.Begin("stroke.move");
         // B189: clocked on arrival so the render report can price the whole
         // pen→screen chain on the artist's machine, not just the stamp.
         var arrived = Rendering.StrokeToScreen.EventArrived();
@@ -3276,6 +3280,15 @@ public partial class MainViewModel
         }
 
         var generation = _live.PostGeneration;
+        // For the lab: how much of the mark this pass reads, which is the number
+        // B313 changed and B331 is about. Built here, on the UI thread, and only
+        // while the log is on — the string is the only allocation and the off
+        // path pays one static read.
+        var perfDetail = PerfLog.On
+            ? string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"pass={passPixels};mark={markPixels}")
+            : null;
         // Read here, on the UI thread, for Work to post back through — see the
         // comment at that post.
         var uiDispatcher = Avalonia.Threading.Dispatcher.UIThread;
@@ -3303,6 +3316,9 @@ public partial class MainViewModel
         {
             SKImage? processed = null;
             var started = System.Diagnostics.Stopwatch.GetTimestamp();
+            // Off the UI thread; the log takes its own lock, so a worker
+            // writing beside the UI thread's spans is the designed case.
+            using var perf = PerfLog.Begin("live.pass", perfDetail);
             try
             {
                 // The dabs are already stamped, so the pass runs the effects
@@ -3373,6 +3389,15 @@ public partial class MainViewModel
         {
             NotePostProcessLost(restoreIfLost);
             return;
+        }
+
+        // The trailing the artist sees, in the lab's terms: the processed mark
+        // about to be shown is as of `count` points, and the pen has since
+        // added these. Points, not milliseconds — the scenario knows its own
+        // event rate and converts.
+        if (PerfLog.On && _strokeBuilder.Current is { } current)
+        {
+            PerfLog.Count("live.behind", Math.Max(0, current.Points.Count - count));
         }
 
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
@@ -3849,6 +3874,9 @@ public partial class MainViewModel
 
     public void EndStroke()
     {
+        // The pen-up hitch, whole: the append, the probe, the undo record and
+        // the publish that follows. The lab reads its median and its worst.
+        using var perf = PerfLog.Begin("stroke.commit");
         NoteStrokeEnded(_strokeBuilder.Current?.Points.Count ?? 0, _live.StableDabs);
         var stroke = _strokeBuilder.End();
         _live.ClearEffectState();
