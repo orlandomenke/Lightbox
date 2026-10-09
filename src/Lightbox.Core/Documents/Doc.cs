@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -32,6 +34,16 @@ public sealed class Doc
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsFromANewerBuild => Version > CurrentVersion;
+
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
+    public int Version { get; set; } = 1;
 
     public Scene Scene { get; set; } = new();
 
@@ -581,6 +593,14 @@ public sealed class Doc
 /// <summary>A recorded selection: closed contours (even-odd) plus edge feather.</summary>
 public sealed class ClipRegion
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public List<List<StrokePoint>> Contours { get; set; } = [];
 
     /// <summary>Gaussian edge softness in pixels (0 = hard edge).</summary>

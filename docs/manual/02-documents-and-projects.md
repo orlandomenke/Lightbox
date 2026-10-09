@@ -20,6 +20,13 @@ few kinds of data cannot be kept that way, so when a document or project was
 saved by a newer version, the status strip says that saving it here may drop
 what this version cannot read.
 
+**A document opens without freezing the window.** While the file is read, its
+tab reads *name — opening…*, the canvas is covered with its name and a bar that
+moves, and the menu bar greys out. Keystrokes that would edit are ignored until
+it arrives, so no change can land on the wrong document; the window itself still
+answers. If the file will not open, the pending tab goes, the menus come back,
+and the status strip says why.
+
 The New dialog asks what the document is *for* — Illustration, Animation, Game
 art, Storyboard, Comic, Asset library, or **None**. **None is the default**, and
 it means exactly what it says: a single file, no project structure. The choice

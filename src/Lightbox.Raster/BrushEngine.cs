@@ -5427,8 +5427,9 @@ public static class BrushEngine
     {
         var load = Math.Clamp(brush.Medium.PaintLoad, 0, 1);
         if (load >= 1) return 1;
+        if (load <= 0) return travelled > 0 ? 0 : 1;
 
-        // Diameters of stroke the paint lasts, per unit of load.
+        // Diameters of stroke the paint lasts at a load of one half.
         //
         // Small, and the reason is dab overlap. At the usual spacing a dozen
         // dabs land on any given pixel, so the mark's alpha is
@@ -5437,8 +5438,15 @@ public static class BrushEngine
         // faded from 1.000 to 0.858 over seven hundred pixels, which is not a
         // brush running out, it is a brush thinking about it. The per-dab
         // curve has to fall much further than the mark does.
-        const double Reach = 12;
-        var scale = Math.Max(brush.Size, 1) * Reach * load;
+        //
+        // The reach is load / (1 - load) times that, not load times it (Q236).
+        // Linear in the load, the slider was a cliff: at exactly 1 the brush
+        // never ran out and at 0.99 it was spent inside twenty diameters, so a
+        // long gentle wash was not reachable at any setting. This keeps a half
+        // load where it was, lets 0.9 last nine times as long, and goes to
+        // "never" continuously as the load goes to 1.
+        const double Reach = 6;
+        var scale = Math.Max(brush.Size, 1) * Reach * load / (1 - load);
         return Math.Exp(-travelled / scale);
     }
 

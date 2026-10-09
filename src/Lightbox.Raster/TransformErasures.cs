@@ -118,6 +118,9 @@ public static class TransformErasures
         private readonly bool[] _mask;
         private readonly int _w;
         private readonly int _h;
+        private readonly MaskIndex _index;
+        private readonly Dictionary<Stroke, bool> _inkVerdicts = [];
+        private SKRectI[]? _erasureReach;
 
         public RegionReading(IReadOnlyList<Stroke> strokes, bool[] mask, int w, int h)
         {
@@ -125,6 +128,7 @@ public static class TransformErasures
             _mask = mask;
             _w = w;
             _h = h;
+            _index = MaskIndex.Of(mask, w, h);
             _erasures = StrokePicker.ErasurePositions(strokes);
             for (var i = 0; i < strokes.Count; i++) _positions[strokes[i]] = i;
         }
@@ -195,6 +199,20 @@ public static class TransformErasures
         {
             var stroke = _strokes[position];
             var raw = IsErasure(stroke) || stroke.Tool == ToolKind.Gradient;
+            var (inside, outside, any) = AlongThePath(position, stroke, raw);
+            // B432: the path is where the pen went, not where the ink is. A
+            // fill's points are its outline and a line's are its centre, so a
+            // region lying inside the colour, or over the edge of a line, holds
+            // ink no walk along the path enters. Asked only when the walk found
+            // nothing inside — a path inside already answers it, and keeping
+            // that answer is what leaves every transform that worked unchanged.
+            // An erasure has no ink of its own; its points are the question.
+            if (any && !inside && !raw && InkReaches(position, stroke)) inside = true;
+            return (inside, outside, any);
+        }
+
+        private (bool Inside, bool Outside, bool Any) AlongThePath(int position, Stroke stroke, bool raw)
+        {
             bool inside = false, outside = false, any = false;
             StrokePoint? previous = null;
             foreach (var point in stroke.Points)
@@ -211,6 +229,102 @@ public static class TransformErasures
                 if (inside && outside) break;   // nothing further can change the answer
             }
             return (inside, outside, any);
+        }
+
+        /// <summary>
+        /// Does any of this stroke's rendered ink, not taken away by a later
+        /// erasure, fall inside the region?
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Rendered, not modelled.</b> The ink is what the brush engine
+        /// stamps — a fill's interior, a brush's width, scatter, a soft edge —
+        /// and a reading of it from the brush settings would be a second render
+        /// that drifts from the first. It is rendered through the origin
+        /// <see cref="FrameRasterizer"/> already takes, over the part of the
+        /// stroke's reach the region can touch and no more.
+        /// </para>
+        /// <para>
+        /// <b>Bounded before it renders.</b> Only a stroke whose walk found
+        /// nothing inside comes here, and only one whose reach meets a tile
+        /// the region occupies is rendered — over those tiles' box, not the
+        /// region's: a diagonal lasso has a box most of the page, and a
+        /// background fill beside it would otherwise render at page size. The
+        /// region's tiles are worked out once per mask (<see cref="MaskIndex"/>),
+        /// whichever reading asks; the answer is kept per stroke, so the two
+        /// questions a reading asks of one stroke render it once. Paid when a
+        /// transform opens, previews and commits, never per pointer event.
+        /// </para>
+        /// <para>
+        /// A faint fringe does not count — antialiasing reaches a pixel past
+        /// any edge, and a region drawn up to a line would otherwise take it.
+        /// The bar scales with the stroke's opacity, so a light pencil line is
+        /// still ink and not fringe.
+        /// </para>
+        /// </remarks>
+        private bool InkReaches(int position, Stroke stroke)
+        {
+            if (_inkVerdicts.TryGetValue(stroke, out var known)) return known;
+            var verdict = RenderAndRead(position, stroke);
+            _inkVerdicts[stroke] = verdict;
+            return verdict;
+        }
+
+        private bool RenderAndRead(int position, Stroke stroke)
+        {
+            if (BrushEngine.ReachBounds(stroke) is not { } reach) return false;
+            if (_index.Within(reach) is not { } box) return false;
+
+            using var ink = FrameRasterizer.Rasterize(
+                [stroke], box.Width, box.Height, origin: new SKPointI(box.Left, box.Top));
+            var faintest = FaintestInkFor(stroke);
+            // Read straight off the pixels — Rasterize makes Rgba8888, alpha
+            // fourth — rather than a GetPixel per pixel over the footprint.
+            var bytes = ink.GetPixelSpan();
+            var rowBytes = ink.RowBytes;
+            for (var y = 0; y < box.Height; y++)
+            {
+                for (var x = 0; x < box.Width; x++)
+                {
+                    if (bytes[(y * rowBytes) + (x * 4) + 3] < faintest) continue;
+                    int px = box.Left + x, py = box.Top + y;
+                    if (!_mask[(py * _w) + px]) continue;
+                    if (InkErasedAt(position, px, py)) continue;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Ink fainter than this is an edge's antialiasing, not the mark: a
+        /// quarter of what the stroke lays down at full strength, and never
+        /// below a few levels.
+        /// </summary>
+        private static byte FaintestInkFor(Stroke stroke)
+        {
+            var full = Math.Clamp(stroke.Brush.Opacity, 0, 1) * 255;
+            return (byte)Math.Clamp(full / 4, 4, 64);
+        }
+
+        /// <summary>
+        /// <see cref="ErasedAt"/> for a pixel of rendered ink, with each later
+        /// erasure's reach tried first: the point test walks the erasure's
+        /// whole polyline, and most pixels are nowhere near most erasures.
+        /// </summary>
+        private bool InkErasedAt(int position, int px, int py)
+        {
+            _erasureReach ??= [.. _erasures.Select(k =>
+                BrushEngine.ReachBounds(_strokes[k]) ?? SKRectI.Empty)];
+            var point = new StrokePoint(px, py, 1);
+            for (var e = 0; e < _erasures.Count; e++)
+            {
+                var k = _erasures[e];
+                if (k <= position) continue;
+                if (!_erasureReach[e].Contains(px, py)) continue;
+                if (StrokePicker.ErasesPoint(_strokes[k], point.X, point.Y)) return true;
+            }
+            return false;
         }
 
         /// <summary>The mark between two recorded points, at about a pixel a step.</summary>
@@ -239,6 +353,82 @@ public static class TransformErasures
             var px = (int)Math.Round(x);
             var py = (int)Math.Round(y);
             return px >= 0 && px < _w && py >= 0 && py < _h && _mask[(py * _w) + px];
+        }
+    }
+
+    /// <summary>
+    /// Where a selection mask has anything, at the grain of a tile — worked
+    /// out once per mask, however many drawings and readings ask (B432).
+    /// </summary>
+    /// <remarks>
+    /// A transform reads one mask over every drawing in its scope, at open, at
+    /// preview and at commit. A full scan of a 4K mask is 8.3 million entries,
+    /// so it is done once and kept with the mask for as long as the mask lives.
+    /// </remarks>
+    private sealed class MaskIndex
+    {
+        private const int Tile = 32;
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<bool[], MaskIndex> Known = new();
+
+        private readonly bool[] _occupied;
+        private readonly int _cols, _rows;
+
+        private MaskIndex(bool[] mask, int w, int h)
+        {
+            _cols = (w + Tile - 1) / Tile;
+            _rows = (h + Tile - 1) / Tile;
+            _occupied = new bool[_cols * _rows];
+            for (var y = 0; y < h; y++)
+            {
+                var row = y * w;
+                var tileRow = (y / Tile) * _cols;
+                for (var x = 0; x < w; x++)
+                {
+                    if (mask[row + x]) _occupied[tileRow + (x / Tile)] = true;
+                }
+            }
+            W = w;
+            H = h;
+        }
+
+        private int W { get; }
+
+        private int H { get; }
+
+        public static MaskIndex Of(bool[] mask, int w, int h)
+        {
+            if (Known.TryGetValue(mask, out var index) && index.W == w && index.H == h) return index;
+            index = new MaskIndex(mask, w, h);
+            Known.AddOrUpdate(mask, index);
+            return index;
+        }
+
+        /// <summary>
+        /// The box round the occupied tiles <paramref name="reach"/> meets,
+        /// clipped to the reach and the mask; null when it meets none.
+        /// </summary>
+        public SKRectI? Within(SKRectI reach)
+        {
+            var clipped = SKRectI.Intersect(reach, new SKRectI(0, 0, W, H));
+            if (clipped.Width <= 0 || clipped.Height <= 0) return null;
+            int c0 = clipped.Left / Tile, c1 = (clipped.Right - 1) / Tile;
+            int r0 = clipped.Top / Tile, r1 = (clipped.Bottom - 1) / Tile;
+            int minC = int.MaxValue, minR = int.MaxValue, maxC = -1, maxR = -1;
+            for (var r = r0; r <= r1; r++)
+            {
+                for (var c = c0; c <= c1; c++)
+                {
+                    if (!_occupied[(r * _cols) + c]) continue;
+                    minC = Math.Min(minC, c);
+                    maxC = Math.Max(maxC, c);
+                    minR = Math.Min(minR, r);
+                    maxR = Math.Max(maxR, r);
+                }
+            }
+            if (maxC < 0) return null;
+            var box = SKRectI.Intersect(
+                clipped, new SKRectI(minC * Tile, minR * Tile, (maxC + 1) * Tile, (maxR + 1) * Tile));
+            return box.Width > 0 && box.Height > 0 ? box : null;
         }
     }
 

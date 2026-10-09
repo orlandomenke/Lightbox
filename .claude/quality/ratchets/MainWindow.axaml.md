@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4446
+budget: 4448
 
 ## Why it is here despite being XAML
 
@@ -345,3 +345,4 @@ leaves a number nobody can account for. So every reason above stays, and
 - **→ 4,440** (2026-10-09): *Same as parent* on a folder's colour menu (Q226) — one `MenuItem` beside the six colours it is the alternative to. The wash itself costs the window nothing: it is a style on the row's container in `Styles/LayerRows.axaml`, put there so the row's own fills draw over it.
 - **→ 4,441** (2026-10-09): folders on the X-sheet (Q227) — the list takes two templates where it had one, which is the one extra line: `<DataTemplate x:DataType="vm:SheetFolderRow"><views:XsheetFolderRow /></DataTemplate>`. The row itself, its chevron and its strip of marks are `Views/XsheetFolderRow.axaml`, off the window as the link and shape brackets are.
 - **→ 4,446** (2026-10-09): pinning rows to the Timeline and the X-sheet (Q227) — five lines, each a control that has to be where an artist looks for it: the *Pinned only* switch on the Timeline's bar and again on the X-sheet's, and *Pin to timeline* on a layer's menu, a folder's menu and the X-sheet's layer-name menu. All five bind straight to a row or the view model, so there is no handler behind any of them; a folder's pin on its sheet row is in `XsheetFolderRow.axaml` and costs the window nothing.
+- **→ 4,448** (2026-10-09): opening a document off the UI thread (Q229) — two hosting lines, `<views:OpeningTabs />` in the tab strip and `<views:OpeningCover />` over the canvas, which carry the pending tab and the canvas's cover off the window as the brackets do. The menu's *disabled while opening* is an attribute on its existing line, and the strip's wrapping panel sits on the lines it wraps. +2, the size of the change; the first version inlined both and was +32.
