@@ -2896,7 +2896,7 @@
                            would land: a line above or below for "beside", the
                            whole row lit for "into". -->
                       <Border Classes="groupRow" Classes.hiddenLayer="{Binding IsDimmed}" Margin="{Binding Indent}"
-                              Classes.lockedLayer="{Binding Locked}"
+                              Classes.lockedLayer="{Binding EditsBlocked}"
                               Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
                               Classes.dropInto="{Binding DropInto}" Classes.selected="{Binding IsSelected}"
                               Focusable="True"
@@ -2937,7 +2937,7 @@
                           </Button>
                           <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}" Classes.gated="{Binding HiddenByFolder}"
                                         ToolTip.Tip="Folder visibility (gates every layer inside)"><Path /></ToggleButton>
-                          <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}"
+                          <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}" Classes.gated="{Binding LockedByFolder}"
                                         ToolTip.Tip="Lock the folder — every layer inside refuses edits, but still renders"><Path /></ToggleButton>
                           <Button Classes="icon" DockPanel.Dock="Right" Background="Transparent"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DissolveGroupCommand}"
@@ -3104,7 +3104,7 @@
                           </Border>
                           <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}" Classes.gated="{Binding HiddenByFolder}"
                                         ToolTip.Tip="Layer visibility"><Path /></ToggleButton>
-                          <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}"
+                          <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}" Classes.gated="{Binding LockedByFolder}"
                                         ToolTip.Tip="Lock the layer — refuses paint, fill, transform, delete and cel edits. It still renders and still exports."><Path /></ToggleButton>
                           <ToggleButton Classes="icon glyph alpha" DockPanel.Dock="Left" IsChecked="{Binding AlphaLocked}"
                                         ToolTip.Tip="Lock transparency — paint only lands where the layer already has content, so the silhouette cannot change"><Path /></ToggleButton>

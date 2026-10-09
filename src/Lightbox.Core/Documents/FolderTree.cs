@@ -125,6 +125,10 @@ public static class FolderTree
     public static LayerGroup? LockedFolderOf(Scene scene, Layer layer) =>
         layer.GroupId is null ? null : FoldersOf(scene, layer).FirstOrDefault(f => f.Locked);
 
+    /// <summary>The innermost locked folder a folder is inside, or null. Its own lock is not counted.</summary>
+    public static LayerGroup? LockedFolderOf(Scene scene, LayerGroup folder) =>
+        Ancestors(scene, folder).FirstOrDefault(f => f.Locked);
+
     /// <summary>
     /// The innermost hidden folder a layer is inside, or null. A layer in one
     /// draws nothing whatever its own switch says.

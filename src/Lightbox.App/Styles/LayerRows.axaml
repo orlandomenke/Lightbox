@@ -59,16 +59,22 @@
   <Style Selector="Border.layerRow.hiddenLayer">
     <Setter Property="Opacity" Value="0.35" />
   </Style>
-  <!-- Cyan, not the warning amber: locked is a STATE the artist chose, not
-       a problem the app is reporting, and amber made every locked layer read
-       as something going wrong. -->
-  <Style Selector="Border.layerRow.lockedLayer">
-    <Setter Property="BorderBrush" Value="{DynamicResource AccentCyanBrush}" />
-    <Setter Property="BorderThickness" Value="1" />
-  </Style>
-  <Style Selector="Border.groupRow.lockedLayer">
-    <Setter Property="BorderBrush" Value="{DynamicResource AccentCyanBrush}" />
-    <Setter Property="BorderThickness" Value="1" />
+  <!--
+    A row that refuses edits — locked itself, or inside a locked folder — says
+    so with its padlock, which is shut, and with its name, which goes quiet.
+    Nothing is drawn round the row.
+
+    It used to be outlined, first in the warning amber and then in cyan. Amber
+    made a locked layer look like a fault; cyan cured that and left the real
+    problem, which was the outline: a ring round a row is how "this is the one
+    you are on" is drawn everywhere else, so a locked layer read as the active
+    one (the owner's report, 2026-10-09). Locking is something done to a row,
+    so it is shown ON the row — by the control that does it.
+
+    Only the name dims, not the row: a row at reduced opacity is a hidden one.
+  -->
+  <Style Selector="Border.layerRow.lockedLayer TextBlock, Border.groupRow.lockedLayer TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
   </Style>
   <!--
     A folder's colour, as a wash across the whole row (Q226): strongly on the
