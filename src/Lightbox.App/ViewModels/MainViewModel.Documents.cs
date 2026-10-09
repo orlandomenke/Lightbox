@@ -479,8 +479,15 @@ public partial class MainViewModel
     /// </summary>
     internal void WarnIfNewer(Doc doc, string title)
     {
-        if (!doc.IsFromANewerBuild) return;
-        AiStatus = $"“{title}” was saved by a newer Lightbox. Saving it here may drop what this version cannot read.";
+        if (doc.IsFromANewerBuild)
+        {
+            AiStatus = $"“{title}” was saved by a newer Lightbox. Saving it here may drop what this version cannot read.";
+        }
+        // The other side (Q237): this build's format, last saved by an older one.
+        else if (doc.WasLastSavedByAnOlderBuild)
+        {
+            AiStatus = $"“{title}” was last saved by an older Lightbox, which may have dropped some of what this version wrote.";
+        }
     }
 
     // ---- what you had open last -----------------------------------------------

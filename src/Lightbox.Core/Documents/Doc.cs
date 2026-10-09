@@ -32,6 +32,34 @@ public sealed class Doc
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsFromANewerBuild => Version > CurrentVersion;
+
+    /// <summary>
+    /// The format of the build that last saved this, when that build was older
+    /// than the document (Q237). Written only then: a build saving a document
+    /// newer than it writes names its own format, and a build that writes the
+    /// document's own format writes nothing — so an ordinary file carries no
+    /// key, and the newer build's warning is said once, not on every open.
+    /// </summary>
+    /// <remarks>
+    /// Asymmetric on purpose: what is written is decided by this build, what was
+    /// read is kept for <see cref="WasLastSavedByAnOlderBuild"/>. It has to exist
+    /// in the older build to help the newer one, which is why it is here before
+    /// any format change needs it.
+    /// </remarks>
+    public int? SavedByFormat
+    {
+        get => Version > CurrentVersion ? CurrentVersion : null;
+        set => _savedByFormatOnRead = value;
+    }
+
+    private int? _savedByFormatOnRead;
+
+    /// <summary>
+    /// An older build saved this document over one of this build's format, and
+    /// may have dropped what it could not read (Q237). Asked, never written.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool WasLastSavedByAnOlderBuild => _savedByFormatOnRead is { } older && older < Version;
 
     public Scene Scene { get; set; } = new();
 
