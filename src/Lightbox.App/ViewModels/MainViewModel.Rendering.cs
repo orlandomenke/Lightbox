@@ -2002,6 +2002,9 @@ public partial class MainViewModel
             && Lightbox.Raster.PictureMemory.Total < Lightbox.Raster.PictureMemory.Brokered;
         if (idle)
         {
+            // Then the drawings either side, which a flip lands on: the paused
+            // canvas draws stills, and the playback range below is tiles.
+            jobs.AddRange(NeighbourStillJobs());
             var tileNative = Scene.Camera is null
                 && _publish.Viewport is { Width: > 0, Height: > 0 }
                 && !Lightbox.Raster.EffectPasses.AnyLive(Scene);
@@ -2261,6 +2264,39 @@ public partial class MainViewModel
             if (_cache.Holds(frame, scene.Width, scene.Height, 1.0, cel)) continue;
             jobs ??= [];
             jobs.Add(new Services.WarmRequest(frame, scene.Width, scene.Height, cel, Services.WarmProduct.Bitmap, Wanted: true));
+        }
+        return jobs;
+    }
+
+    /// <summary>
+    /// The stills of the frames either side of the playhead — the next first,
+    /// the usual direction of a flip — as guesses.
+    /// </summary>
+    /// <remarks>
+    /// The lab's 30-layer document spent most of a flip rendering the frame it
+    /// arrived at (2026-10-09). With onion on, the frames one either side are
+    /// already warmed as ghosts; with onion off, the owner's default, nothing
+    /// was. Not <c>Wanted</c>: a guess goes in only where there is room, and never
+    /// pushes out the frame on screen.
+    /// </remarks>
+    private List<WarmRequest> NeighbourStillJobs()
+    {
+        var scene = Scene;
+        var jobs = new List<WarmRequest>();
+        var seen = new HashSet<string>();
+        foreach (var offset in (ReadOnlySpan<int>)[1, -1, 2, -2])
+        {
+            var index = CurrentFrameIndex + offset;
+            if (index < 0 || index >= scene.FrameCount) continue;
+            foreach (var layer in scene.Layers)
+            {
+                if (!scene.IsLayerVisible(layer)) continue;
+                if (ExposureSheet.ExposedFrame(layer, index) is not { } frame) continue;
+                if (!FrameBitmapCache.CanCache(frame) || _cache.Rig.IsPosed(frame)) continue;
+                if (_cache.Holds(frame, scene.Width, scene.Height, 1.0, index)) continue;
+                if (!seen.Add($"{frame.Id}#{index}")) continue;
+                jobs.Add(new WarmRequest(frame, scene.Width, scene.Height, index, WarmProduct.Bitmap));
+            }
         }
         return jobs;
     }

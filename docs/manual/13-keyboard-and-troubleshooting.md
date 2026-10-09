@@ -149,7 +149,9 @@ background while you are not drawing or playing**: after you open a document,
 and again a moment after each change, it works through the playback range in the
 order it will play, starting from the playhead. By the time you press play the
 drawings are usually ready, and the first loop runs at full speed instead of
-painting each frame as it reaches it.
+painting each frame as it reaches it. It also paints the drawings just before and
+after the one you are on, so stepping to the next or previous drawing shows it at
+once rather than painting it first.
 
 It gets out of the way on its own: it stops the moment you start a stroke or press
 play, and picks up again when you pause. On a large document on a machine with
