@@ -31,8 +31,62 @@ public sealed class StillWorkingSetTests
 
     private static void Publish(FrameBitmapCache cache, IEnumerable<Frame> frame)
     {
-        cache.BeginPublish();
+        using var publish = cache.Publishing();
         foreach (var f in frame) cache.Get(f, W, H);
+    }
+
+    /// <summary>
+    /// Only the most recent publish is protected, so the overshoot is one
+    /// frame's worth. Protecting the one before as well let playback, where
+    /// every tick is a publish of a different frame, hold two frames past the
+    /// budget: about 6 GB on a 30-layer 4K document with ghosts, more than the
+    /// 8 GB minimum spec can spare (the leak review, 2026-10-09).
+    /// </summary>
+    [Fact]
+    public void OnlyTheFrameOnScreenIsHeldPastTheBudget()
+    {
+        var before = FrameBitmapCache.ByteBudget;
+        try
+        {
+            FrameBitmapCache.ByteBudget = (long)W * H * 4 * 8; // room for 8 of a frame's 12
+            var cache = new FrameBitmapCache();
+
+            Publish(cache, Drawings(12));
+            Publish(cache, Drawings(12));
+
+            Assert.Equal(12, cache.CachedFrames);
+        }
+        finally
+        {
+            FrameBitmapCache.ByteBudget = before;
+        }
+    }
+
+    /// <summary>A publish inside a publish does not end the outer one's protection.</summary>
+    [Fact]
+    public void ANestedPublishLeavesTheOuterOneProtecting()
+    {
+        var before = FrameBitmapCache.ByteBudget;
+        try
+        {
+            FrameBitmapCache.ByteBudget = (long)W * H * 4 * 8;
+            var cache = new FrameBitmapCache();
+            var frame = Drawings(12);
+
+            using (cache.Publishing())
+            {
+                using (cache.Publishing()) cache.Get(frame[0], W, H);
+                foreach (var f in frame.Skip(1)) cache.Get(f, W, H);
+            }
+            var misses = cache.Misses;
+            Publish(cache, frame);
+
+            Assert.Equal(misses, cache.Misses);
+        }
+        finally
+        {
+            FrameBitmapCache.ByteBudget = before;
+        }
     }
 
     [Fact]

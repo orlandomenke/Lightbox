@@ -47,6 +47,22 @@ own older 4 GB ceiling. The setting still goes either way. The ceiling of half
 the machine keeps it well clear of paging, which would cost far more time than
 any re-render.
 
+## The frame on screen is never evicted (2026-10-09)
+
+A 30-layer 4K frame with onion ghosts needs about 3 GB of stills, more than the
+still cache's budget. So each publish evicted drawings it had just made and
+rendered them again. The idle warm did the same forever (B425): it took one
+still in, which evicted another of the same frame, which it then asked for again.
+
+So the stills the most recent publish fetched are held even past the budget.
+**The overshoot is one frame's worth**, and only one. A first version also held
+the publish before, which during playback (a publish per tick) meant two frames
+past the budget, about 6 GB at 4K, more than the 8 GB minimum spec can spare.
+The leak review caught it. A publish evicts when it ends, not when it starts, so
+a frame the playhead has left goes back under the budget at once, and a
+republish of the same frame does not evict its own stills before fetching them.
+Fetches outside a publish (exports, background renders) are never held.
+
 ## How the caches give memory back
 
 **The four UI-thread stores are brokered.** Still images, playback tiles,

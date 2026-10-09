@@ -885,9 +885,9 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     }
 
     /// <summary>
-    /// A publish is starting: what it fetches, and what the one before it
-    /// fetched, are the frame on screen, and are not evicted to make room for
-    /// each other (<see cref="Protected"/>).
+    /// A publish is starting: what it fetches is the frame on screen, and is not
+    /// evicted to make room for the rest of it (<see cref="Protected"/>) — until
+    /// the next publish begins.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -898,22 +898,32 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     /// </para>
     /// <para>
     /// <b>The overshoot is one frame's worth</b>, and the rest of the cache still
-    /// answers to the budget. Starting a publish also evicts, so a frame the
-    /// playhead has left goes back under the budget at once rather than at the
-    /// next miss. Only fetches inside a publish are protected: an export or a
+    /// answers to the budget. Only the most recent publish is protected: also
+    /// protecting the one before let playback, a publish per tick, hold two
+    /// frames past the budget — about 6 GB at 4K with 30 layers and ghosts (the
+    /// leak review). The end of a publish evicts, so a frame the playhead has
+    /// left goes back under the budget at once; the start does not, or a
+    /// republish of the same frame would evict its own stills before fetching
+    /// them. Only fetches inside a publish are protected: an export or a
     /// background render that walks the document never is, or it would hold every
     /// frame it touched.
+    /// </para>
+    /// <para>
+    /// <b>Nests.</b> A publish inside a publish is part of it: it neither starts a
+    /// new frame on screen nor ends the outer one's protection.
     /// </para>
     /// </remarks>
     public void BeginPublish()
     {
-        _publish++;
-        _inPublish = true;
-        Evict();
+        if (_publishDepth++ == 0) _publish++;
     }
 
     /// <summary>The publish has composed; fetches after this are not the frame on screen.</summary>
-    public void EndPublish() => _inPublish = false;
+    public void EndPublish()
+    {
+        if (_publishDepth == 0 || --_publishDepth > 0) return;
+        Evict();
+    }
 
     /// <summary><see cref="BeginPublish"/> now, <see cref="EndPublish"/> when disposed, on every path out.</summary>
     public PublishScope Publishing()
@@ -928,12 +938,12 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     }
 
     private long _publish;
-    private bool _inPublish;
+    private int _publishDepth;
 
-    private long Stamp(long previous) => _inPublish ? _publish : previous;
+    private long Stamp(long previous) => _publishDepth > 0 ? _publish : previous;
 
-    /// <summary>Used by this publish or the last: the frame on screen, which eviction leaves alone.</summary>
-    private bool Protected(Entry e) => _publish > 0 && e.Publish >= _publish - 1;
+    /// <summary>Used by the most recent publish: the frame on screen, which eviction leaves alone.</summary>
+    private bool Protected(Entry e) => _publish > 0 && e.Publish == _publish;
 
     public void Clear()
     {
