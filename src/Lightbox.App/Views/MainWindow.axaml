@@ -139,7 +139,8 @@
 
     <!-- Menu bar -->
     <Menu DockPanel.Dock="Left" VerticalAlignment="Center" x:Name="MainMenu"
-          Background="Transparent" BorderThickness="0">
+          Background="Transparent" BorderThickness="0"
+          IsEnabled="{Binding !IsOpeningDocument}">
       <MenuItem Header="_File" Classes="top">
         <MenuItem Header="_New…" Click="OnNewClicked" />
         <MenuItem Header="_Open…" Click="OnOpenClicked" />
@@ -1585,6 +1586,7 @@
     <!-- Open documents: click to switch, ✕ to close, • marks unsaved changes -->
     <controls:ScaledChrome DockPanel.Dock="Top"><Border Background="{DynamicResource BackgroundSecondaryBrush}" Padding="4,2,4,0">
       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <StackPanel Orientation="Horizontal">
         <ItemsControl ItemsSource="{Binding Tabs}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
@@ -1617,6 +1619,22 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+        <!-- Documents being read from disk (Q229): a tab of their own until they are tabs. -->
+        <ItemsControl x:Name="OpeningTabs" ItemsSource="{Binding OpeningDocuments}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:OpeningDocument">
+              <Border Classes="docTab active" Padding="13,2" ToolTip.Tip="{Binding Path}">
+                <TextBlock VerticalAlignment="Center" Text="{Binding Title, StringFormat='{}{0} — opening…'}" Opacity="0.7" />
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        </StackPanel>
       </ScrollViewer>
     </Border></controls:ScaledChrome>
 
@@ -2094,6 +2112,20 @@
             <Button x:Name="NothingOpenOpen" Content="Open…" Click="OnOpenClicked"
                     ToolTip.Tip="Open a document from disk (Ctrl+O)" />
           </StackPanel>
+        </StackPanel></controls:ScaledChrome>
+      </Border>
+
+      <!-- A document being read from disk (Q229): the window answers, and the
+           canvas is covered so nothing is drawn on a document that is not the
+           one asked for. Above "Nothing open", so opening from the start
+           screen shows this rather than the empty state. -->
+      <Border x:Name="OpeningDocument" Grid.Row="0" Grid.RowSpan="5"
+              IsVisible="{Binding IsOpeningDocument}"
+              Background="{DynamicResource BackgroundPrimaryBrush}">
+        <controls:ScaledChrome HorizontalAlignment="Center" VerticalAlignment="Center"><StackPanel Spacing="{StaticResource Space10}">
+          <TextBlock Text="{Binding OpeningTitle, StringFormat='Opening {0}…'}" FontSize="{StaticResource TypeDisplay}"
+                     HorizontalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+          <ProgressBar IsIndeterminate="True" Width="240" HorizontalAlignment="Center" />
         </StackPanel></controls:ScaledChrome>
       </Border>
 

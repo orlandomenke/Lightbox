@@ -13,6 +13,13 @@ it showed — a posed rig stands in its pose instead of snapping back to the
 start of the timeline. A document saved at the first frame writes nothing
 extra to the file.
 
+**A large document opens without freezing the window.** While the file is read,
+its tab shows *— opening…*, and the canvas is covered with its name and a moving
+bar. The menus and the keyboard wait until it has arrived, so nothing can be
+done to a document that is not the one you asked for yet; the window itself
+still answers. If the file will not open, the status strip says why and
+nothing else changes.
+
 The New dialog asks what the document is *for* — Illustration, Animation, Game
 art, Storyboard, Comic, Asset library, or **None**. **None is the default**, and
 it means exactly what it says: a single file, no project structure. The choice

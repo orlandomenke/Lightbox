@@ -507,32 +507,26 @@ public partial class MainViewModel
     /// take the same route — including the part where a file that has since
     /// been moved says so instead of doing nothing.
     /// </remarks>
-    public void OpenRecent(RecentItem? item)
+    public Task OpenRecent(RecentItem? item)
     {
-        if (item is null) return;
+        if (item is null) return Task.CompletedTask;
         if (item.Kind == RecentKind.Project)
         {
             if (!Directory.Exists(item.Path))
             {
                 AiStatus = $"“{item.Name}” is no longer at {item.Path}.";
-                return;
+                return Task.CompletedTask;
             }
             OpenProject(item.Path);
-            return;
+            return Task.CompletedTask;
         }
         if (!File.Exists(item.Path))
         {
             AiStatus = $"“{item.Name}” is no longer at {item.Path}.";
-            return;
+            return Task.CompletedTask;
         }
-        try
-        {
-            OpenDocumentTab(DocJson.Load(item.Path), item.Path);
-        }
-        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
-        {
-            AiStatus = $"Could not open {item.Name}: {ex.Message}";
-        }
+        // Read on a worker (Q229); a file that will not open says why.
+        return OpenDocumentFileAsync(item.Path);
     }
 
     // ---- opening off the UI thread (Q229) -------------------------------------------
@@ -548,6 +542,9 @@ public partial class MainViewModel
 
     /// <summary>A document is being read: the canvas is covered and the window takes no edits.</summary>
     public bool IsOpeningDocument => OpeningDocuments.Count > 0;
+
+    /// <summary>The name the cover shows: the latest document asked for.</summary>
+    public string? OpeningTitle => OpeningDocuments.LastOrDefault()?.Title;
 
     /// <summary>
     /// Read a document on a worker and open it as a tab when it arrives (Q229).
@@ -573,6 +570,7 @@ public partial class MainViewModel
         var opening = new OpeningDocument(TitleFromPath(path), path);
         OpeningDocuments.Add(opening);
         OnPropertyChanged(nameof(IsOpeningDocument));
+        OnPropertyChanged(nameof(OpeningTitle));
         Doc doc;
         try
         {
@@ -589,6 +587,7 @@ public partial class MainViewModel
         {
             OpeningDocuments.Remove(opening);
             OnPropertyChanged(nameof(IsOpeningDocument));
+            OnPropertyChanged(nameof(OpeningTitle));
         }
         OpenDocumentTab(doc, path);
         return true;

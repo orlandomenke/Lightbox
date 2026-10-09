@@ -1,3 +1,6 @@
+using Avalonia.Controls;
+using Avalonia.VisualTree;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
@@ -164,5 +167,56 @@ public sealed class OpenOffTheUiThreadTests : BrushStateIsolated
         {
             File.Delete(path);
         }
+    }
+
+    /// <summary>
+    /// While a file opens the canvas is covered with its name and a moving
+    /// indicator, the menus wait, and a key does nothing — the window answers,
+    /// but nothing can be edited while it is not the document the artist asked
+    /// for. Through the real window: MainWindow.axaml had no test of its own.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task WhileAFileOpensTheCanvasIsCoveredAndTheKeysWait()
+    {
+        var window = new Lightbox.App.Views.MainWindow { Width = 1400, Height = 900 };
+        window.Show();
+        Pump();
+        var vm = (MainViewModel)window.DataContext!;
+        vm.NewDocument(new NewDocumentSettings("Untitled-1", 960, 540, 12, 72, "#ffffff", false));
+        while (vm.Doc.Scene.FrameCount < 6) vm.AddFrameCommand.Execute(null);
+        vm.CurrentFrameIndex = 2;
+        Pump();
+
+        var gate = new TaskCompletionSource();
+        MainViewModel.LoadDocument = _ =>
+        {
+            gate.Task.Wait();
+            return Small();
+        };
+        var opening = vm.OpenDocumentFileAsync(Path.Combine(Path.GetTempPath(), "Big scene.lightbox.json"));
+        Pump();
+
+        var cover = window.FindControl<Avalonia.Controls.Border>("OpeningDocument")!;
+        Assert.True(cover.IsVisible, "the canvas was not covered while the file opened");
+        Assert.Contains(cover.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>(), t => t.Text?.Contains("Big scene") == true);
+        Assert.Contains(cover.GetVisualDescendants().OfType<Avalonia.Controls.ProgressBar>(), p => p.IsIndeterminate);
+        Assert.False(window.FindControl<Avalonia.Controls.Menu>("MainMenu")!.IsEnabled, "the menus took commands while a file opened");
+
+        window.KeyPressQwerty(Avalonia.Input.PhysicalKey.ArrowRight, Avalonia.Input.RawInputModifiers.None);
+        window.KeyReleaseQwerty(Avalonia.Input.PhysicalKey.ArrowRight, Avalonia.Input.RawInputModifiers.None);
+        Pump();
+        Assert.Equal(2, vm.CurrentFrameIndex);
+
+        gate.SetResult();
+        Assert.True(await opening);
+        Pump();
+        Assert.False(cover.IsVisible);
+        Assert.True(window.FindControl<Avalonia.Controls.Menu>("MainMenu")!.IsEnabled);
+        window.Close();
+    }
+
+    private static void Pump()
+    {
+        for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
     }
 }
