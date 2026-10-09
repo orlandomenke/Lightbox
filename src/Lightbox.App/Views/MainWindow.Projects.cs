@@ -331,7 +331,7 @@ public partial class MainWindow
         // and the performance lab's fixture (Q209). After the recovery offer,
         // never before it: opening a file after a crash must not skip the
         // copies of the work the crash interrupted.
-        if (LaunchFile is { } path && OpenLaunchFile(path)) return;
+        if (LaunchFile is { } path && await OpenLaunchFileAsync(path)) return;
         if (!_vm.Settings.ShowStartScreen) return;
         await AskWhatToOpenAsync();
     }
@@ -339,18 +339,10 @@ public partial class MainWindow
     /// <summary>The document passed on the command line, if one was.</summary>
     public string? LaunchFile { get; set; }
 
-    private bool OpenLaunchFile(string path)
+    private async Task<bool> OpenLaunchFileAsync(string path)
     {
-        try
-        {
-            _vm.OpenDocumentTab(DocJson.Load(path), path);
-        }
-        catch (Exception e) when (e is IOException or InvalidDataException
-                                      or System.Text.Json.JsonException or UnauthorizedAccessException)
-        {
-            _vm.AiStatus = $"Could not open {System.IO.Path.GetFileName(path)}: {e.Message}";
-            return false;
-        }
+        // Read on a worker (Q229): the window paints and says it is opening.
+        if (!await _vm.OpenDocumentFileAsync(path)) return false;
         Services.PerfLog.Mark("document.opened");
         // After the first frame has had its chance to render: the lab starts
         // its gesture on this line rather than on a guessed delay.
@@ -489,7 +481,7 @@ public partial class MainWindow
         }
         if (choice.Open is { } path)
         {
-            _vm.OpenRecent(new Services.RecentItem
+            await _vm.OpenRecent(new Services.RecentItem
             {
                 Path = path,
                 Name = Services.RecentItems.DisplayNameOf(path),
@@ -531,7 +523,8 @@ public partial class MainWindow
                 [ToolTip.TipProperty] = entry.Path,
             };
             var target = entry;
-            item.Click += (_, _) => _vm.OpenRecent(target);
+            // Not awaited: it reports its own failure in the status strip.
+            item.Click += (_, _) => _ = _vm.OpenRecent(target);
             RecentMenu.Items.Add(item);
         }
         RecentMenu.Items.Add(new Separator());
@@ -620,17 +613,23 @@ public partial class MainWindow
     /// B430: it read the picked file as text and parsed that, but every
     /// document <see cref="DocJson.Save"/> writes is gzip, so the dialog could
     /// not open the application's own files. Both routes now go through the
-    /// gzip-aware loader.
+    /// gzip-aware loader, on a worker (Q229).
     /// </remarks>
     internal async Task OpenPickedDocumentAsync(string? localPath, string name, Func<Task<Stream>> openRead)
     {
+        if (localPath is not null)
+        {
+            await _vm.OpenDocumentFileAsync(localPath);
+            return;
+        }
         try
         {
             await using var stream = await openRead();
             var copy = new MemoryStream();
             await stream.CopyToAsync(copy);
             copy.Position = 0;
-            _vm.OpenDocumentTab(DocJson.Load(copy), localPath);
+            var doc = await Task.Run(() => DocJson.Load(copy));
+            _vm.OpenDocumentTab(doc, null);
         }
         catch (Exception e) when (e is IOException or InvalidDataException
                                       or System.Text.Json.JsonException or UnauthorizedAccessException or NotSupportedException)

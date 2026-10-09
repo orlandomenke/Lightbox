@@ -971,6 +971,17 @@ exactly where it was. It works with any of the selection shapes, and however
 little of a drawing you take: a marquee over one corner of one line moves that
 corner.
 
+**What counts as inside is the ink, not where the pen went.** A selection made
+on one layer works on every layer you then pick, and it takes whatever paint of
+theirs lies inside it: select the colour layer's pixels, switch to the line
+layer, and Ctrl+T takes the part of each line that overlaps the colour; draw a
+box inside a filled area and the colour in the box moves. The selection itself
+belongs to no layer. **The magic wand selects exactly what it matched** — with
+*sample all layers* on, a wand clicked on the colour stops at the lines and the
+shading drawn over it, so they are outside the selection and stay put. To move
+them with the colour, draw a lasso or marquee round the whole thing, or let the
+wand sample only the colour layer.
+
 **The line is not cut in two to do it**, which is the same answer copying a
 region gives and for the same reason. The record still holds one line, carrying
 your selection as its clip, so nothing about the mark itself changes — a brush

@@ -106,6 +106,14 @@ public class BrushCostTests
         Assert.Equal(BrushCost.Textured, BrushCostOf.Settings(wet));
         Assert.Contains("wet edge", BrushCostOf.Why(wet));
 
+        // A paper that bites is the same pass at pen-lift; a paper with no
+        // depth does nothing and costs nothing (the `busy` brush above).
+        var paper = new BrushSettings { TextureSurface = PaperKind.ColdPress, TextureDepth = 0.9 };
+        Assert.Equal(BrushCost.Textured, BrushCostOf.Settings(paper));
+        Assert.Contains("paper", BrushCostOf.Why(paper));
+        var pencil = new BrushSettings { TextureSurface = PaperKind.ColdPress, TextureDepth = 0.9, TexturePressure = 0.8 };
+        Assert.Contains("tooth", BrushCostOf.Why(pencil));
+
         // A medium outranks the texture pass: the brush already carries the
         // heavier badge, and two badges would be noise.
         var both = new BrushSettings

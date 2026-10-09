@@ -56,10 +56,29 @@ public static class CheckpointFingerprint
 
         // The count first, so a prefix of n and a prefix of n+1 cannot hash the
         // same way if the extra stroke happens to serialize to nothing.
-        JsonSerializer.Serialize(sink, count, DocJson.Compact);
-        JsonSerializer.Serialize(sink, doc.RenderShell(), DocJson.Compact);
+        KeptWritten = null;
+        JsonSerializer.Serialize(sink, count, Hashing);
+        JsonSerializer.Serialize(sink, doc.RenderShell(), Hashing);
         for (var i = 0; i < count; i++)
-            JsonSerializer.Serialize(sink, frame.Strokes[i], DocJson.Compact);
+            JsonSerializer.Serialize(sink, frame.Strokes[i], Hashing);
+
+        // A record carrying what a newer build wrote (Q230) is not one this
+        // build can vouch for: it renders without whatever that was, and the
+        // bytes it hashes are exactly the newer build's — the kept key is
+        // written back where the newer build writes it as a field. Marked, so
+        // this build's checkpoints of it match each other and never match a
+        // build that reads the data, in either direction. A record with nothing
+        // kept hashes exactly as it always did.
+        // The names of what was kept go in too: two builds that each keep
+        // something, but one knows as a field what the other keeps, would
+        // otherwise write identical bytes and both mark (the review's second
+        // note — three builds in play, so no test here can build the newer one).
+        if (frame.Unknown is { Count: > 0 } own) NoteKeptWritten(own.Keys);
+        if (KeptWritten is { Count: > 0 } kept)
+        {
+            hash.AppendData(KeptMarker);
+            hash.AppendData(System.Text.Encoding.UTF8.GetBytes(string.Join(',', kept)));
+        }
 
         return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
@@ -72,6 +91,48 @@ public static class CheckpointFingerprint
     /// a checkpoint covering more strokes than the frame now has, which is what
     /// an undo leaves behind — costs nothing.
     /// </remarks>
+    private static readonly byte[] KeptMarker = "carries data this build cannot read"u8.ToArray();
+
+    /// <summary>Set while hashing when any kept data was written (see <see cref="Hashing"/>).</summary>
+    [ThreadStatic] private static SortedSet<string>? KeptWritten;
+
+    /// <summary>
+    /// Kept data was just written by a converter that writes it by hand (a
+    /// drawing's, a symbol's), which the <see cref="Hashing"/> hook cannot see.
+    /// Harmless outside a fingerprint: <see cref="Of"/> clears it before it starts.
+    /// </summary>
+    internal static void NoteKeptWritten(IEnumerable<string> keys)
+    {
+        var kept = KeptWritten ??= new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var key in keys) kept.Add(key);
+    }
+
+    /// <summary>
+    /// <see cref="DocJson.Compact"/>, with every kept-data holder noting when it
+    /// writes something — the same pass that hashes the bytes finds out whether
+    /// they include a newer build's, without a second walk of the record.
+    /// </summary>
+    private static readonly JsonSerializerOptions Hashing = HashingOptions();
+
+    private static JsonSerializerOptions HashingOptions()
+    {
+        var resolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver();
+        resolver.Modifiers.Add(info =>
+        {
+            foreach (var property in info.Properties)
+            {
+                if (!property.IsExtensionData || property.Get is not { } get) continue;
+                property.Get = owner =>
+                {
+                    var value = get(owner);
+                    if (value is IDictionary<string, JsonElement> { Count: > 0 } kept) NoteKeptWritten(kept.Keys);
+                    return value;
+                };
+            }
+        });
+        return new JsonSerializerOptions(DocJson.Compact) { TypeInfoResolver = resolver };
+    }
+
     public static bool Matches(Doc doc, Frame frame, StrokeCheckpoint checkpoint) =>
         checkpoint.IsUsable
         && checkpoint.Strokes <= frame.Strokes.Count

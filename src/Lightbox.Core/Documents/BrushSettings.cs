@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -96,6 +98,14 @@ public enum BrushKind
 /// </summary>
 public sealed class BrushSettings
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>Dab diameter in document pixels at pressure 1.</summary>
     public double Size { get; set; } = 6;
 
@@ -239,6 +249,19 @@ public sealed class BrushSettings
 
     /// <summary>0..1: how strongly the texture bites into the dab.</summary>
     public double TextureDepth { get; set; }
+
+    /// <summary>
+    /// 0..1: how much of the texture's bite the pen's pressure fills in. Null
+    /// is off and writes nothing — the bite is then the same at any pressure,
+    /// as it always was. At 1 a light touch catches only the paper's peaks and
+    /// a hard press fills the valleys; this is what makes a pencil a pencil.
+    /// </summary>
+    /// <remarks>
+    /// Not a <see cref="BrushDynamic"/>: a brush store with an unknown
+    /// dynamic key is thrown away whole by builds older than Q193's version
+    /// field, where an unknown property is simply skipped.
+    /// </remarks>
+    public double? TexturePressure { get; set; }
 
     // ---- colour dynamics -------------------------------------------------------
 
@@ -415,6 +438,7 @@ public sealed class BrushSettings
 
     public BrushSettings Clone() => new()
     {
+        Unknown = Unknown,
         Size = Size,
         AntiAlias = AntiAlias,
         Hardness = Hardness,
@@ -444,6 +468,7 @@ public sealed class BrushSettings
         TextureId = TextureId,
         TextureScale = TextureScale,
         TextureDepth = TextureDepth,
+        TexturePressure = TexturePressure,
         SecondaryColor = SecondaryColor,
         ColorJitter = ColorJitter,
         HueJitter = HueJitter,

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -46,6 +48,14 @@ namespace Lightbox.Core.Documents;
 /// </remarks>
 public sealed class StrokeCheckpoint
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>
     /// How many leading strokes of the frame these pixels already contain.
     /// </summary>

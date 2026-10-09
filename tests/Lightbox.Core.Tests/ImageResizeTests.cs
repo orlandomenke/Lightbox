@@ -322,6 +322,11 @@ public class ImageResizeTests
             // carries rescaling kernel params with the registry's reach
             // knowledge, which Core does not have.
             nameof(Scene.Effects),
+            // What a newer build wrote (Q230): this build cannot know whether
+            // any of it is a coordinate, so it is carried as written. A resize
+            // here may leave a newer build's own coordinates unscaled — the
+            // lesser loss than dropping them, which is what happened before.
+            nameof(Scene.Unknown),
             // Which rows the Timeline and the X-sheet show (Q227): a way of
             // looking at the sheet, with no place on the paper in it.
             nameof(Scene.SheetPinnedOnly),

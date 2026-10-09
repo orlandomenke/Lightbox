@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Lightbox.Core.Documents;
@@ -66,6 +67,14 @@ public enum ShapeRole
 /// </remarks>
 public sealed class CollisionShape
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("shp");
 
     /// <summary>What the artist calls it, and what an engine importer will see.</summary>
@@ -89,6 +98,14 @@ public sealed class CollisionShape
 /// </remarks>
 public sealed record ShapeBox(double X, double Y, double W, double H)
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>
     /// The rectangle's centre, which is what a collider offset is measured from.
     /// </summary>

@@ -255,6 +255,15 @@ public partial class MainWindow
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        // A document being read from disk (Q229): nothing is edited until it is
+        // the document on screen. Swallowed, so a key does not reach a control
+        // behind the cover either.
+        if (_vm.IsOpeningDocument)
+        {
+            e.Handled = true;
+            return;
+        }
+
         // Don't hijack keys while the user is typing (layer rename, color hex, AI prompt).
         if (e.Source is TextBox) return;
 

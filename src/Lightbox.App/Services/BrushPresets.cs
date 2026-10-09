@@ -146,10 +146,15 @@ public static class BuiltInPresets
         {
             Id = "builtin-pencil",
             Name = "Pencil",
+            // Graphite caught on the paper's tooth: a light touch marks the
+            // peaks, a hard press fills the valleys (TexturePressure), over a
+            // fine cold-press grain. docs/DESIGN-pencil-tooth.md has why.
             Settings = new BrushSettings
             {
-                Size = 3, Hardness = 0.9, Opacity = 1, Flow = 0.85, Spacing = 0.12,
-                Granulation = 0.15, PressureFlowGamma = 1,
+                Size = 4, Hardness = 0.7, Opacity = 1, Flow = 0.9, Spacing = 0.1,
+                PressureFlowGamma = 0.8,
+                TextureSurface = PaperKind.ColdPress, TextureScale = 2, TextureDepth = 0.8,
+                TexturePressure = 0.8,
             },
         },
         new()
@@ -258,11 +263,13 @@ public static class BuiltInPresets
                     // boundary, and settles into the tooth as it dries.
                     Wetness = 0.85, Viscosity = 0.1, Drag = 0.25, FlowSteps = 16,
                     // B35 — EdgePull 0.7 left the centre at 3/255 alpha: a
-                    // white line down the middle of every stroke. The rim is a
-                    // wash that pooled and dried at its boundary, not something
-                    // every mark does. Measured centre/flank alpha: 0.05 at
-                    // 0.70, 0.42 at 0.20, 1.74 with no pull at all.
-                    Absorbency = 0.35, EdgePull = 0.06,
+                    // white line down the middle of every stroke, and 0.06 was
+                    // as high as it could go. B431 found why: the capillary
+                    // term carved a channel down the medial axis at any pull.
+                    // With the interior draining evenly to the fringe instead,
+                    // the pull is back to where a wash pools at its edge the
+                    // way the owner asked — darkest at the rim, a wash within.
+                    Absorbency = 0.35, EdgePull = 0.45,
                     PigmentDensity = 0.5, Granularity = 0.6, Hiding = 0.05,
                     Paper = PaperKind.ColdPress, PaperScale = 14, PaperInfluence = 0.7,
                     // A light touch is mostly water: paler, and it blooms.
@@ -274,6 +281,12 @@ public static class BuiltInPresets
                     // goes green. Still a slider — an artist who wants the
                     // under-paint to flow with the wash can turn it back up.
                     PressureWater = 0.8, Rewetting = 0,
+                    // B434: a loaded brush runs out. At 1 a wash grew heavier along
+                    // every stroke whose pressure rose, which is every stroke a hand
+                    // draws; here the depletion and the hand cancel over the first
+                    // fifths and the wash then fades and narrows. On Q236's reach
+                    // (Size * 6 * load / (1 - load)): nine diameters.
+                    PaintLoad = 0.6,
                 },
             },
         },
@@ -299,7 +312,9 @@ public static class BuiltInPresets
                     Absorbency = 0.8, EdgePull = 0.05,
                     PigmentDensity = 0.9, Granularity = 0.15, Hiding = 0.9,
                     Paper = PaperKind.ColdPress, PaperScale = 10, PaperInfluence = 0.35,
-                    Body = 0.35, Relief = 0.2, PaintLoad = 0.85,
+                    // Q236 moved the reach to Size * 6 * load / (1 - load); 0.63 is
+                    // the load whose reach is what 0.85 had before (ten diameters).
+                    Body = 0.35, Relief = 0.2, PaintLoad = 0.63,
                     // Body colour: pressure decides how much it picks up.
                     PressureWater = 0.15, PressureMix = 0.8, Rewetting = 0, // Q232: see Watercolor
                 },
@@ -330,7 +345,9 @@ public static class BuiltInPresets
                     Absorbency = 0.9, EdgePull = 0.02,
                     PigmentDensity = 1, Granularity = 0.1, Hiding = 0.95,
                     Paper = PaperKind.Canvas, PaperScale = 8, PaperInfluence = 0.6,
-                    Body = 0.8, Relief = 0.6, PaintLoad = 0.6,
+                    // Q236: 0.55 is the load whose reach is what 0.6 had before
+                    // (seven diameters), so the scrape still runs out where it did.
+                    Body = 0.8, Relief = 0.6, PaintLoad = 0.55,
                     // No BristleDrag or Pickup: the engine reads neither, so setting
                     // them wrote two keys on every oil stroke promising behaviour that
                     // does not exist. The dragged-bristle *look* comes from the tip

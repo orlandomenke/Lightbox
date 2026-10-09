@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -10,6 +12,14 @@ namespace Lightbox.Core.Documents;
 /// </summary>
 public sealed class ReferenceSheet
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("sheet");
 
     public string Name { get; set; } = "Character";
@@ -28,6 +38,14 @@ public sealed class ReferenceSheet
 /// <summary>One view of the subject (e.g. "side"), with its own layer stack.</summary>
 public sealed class ReferenceView
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("view");
 
     public string Name { get; set; } = "view";

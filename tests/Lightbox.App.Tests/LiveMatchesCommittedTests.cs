@@ -297,6 +297,35 @@ public class LiveMatchesCommittedTests : BrushStateIsolated
     /// with a different history than the commit replays. Drawn across a blue
     /// stroke committed first, so there is something to pick up.
     /// </summary>
+    /// <summary>
+    /// The pencil's tooth is gated by pressure through a press map the dabs
+    /// record; the live pass rebuilds that map per pass from the stroke record
+    /// and the commit records it once, so the two must agree.
+    /// </summary>
+    [AvaloniaFact]
+    public void ThePencilsToothLooksTheSameLiveAndCommitted()
+    {
+        var vm = Vm();
+        vm.NewDocument(new NewDocumentSettings("pencil", Width, Height, 12, 72, "#ffffff", false));
+        Apply(vm, "Pencil");
+        vm.BrushSize = 12;
+
+        var (live, committed) = DragAndRelease(vm, Curve());
+        try
+        {
+            var d = Compare(live, committed);
+            Report("pencil", d);
+            WriteComparison("pencil", live, committed);
+            Assert.True(d.CommittedInk > 500, $"the pencil drew almost nothing: {d.CommittedInk} inked pixels");
+            Assert.True(d.MeanAbsolute < 2.0, $"the pencil drifted by {d.MeanAbsolute:F2}/255 on release");
+        }
+        finally
+        {
+            live.Dispose();
+            committed.Dispose();
+        }
+    }
+
     [AvaloniaFact]
     public void AMixingBrushLooksTheSameLiveAndCommitted()
     {

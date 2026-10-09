@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             xmlns:controls="using:Lightbox.App.Controls"
+             x:Class="Lightbox.App.Views.OpeningCover"
+             x:DataType="vm:MainViewModel">
+  <!--
+    A document being read from disk (Q229): the window answers, and the canvas
+    is covered so nothing is drawn on a document that is not the one asked for.
+    The window hosts it above "Nothing open", so opening from the start screen
+    shows this rather than the empty state.
+
+    A collaborator rather than more lines of MainWindow.axaml, which is on the
+    monolith ratchet, as LinkBracket is.
+  -->
+  <Border Background="{DynamicResource BackgroundPrimaryBrush}">
+    <controls:ScaledChrome HorizontalAlignment="Center" VerticalAlignment="Center"><StackPanel Spacing="{StaticResource Space10}">
+      <TextBlock Text="{Binding OpeningTitle, StringFormat='Opening {0}…'}" FontSize="{StaticResource TypeDisplay}"
+                 HorizontalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+      <ProgressBar IsIndeterminate="True" Width="{StaticResource SizeOpeningBar}" Height="{StaticResource SizeBusyBar}"
+                   HorizontalAlignment="Center" />
+    </StackPanel></controls:ScaledChrome>
+  </Border>
+</UserControl>

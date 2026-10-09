@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>Where a line sits relative to the text's origin.</summary>
@@ -33,6 +35,14 @@ public enum TextAlign
 /// </remarks>
 public sealed class FontRef
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>The family name, as the source that offered it spells it.</summary>
     public string Family { get; set; } = "";
 
@@ -92,6 +102,14 @@ public sealed class FontRef
 /// </remarks>
 public sealed class EmbeddedFont
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Family { get; set; } = "";
 
     public int Weight { get; set; } = 400;
@@ -142,6 +160,14 @@ public sealed class EmbeddedFont
 /// </remarks>
 public sealed class TextElement
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("txt");
 
     /// <summary>What was typed. Newlines break lines; nothing else is markup.</summary>
