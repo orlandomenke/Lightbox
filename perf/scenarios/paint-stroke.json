@@ -1,0 +1,21 @@
+{
+  "name": "paint-stroke",
+  "about": "Four strokes across a blank 1080p canvas with the brush named in `brush`, each 70% of the width in 1.5 s at 120 events a second — the gesture behind every drawing-latency report. Measures the UI cost of each pointer batch (stroke.move), how long ink took to reach the screen (pen.screen, tip.screen), each live pass of a textured or simulated brush (live.pass) and how many points behind the pen it landed (live.behind), and the pen-up commit (stroke.commit). Swept over `sizes` and `speeds` (px/s of document), size outermost, because large brushes and a fast pen are where drawing falls over; a faster variant bounces the same 1.5 s drag across the canvas more times, so the stroke keeps its duration and its sample count. --sizes and --speeds replace the lists, --hz the event rate, and --brush builtin-ink is the control. The four rows are 162 px apart, so from about 150 px up the strokes overlap and a wet brush re-wets its last one — which is what a large brush does.",
+  "fixture": "blank-1080p",
+  "brush": "builtin-watercolor-wet",
+  "sizes": [60, 150, 300],
+  "speeds": [900, 3000],
+  "repeat": 1,
+  "steps": [
+    {"do": "hover", "at": [0.5, 0.5]},
+    {"do": "key", "keys": "b", "after_ms": 200},
+    {"do": "drag", "from": [0.15, 0.30], "by": [0.70, 0.0], "ms": 1500, "hz": 120},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.15, 0.45], "by": [0.70, 0.0], "ms": 1500, "hz": 120},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.15, 0.60], "by": [0.70, 0.0], "ms": 1500, "hz": 120},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.15, 0.75], "by": [0.70, 0.0], "ms": 1500, "hz": 120},
+    {"do": "settle", "quiet_s": 1.0}
+  ]
+}

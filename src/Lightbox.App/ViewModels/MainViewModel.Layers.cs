@@ -439,6 +439,7 @@ public partial class MainViewModel
             {
                 case Layer layer when byId.TryGetValue(layer.Id, out var row):
                     row.Depth = line.Depth;
+                    row.FolderColor = FolderTree.ColorOf(Scene, layer);
                     if (!line.Hidden) desired.Add(row);
                     break;
                 case LayerGroup group:
@@ -463,6 +464,11 @@ public partial class MainViewModel
 
         PatchInPlace(LayerPanelItems, desired);
         RefreshGroupSelectionHighlights();
+        // The sheet shows the same tree, folded by its own state. Rebuilt here
+        // so that nothing which rebuilds the one can forget the other.
+        RebuildSheetRows();
+        OnPropertyChanged(nameof(SheetPinnedOnly));
+        OnPropertyChanged(nameof(HasSheetPins));
     }
 
     /// <summary>
@@ -795,11 +801,15 @@ public partial class MainViewModel
         }, label: targets.Count == 1 ? "Set folder visible" : "Set folders visible", frameContentUnchanged: true);
     }
 
-    internal void SetGroupColor(LayerGroup group, string color)
+    /// <summary>Choose a folder's colour; null goes back to showing its parent's (Q226).</summary>
+    internal void SetGroupColor(LayerGroup group, string? color)
     {
         if (group.Color == color) return;
         _editor.Perform(_ => group.Color = color, frameContentUnchanged: true);
     }
+
+    /// <summary>The colour a folder's header shows — its own, or inherited.</summary>
+    internal string FolderColorOf(LayerGroup group) => FolderTree.ColorOf(Scene, group);
 
     /// <summary>Collapse is a view preference: persisted, but not an undo step.</summary>
     internal void SetGroupCollapsed(LayerGroup group, bool collapsed)
@@ -815,9 +825,9 @@ public partial class MainViewModel
         var rangeSet = PlaybackStartFrame >= 0 || PlaybackEndFrame >= 0;
         var start = EffectiveStartFrame;
         var end = EffectiveEndFrame;
-        foreach (var row in LayerRows)
+        foreach (var cells in LayerRows.Select(r => r.Cells).Concat(_sheetFolders.Values.Select(f => f.Cells)))
         {
-            foreach (var cell in row.Cells)
+            foreach (var cell in cells)
             {
                 cell.OutOfRange = rangeSet && !cell.IsVirtual && (cell.Index < start || cell.Index > end);
             }
@@ -1315,6 +1325,14 @@ public partial class MainViewModel
 
     /// <summary>A row needs this to dim itself without reaching into the scene.</summary>
     internal bool IsLayerLockedByFolder(Layer layer) => FolderTree.LockedFolderOf(Scene, layer) is not null;
+
+    /// <summary>The same for a folder: one above it is locked, so it is too.</summary>
+    internal bool IsFolderLockedByFolder(LayerGroup group) => FolderTree.LockedFolderOf(Scene, group) is not null;
+
+    /// <summary>The same, for a folder above it that is hidden.</summary>
+    internal bool IsLayerHiddenByFolder(Layer layer) => FolderTree.HiddenFolderOf(Scene, layer) is not null;
+
+    internal bool IsFolderHiddenByFolder(LayerGroup group) => FolderTree.HiddenFolderOf(Scene, group) is not null;
 
     /// <summary>Shown in the tool options so the restriction is never invisible.</summary>
     /// <remarks>
@@ -2041,7 +2059,8 @@ public partial class MainViewModel
         var scale = ThumbSourceScale(Scene.Width, Scene.Height);
         if (_cache.Holds(frame, Scene.Width, Scene.Height, scale, celIndex)) return false;
         if (!FrameBitmapCache.CanCache(frame)) return false; // samples live: never cached, never deferred
-        worker.Request(frame, Scene.Width, Scene.Height, scale, celIndex);
+        worker.Request(
+            frame, Scene.Width, Scene.Height, scale, celIndex, new SkiaSharp.SKPointI(Scene.Left, Scene.Top));
         return true;
     }
 
@@ -2061,6 +2080,11 @@ public partial class MainViewModel
         // A document-wide change is pending and has not been refreshed yet: this
         // render predates it. Refused, and the refresh that follows asks again.
         if (_allThumbsDirty) return false;
+        // Rendered for a corner the paper no longer has (B409): the cache keys
+        // by the corner it has now, so this would go in as a picture of the
+        // wrong place. Every change of origin flushes the worker today; this
+        // is what holds if one ever does not.
+        if (made.Origin != new SkiaSharp.SKPointI(Scene.Left, Scene.Top)) return false;
         _thumbs.Put(id, ThumbnailRenderer.Render(made.Bitmap));
         // The rows that show this drawing take their picture now, from the
         // render in hand — a walk of the rows, not of every cell. Whether or not
@@ -2192,9 +2216,9 @@ public partial class MainViewModel
 
     private void RefreshCellHighlights()
     {
-        foreach (var row in LayerRows)
+        foreach (var cells in LayerRows.Select(r => r.Cells).Concat(_sheetFolders.Values.Select(f => f.Cells)))
         {
-            foreach (var cell in row.Cells) cell.IsCurrent = cell.Index == CurrentFrameIndex;
+            foreach (var cell in cells) cell.IsCurrent = cell.Index == CurrentFrameIndex;
         }
     }
 

@@ -2895,8 +2895,8 @@
                       <!-- The header drags the whole folder, and shows where it
                            would land: a line above or below for "beside", the
                            whole row lit for "into". -->
-                      <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}" Margin="{Binding Indent}"
-                              Classes.lockedLayer="{Binding Locked}"
+                      <Border Classes="groupRow" Classes.hiddenLayer="{Binding IsDimmed}" Margin="{Binding Indent}"
+                              Classes.lockedLayer="{Binding EditsBlocked}"
                               Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
                               Classes.dropInto="{Binding DropInto}" Classes.selected="{Binding IsSelected}"
                               Focusable="True"
@@ -2912,8 +2912,10 @@
                               <MenuItem Header="Red" Tag="#c25050" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#c25050" CornerRadius="{StaticResource RadiusPreview}" /></MenuItem.Icon></MenuItem>
                               <MenuItem Header="Purple" Tag="#8a5ac2" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#8a5ac2" CornerRadius="{StaticResource RadiusPreview}" /></MenuItem.Icon></MenuItem>
                               <MenuItem Header="Gray" Tag="#6a7280" Click="OnGroupColorClicked"><MenuItem.Icon><Border Width="14" Height="14" Background="#6a7280" CornerRadius="{StaticResource RadiusPreview}" /></MenuItem.Icon></MenuItem>
+                              <MenuItem Header="Same as parent" Click="OnGroupColorClicked" IsVisible="{Binding CanInheritColor}" ToolTip.Tip="Give up this folder's own colour and follow the folder it is inside" />
                             </MenuItem>
                             <MenuItem Header="Collapse / expand" Click="OnGroupMenuCollapse" />
+                            <MenuItem Header="Pin to timeline" ToggleType="CheckBox" IsChecked="{Binding SheetPinned, Mode=TwoWay}" ToolTip.Tip="With Pinned only on, this folder and everything inside it stay on the Timeline and the X-sheet" />
                             <Separator />
                             <MenuItem Header="Copy folder" InputGesture="Ctrl+C" Click="OnGroupMenuCopy" />
                             <MenuItem Header="Paste into folder" InputGesture="Ctrl+V" Click="OnGroupMenuPaste" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasLayerClipboard}" />
@@ -2934,9 +2936,9 @@
                                     IsVisible="{Binding Collapsed}" />
                             </Panel>
                           </Button>
-                          <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}"
+                          <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}" Classes.gated="{Binding HiddenByFolder}"
                                         ToolTip.Tip="Folder visibility (gates every layer inside)"><Path /></ToggleButton>
-                          <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}"
+                          <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}" Classes.gated="{Binding LockedByFolder}"
                                         ToolTip.Tip="Lock the folder — every layer inside refuses edits, but still renders"><Path /></ToggleButton>
                           <Button Classes="icon" DockPanel.Dock="Right" Background="Transparent"
                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DissolveGroupCommand}"
@@ -2961,7 +2963,7 @@
                     </DataTemplate>
                     <DataTemplate x:DataType="vm:LayerRow">
                       <Border Classes="layerRow" Classes.active="{Binding IsActive}" Margin="{Binding Indent}"
-                              Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}" Classes.selected="{Binding IsSelected}"
+                              Classes.hiddenLayer="{Binding IsDimmed}" Classes.lockedLayer="{Binding EditsBlocked}" Classes.selected="{Binding IsSelected}"
                               Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
                               Focusable="True"
                               PointerPressed="OnLayerRowPressed">
@@ -2971,6 +2973,7 @@
                             <MenuItem Header="Copy layer" InputGesture="Ctrl+C" Click="OnLayerMenuCopy" />
                             <MenuItem Header="Paste layer" InputGesture="Ctrl+V" Click="OnLayerMenuPaste" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasLayerClipboard}" />
                             <Separator />
+                            <MenuItem Header="Pin to timeline" ToggleType="CheckBox" IsChecked="{Binding SheetPinned, Mode=TwoWay}" ToolTip.Tip="With Pinned only on, this layer stays on the Timeline and the X-sheet" />
                             <MenuItem Header="Move up" Click="OnLayerMenuMoveUp" />
                             <MenuItem Header="Move down" Click="OnLayerMenuMoveDown" />
                             <MenuItem Header="Merge down" Click="OnLayerMenuMergeDown"
@@ -3101,9 +3104,9 @@
                                     VerticalAlignment="Stretch"
                                     Background="{DynamicResource AccentCyanBrush}" />
                           </Border>
-                          <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}"
+                          <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}" Classes.gated="{Binding HiddenByFolder}"
                                         ToolTip.Tip="Layer visibility"><Path /></ToggleButton>
-                          <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}"
+                          <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}" Classes.gated="{Binding LockedByFolder}"
                                         ToolTip.Tip="Lock the layer — refuses paint, fill, transform, delete and cel edits. It still renders and still exports."><Path /></ToggleButton>
                           <ToggleButton Classes="icon glyph alpha" DockPanel.Dock="Left" IsChecked="{Binding AlphaLocked}"
                                         ToolTip.Tip="Lock transparency — paint only lands where the layer already has content, so the silhouette cannot change"><Path /></ToggleButton>
@@ -4071,6 +4074,7 @@
                      other with no way to ask for more than one drawing each
                      way. See OnionBar.axaml. -->
                 <views:OnionBar />
+                <CheckBox Content="Pinned only" IsChecked="{Binding SheetPinnedOnly}" IsVisible="{Binding HasSheetPins}" VerticalAlignment="Center" ToolTip.Tip="Show only the pinned layers and folders, and the layer you are drawing on. Pin a row from its right-click menu." />
                 <!-- The scratch track (Q59). One button until there is one,
                      then the whole row — the same shape as the camera. -->
                 <Button Content="♪ Add audio" Click="OnImportAudio"
@@ -4134,6 +4138,7 @@
                                   MoreLabel="More  &#x25BE;" MenuPlacement="TopEdgeAlignedRight">
               <views:TransportBar />
               <views:OnionBar />
+              <CheckBox Content="Pinned only" IsChecked="{Binding SheetPinnedOnly}" IsVisible="{Binding HasSheetPins}" VerticalAlignment="Center" ToolTip.Tip="Show only the pinned layers and folders, and the layer you are drawing on. Pin a row from its right-click menu." />
               <!-- How many frames fit on screen. Narrow to read the timing of
                    a long scene, wide to read the thumbnails of a short one. -->
               <DockPanel VerticalAlignment="Center" controls:OverflowBar.Flex="True"
@@ -4256,23 +4261,24 @@
                                     RangeStart="{Binding PlaybackStartFrame, Mode=TwoWay}"
                                     RangeEnd="{Binding PlaybackEndFrame, Mode=TwoWay}"
                                     Markers="{Binding MarkersView}" PoseKeyed="{Binding PoseKeyedFrames}" />
-            <ItemsControl x:Name="XsheetLayerList" ItemsSource="{Binding LayerRows}">
+            <ItemsControl x:Name="XsheetLayerList" ItemsSource="{Binding SheetRows}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                   <StackPanel Orientation="Vertical" Spacing="{StaticResource Space2}" />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
+              <ItemsControl.DataTemplates>
+                <DataTemplate x:DataType="vm:SheetFolderRow"><views:XsheetFolderRow /></DataTemplate>
                 <DataTemplate x:DataType="vm:LayerRow">
                   <Border Classes="layerRow" Classes.active="{Binding IsActive}"
-                          Classes.hiddenLayer="{Binding !Visible}" Classes.selected="{Binding IsSelected}">
+                          Classes.hiddenLayer="{Binding IsDimmed}" Classes.selected="{Binding IsSelected}">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}">
                       <!-- Both explicitly centred. They looked inconsistent
                            because they were relying on the default, and ◉ and
                            👁 do not have the same metrics: an emoji glyph and a
                            geometric one centre differently inside the same
                            tile unless told not to. -->
-                      <ToggleButton Classes="icon glyph eye" IsChecked="{Binding Visible}"
+                      <ToggleButton Classes="icon glyph eye" IsChecked="{Binding Visible}" Classes.gated="{Binding HiddenByFolder}"
                                     ToolTip.Tip="Layer visibility"><Path /></ToggleButton>
                       <ToggleButton Classes="icon glyph onion" IsChecked="{Binding OnionEnabled}"
                                     ToolTip.Tip="Onion skinning for this layer"><Path /></ToggleButton>
@@ -4288,6 +4294,7 @@
                           <Button.ContextMenu><ContextMenu>
                             <MenuItem Header="Copy layer" InputGesture="Ctrl+C" Click="OnLayerMenuCopy" />
                             <MenuItem Header="Paste layer" InputGesture="Ctrl+V" Click="OnLayerMenuPaste" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasLayerClipboard}" />
+                            <MenuItem Header="Pin to timeline" ToggleType="CheckBox" IsChecked="{Binding SheetPinned, Mode=TwoWay}" ToolTip.Tip="With Pinned only on, this layer stays on the Timeline and the X-sheet" />
                           </ContextMenu></Button.ContextMenu>
                         </Button>
                         <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
@@ -4372,7 +4379,7 @@
                     </StackPanel>
                   </Border>
                 </DataTemplate>
-              </ItemsControl.ItemTemplate>
+              </ItemsControl.DataTemplates>
             </ItemsControl>
           </StackPanel>
         </ScrollViewer>

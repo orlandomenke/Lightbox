@@ -54,6 +54,12 @@ public static class AttachmentOverlay
         canvas.Clear(SKColors.Transparent);
         // The same pass a stored placement takes, so the two kinds of symbol
         // cannot drift apart — and so a cycle advances with the index for free.
+        // B409: and from the same corner. A placement is in stroke
+        // coordinates; the paper's corner is where those start on this surface.
+        if (scene.Left != 0 || scene.Top != 0)
+        {
+            canvas.Translate((float)(-scene.Left * outputScale), (float)(-scene.Top * outputScale));
+        }
         SymbolRasterizer.StampPlacements(canvas, placements, info, index, outputScale);
         canvas.Flush();
         return bitmap;

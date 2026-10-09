@@ -762,6 +762,65 @@ public partial class MainViewModel
         }, BrushStorePath);
     }
 
+    /// <summary>
+    /// <c>LIGHTBOX_BRUSH=&lt;preset id&gt;[:&lt;size&gt;]</c>: put that brush in
+    /// hand at launch, for the performance lab's paint scenario (Q209), which
+    /// has no way to click the picker. Absent unless set.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Only in a throwaway profile.</b> The preset store persists what is in
+    /// hand at exit, and the September harness left nine built-in brushes at
+    /// size 70 in the owner's real profile by exactly this route. So the
+    /// override is refused, with a line on stderr, unless
+    /// <c>LIGHTBOX_PROFILE_DIR</c> moved the profile somewhere disposable.
+    /// </para>
+    /// <para>
+    /// The run's own record names the brush it measured (<c>brush</c> in the
+    /// perf log): the old harness's rule, learned when a set of unverified
+    /// effect-brush rows all turned out to be Ink.
+    /// </para>
+    /// </remarks>
+    /// <returns>Whether a brush was put in hand.</returns>
+    internal bool ApplyBrushOverride(string? spec, bool profileIsThrowaway)
+    {
+        if (string.IsNullOrWhiteSpace(spec)) return false;
+        if (!profileIsThrowaway)
+        {
+            Console.Error.WriteLine(
+                "LIGHTBOX_BRUSH ignored: it is honoured only with LIGHTBOX_PROFILE_DIR set, "
+                + "because the brush in hand is saved to the profile at exit.");
+            return false;
+        }
+        var parts = spec.Split(':', 2);
+        var id = parts[0].Trim();
+        var preset = BrushPresetChoices.FirstOrDefault(p => p.Id == id);
+        if (preset is null)
+        {
+            Console.Error.WriteLine($"LIGHTBOX_BRUSH ignored: no brush preset {id}");
+            return false;
+        }
+        // The preset as shipped, not as the profile last nudged it — a
+        // throwaway profile carries no tweak, and the measurement must not
+        // depend on one if it ever did.
+        _brushes.Tweaks.Remove(preset.Id);
+        ApplyPreset(preset);
+        if (parts.Length == 2
+            && double.TryParse(parts[1], System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var size)
+            && size > 0)
+        {
+            BrushSize = size;
+        }
+        if (Services.PerfLog.On)
+        {
+            Services.PerfLog.Mark(
+                "brush",
+                string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{preset.Id} size {BrushSize}"));
+        }
+        return true;
+    }
+
     private void LoadBrushState()
     {
         var state = PresetStore.Load(BrushStorePath);

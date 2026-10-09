@@ -45,6 +45,10 @@ public static class SequenceExporter
         var scene = doc.Scene;
         var camera = scene.Camera;
         var (outWidth, outHeight) = OutputSize(scene);
+        // B409. Every export composes here, so here is where the cache learns
+        // which corner the paper has: said once, rather than at each of the
+        // seven places that make a cache to export with.
+        cache.Origin = new SKPointI(scene.Left, scene.Top);
 
         // The framing is per-frame; a layer's parallax response to it is
         // per-layer, below. Null without a camera, which is also what makes

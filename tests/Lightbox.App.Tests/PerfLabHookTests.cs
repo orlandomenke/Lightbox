@@ -55,6 +55,76 @@ public sealed class PerfLabHookTests : IDisposable
     }
 
     /// <summary>
+    /// A duration measured elsewhere — the pen-to-screen chain clocks itself —
+    /// is written as if it had been a span: its start is backdated by its own
+    /// length, so the lab can overlap it with stalls like any other action.
+    /// </summary>
+    [Fact]
+    public void ATakenDurationIsBackdatedToWhenItStarted()
+    {
+        var path = Path.Combine(_dir, "perf.jsonl");
+        PerfLog.StartForTests(path);
+        PerfLog.Mark("before");
+        PerfLog.Took("pen.screen", 40);
+        PerfLog.StopForTests();
+
+        var lines = File.ReadAllLines(path).Select(l => JsonDocument.Parse(l).RootElement).ToList();
+        Assert.Equal(2, lines.Count);
+        var before = lines[0].GetProperty("t").GetDouble();
+        var taken = lines[1];
+        Assert.Equal("pen.screen", taken.GetProperty("ev").GetString());
+        Assert.Equal(40, taken.GetProperty("ms").GetDouble());
+        Assert.True(taken.GetProperty("t").GetDouble() < before,
+            "a taken duration starts before it was written, by its own length");
+    }
+
+    /// <summary>
+    /// A count is a moment with a value — how many points the pen is ahead of
+    /// the mark — and it travels in its own field so the lab never reads a
+    /// count of points as a number of milliseconds.
+    /// </summary>
+    [Fact]
+    public void ACountIsOneLineWithItsValueInItsOwnField()
+    {
+        var path = Path.Combine(_dir, "perf.jsonl");
+        PerfLog.StartForTests(path);
+        PerfLog.Count("live.behind", 12);
+        PerfLog.StopForTests();
+
+        var line = JsonDocument.Parse(File.ReadAllLines(path).Single()).RootElement;
+        Assert.Equal("live.behind", line.GetProperty("ev").GetString());
+        Assert.Equal(0, line.GetProperty("ms").GetDouble());
+        Assert.Equal(12, line.GetProperty("v").GetInt64());
+    }
+
+    /// <summary>
+    /// The artist's number. Every drawn frame that carried fresh ink logs how
+    /// long its oldest event took to reach the screen, and how long its newest
+    /// did — the render report's pen→screen and tip→screen, per frame rather
+    /// than as a session mean, so a paint scenario can take their median and
+    /// their worst.
+    /// </summary>
+    [Fact]
+    public void ADrawnFrameLogsHowLongItsInkTookToReachTheScreen()
+    {
+        var path = Path.Combine(_dir, "perf.jsonl");
+        PerfLog.StartForTests(path);
+        var chain = new Lightbox.App.Rendering.StrokeToScreen();
+        chain.Stamped(Lightbox.App.Rendering.StrokeToScreen.EventArrived());
+        chain.Published(7);
+        chain.Rendered(7);
+        // A frame with no ink waiting records nothing: playback and thumbnails
+        // stay out of a paint scenario's numbers.
+        chain.Published(8);
+        chain.Rendered(8);
+        PerfLog.StopForTests();
+
+        var events = File.ReadAllLines(path)
+            .Select(l => JsonDocument.Parse(l).RootElement.GetProperty("ev").GetString()).ToList();
+        Assert.Equal(["pen.screen", "tip.screen"], events);
+    }
+
+    /// <summary>
     /// Every store derives from the one profile root, so moving it moves them
     /// all — settings, the key file, workspaces, autosave. The September
     /// harness proved what a store with its own path does to a real profile.

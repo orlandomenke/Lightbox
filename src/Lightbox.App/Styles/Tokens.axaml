@@ -68,6 +68,13 @@
   <Thickness x:Key="SectionGap">0,8,0,0</Thickness>
   <Thickness x:Key="SubsectionGap">0,6,0,0</Thickness>
   <Thickness x:Key="LineGap">0,4,0,0</Thickness>
+  <!-- The X-sheet's name column. The layer rows in the window still write the
+       number; a folder's row names it, and has to match them or its strip of
+       marks slides out from under the ruler. -->
+  <x:Double x:Key="SizeXsheetName">88</x:Double>
+  <!-- A folder's mark on the X-sheet, held off its cell's sides by the cel gap
+       so neighbouring marks read as a run of separate frames. -->
+  <Thickness x:Key="FolderMarkInset">2,0</Thickness>
 
   <!-- ===== Settings pages (step 2, area 2: the Configure window) ===== -->
   <!-- A settings page's inset inside the window. -->
@@ -114,7 +121,16 @@
   <x:Double x:Key="SizeBrushPreviewWidth">112</x:Double>
   <x:Double x:Key="SizeBrushPreviewHeight">40</x:Double>
   <Thickness x:Key="BrushEditorHeaderGap">0,0,0,12</Thickness>
-  <Thickness x:Key="BrushEditorColumnGap">12,0</Thickness>
+  <!-- The chosen option, between the list and the scratchpad: a gutter of two
+       group gaps (8 + 8) on each side. The three columns have different
+       grounds, and one gap between them read as one panel with a stripe in
+       it. Under the last line, a group gap, so a note does not sit on the
+       popup's edge. -->
+  <Thickness x:Key="BrushEditorColumnGap">16,0,16,0</Thickness>
+  <Thickness x:Key="BrushEditorPanelFoot">0,0,0,8</Thickness>
+  <!-- The hairline where one family of options ends and the next begins in
+       the list. Its gap above is SectionGap, named at the style. -->
+  <Thickness x:Key="BrushEditorGroupRule">0,1,0,0</Thickness>
   <!-- The pressure switch under the option list: a section's gap above, a
        row's breath below so the box is not on the popup's edge. -->
   <Thickness x:Key="BrushEditorFootGap">0,8,0,4</Thickness>

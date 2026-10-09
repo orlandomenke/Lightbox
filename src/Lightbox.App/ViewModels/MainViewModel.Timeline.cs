@@ -1324,12 +1324,17 @@ public partial class MainViewModel
         SelectBlock(_celAnchor, (to.LayerIndex, to.Index));
     }
 
-    /// <summary>Where a scene layer sits among the sheet's rows, or -1.</summary>
+    /// <summary>
+    /// Where a scene layer sits among the layers the sheet shows, or -1 — which
+    /// is also the answer for a layer folded away inside its folder (Q227).
+    /// </summary>
     private int RowPosition(int sceneLayer)
     {
-        for (var r = 0; r < LayerRows.Count; r++)
+        var r = 0;
+        foreach (var row in SheetLayerRows)
         {
-            if (LayerRows[r].SceneIndex == sceneLayer) return r;
+            if (row.SceneIndex == sceneLayer) return r;
+            r++;
         }
         return -1;
     }
@@ -1350,9 +1355,13 @@ public partial class MainViewModel
         var first = Math.Min(a.Index, b.Index);
         var last = Math.Min(Math.Max(a.Index, b.Index), Scene.FrameCount - 1);
         _keySelection.Clear();
+        // The rows on screen between the two corners. A layer folded away
+        // inside a folder is not one of them: a block is what the eye sweeps,
+        // and a cel nobody can see must not be picked by sweeping past it.
+        var shown = SheetLayerRows.ToList();
         for (var r = Math.Min(ra, rb); r <= Math.Max(ra, rb); r++)
         {
-            var layer = LayerRows[r].SceneIndex;
+            var layer = shown[r].SceneIndex;
             for (var i = first; i <= last; i++) _keySelection.Add(TimelineKey.Cel(layer, i));
         }
         RefreshTimelineSelection();
@@ -1482,7 +1491,17 @@ public partial class MainViewModel
         return runs;
     }
 
-    /// <summary>Drop of a dragged cel: move (or Ctrl-copy) the drawing along its row.</summary>
+    /// <summary>
+    /// Drop of a dragged cel: move (or Ctrl-copy) the drawing along its row —
+    /// and, when the drawing is one of several selected, everything selected
+    /// with it by the same number of frames.
+    /// </summary>
+    /// <remarks>
+    /// The selection travels as a block because that is what was picked up: a
+    /// run on one layer re-timed in one pull, or the same frames down several
+    /// layers kept in step. A drawing outside the selection moves alone and
+    /// leaves the selection where it was.
+    /// </remarks>
     public void MoveCel(FrameCell from, FrameCell to, bool copy)
     {
         if (from.LayerIndex != to.LayerIndex)
@@ -1491,9 +1510,64 @@ public partial class MainViewModel
             return;
         }
         if (LayerOfCell(from) is not { } layer) return;
-        _editor.MoveCel(layer.Id, from.Index, to.Index, copy);
+        var grabbed = TimelineKey.Cel(from.LayerIndex, from.Index);
+        if (_keySelection.Count > 1 && _keySelection.Contains(grabbed))
+        {
+            var delta = to.Index - from.Index;
+            var moved = copy ? CopySelectedCels(delta) : RetimeSelection(grabbed, delta);
+            if (moved == 0) return;
+        }
+        else
+        {
+            _editor.MoveCel(layer.Id, from.Index, to.Index, copy);
+        }
         ActiveLayerIndex = from.LayerIndex;
         CurrentFrameIndex = Math.Min(to.Index, Scene.FrameCount - 1);
+    }
+
+    /// <summary>
+    /// Ctrl+drop of a selected block: a copy of every selected drawing lands
+    /// <paramref name="delta"/> frames along its own row, as one undo step, and
+    /// the selection moves onto the copies.
+    /// </summary>
+    /// <remarks>
+    /// Cels only. A camera or bone key selected on the Timeline tab is retimed
+    /// by a move and has no meaning as a copy made from the X-sheet. Ordered by
+    /// direction for <see cref="RetimeSelection"/>'s reason: a copy must be
+    /// taken from a cel before another copy lands on it.
+    /// </remarks>
+    private int CopySelectedCels(int delta)
+    {
+        if (delta == 0) return 0;
+        var cels = _keySelection.Where(k => k.IsCel).ToList();
+        if (cels.Any(k => k.Frame + delta < 0)) return 0;
+        var ordered = delta > 0
+            ? cels.OrderByDescending(k => k.Frame).ToList()
+            : cels.OrderBy(k => k.Frame).ToList();
+
+        var copied = 0;
+        var revision = _editor.NextRevision;
+        _editor.Perform(doc =>
+        {
+            foreach (var key in ordered)
+            {
+                if (key.LayerIndex < 0 || key.LayerIndex >= doc.Scene.Layers.Count) continue;
+                var id = doc.Scene.Layers[key.LayerIndex].Id;
+                if (DocumentEditor.MoveCelIn(doc, id, key.Frame, key.Frame + delta, copy: true)) copied++;
+            }
+        }, label: "Copy cels");
+        if (copied == 0)
+        {
+            _editor.DiscardStep(revision);
+            return 0;
+        }
+
+        _keySelection.Clear();
+        foreach (var key in cels) _keySelection.Add(key with { Frame = key.Frame + delta });
+        _celAnchor = (_celAnchor.Layer, _celAnchor.Index + delta);
+        AfterRetimeSelection(ordered);
+        AiStatus = copied == 1 ? "Cel copied." : $"{copied} cels copied.";
+        return copied;
     }
 
     // ---- frame markers --------------------------------------------------------------

@@ -236,6 +236,15 @@ public sealed class Scene
     public List<LayerGroup> LayerGroups { get; set; } = [];
 
     /// <summary>
+    /// The Timeline and the X-sheet show only what is pinned (Q227) — the
+    /// pinned layers and folders, the layer being drawn on, and the folders
+    /// those sit in. Krita's switch. True or null, never false, so a scene that
+    /// never used it writes no key; and with nothing pinned it does nothing,
+    /// so it can never empty the sheet.
+    /// </summary>
+    public bool? SheetPinnedOnly { get; set; }
+
+    /// <summary>
     /// Layer links (see <see cref="LayerLink"/>), or null — and null is the
     /// ordinary document, which has never linked anything.
     /// </summary>

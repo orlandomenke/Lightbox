@@ -35,4 +35,38 @@
   <Style Selector="Button.cel.sel">
     <Setter Property="Background" Value="{DynamicResource CelSelectedBrush}" />
   </Style>
+
+  <!--
+    A folder's row (Q227): no cels of its own, so no cel ground — a mark where
+    anything inside the folder is drawn, on a strip that still shows the
+    playhead and the hatch so the row reads as part of the sheet. The mark is a
+    bar rather than a filled cel on purpose: a filled cel says "a drawing you
+    can open", and this is a count of the drawings beneath it.
+  -->
+  <Style Selector="Border.folderCel">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusInner}" />
+  </Style>
+  <Style Selector="Border.folderCel.virtualCell">
+    <Setter Property="Opacity" Value="0.35" />
+    <Setter Property="Background" Value="{DynamicResource CelVirtualHatchBrush}" />
+  </Style>
+  <Style Selector="Border.folderCel.dim">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+  <Style Selector="Border.folderCel.current">
+    <Setter Property="Background" Value="{DynamicResource CelCurrentBrush}" />
+  </Style>
+  <!-- Where a dragged mark would land. The cel selection's brush: the same
+       "this one" the sheet already uses, on a row that has no other use for it. -->
+  <Style Selector="Border.folderCel.dropTarget">
+    <Setter Property="Background" Value="{DynamicResource CelSelectedBrush}" />
+  </Style>
+  <Style Selector="Border.folderMark">
+    <Setter Property="Height" Value="{StaticResource Space6}" />
+    <Setter Property="Margin" Value="{StaticResource FolderMarkInset}" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusPill}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Background" Value="{DynamicResource TextSecondaryBrush}" />
+  </Style>
 </Styles>

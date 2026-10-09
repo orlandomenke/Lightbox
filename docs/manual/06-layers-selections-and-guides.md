@@ -32,6 +32,13 @@ skipped, so the first stroke after opening lands instead of going nowhere. If
 *every* layer is out of reach the selection still goes to a real layer rather
 than the paper, and the status line says which lock is in the way.
 
+**A locked row shows a shut padlock and a quieter name**, and nothing round the
+row: the highlighted row is always the one you are drawing on, never a locked
+one. A layer or folder inside a locked folder shows the padlock shut as well,
+dimmer, because the lock that is set is the folder's — unlock the folder and
+those rows are as they were. (A locked row used to be outlined, which made it
+look like the active layer.)
+
 **And it reopens on the layer you left it on**, the way it reopens on the frame
 you were parked on. A file saved while you were inking comes back on the ink
 layer. If that layer has since been deleted, locked or hidden, the selection
@@ -72,6 +79,21 @@ folders, or nothing at all, and it stays where you put it either way.
 - **Folders go inside folders**, as deep as you like. Each level is indented one
   step, and hiding or locking a folder hides or locks everything in it, at
   every depth.
+- **A hidden folder shows on every row it reaches.** Each layer and folder
+  inside it is dimmed and its eye is drawn shut, at every depth, so the docker
+  never shows an open eye on something the canvas is not drawing. Those rows'
+  own eyes are not changed by it: show the folder again and everything comes
+  back as it was, including the layers you had hidden one by one. The X-sheet's
+  rows do the same.
+- **A folder's colour washes its whole row, and the rows of the layers inside
+  it more faintly**, so a folder reads as one band down the docker rather than
+  as a mark beside its header. Choose it from **Folder color** on the header's
+  right-click menu. **A folder inside another shows its parent's colour** until
+  you give it one of its own, and then everything inside *it* follows that
+  instead; **Same as parent**, on the same menu, gives the colour up again. The
+  row you are drawing on and the rows you have selected are still the brightest
+  things in the list. A file saved before this recorded a colour on every
+  folder, so its subfolders keep theirs until you choose **Same as parent**.
 - **Click a folder's header to pick it on its own** — an empty one included.
   With a folder picked, a new layer or folder goes inside it, and **Delete**
   deletes the folder.

@@ -169,6 +169,9 @@ public partial class MainViewModel
         // The trust decision lives entirely in `FrameCheckpoints.Usable`, which
         // recomputes what the pixels were made from rather than believing them.
         _cache.CheckpointResolver = frame => FrameCheckpoints.Usable(_editor.Doc, frame);
+        // B409. Asked at every fetch rather than told: the paper's corner
+        // changes on a resize, a crop, the undo of either and a switch of tab.
+        _cache.OriginSource = () => new SkiaSharp.SKPointI(Scene.Left, Scene.Top);
         // A blur reads neighbours, so a document with live kernel effects
         // dirties more than the stroke touched. Asked per mark rather than
         // cached, because a keyed radius changes per frame; a document with
@@ -317,6 +320,9 @@ public partial class MainViewModel
         PaletteDocker.Load(Doc);
         GradientDocker.Load(Doc);
         LoadBrushState();
+        // The lab's brush, if it asked for one — and only in its own profile.
+        ApplyBrushOverride(
+            Environment.GetEnvironmentVariable("LIGHTBOX_BRUSH"), Lightbox.Core.ProfileFolder.Overridden);
         SyncLayerChoices();
         SyncLayerRows();
         RefreshThumbnails();

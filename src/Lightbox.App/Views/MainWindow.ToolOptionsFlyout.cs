@@ -160,6 +160,10 @@ public partial class MainWindow
         if (BrushEditorOpen) return;
         var editor = BrushEditorView();
         var flyout = new Flyout { Content = editor, Placement = PlacementMode.BottomEdgeAlignedLeft };
+        // Fluent caps a flyout at 456 wide and scrolls what is left over. The
+        // editor is wider than that by design, so its popup takes its width
+        // from the editor (FlyoutPresenter.brushEditor, in Controls.axaml).
+        flyout.FlyoutPresenterClasses.Add("brushEditor");
         flyout.Closed += (_, _) =>
         {
             // Let the editor go, so the next open can adopt it.
