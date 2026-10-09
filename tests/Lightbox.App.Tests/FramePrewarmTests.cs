@@ -181,6 +181,38 @@ public class FramePrewarmTests(ITestOutputHelper output)
         Assert.True(warmer.Rendered < 40, $"all {warmer.Rendered} were rendered after the queue was dropped");
     }
 
+    /// <summary>
+    /// Held while the UI thread waits on renders of its own: the work it is
+    /// waiting for gets the cores. Measured on a 30-layer 4K document: an undo
+    /// whose publish rendered evicted drawings in parallel alongside eight warm
+    /// workers took 1.5 s, each render slowed by half again.
+    /// </summary>
+    [Fact]
+    public void AHeldPrewarmerStartsNoNewWorkAndCarriesOnWhenReleased()
+    {
+        using var warmer = new FramePrewarmer();
+        var frames = Enumerable.Range(0, 40).Select(i => { var f = JitteryFrame(i); f.Id = $"f{i}"; return f; }).ToList();
+        var jobs = frames.Select(f => new WarmRequest(f, W, H, 0, WarmProduct.Bitmap)).ToList();
+
+        int whileHeld;
+        using (warmer.Hold())
+        {
+            warmer.Request(jobs, workers: 4);
+            // What was already running finishes; nothing new starts.
+            var until = DateTime.UtcNow.AddSeconds(30);
+            while (warmer.RunningWorkers > 0 && DateTime.UtcNow < until) Thread.Sleep(1);
+            Assert.Equal(0, warmer.RunningWorkers);
+            whileHeld = warmer.Rendered;
+            Thread.Sleep(200);
+            Assert.Equal(whileHeld, warmer.Rendered);
+            Assert.True(warmer.IsBusy, "the queue was dropped rather than held");
+        }
+
+        Assert.True(warmer.WaitForIdle(TimeSpan.FromSeconds(30)), "released, the queue never finished");
+        Assert.Equal(40, warmer.Rendered);
+        output.WriteLine($"rendered while held: {whileHeld} of 40");
+    }
+
     [Fact]
     public void AWarmThatWasSupersededIsNeverInstalled()
     {
