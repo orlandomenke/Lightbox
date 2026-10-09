@@ -379,7 +379,9 @@ does not pay for it.
 dries, so the mark ends up darker at its border than in the middle. At 0 the
 wash dries flat. Turn it up and the border darkens and the middle pales — the
 paint is being moved, not added, so a strong wet edge is paid for out of the
-centre. That is what a real one costs too.
+centre. That is what a real one costs too. The middle pales as a whole and
+stays an even wash; it never opens into a pale line down the stroke, at any
+setting.
 
 **Flow steps** decide how far the paint travels, not how much of it there is.
 Turn them down for a mark that stays where you put it, up for one that spreads
