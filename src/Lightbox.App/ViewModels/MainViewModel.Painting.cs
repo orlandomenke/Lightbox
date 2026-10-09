@@ -1863,6 +1863,8 @@ public partial class MainViewModel
         _live.Composite = null;
         _live.EffectBase?.Dispose();
         _live.EffectBase = null;
+        _live.MixBeneath?.Dispose();
+        _live.MixBeneath = null;
         if (CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
         {
             // Blur and smudge read the pixels they sit on, so they need a real
@@ -1883,6 +1885,13 @@ public partial class MainViewModel
         {
             _live.EnsureScratch(Scene.Width, Scene.Height);
             _live.ClearScratch();
+            // The ground a mixing brush reads under its dabs, taken once: the
+            // committed frame is fixed until pen-up, and the cache may evict
+            // its own bitmap between events (Q232; the smudge's base above).
+            if (CurrentToolSettings.Mixing is not null)
+            {
+                _live.MixBeneath = _cache.Get(target, Scene.Width, Scene.Height).Copy();
+            }
             // B299: a hard round brush accumulates its coverage across the whole
             // stroke, so the buffer that holds it starts empty here rather than
             // being rebuilt per event. Only for the brushes that use it - every
@@ -1917,6 +1926,8 @@ public partial class MainViewModel
         _live.EffectSettled = 0;
         _live.SmudgeCarry = default;
         _live.SmudgeRegion = null;
+        _live.MixCarry = default;
+        _live.MixDeposits?.Clear();
         NoteStrokeBegan();
         FlushLivePreview();
         PublishSnapshot();
@@ -2104,7 +2115,12 @@ public partial class MainViewModel
             Points = [.. stroke.Points],
         };
         preview.Brush.Opacity = 1;
-        BrushEngine.StampStroke(_live.ScratchCanvas, preview, info);
+        // With the layer beneath, so a mixing brush's shape previews what its
+        // commit will pick up (the adversary); every other brush ignores it.
+        var beneath = preview.Brush.Mixing is not null && PaintTarget() is { } shapeFrame
+            ? _cache.Get(shapeFrame, Scene.Width, Scene.Height)
+            : null;
+        BrushEngine.StampStroke(_live.ScratchCanvas, preview, info, beneath);
         _live.ScratchCanvas.Flush();
         _live.ScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
         _publish.InvalidateWholeCanvas();
@@ -2549,7 +2565,8 @@ public partial class MainViewModel
 
             _live.ScratchCanvas.Save();
             _live.ScratchCanvas.Concat(m);
-            BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, from, to);
+            // A mixing stroke's copies lay the drawn mark's colours (Q232).
+            BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, from, to, null, false, _live.MixDeposits);
             _live.ScratchCanvas.Restore();
 
             if (carriesFootprint && _live.CoverageCanvas is { } cover)
@@ -2818,7 +2835,25 @@ public partial class MainViewModel
         // 2. Everything whose position has stopped moving, permanently.
         var settledAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var settledFrom = _live.StableDabs;
-        BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, stable);
+        // A mixing brush reads the ground as it goes: the scratch so far through
+        // a view of its own memory, over the frame's cached bitmap (Q232). The
+        // carry is checkpointed after the settled dabs and the tail continues
+        // from a copy, exactly as the smudge's is (B69/B89).
+        using var mixPixels = live.Brush.Mixing is null ? null : _live.Scratch?.PeekPixels();
+        using var mixBeneath = mixPixels is null ? null : _live.MixBeneath?.PeekPixels();
+        var mixGround = mixPixels is null
+            ? default
+            : new BrushEngine.MixGround(mixPixels, mixBeneath, default, _live.ScratchCanvas.TotalMatrix);
+        if (mixPixels is not null)
+        {
+            _live.MixCarry = BrushEngine.StampMixedDabRange(
+                _live.ScratchCanvas, live, dabs, _live.StableDabs, stable, mixGround, _live.MixCarry,
+                _live.MixDeposits ??= new List<BrushEngine.MixDeposit>());
+        }
+        else
+        {
+            BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, stable);
+        }
         _live.StableDabs = Math.Max(_live.StableDabs, Math.Min(stable, dabs.Count));
         StampColourMs.Add(Ms(settledAt));
         if (carriesFootprint)
@@ -2892,7 +2927,18 @@ public partial class MainViewModel
             StampBackupMs.Add(Ms(backupAt));
             StampTailMpx.Add(tail.Width * (double)tail.Height / 1_000_000.0);
             var tailAt = System.Diagnostics.Stopwatch.GetTimestamp();
-            BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count);
+            if (mixPixels is not null)
+            {
+                // From the checkpoint, and the result is dropped: the tail is on
+                // loan and re-stamped from the same carry next event.
+                BrushEngine.StampMixedDabRange(
+                    _live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count, mixGround, _live.MixCarry,
+                    _live.MixDeposits);
+            }
+            else
+            {
+                BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count);
+            }
             // Counted HERE and not from the tail's size below, because the tail
             // is only re-stamped when RangeBounds gives it a rectangle. Counting
             // `dabs.Count - StableDabs` regardless would report work that did not

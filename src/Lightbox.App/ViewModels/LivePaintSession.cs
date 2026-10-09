@@ -284,6 +284,29 @@ sealed class LivePaintSession
     internal BrushEngine.SmudgeCarry SmudgeCarry { get; set; }
 
     /// <summary>
+    /// The layer beneath a mixing stroke, copied once when the stroke begins:
+    /// the committed frame does not change until pen-up, so asking the frame
+    /// cache for it on every pointer event was a whole-frame render per event
+    /// whenever the frame held a live-sampling stroke (leak-hunter, on
+    /// landing). The same copy <see cref="EffectBase"/> is for an effect brush.
+    /// </summary>
+    internal SKBitmap? MixBeneath { get; set; }
+
+    /// <summary>
+    /// What a mixing brush was carrying at dab <see cref="StableDabs"/>, so the
+    /// tail re-stamps from the same history the commit replays (Q232) — the
+    /// same link <see cref="SmudgeCarry"/> is for a smudge.
+    /// </summary>
+    internal BrushEngine.MixCarry MixCarry { get; set; }
+
+    /// <summary>
+    /// What each dab of a mixing stroke deposited toward, by index, so the
+    /// symmetry copies lay the drawn mark's colours rather than sampling their
+    /// own ground. Reused across strokes; a stroke overwrites from zero.
+    /// </summary>
+    internal List<BrushEngine.MixDeposit>? MixDeposits { get; set; }
+
+    /// <summary>
     /// The composite's pixels under the provisional smudge tail, before it was stamped.
     /// </summary>
     /// <remarks>
@@ -612,6 +635,10 @@ sealed class LivePaintSession
         // read, so keeping it saves an allocation per stroke without any state surviving.
         SmudgeCarry = default;
         SmudgeRegion = null;
+        MixCarry = default;
+        MixDeposits?.Clear();
+        MixBeneath?.Dispose();
+        MixBeneath = null;
         // The coverage buffer is kept for the same reason TailBackup is: it is
         // reused across strokes and BeginCoverage always clears it before a
         // stroke reads it, so holding it saves an allocation per stroke without

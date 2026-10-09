@@ -70,6 +70,9 @@ public static class TiledRasterizer
         foreach (var stroke in strokes)
         {
             if (stroke.Brush.Kind is BrushKind.Smudge or BrushKind.Blur) return false;
+            // A mixing brush reads the layer under its dabs at document
+            // offsets, exactly the assumption B59 measured as wrong per tile.
+            if (stroke.Brush.Mixing is not null) return false;
         }
         return true;
     }

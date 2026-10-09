@@ -245,6 +245,12 @@ public static class BuiltInPresets
                 // varied and still reproducible (invariant 2).
                 TipId = "tip-builtin-wet-edge",
                 SizeJitter = 0.15, RoundnessJitter = 0.2,
+                // Q232: a wash picks up what it is laid over. The first sheet over
+                // a blue stroke, at amount 0.35 and length 0.7, was a grey smear —
+                // the lattice re-wets the ground as well, so the mixing has to
+                // stay nearer the paint than it would on a brush with no medium.
+                // CSP's own gouache ships at 80% paint and 15% stretch.
+                Mixing = new ColourMixing { Amount = 0.6, Length = 0.3, Reach = 0.9 },
                 Medium = new MediumSettings
                 {
                     Kind = MediumKind.Watercolour,
@@ -260,7 +266,14 @@ public static class BuiltInPresets
                     PigmentDensity = 0.5, Granularity = 0.6, Hiding = 0.05,
                     Paper = PaperKind.ColdPress, PaperScale = 14, PaperInfluence = 0.7,
                     // A light touch is mostly water: paler, and it blooms.
-                    PressureWater = 0.8, Rewetting = 0.6,
+                    // Re-wetting off (Q232): the brush now picks up what it is
+                    // laid on dab by dab, in pigment. The lattice's re-wetting
+                    // lifted the paint beneath and mixed it linearly in RGB, and
+                    // the sheet over a blue stroke showed every medium greying
+                    // whatever the mixing did; with it off, yellow over blue
+                    // goes green. Still a slider — an artist who wants the
+                    // under-paint to flow with the wash can turn it back up.
+                    PressureWater = 0.8, Rewetting = 0,
                 },
             },
         },
@@ -274,6 +287,9 @@ public static class BuiltInPresets
                 // B36 — a loaded chisel brush, turned to the stroke.
                 TipId = "tip-builtin-paintbrush",
                 AngleFollowsDirection = true, SizeJitter = 0.1,
+                // Q232: body colour covers more than it mixes, and what it picks
+                // up does not travel far.
+                Mixing = new ColourMixing { Amount = 0.8, Length = 0.15, Reach = 0.9 },
                 Medium = new MediumSettings
                 {
                     Kind = MediumKind.Gouache,
@@ -285,7 +301,7 @@ public static class BuiltInPresets
                     Paper = PaperKind.ColdPress, PaperScale = 10, PaperInfluence = 0.35,
                     Body = 0.35, Relief = 0.2, PaintLoad = 0.85,
                     // Body colour: pressure decides how much it picks up.
-                    PressureWater = 0.15, PressureMix = 0.8, Rewetting = 0.35,
+                    PressureWater = 0.15, PressureMix = 0.8, Rewetting = 0, // Q232: see Watercolor
                 },
             },
         },
@@ -301,6 +317,10 @@ public static class BuiltInPresets
                 // it is what an artist wanting dragged bristles actually needs.
                 TipId = "tip-builtin-bristle",
                 AngleFollowsDirection = true, SizeJitter = 0.08, RotationJitter = 0.04,
+                // Q232: oil drags what is already there a long way and keeps
+                // half of its own paint — the dragged-bristle look is the tip,
+                // the dragged colour is this.
+                Mixing = new ColourMixing { Amount = 0.7, Length = 0.25, Reach = 0.9 },
                 Medium = new MediumSettings
                 {
                     Kind = MediumKind.Oil,
@@ -317,7 +337,7 @@ public static class BuiltInPresets
                     // above instead. B23.
                     // Barely engages the canvas under a light touch, drags it
                     // thoroughly under a firm one.
-                    PressureWater = 0.05, PressureMix = 0.9, Rewetting = 0.55,
+                    PressureWater = 0.05, PressureMix = 0.9, Rewetting = 0, // Q232: see Watercolor
                 },
             },
         },
@@ -329,6 +349,8 @@ public static class BuiltInPresets
             {
                 Size = 30, Hardness = 0.35, Opacity = 0.8, Flow = 0.6, Spacing = 0.07,
                 PressureSizeGamma = 1.4,
+                // Q232: a wash over a wash bleeds into it.
+                Mixing = new ColourMixing { Amount = 0.6, Length = 0.2, Reach = 0.9 },
                 Medium = new MediumSettings
                 {
                     Kind = MediumKind.Ink,
@@ -338,7 +360,7 @@ public static class BuiltInPresets
                     Absorbency = 0.75, EdgePull = 0.3,
                     PigmentDensity = 0.8, Granularity = 0.05, Hiding = 0.4,
                     Paper = PaperKind.Smooth, PaperScale = 6, PaperInfluence = 0.25,
-                    PressureWater = 0.5, Rewetting = 0.4,
+                    PressureWater = 0.5, Rewetting = 0, // Q232: see Watercolor
                 },
             },
         },

@@ -48,7 +48,7 @@ public sealed class BrushEditorTests(ITestOutputHelper output) : BrushStateIsola
         var (_, vm, editor) = Open();
         Assert.False(vm.IsSmudgeBrush);
         Assert.Equal(
-            ["Tip", "Size", "Opacity", "Flow", "Spacing", "Shape dynamics", "Scatter", "Texture", "Colour dynamics", "Medium", "Blend"],
+            ["Tip", "Size", "Opacity", "Flow", "Spacing", "Shape dynamics", "Scatter", "Texture", "Colour dynamics", "Colour mixing", "Medium", "Blend"],
             Listed(editor));
     }
 
@@ -98,6 +98,29 @@ public sealed class BrushEditorTests(ITestOutputHelper output) : BrushStateIsola
 
         editor.SetInUse(Option("Scatter"), true);
         Assert.Equal(0.6, vm.BrushScatter, 6);
+    }
+
+    /// <summary>
+    /// Colour mixing off means the block is absent, so re-ticking it has to put
+    /// back what the artist tuned, not the defaults (ui-critic, against Q211).
+    /// </summary>
+    [AvaloniaFact]
+    public void WhatAnUntickedColourMixingHeldComesBackWhenItIsTickedAgain()
+    {
+        var (_, vm, editor) = Open();
+        vm.BrushMixing = true;
+        vm.BrushMixAmount = 0.3;
+        vm.BrushMixLength = 0.8;
+        Pump();
+        Assert.True(editor.InUse(Option("Colour mixing")));
+
+        editor.SetInUse(Option("Colour mixing"), false);
+        Assert.False(vm.BrushMixing);
+
+        editor.SetInUse(Option("Colour mixing"), true);
+        Assert.True(vm.BrushMixing);
+        Assert.Equal(0.3, vm.BrushMixAmount, 6);
+        Assert.Equal(0.8, vm.BrushMixLength, 6);
     }
 
     [AvaloniaFact]

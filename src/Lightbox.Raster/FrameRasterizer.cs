@@ -155,6 +155,9 @@ public static class FrameRasterizer
             // edge would therefore drag future ink into the past. No coordinate
             // fixes that, so the whole repaint goes back to the slow path.
             if (stroke.Brush.Kind is BrushKind.Smudge or BrushKind.Blur) return false;
+            // A mixing brush reads what it sits on too, and would carry the
+            // later strokes outside the region into the pickup (the adversary).
+            if (stroke.Brush.Mixing is not null) return false;
             replay.Add(stroke);
         }
 
