@@ -1093,7 +1093,8 @@ public partial class MainViewModel
     /// repaint region that missed it would leave crumbs of the mark behind at
     /// the old position.
     /// </remarks>
-    private static SKRect? PreviewMovingBounds(List<Frame> frames, Func<Stroke, bool>? filter)
+    private static SKRect? PreviewMovingBounds(
+        List<Frame> frames, Func<Stroke, bool>? filter, Func<Frame, SKRect?>? pixelsMoving = null)
     {
         float minX = float.MaxValue, minY = float.MaxValue;
         float maxX = float.MinValue, maxY = float.MinValue;
@@ -1104,6 +1105,15 @@ public partial class MainViewModel
             // stays put; without one the whole layer bitmap moves, baseline
             // and placements included, and strokes no longer bound it.
             if (filter is null && (frame.HasBaseline || frame.HasPlacements)) return null;
+            // B433: the part of the baseline a selection takes moves too.
+            if (filter is not null && frame.HasBaseline && pixelsMoving?.Invoke(frame) is { } pixels)
+            {
+                any = true;
+                minX = Math.Min(minX, pixels.Left);
+                minY = Math.Min(minY, pixels.Top);
+                maxX = Math.Max(maxX, pixels.Right);
+                maxY = Math.Max(maxY, pixels.Bottom);
+            }
             foreach (var stroke in frame.Strokes)
             {
                 if (filter is not null && !filter(stroke)) continue;
@@ -1159,7 +1169,20 @@ public partial class MainViewModel
             // clones are thrown away; only their pixels are wanted.
             var (moving, rest) = PreviewSplit(painted, filter);
             SKBitmap stay;
-            if (painted.PngBase64 is { Length: > 0 })
+            SKBitmap? movingPixels = null;
+            if (painted.PngBase64 is { Length: > 0 } && BaselineHalves(painted) is var (stayingPixels, travellingPixels))
+            {
+                // B433: the selection cuts the baseline as the commit will —
+                // the half outside it stays under the strokes that stay, the
+                // half inside it travels under the strokes that move. Drawn
+                // into paper-sized surfaces through the paper's corner, as the
+                // whole baseline is below.
+                stay = OnThePaper(stayingPixels);
+                foreach (var s in rest) FrameRasterizer.Append(stay, s);
+                movingPixels = OnThePaper(travellingPixels);
+                foreach (var s in moving) FrameRasterizer.Append(movingPixels, s);
+            }
+            else if (painted.PngBase64 is { Length: > 0 })
             {
                 // The baseline stays put under a region-limited transform,
                 // exactly as the commit leaves it — and it goes underneath the
@@ -1179,7 +1202,7 @@ public partial class MainViewModel
                 stay = FrameRasterizer.Rasterize(rest, Scene.Width, Scene.Height, origin: new SkiaSharp.SKPointI(Scene.Left, Scene.Top));
             }
             parts = new TransformSession.Parts(
-                FrameRasterizer.Rasterize(moving, Scene.Width, Scene.Height, origin: new SkiaSharp.SKPointI(Scene.Left, Scene.Top)), stay, Owned: true);
+                movingPixels ?? FrameRasterizer.Rasterize(moving, Scene.Width, Scene.Height, origin: new SkiaSharp.SKPointI(Scene.Left, Scene.Top)), stay, Owned: true);
         }
         else
         {
@@ -1630,6 +1653,19 @@ public partial class MainViewModel
                     {
                         if (baselineResample is not null) baselineResample(painted);
                         else if (!baselineMatrix.IsIdentity) ResampleBaseline(painted, baselineMatrix);
+                    }
+                    // B433: under a selection, the baseline's part inside it
+                    // moves by the same resample, and the rest stays put.
+                    else if (filter is not null && _pixelsFollowSelection
+                             && frame is Frame { PngBase64.Length: > 0 } cut
+                             && (baselineResample is not null || !baselineMatrix.IsIdentity))
+                    {
+                        ResampleBaselineInsideRegion(
+                            cut, f =>
+                            {
+                                if (baselineResample is not null) baselineResample(f);
+                                else ResampleBaseline(f, baselineMatrix);
+                            });
                     }
                 }
                 // After the frames, because the split only discovers which clips it

@@ -70,7 +70,14 @@ public static class VisibleDrawingBounds
     /// record cannot say where a baseline's ink is, only that it covers the
     /// page, and over-approximating a box is the harmless direction.
     /// </param>
-    public static SKRect? Of(IEnumerable<Frame> frames, Func<Stroke, bool>? filter, SKRect page)
+    /// <param name="pixelsMoving">
+    /// B433: under a region, the box round the part of a drawing's baseline
+    /// the region takes, or null for none. Absent, a baseline under a region
+    /// counts for nothing, as it did before pixels moved with a selection.
+    /// </param>
+    public static SKRect? Of(
+        IEnumerable<Frame> frames, Func<Stroke, bool>? filter, SKRect page,
+        Func<Frame, SKRect?>? pixelsMoving = null)
     {
         var ink = new Box();
         var rubs = new Box();
@@ -83,6 +90,10 @@ public static class VisibleDrawingBounds
             if (filter is null && frame.HasBaseline)
             {
                 ink.Take(page.Left, page.Top, page.Right, page.Bottom);
+            }
+            else if (frame.HasBaseline && pixelsMoving?.Invoke(frame) is { } pixels)
+            {
+                ink.Take(pixels.Left, pixels.Top, pixels.Right, pixels.Bottom);
             }
 
             var strokes = frame.Strokes;
