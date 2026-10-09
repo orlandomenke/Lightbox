@@ -1057,7 +1057,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         if (variant.Overrides.ContainsValue(shown.Id)) return;
         if (ProjectIo.LoadDocument(project, shown) is not { } doc)
         {
-            Status = $"“{shown.Name}” is missing from disk, so “{variant.Name}” keeps sharing it.";
+            Status = $"{ProjectIo.Unavailable(project, shown)}, so “{variant.Name}” keeps sharing it.";
             return;
         }
 
@@ -2855,7 +2855,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         if (Project is not { } project || Selected?.Animation is not { } reference) return;
         if (ProjectIo.LoadDocument(project, reference) is not { } doc)
         {
-            Status = $"“{reference.Name}” is missing from disk.";
+            Status = $"{ProjectIo.Unavailable(project, reference)}.";
             return;
         }
         _open(reference, doc);
@@ -3096,7 +3096,7 @@ public sealed partial class ProjectViewModel : ObservableObject, IDisposable
         if (Project is not { } project || Selected is not { Animation: { } source } row) return;
         if (ProjectIo.LoadDocument(project, source) is not { } doc)
         {
-            Status = $"“{source.Name}” is missing from disk.";
+            Status = $"{ProjectIo.Unavailable(project, source)}.";
             return;
         }
 

@@ -60,6 +60,13 @@ public sealed class Project
     /// <summary>Documents read so far, by <see cref="DocumentRef.Id"/>.</summary>
     public Dictionary<string, Doc> Loaded { get; } = [];
 
+    /// <summary>
+    /// Documents that are on disk but could not be read, by id, with why — so
+    /// <see cref="ProjectIo.Unavailable"/> can say "could not be read" rather
+    /// than "missing" for a file that is plainly there.
+    /// </summary>
+    public Dictionary<string, string> Unreadable { get; } = [];
+
     /// <summary>Character sheets read so far, by <see cref="SheetRef.Id"/>.</summary>
     /// <remarks>
     /// The same lazy rule as <see cref="Loaded"/> and for the same reason: the

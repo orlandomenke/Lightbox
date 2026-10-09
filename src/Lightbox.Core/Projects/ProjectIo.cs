@@ -312,13 +312,42 @@ public static class ProjectIo
         }
     }
 
+    /// <summary>
+    /// Why <see cref="LoadDocument"/> gave nothing for this document, as a
+    /// clause for a status line: <c>“Idle” could not be read (…)</c> or
+    /// <c>“Idle” is missing from disk</c>.
+    /// </summary>
+    public static string Unavailable(Project project, DocumentRef reference) =>
+        project.Unreadable.TryGetValue(reference.Id, out var why)
+            ? $"“{reference.Name}” could not be read ({why})"
+            : $"“{reference.Name}” is missing from disk";
+
     /// <summary>Read a document, or return the one already in the cache.</summary>
+    /// <remarks>
+    /// Null when the file is missing <em>or cannot be read</em>, and
+    /// <see cref="Unavailable"/> says which. A dozen callers — the project
+    /// window, the docker, templates, the character library — already handle a
+    /// missing document and caught nothing else, so one corrupt file took the
+    /// application down on any route that read it (the sensitivity review,
+    /// 2026-10-09).
+    /// </remarks>
     public static Doc? LoadDocument(Project project, DocumentRef reference)
     {
         if (project.Loaded.TryGetValue(reference.Id, out var cached)) return cached;
         var path = project.PathOf(reference);
         if (!File.Exists(path)) return null;
-        var doc = DocJson.Load(path);
+        Doc doc;
+        try
+        {
+            doc = DocJson.Load(path);
+        }
+        catch (Exception e) when (e is IOException or InvalidDataException or JsonException
+                                      or UnauthorizedAccessException or NotSupportedException)
+        {
+            project.Unreadable[reference.Id] = e.Message;
+            return null;
+        }
+        project.Unreadable.Remove(reference.Id);
         ApplyFeatureDefaults(doc, project.Manifest.Type);
         // Q25 re-answered: sheets written into documents under the old model
         // are lifted into the project the first time the document is read.
