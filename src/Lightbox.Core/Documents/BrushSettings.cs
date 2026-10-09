@@ -240,6 +240,19 @@ public sealed class BrushSettings
     /// <summary>0..1: how strongly the texture bites into the dab.</summary>
     public double TextureDepth { get; set; }
 
+    /// <summary>
+    /// 0..1: how much of the texture's bite the pen's pressure fills in. Null
+    /// is off and writes nothing — the bite is then the same at any pressure,
+    /// as it always was. At 1 a light touch catches only the paper's peaks and
+    /// a hard press fills the valleys; this is what makes a pencil a pencil.
+    /// </summary>
+    /// <remarks>
+    /// Not a <see cref="BrushDynamic"/>: a brush store with an unknown
+    /// dynamic key is thrown away whole by builds older than Q193's version
+    /// field, where an unknown property is simply skipped.
+    /// </remarks>
+    public double? TexturePressure { get; set; }
+
     // ---- colour dynamics -------------------------------------------------------
 
     /// <summary>
@@ -444,6 +457,7 @@ public sealed class BrushSettings
         TextureId = TextureId,
         TextureScale = TextureScale,
         TextureDepth = TextureDepth,
+        TexturePressure = TexturePressure,
         SecondaryColor = SecondaryColor,
         ColorJitter = ColorJitter,
         HueJitter = HueJitter,
