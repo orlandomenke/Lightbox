@@ -88,9 +88,13 @@ options panel. It has four parts.
   all. Untick Scatter and the brush stops scattering; tick it again and the
   values you had come back. The options every brush has (a tip, a size, an
   opacity) cannot be unticked. A paper you imported keeps Texture ticked until
-  you remove the paper with its **✕**.
+  you remove the paper with its **✕**. The list is ruled into three families —
+  what every brush has, what a brush may add to its mark, and how its paint
+  behaves — and it **never scrolls**: every option is on it at once.
 - **The chosen option's panel**, with its pen-pressure curve beside the value it
-  drives (see *How the brush answers the pen*).
+  drives (see *How the brush answers the pen*). This is the one part that
+  scrolls, downwards only, and only when an option is long — a simulated medium
+  is. Nothing in the editor is ever off to one side.
 - **The scratchpad** on the right, to try the brush on. It paints with the brush
   exactly as it is now, at its real size, and repaints what is on it whenever a
   setting changes. Nothing drawn there is ever part of your work, recorded or
