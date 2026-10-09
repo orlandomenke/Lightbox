@@ -2895,7 +2895,7 @@
                       <!-- The header drags the whole folder, and shows where it
                            would land: a line above or below for "beside", the
                            whole row lit for "into". -->
-                      <Border Classes="groupRow" Classes.hiddenLayer="{Binding !Visible}" Margin="{Binding Indent}"
+                      <Border Classes="groupRow" Classes.hiddenLayer="{Binding IsDimmed}" Margin="{Binding Indent}"
                               Classes.lockedLayer="{Binding EditsBlocked}"
                               Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
                               Classes.dropInto="{Binding DropInto}" Classes.selected="{Binding IsSelected}"
@@ -2935,7 +2935,7 @@
                                     IsVisible="{Binding Collapsed}" />
                             </Panel>
                           </Button>
-                          <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}"
+                          <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}" Classes.gated="{Binding HiddenByFolder}"
                                         ToolTip.Tip="Folder visibility (gates every layer inside)"><Path /></ToggleButton>
                           <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}" Classes.gated="{Binding LockedByFolder}"
                                         ToolTip.Tip="Lock the folder — every layer inside refuses edits, but still renders"><Path /></ToggleButton>
@@ -2962,7 +2962,7 @@
                     </DataTemplate>
                     <DataTemplate x:DataType="vm:LayerRow">
                       <Border Classes="layerRow" Classes.active="{Binding IsActive}" Margin="{Binding Indent}"
-                              Classes.hiddenLayer="{Binding !Visible}" Classes.lockedLayer="{Binding EditsBlocked}" Classes.selected="{Binding IsSelected}"
+                              Classes.hiddenLayer="{Binding IsDimmed}" Classes.lockedLayer="{Binding EditsBlocked}" Classes.selected="{Binding IsSelected}"
                               Classes.dropAbove="{Binding DropAbove}" Classes.dropBelow="{Binding DropBelow}"
                               Focusable="True"
                               PointerPressed="OnLayerRowPressed">
@@ -3102,7 +3102,7 @@
                                     VerticalAlignment="Stretch"
                                     Background="{DynamicResource AccentCyanBrush}" />
                           </Border>
-                          <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}"
+                          <ToggleButton Classes="icon glyph eye" DockPanel.Dock="Left" IsChecked="{Binding Visible}" Classes.gated="{Binding HiddenByFolder}"
                                         ToolTip.Tip="Layer visibility"><Path /></ToggleButton>
                           <ToggleButton Classes="icon glyph lock" DockPanel.Dock="Left" IsChecked="{Binding Locked}" Classes.gated="{Binding LockedByFolder}"
                                         ToolTip.Tip="Lock the layer — refuses paint, fill, transform, delete and cel edits. It still renders and still exports."><Path /></ToggleButton>
@@ -4266,14 +4266,14 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:LayerRow">
                   <Border Classes="layerRow" Classes.active="{Binding IsActive}"
-                          Classes.hiddenLayer="{Binding !Visible}" Classes.selected="{Binding IsSelected}">
+                          Classes.hiddenLayer="{Binding IsDimmed}" Classes.selected="{Binding IsSelected}">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}">
                       <!-- Both explicitly centred. They looked inconsistent
                            because they were relying on the default, and ◉ and
                            👁 do not have the same metrics: an emoji glyph and a
                            geometric one centre differently inside the same
                            tile unless told not to. -->
-                      <ToggleButton Classes="icon glyph eye" IsChecked="{Binding Visible}"
+                      <ToggleButton Classes="icon glyph eye" IsChecked="{Binding Visible}" Classes.gated="{Binding HiddenByFolder}"
                                     ToolTip.Tip="Layer visibility"><Path /></ToggleButton>
                       <ToggleButton Classes="icon glyph onion" IsChecked="{Binding OnionEnabled}"
                                     ToolTip.Tip="Onion skinning for this layer"><Path /></ToggleButton>

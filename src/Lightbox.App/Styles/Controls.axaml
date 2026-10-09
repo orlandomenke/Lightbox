@@ -435,6 +435,17 @@
   <Style Selector="ToggleButton.eye:checked Path">
     <Setter Property="Data" Value="{StaticResource IconEyeOpen}" />
   </Style>
+  <!-- Inside a hidden folder: the row's own switch may well be on, and it
+       draws nothing all the same. The eye says what the canvas does — shut,
+       and as quiet as an eye that was turned off — while IsChecked keeps what
+       the artist set, so showing the folder again puts every eye back.
+       After `:checked` above, because of two styles at one level the later
+       wins. -->
+  <Style Selector="ToggleButton.eye.gated Path">
+    <Setter Property="Data" Value="{StaticResource IconEyeClosed}" />
+    <Setter Property="Opacity" Value="0.45" />
+    <Setter Property="Stroke" Value="{DynamicResource TextSecondaryBrush}" />
+  </Style>
   <Style Selector="ToggleButton.lock Path">
     <Setter Property="Data" Value="{StaticResource IconLockOpen}" />
   </Style>
