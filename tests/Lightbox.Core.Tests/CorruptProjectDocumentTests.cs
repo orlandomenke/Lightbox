@@ -60,4 +60,21 @@ public class CorruptProjectDocumentTests : IDisposable
         var templates = Templates.InProject(project);
         Assert.NotNull(templates);
     }
+
+    /// <summary>
+    /// A document that would not read survives a project save, untouched and
+    /// still listed — what B436 relies on, and nothing pinned it (the review).
+    /// </summary>
+    [Fact]
+    public void ACorruptDocumentSurvivesAProjectSave()
+    {
+        var (project, _, bad) = TwoDocuments();
+        Assert.Null(ProjectIo.LoadDocument(project, bad));
+
+        ProjectIo.Save(project);
+        ProjectIo.Save(project, null);
+
+        Assert.Equal("this is not a drawing", File.ReadAllText(project.PathOf(bad)));
+        Assert.Contains(project.Manifest.Documents, d => d.Id == bad.Id);
+    }
 }
