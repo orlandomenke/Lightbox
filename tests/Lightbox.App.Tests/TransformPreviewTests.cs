@@ -168,8 +168,8 @@ public class TransformPreviewTests(ITestOutputHelper output) : BrushStateIsolate
         vm.ActiveTool = ToolId.Brush;
         Assert.Equal(0, PixelAt(vm, 215, 60).Alpha);
 
-        // The marquee catches the erasure (all three points) but not the bar
-        // (one of three), so the erasure moves and the bar stays.
+        // The marquee catches the erasure whole and the bar's right-hand
+        // stretch of visible ink — so the bar is cut at its edge.
         vm.ApplySelectionShape(
             [new(160, 20, 1), new(300, 20, 1), new(300, 120, 1), new(160, 120, 1)],
             add: false, subtract: false);
@@ -184,13 +184,16 @@ public class TransformPreviewTests(ITestOutputHelper output) : BrushStateIsolate
         Assert.Equal(0, applied);    // and the one apply used to make permanent
         Assert.True(PixelAt(vm, 100, 60).Alpha > 0, "the staying bar lost ink it still owns");
 
-        // The mechanism, pinned: the erasure both stayed and moved.
-        var strokes = ((Frame)vm.PaintLayer().Cels[0].Frame!).Strokes;
-        Assert.Equal(3, strokes.Count);
-        Assert.Equal(ToolKind.Eraser, strokes[1].Tool);
-        Assert.Equal(ToolKind.Eraser, strokes[2].Tool);
-        Assert.Equal(60, strokes[1].Points[0].Y, 3);
-        Assert.Equal(200, strokes[2].Points[0].Y, 3);
+        // B432 changed the mechanism and kept the doctrine. The bar's visible
+        // ink between x 160 and the start of the erasure is inside the
+        // marquee; read by its centre points it was not (two of three outside,
+        // the third erased), so it stayed whole. Read by its ink it is cut at
+        // the marquee's edge (Q233), and that stretch moves with the erasure.
+        // The assertions above are the doctrine — no ink comes back — and
+        // still hold; these are the new mechanism.
+        Assert.True(PixelAt(vm, 170, 200).Alpha > 0, "the bar's ink inside the marquee did not move");
+        Assert.Equal(0, PixelAt(vm, 170, 60).Alpha);
+        Assert.Equal(0, PixelAt(vm, 215, 200).Alpha);   // erased there, and erased where it went
     }
 
     /// <summary>
