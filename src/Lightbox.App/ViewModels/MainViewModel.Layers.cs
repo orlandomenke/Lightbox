@@ -464,6 +464,9 @@ public partial class MainViewModel
 
         PatchInPlace(LayerPanelItems, desired);
         RefreshGroupSelectionHighlights();
+        // The sheet shows the same tree, folded by its own state. Rebuilt here
+        // so that nothing which rebuilds the one can forget the other.
+        RebuildSheetRows();
     }
 
     /// <summary>
@@ -820,9 +823,9 @@ public partial class MainViewModel
         var rangeSet = PlaybackStartFrame >= 0 || PlaybackEndFrame >= 0;
         var start = EffectiveStartFrame;
         var end = EffectiveEndFrame;
-        foreach (var row in LayerRows)
+        foreach (var cells in LayerRows.Select(r => r.Cells).Concat(_sheetFolders.Values.Select(f => f.Cells)))
         {
-            foreach (var cell in row.Cells)
+            foreach (var cell in cells)
             {
                 cell.OutOfRange = rangeSet && !cell.IsVirtual && (cell.Index < start || cell.Index > end);
             }
@@ -2211,9 +2214,9 @@ public partial class MainViewModel
 
     private void RefreshCellHighlights()
     {
-        foreach (var row in LayerRows)
+        foreach (var cells in LayerRows.Select(r => r.Cells).Concat(_sheetFolders.Values.Select(f => f.Cells)))
         {
-            foreach (var cell in row.Cells) cell.IsCurrent = cell.Index == CurrentFrameIndex;
+            foreach (var cell in cells) cell.IsCurrent = cell.Index == CurrentFrameIndex;
         }
     }
 

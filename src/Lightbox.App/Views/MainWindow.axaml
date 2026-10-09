@@ -4257,13 +4257,14 @@
                                     RangeStart="{Binding PlaybackStartFrame, Mode=TwoWay}"
                                     RangeEnd="{Binding PlaybackEndFrame, Mode=TwoWay}"
                                     Markers="{Binding MarkersView}" PoseKeyed="{Binding PoseKeyedFrames}" />
-            <ItemsControl x:Name="XsheetLayerList" ItemsSource="{Binding LayerRows}">
+            <ItemsControl x:Name="XsheetLayerList" ItemsSource="{Binding SheetRows}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                   <StackPanel Orientation="Vertical" Spacing="{StaticResource Space2}" />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
+              <ItemsControl.DataTemplates>
+                <DataTemplate x:DataType="vm:SheetFolderRow"><views:XsheetFolderRow /></DataTemplate>
                 <DataTemplate x:DataType="vm:LayerRow">
                   <Border Classes="layerRow" Classes.active="{Binding IsActive}"
                           Classes.hiddenLayer="{Binding IsDimmed}" Classes.selected="{Binding IsSelected}">
@@ -4373,7 +4374,7 @@
                     </StackPanel>
                   </Border>
                 </DataTemplate>
-              </ItemsControl.ItemTemplate>
+              </ItemsControl.DataTemplates>
             </ItemsControl>
           </StackPanel>
         </ScrollViewer>

@@ -500,9 +500,7 @@ public partial class MainWindow
     /// <summary>The X-sheet cell a layer track's (row, frame) stands for, or null.</summary>
     private FrameCell? TrackCellAt(int trackIndex, int frame)
     {
-        var rowIndex = trackIndex - _vm.TracksAboveLayers;
-        if (rowIndex < 0 || rowIndex >= _vm.LayerRows.Count) return null;
-        return _vm.LayerRows[rowIndex].Cells.FirstOrDefault(c => c.Index == frame);
+        return (_vm.SheetItemAtTrack(trackIndex) as LayerRow)?.Cells.FirstOrDefault(c => c.Index == frame);
     }
 
     /// <summary>

@@ -1324,12 +1324,17 @@ public partial class MainViewModel
         SelectBlock(_celAnchor, (to.LayerIndex, to.Index));
     }
 
-    /// <summary>Where a scene layer sits among the sheet's rows, or -1.</summary>
+    /// <summary>
+    /// Where a scene layer sits among the layers the sheet shows, or -1 — which
+    /// is also the answer for a layer folded away inside its folder (Q227).
+    /// </summary>
     private int RowPosition(int sceneLayer)
     {
-        for (var r = 0; r < LayerRows.Count; r++)
+        var r = 0;
+        foreach (var row in SheetLayerRows)
         {
-            if (LayerRows[r].SceneIndex == sceneLayer) return r;
+            if (row.SceneIndex == sceneLayer) return r;
+            r++;
         }
         return -1;
     }
@@ -1350,9 +1355,13 @@ public partial class MainViewModel
         var first = Math.Min(a.Index, b.Index);
         var last = Math.Min(Math.Max(a.Index, b.Index), Scene.FrameCount - 1);
         _keySelection.Clear();
+        // The rows on screen between the two corners. A layer folded away
+        // inside a folder is not one of them: a block is what the eye sweeps,
+        // and a cel nobody can see must not be picked by sweeping past it.
+        var shown = SheetLayerRows.ToList();
         for (var r = Math.Min(ra, rb); r <= Math.Max(ra, rb); r++)
         {
-            var layer = LayerRows[r].SceneIndex;
+            var layer = shown[r].SceneIndex;
             for (var i = first; i <= last; i++) _keySelection.Add(TimelineKey.Cel(layer, i));
         }
         RefreshTimelineSelection();

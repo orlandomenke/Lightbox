@@ -157,6 +157,35 @@ public static class Program
             vm.OpenToolOptionsCommand.Execute(null);
             Shoot(main, $"tool-{tool}");
         }
+        // Folders on the Timeline and the X-sheet (Q227): a character kept as
+        // three layers in a folder, a second folder folded to its summary row,
+        // and a loose layer — the rows the empty document above cannot show.
+        vm.ActiveTool = Lightbox.App.ViewModels.ToolId.Brush;
+        while (vm.Doc.Scene.Layers.Count < 7) vm.AddPaintedLayerCommand.Execute(null);
+        string[] sheetNames = ["Rough", "Line", "Colour", "Shadow", "Glow", "Notes"];
+        for (var i = 1; i < 7; i++) vm.LayerRows.Single(r => r.SceneIndex == i).Name = sheetNames[i - 1];
+        while (vm.Doc.Scene.FrameCount < 12) vm.AddFrameCommand.Execute(null);
+        foreach (var (first, second, third, folderName) in new[] { ("Rough", "Line", "Colour", "Character"), ("Shadow", "Glow", "", "Effects") })
+        {
+            var picked = false;
+            foreach (var layerName in new[] { first, second, third }.Where(n => n.Length > 0))
+            {
+                vm.SelectLayer(vm.LayerRows.Single(r => r.Name == layerName), toggle: picked, range: false);
+                picked = true;
+            }
+            vm.GroupLayersCommand.Execute(null);
+            var made = vm.LayerRows.Single(r => r.Name == first).Layer.GroupId;
+            vm.LayerPanelItems.OfType<Lightbox.App.ViewModels.GroupRow>().First(g => g.Group.Id == made).Name = folderName;
+        }
+        vm.LayerPanelItems.OfType<Lightbox.App.ViewModels.GroupRow>().Single(g => g.Name == "Character").PickColor("#4a9a5e");
+        vm.ToggleSheetFold(vm.SheetRows.OfType<Lightbox.App.ViewModels.SheetFolderRow>().Single(f => f.Name == "Effects"));
+        foreach (var id in new[] { Lightbox.App.Docking.DockPanelId.Xsheet, Lightbox.App.Docking.DockPanelId.Timeline })
+        {
+            vm.Workspace.SetVisible(id, true);
+            vm.Workspace.Activate(id);
+            Shoot(main, $"folders-{id}");
+        }
+
         // The brush editor (Q211), every option, with the brush in hand. Hosted
         // in a window of its own rather than its popup: a popup is a second
         // top level, and the picture is the same.

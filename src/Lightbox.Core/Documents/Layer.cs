@@ -100,6 +100,18 @@ public sealed class LayerGroup
     /// <summary>Docker-only view preference (not undoable).</summary>
     public bool Collapsed { get; set; }
 
+    /// <summary>
+    /// Folded on the Timeline and the X-sheet (Q227): the folder shows as one
+    /// summary row there and the layers inside it have none. Its own state,
+    /// apart from <see cref="Collapsed"/> — the Layers docker's — because the
+    /// two are folded for different reasons. A view preference, not undoable.
+    /// </summary>
+    /// <remarks>
+    /// Nullable so that it is absent unless used: true when folded, null — and
+    /// no key in the file — otherwise. Never false.
+    /// </remarks>
+    public bool? SheetCollapsed { get; set; }
+
     /// <summary>The folder this one is inside, or null at the top level.</summary>
     public string? ParentId { get; set; }
 

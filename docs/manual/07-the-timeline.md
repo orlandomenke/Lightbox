@@ -363,6 +363,26 @@ The keys answer only with the pointer over the X-sheet: over the canvas Delete
 still clears the selection, and over the Layers docker it still deletes a
 layer.
 
+**Folders are rows on the Timeline and the X-sheet**, in the same order as the
+Layers docker. Click a folder's chevron to **fold** it: the layers inside lose
+their rows and the folder's own row stands for them, with a mark on every frame
+where anything inside it — at any depth — has a drawing. Open it again to get
+the rows back. A character kept as rough, line and colour layers can be one row
+while you time it and three while you draw it.
+
+**Folding here is separate from the Layers docker.** Collapsing a folder in the
+Layers docker does not fold it on the sheet, and the other way round, so the
+layers stay within reach where you paint while the sheet stays short. The fold
+is saved with the document and is not an undo step. Both surfaces fold
+together — the Timeline and the X-sheet are two views of one sheet.
+
+A folder's row is a summary: it shows timing, and for now it cannot be clicked,
+dragged or deleted through (*Planned: dragging a folder's mark to retime
+everything inside it on that frame*). **What is folded away is out of reach**:
+folding drops any cels inside it from the selection, and a block swept across a
+folded folder leaves its layers out, so nothing you cannot see is ever deleted.
+On the X-sheet a folder and the layers inside it share the folder's colour.
+
 **Drag a drawing along its row to move it** — no modifier. Hold Ctrl as you
 drop to leave the original where it was and place a copy. This is how timing is
 changed by hand: pick the drawing up and put it on the frame it belongs on.
