@@ -926,6 +926,9 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     {
         if (_publishDepth++ > 0) return;
         _publish++;
+        // The same list again (a stroke's publishes): the same keys.
+        if (onScreen is not null && ReferenceEquals(onScreen, _onScreenSource)) return;
+        _onScreenSource = onScreen;
         _onScreen = onScreen is null
             ? null
             : onScreen.Select(s => KeyOf(s.Frame, width, height, 1.0, s.Cel)).ToHashSet();
@@ -956,6 +959,7 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     private long _publish;
     private int _publishDepth;
     private HashSet<string>? _onScreen;
+    private object? _onScreenSource;
 
     private long Stamp(long previous) => _publishDepth > 0 ? _publish : previous;
 
