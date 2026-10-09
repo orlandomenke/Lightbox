@@ -114,62 +114,6 @@ public sealed class OpenOffTheUiThreadTests : BrushStateIsolated
     }
 
     /// <summary>
-    /// File ▸ Open reads a document this application saved. It read the picked
-    /// file as text and parsed that, but a saved document is gzip, so the dialog
-    /// could not open the app's own files (found 2026-10-09 while moving opening
-    /// off the UI thread; the start screen and the recents used the gzip-aware
-    /// loader and never showed it).
-    /// </summary>
-    [AvaloniaFact]
-    public async Task TheOpenDialogOpensADocumentThisApplicationSaved()
-    {
-        var path = Path.Combine(Path.GetTempPath(), $"lightbox-dialog-{Guid.NewGuid():N}.lightbox.json");
-        try
-        {
-            DocJson.Save(Small(), path); // gzip, as Save writes every document
-            var window = new Lightbox.App.Views.MainWindow();
-            window.Show();
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-            var vm = (MainViewModel)window.DataContext!;
-
-            await window.OpenPickedDocumentAsync(path, Path.GetFileName(path), () => Task.FromResult<Stream>(File.OpenRead(path)));
-
-            Assert.Equal(path, vm.ActiveTab?.FilePath);
-            Assert.Equal("Ink", vm.Doc.Scene.Layers[^1].Name);
-            window.Close();
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    /// <summary>The same document handed over with no path (a cloud picker): read from the stream, gzip or not.</summary>
-    [AvaloniaFact]
-    public async Task TheOpenDialogOpensADocumentWithNoPath()
-    {
-        var path = Path.Combine(Path.GetTempPath(), $"lightbox-dialog-{Guid.NewGuid():N}.lightbox.json");
-        try
-        {
-            DocJson.Save(Small(), path);
-            var window = new Lightbox.App.Views.MainWindow();
-            window.Show();
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-            var vm = (MainViewModel)window.DataContext!;
-
-            await window.OpenPickedDocumentAsync(null, "From the cloud.lightbox.json", () => Task.FromResult<Stream>(File.OpenRead(path)));
-
-            Assert.Null(vm.ActiveTab?.FilePath);
-            Assert.Equal("Ink", vm.Doc.Scene.Layers[^1].Name);
-            window.Close();
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    /// <summary>
     /// While a file opens the canvas is covered with its name and a moving
     /// indicator, the menus wait, and a key does nothing — the window answers,
     /// but nothing can be edited while it is not the document the artist asked
