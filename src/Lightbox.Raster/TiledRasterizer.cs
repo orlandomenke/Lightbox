@@ -204,11 +204,18 @@ public static class TiledRasterizer
     }
 
     /// <summary>
-    /// Stamp one committed stroke into the tiles it can reach — the tiled
-    /// counterpart of <see cref="FrameRasterizer.Append"/>, and what keeps a
-    /// commit proportional to the stroke on a store the way invariant 6 keeps
-    /// it proportional on a bitmap.
+    /// Stamp one committed stroke into the tiles it can reach, once per tile.
     /// </summary>
+    /// <remarks>
+    /// <b>Not what a commit uses any more (B424).</b> This stamps the whole
+    /// stroke once for every tile its bounds cover, so a 300 px mark across a
+    /// 1080p document paid for itself fourteen times — 726 ms for Ink, 2.4 s for
+    /// a simulated medium, against 51 and 99 ms for the one stamp the frame
+    /// bitmap takes. A commit already holds that bitmap rendered exactly, and
+    /// <see cref="AppendRendered"/> takes the mark's region from it instead.
+    /// Kept for a caller with a store and no render, and for the test that
+    /// measures the two against each other.
+    /// </remarks>
     /// <returns>
     /// False when the stroke cannot be stamped tile-by-tile (an effect brush —
     /// see <see cref="CanTile"/>): the caller must drop the store and rebuild
@@ -241,6 +248,50 @@ public static class TiledRasterizer
             canvas.Flush();
         }
         return true;
+    }
+
+    /// <summary>
+    /// Bring the tiles under <paramref name="region"/> up to date from a frame
+    /// that has been rendered exactly — the commit's route (B424).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A copy, not a stamp: the pixels are the render's own, so the store is
+    /// byte-identical to the bitmap wherever it was touched, and that holds for
+    /// an effect brush too — a smudge's result is exact in the whole-frame
+    /// render even though no single tile could compute it. The cost is the
+    /// region's area, once, however many tiles it crosses.
+    /// </para>
+    /// <para>
+    /// Rents by ink, like <see cref="Absorb"/>: a tile the region reaches that
+    /// holds nothing after the stroke is not created, which is the economy the
+    /// store exists for. A tile that already exists is written whatever it now
+    /// holds, because an eraser can leave it blank and blank must land.
+    /// </para>
+    /// </remarks>
+    public static void AppendRendered(TileStore store, SKBitmap rendered, SKRectI region)
+    {
+        var area = SKRectI.Intersect(region, SKRectI.Create(0, 0, rendered.Width, rendered.Height));
+        if (area.Width <= 0 || area.Height <= 0) return;
+
+        var size = store.Grid.TileSize;
+        using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+        foreach (var coord in store.Grid.Covering(area.Left, area.Top, area.Width, area.Height))
+        {
+            var (originX, originY) = store.Grid.OriginOf(coord);
+            var part = SKRectI.Intersect(area, SKRectI.Create(originX, originY, size, size));
+            if (part.Width <= 0 || part.Height <= 0) continue;
+            if (!store.Has(coord) && !AnyInk(rendered, part.Left, part.Top, part.Width, part.Height)) continue;
+
+            var tile = store.Rent(coord);
+            using var canvas = new SKCanvas(tile);
+            canvas.DrawBitmap(
+                rendered,
+                SKRect.Create(part.Left, part.Top, part.Width, part.Height),
+                SKRect.Create(part.Left - originX, part.Top - originY, part.Width, part.Height),
+                replace);
+            canvas.Flush();
+        }
     }
 
     /// <summary>
