@@ -82,6 +82,13 @@ public sealed class SideBakeResidencyTests(ITestOutputHelper output) : BrushStat
     /// list — freeing it there was a use-after-free the composite drew from.
     /// The fetch-time pins close that window; this asserts through the pixels,
     /// because a disposed pass either throws or draws garbage.
+    /// <para>
+    /// <b>Since 2026-10-09 the frame on screen is held past the budget</b>
+    /// (B425's branch), so a publish no longer evicts its own fetches at all and
+    /// this path cannot be reached from a publish. The pixels are still the
+    /// promise; the arrange now pins the new truth, that nothing of the frame on
+    /// screen was evicted.
+    /// </para>
     /// </summary>
     [AvaloniaFact]
     public void APublishWhoseWorkingSetOutgrowsTheCacheStillDrawsEveryLayer()
@@ -102,8 +109,8 @@ public sealed class SideBakeResidencyTests(ITestOutputHelper output) : BrushStat
         output.WriteLine(
             $"working set ~16 MB against a 5 MB budget: all 8 strokes present, " +
             $"evictions {vm.FrameCache.Evictions}");
-        Assert.True(vm.FrameCache.Evictions > 0,
-            "arrange failed: nothing was evicted, so the working set fit the budget");
+        Assert.True(vm.FrameCache.Evictions == 0,
+            $"{vm.FrameCache.Evictions} of the frame on screen's stills were evicted mid-publish");
     }
 
     /// <summary>
@@ -142,9 +149,10 @@ public sealed class SideBakeResidencyTests(ITestOutputHelper output) : BrushStat
             $"{missesPerPublish:F1} misses per publish with the sides baked — covered cels are still being fetched");
         Assert.True(vm.StackBake.FetchesSkipped > 0, "no fetches were skipped");
 
-        // And the control: the same document without the fold keeps paying
-        // the whole stack on every recomposite — the wall this exists to
-        // dissolve, shown against the same budget.
+        // And the control: the same document without the fold. It used to pay
+        // the whole stack on every recomposite — B198's wall. Since 2026-10-09
+        // the frame on screen is held past the budget, so the control stops
+        // thrashing too; the fold's remaining value is the fetches it skips.
         var control = OverBudgetVm(foldEnabled: false);
         control.PublishSnapshot();
         control.PublishSnapshot();
@@ -156,7 +164,7 @@ public sealed class SideBakeResidencyTests(ITestOutputHelper output) : BrushStat
         output.WriteLine(
             $"control without the fold: {controlMisses:F1} misses/publish, " +
             $"{controlSw.Elapsed.TotalMilliseconds / rounds:F1} ms/publish");
-        Assert.True(controlMisses > missesPerPublish,
-            "the control stopped thrashing too — this test is no longer measuring the fold");
+        Assert.True(controlMisses <= 1.0,
+            $"{controlMisses:F1} misses per publish without the fold — the frame on screen is not being held");
     }
 }

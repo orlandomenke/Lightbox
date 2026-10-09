@@ -179,6 +179,21 @@ public class TiledRasterizerAppendTests(ITestOutputHelper output)
         return worst;
     }
 
+    /// <summary>
+    /// A mixing brush reads the layer under its dabs at document offsets, the
+    /// same assumption B59 measured as wrong per tile, so it takes the
+    /// whole-frame route a smudge takes — and a region repaint, and a merge,
+    /// refuse it for the same reason (the adversary on Q232).
+    /// </summary>
+    [Fact]
+    public void AMixingStrokeIsNotTiledPerTile()
+    {
+        var mixing = Line(40, 100, 400, 100);
+        mixing.Brush.Mixing = new ColourMixing();
+        Assert.False(TiledRasterizer.CanTile([mixing]));
+        Assert.True(TiledRasterizer.CanTile([Line(40, 100, 400, 100)]));
+    }
+
     [Fact]
     public void AnEffectStrokeRefusesAndStampsNothing()
     {

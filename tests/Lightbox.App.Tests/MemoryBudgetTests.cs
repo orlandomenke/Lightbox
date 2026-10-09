@@ -143,7 +143,9 @@ public class MemoryBudgetTests(ITestOutputHelper output)
 
         // Static, so another test may have pinned them; the range is what holds
         // either way, and pinning outside it would itself be the bug.
-        Assert.InRange(FrameBitmapCache.ByteBudget, 64 * Mb, 4 * Gb);
+        // Since 2026-10-09 the still cache follows the overall picture limit
+        // (a quarter of the machine), not its own 4 GB ceiling.
+        Assert.InRange(FrameBitmapCache.ByteBudget, 64 * Mb, MemoryBudget.PicturesCeilingBytes);
         Assert.InRange(Rendering.TileFrameCache.ByteBudget, 64 * Mb, 2 * Gb);
     }
 }

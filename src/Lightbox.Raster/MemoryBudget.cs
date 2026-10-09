@@ -198,12 +198,15 @@ public static class MemoryBudget
     public const long LayerTexturesFloorBytes = 64L * 1024 * 1024;
 
     /// <summary>
-    /// Every picture the application holds, together: an eighth of the machine
+    /// Every picture the application holds, together: a quarter of the machine
+    /// (an eighth until 2026-10-09, when the owner set responsiveness over memory
+    /// and the lab showed a 30-layer 4K document re-rendering drawings it had
+    /// evicted while flipping)
     /// (Q221) — 1 GB on the minimum spec, 4 GB on a 32 GB machine. The separate
     /// caps below summed to a third of it, and nothing held them to that sum.
     /// </summary>
     public static long Pictures() =>
-        Share(1.0 / 8, PicturesFloorBytes, PicturesCeilingBytes);
+        Share(1.0 / 4, PicturesFloorBytes, PicturesCeilingBytes);
 
     /// <summary>The least the artist's setting may go to: below it a 1080p frame's layers do not fit.</summary>
     public const long PicturesFloorBytes = 512L * 1024 * 1024;

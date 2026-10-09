@@ -84,6 +84,7 @@ public static class BrushCostOf
         brush.Medium.Kind != MediumKind.None
         || brush.Kind is BrushKind.Smudge or BrushKind.Blur
         || brush.SampleSource != SampleSource.ThisLayer
+        || brush.Mixing is not null
             ? BrushCost.Expressive
         : brush.WetEdge > 0 || brush.Granulation > 0
             ? BrushCost.Textured
@@ -102,6 +103,7 @@ public static class BrushCostOf
         var reasons = new List<string>(3);
         if (brush.Medium.Kind != MediumKind.None) reasons.Add($"simulates {Medium(brush.Medium.Kind)}");
         if (brush.Kind is BrushKind.Smudge or BrushKind.Blur) reasons.Add("reads the canvas back as it goes");
+        if (brush.Mixing is not null) reasons.Add("picks up the colour it is laid on");
         if (brush.SampleSource != SampleSource.ThisLayer) reasons.Add("blends the layers underneath");
         if (brush.WetEdge > 0) reasons.Add("darkens the edges at pen-lift (wet edge)");
         if (brush.Granulation > 0) reasons.Add("settles pigment into the grain at pen-lift");

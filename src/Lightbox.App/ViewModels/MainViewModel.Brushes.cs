@@ -198,7 +198,11 @@ public partial class MainViewModel
         _clock.Tick += OnPlaybackTick;
         Settings = AppSettings.Load();
         // Held to the range on the way in, like the scale below: the file is input.
-        if (Settings.MemoryForPicturesMb is { } pictureMb) ApplyPictureLimit(pictureMb * 1024L * 1024L);
+        // Always: the still cache follows the overall limit, set or derived,
+        // rather than its own older and smaller ceiling.
+        ApplyPictureLimit(Settings.MemoryForPicturesMb is { } pictureMb
+            ? pictureMb * 1024L * 1024L
+            : Lightbox.Raster.PictureMemory.Limit);
         // Through the normaliser on the way in: the file is input, and a
         // hand-edited 0.1 must not produce a window nobody can read (Q200).
         Settings.UiScale = UiScale.Normalise(Settings.UiScale);
@@ -731,6 +735,57 @@ public partial class MainViewModel
         set => SetBrush(s => s.ColorRate = Math.Clamp(value, 0, 1));
     }
 
+    // ---- colour mixing (Q232) -------------------------------------------------
+
+    /// <summary>
+    /// Whether the brush picks up what it is laid on. Off is the block being
+    /// absent — nothing in the file — so the option's check is this.
+    /// </summary>
+    public bool BrushMixing
+    {
+        get => GetBrushValue(s => s.Mixing is not null);
+        set
+        {
+            SetBrush(s => s.Mixing = value ? s.Mixing ?? new ColourMixing() : null);
+            OnPropertyChanged(nameof(BrushMixAmount));
+            OnPropertyChanged(nameof(BrushMixLength));
+            OnPropertyChanged(nameof(BrushMixReach));
+        }
+    }
+
+    // A write of the default to a brush with no block is a bound control
+    // echoing what it read, not the artist turning mixing on: it creates
+    // nothing (the adversary's concern about a NumericUpDown coercing on load).
+    public double BrushMixAmount
+    {
+        get => GetBrushValue(s => s.Mixing?.Amount ?? new ColourMixing().Amount);
+        set => SetBrush(s =>
+        {
+            if (s.Mixing is null && Math.Abs(value - new ColourMixing().Amount) < 1e-9) return;
+            (s.Mixing ??= new ColourMixing()).Amount = Math.Clamp(value, 0, 1);
+        });
+    }
+
+    public double BrushMixLength
+    {
+        get => GetBrushValue(s => s.Mixing?.Length ?? new ColourMixing().Length);
+        set => SetBrush(s =>
+        {
+            if (s.Mixing is null && Math.Abs(value - new ColourMixing().Length) < 1e-9) return;
+            (s.Mixing ??= new ColourMixing()).Length = Math.Clamp(value, 0, 1);
+        });
+    }
+
+    public double BrushMixReach
+    {
+        get => GetBrushValue(s => s.Mixing?.Reach ?? new ColourMixing().Reach);
+        set => SetBrush(s =>
+        {
+            if (s.Mixing is null && Math.Abs(value - new ColourMixing().Reach) < 1e-9) return;
+            (s.Mixing ??= new ColourMixing()).Reach = Math.Clamp(value, 0, 1);
+        });
+    }
+
     // ---- medium ---------------------------------------------------------------
     //
     // The physical simulation. Picking a medium decides which parts of the
@@ -1130,6 +1185,7 @@ public partial class MainViewModel
         nameof(UsesSmudgeRadius),
         nameof(BrushSmudgeMode), nameof(BrushSmudgeLength),
         nameof(BrushSmudgeRadius), nameof(BrushColorRate),
+        nameof(BrushMixing), nameof(BrushMixAmount), nameof(BrushMixLength), nameof(BrushMixReach),
         nameof(BrushMedium), nameof(MediumIsSimulated), nameof(MediumHasBody),
         nameof(MediumWetness), nameof(MediumViscosity), nameof(MediumDrag), nameof(MediumFlowSteps),
         nameof(MediumAbsorbency), nameof(MediumEdgePull),

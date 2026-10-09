@@ -1466,6 +1466,14 @@ public partial class MainViewModel
         }
         using var perf = PerfLog.Begin(IsPlaying ? "publish.play" : "publish", publisher);
         PublishCount++;
+        // What this publish fetches is the frame on screen: the still cache
+        // keeps it, whatever the budget says, until the next publish.
+        // Named up front, so a miss part way through cannot evict the stills
+        // this publish has yet to fetch. Not while playing: the tick draws tiles.
+        // A stroke's publishes keep the frame, so they name the same list again
+        // rather than walk the layers on every pointer event.
+        if (!_strokeBuilder.IsActive || _stillsOnScreen is null) _stillsOnScreen = StillImagesNeeded().ToList();
+        using var onScreen = _cache.Publishing(IsPlaying ? null : _stillsOnScreen, Scene.Width, Scene.Height);
         // A frame arrived at with its drawings not cached: render them on the
         // workers, all at once, before this publish asks for them one by one.
         // Not while Stop holds the playback tiles: that frame is shown at
@@ -2220,6 +2228,9 @@ public partial class MainViewModel
     /// way — an undo, a stroke — and the hand-off would only add latency.
     /// </para>
     /// </remarks>
+    /// <summary>What the last paused publish named as the frame on screen.</summary>
+    private List<(Frame Frame, int Cel)>? _stillsOnScreen;
+
     /// <summary>The most <see cref="RenderMissingStillsInParallel"/> has rendered at once — for tests.</summary>
     internal int LargestParallelRender { get; set; }
 

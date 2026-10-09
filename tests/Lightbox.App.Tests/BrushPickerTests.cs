@@ -141,12 +141,11 @@ public sealed class BrushPickerTests(ITestOutputHelper output) : BrushStateIsola
     /// </remarks>
     private static readonly Dictionary<string, string> KnownFaint = new()
     {
-        // B50 is fixed — the on-canvas mark went from a peak of 54/255 to 96, and the
-        // medium holds up as the brush shrinks (71..107 over sizes 8 to 150). What is
-        // left is the TILE: a uniform wash about 10/255 deep over paper, which reads as
-        // clean paper at this threshold. That is a preview-framing problem rather than a
-        // deposit one, so it is B101 and this exemption now names that instead.
-        ["Watercolor"] = "B101 — the simulated watercolour's picker tile is too faint to read",
+        // B50 is fixed, and B101 went with Q232: the watercolour tile was a uniform
+        // wash about 10/255 deep because the lattice re-wet the paper under every
+        // dab and spread the pigment thin; with re-wetting off in the preset the
+        // tile reads. Nothing is exempt now, and this list stays so the next faint
+        // tile has somewhere to be named rather than being waved through.
     };
 
     [Fact]

@@ -364,6 +364,28 @@
           </DockPanel>
           <StackPanel x:Name="CurvesSmudge" Spacing="{StaticResource Space6}" Margin="{StaticResource SectionGap}" />
         </StackPanel>
+        <StackPanel x:Name="OptionMixing" Spacing="{StaticResource Space6}" IsVisible="False">
+          <TextBlock Classes="optionTitle" Text="Colour mixing" />
+          <TextBlock Classes="note" Text="The brush picks up the colour it is laid on and mixes its own paint into it, as pigment: yellow over blue goes green." />
+          <DockPanel ToolTip.Tip="How much of each dab is the brush's own paint. The rest is what it picked up.">
+            <TextBlock Text="Amount" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
+            <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushMixAmount}" Minimum="0" Maximum="1"
+                           Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
+            <Slider Value="{Binding BrushMixAmount}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+          </DockPanel>
+          <DockPanel ToolTip.Tip="How far what the brush picked up travels before it fades.">
+            <TextBlock Text="Length" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
+            <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushMixLength}" Minimum="0" Maximum="1"
+                           Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
+            <Slider Value="{Binding BrushMixLength}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+          </DockPanel>
+          <DockPanel ToolTip.Tip="How far out from the dab's centre the brush reads the ground.">
+            <TextBlock Text="Reach" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
+            <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushMixReach}" Minimum="0" Maximum="1"
+                           Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
+            <Slider Value="{Binding BrushMixReach}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+          </DockPanel>
+        </StackPanel>
         <StackPanel x:Name="OptionMedium" Spacing="{StaticResource Space6}" IsVisible="False">
           <TextBlock Classes="optionTitle" Text="Medium" />
           <TextBlock Classes="note" Text="Simulates how real paint moves, settles and layers. Runs when the stroke is committed, over the region the stroke touched." />
