@@ -72,6 +72,15 @@ PRESETS = {
 }
 
 
+def fixture_size(preset: str) -> tuple[int, int]:
+    """The document a fixture preset generates, in pixels — the generator's defaults
+    unless its arguments say otherwise (the owner's shape is 1920x1080)."""
+    args = PRESETS.get(preset, [])
+    def arg(name: str, default: int) -> int:
+        return int(args[args.index(name) + 1]) if name in args else default
+    return arg("--width", 1920), arg("--height", 1080)
+
+
 def fixture_path(preset: str) -> Path:
     return CACHE / "fixtures" / f"{preset}.lightbox.json"
 
@@ -260,18 +269,27 @@ class Pointer:
         time.sleep(0.03)
         _send(*[_key(c, True) for c in reversed(held)]) if held else None
 
-    def drag(self, start: tuple[float, float], end: tuple[float, float], ms: float, hz: float) -> None:
-        """Press, move at `hz` events a second for `ms`, release — a hand's drag, paced."""
+    def drag(self, start: tuple[float, float], end: tuple[float, float], ms: float, hz: float,
+             legs: int = 1) -> None:
+        """Press, move at `hz` events a second for `ms`, release — a hand's drag, paced.
+
+        `legs` > 1 bounces between the two ends: start→end, end→start, ... within the
+        same `ms`. That is how a speed sweep raises the pen's speed without shortening
+        the stroke or thinning its samples — the September harness's trick, kept."""
         self.move(*start)
         time.sleep(0.05)
         _send(_mouse(MOUSEEVENTF_LEFTDOWN))
         steps = max(2, int(ms / 1000 * hz))
         t0 = time.perf_counter()
         for i in range(1, steps + 1):
-            f = i / steps
+            # Position along a polyline of `legs` alternating legs, as a fraction 0..1
+            # of the whole drag; a single leg is the straight line it always was.
+            u = i / steps * legs
+            leg, f = min(int(u), legs - 1), u - min(int(u), legs - 1)
+            a, b = (start, end) if leg % 2 == 0 else (end, start)
             # Unguarded inside the drag: a hung app can hold the cursor back, and that
             # is the stall being measured, not somebody's hand.
-            self.move(start[0] + (end[0] - start[0]) * f, start[1] + (end[1] - start[1]) * f, guarded=False)
+            self.move(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, guarded=False)
             # Paced against the clock, not slept per step, so a slow app does not stretch the drag.
             while time.perf_counter() - t0 < i / hz:
                 time.sleep(0.0005)
@@ -640,7 +658,8 @@ def do_step(step: dict, place: Placement, pointer: Pointer, log: Log, hwnd: int)
     elif kind == "drag":
         a = place.at(*step["from"])
         b = place.at(step["from"][0] + step["by"][0], step["from"][1] + step["by"][1])
-        pointer.drag(a, b, ms=float(step.get("ms", 1000)), hz=float(step.get("hz", 120)))
+        pointer.drag(a, b, ms=float(step.get("ms", 1000)), hz=float(step.get("hz", 120)),
+                     legs=max(1, int(step.get("legs", 1))))
     elif kind == "hover":
         pointer.move(*(step["_screen"] if "_screen" in step else place.at(*step["at"])))
     elif kind == "wait":
@@ -864,7 +883,7 @@ def with_brush(scenario: dict, override: str | None, fixture: str | None = None)
     return scenario
 
 
-def variants(scenario: dict, sizes: str | None, brush_override: str | None) -> list[tuple[str | None, dict]]:
+def size_variants(scenario: dict, sizes: str | None, brush_override: str | None) -> list[tuple[str | None, dict]]:
     """The scenario once per brush size, smallest first — or once as it is.
 
     Large brushes are where drawing falls over (every stall in the September captures
@@ -894,6 +913,52 @@ def variants(scenario: dict, sizes: str | None, brush_override: str | None) -> l
     return out
 
 
+def at_speed(scenario: dict, speed: float, hz: float | None) -> dict:
+    """The scenario with every drag bouncing often enough to average `speed` px/s of
+    document, over the same duration and at the same event rate — a fast pen is not
+    a short stroke with fewer samples. Legs are whole, so the speed reached is the
+    nearest the drag's own length allows; the run's record keeps the one asked for."""
+    w, h = fixture_size(scenario.get("fixture", "owner-shape"))
+    steps = []
+    for step in scenario["steps"]:
+        if step.get("do") != "drag":
+            steps.append(step)
+            continue
+        dx, dy = step["by"][0] * w, step["by"][1] * h
+        leg = (dx * dx + dy * dy) ** 0.5
+        ms = float(step.get("ms", 1000))
+        legs = max(1, round(speed * ms / 1000 / leg)) if leg > 0 and speed > 0 else 1
+        new = {**step, "legs": legs}
+        if hz:
+            new["hz"] = hz
+        steps.append(new)
+    return {**scenario, "steps": steps}
+
+
+def variants(scenario: dict, sizes: str | None, brush_override: str | None,
+             speeds: str | None = None, hz: str | None = None) -> list[tuple[str | None, dict]]:
+    """Sizes x speeds, size outermost, slow before fast. Speeds (px/s of document) from
+    `--speeds 900,3000,6000`, else the scenario's `speeds`, else the drags as written;
+    `--hz` sets the event rate of every drag either way."""
+    if speeds:
+        wanted = [float(x) for x in speeds.split(",") if x.strip()]
+    else:
+        wanted = [float(x) for x in scenario.get("speeds", [])]
+    rate = float(hz) if hz else None
+    bad = [x for x in wanted if not 10 <= x <= 30000]
+    if bad:
+        sys.exit(f"speeds are px/s of document, 10..30000: {bad}")
+    out = []
+    for size_label, by_size in size_variants(scenario, sizes, brush_override):
+        if not wanted:
+            out.append((size_label, at_speed(by_size, 0, rate) if rate else by_size))
+            continue
+        for speed in sorted(wanted):
+            label = f"{int(speed)}pxs"
+            out.append(("-".join(l for l in (size_label, label) if l), at_speed(by_size, speed, rate)))
+    return out
+
+
 def folder_name(scenario: dict, tail: str, labels: list[str | None] = ()) -> str:
     brush = brush_of(scenario)
     part = f"-{brush[0].removeprefix('builtin-')}" if brush else ""
@@ -907,7 +972,7 @@ def cmd_run(args) -> None:
     make_dpi_aware()
     require_input()
     scenario = with_brush(load_scenario(args.scenario), args.brush, args.fixture)
-    sweep = variants(scenario, args.sizes, args.brush)
+    sweep = variants(scenario, args.sizes, args.brush, args.speeds, args.hz)
     exe = resolve_exe(args.build)
     folder = RUNS / folder_name(scenario, args.tag, [l for l, _ in sweep])
     print(f"{scenario['name']}: {args.runs} run(s) of {exe}"
@@ -925,7 +990,7 @@ def cmd_run(args) -> None:
                 sys.exit(3)
             results.append(r)
     summary = {"scenario": scenario["name"], "brush": scenario.get("brush"),
-               "sizes": [l for l, _ in sweep if l], "fixture": scenario.get("fixture", "owner-shape"),
+               "variants": [l for l, _ in sweep if l], "fixture": scenario.get("fixture", "owner-shape"),
                "exe": str(exe), "runs": results, "aggregate": aggregate(results)}
     (folder / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print_report(summary)
@@ -958,7 +1023,7 @@ def cmd_ab(args) -> None:
     make_dpi_aware()
     require_input()
     scenario = with_brush(load_scenario(args.scenario), args.brush, args.fixture)
-    sweep = variants(scenario, args.sizes, args.brush)
+    sweep = variants(scenario, args.sizes, args.brush, args.speeds, args.hz)
     a, b = resolve_exe(args.a), resolve_exe(args.b)
     folder = RUNS / folder_name(scenario, "ab", [l for l, _ in sweep])
     print(f"{scenario['name']}: A/B, {args.runs} interleaved pair(s)"
@@ -981,7 +1046,7 @@ def cmd_ab(args) -> None:
     agg_a, agg_b = aggregate(ra), aggregate(rb)
     rows = verdict(agg_a, agg_b, args.tolerance)
     summary = {"scenario": scenario["name"], "brush": scenario.get("brush"),
-               "sizes": [l for l, _ in sweep if l], "fixture": scenario.get("fixture", "owner-shape"),
+               "variants": [l for l, _ in sweep if l], "fixture": scenario.get("fixture", "owner-shape"),
                "a": str(a), "b": str(b), "aggregate_a": agg_a,
                "aggregate_b": agg_b, "verdict": rows, "runs_a": ra, "runs_b": rb}
     (folder / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -1005,8 +1070,9 @@ def cmd_ab(args) -> None:
 def print_report(summary: dict) -> None:
     good = [r for r in summary["runs"] if r["outcome"] == "ok"]
     brush = f" with {summary['brush']}" if summary.get("brush") else ""
-    sizes = f" at {', '.join(summary['sizes'])}" if summary.get("sizes") else ""
-    print(f"\n{summary['scenario']}{brush}{sizes}: {len(good)}/{len(summary['runs'])} good run(s)")
+    variants_ = summary.get("variants") or summary.get("sizes")
+    at = f" at {', '.join(variants_)}" if variants_ else ""
+    print(f"\n{summary['scenario']}{brush}{at}: {len(good)}/{len(summary['runs'])} good run(s)")
     for k, v in summary["aggregate"].items():
         print(f"  {k:44} {v:10.1f}")
     if good:
@@ -1039,6 +1105,8 @@ def main() -> None:
     r.add_argument("--brush", help="preset id, optionally :size — replaces the scenario's brush, e.g. builtin-ink:60")
     r.add_argument("--sizes", help="brush sizes to sweep, e.g. 60,150,300 (1..500); replaces the scenario's `sizes`")
     r.add_argument("--fixture", help="document to open instead of the scenario's, e.g. blank-4k")
+    r.add_argument("--speeds", help="pen speeds to sweep, px/s of document, e.g. 900,3000,6000; replaces the scenario's `speeds`")
+    r.add_argument("--hz", help="pointer events per second for every drag (default: the scenario's, 120)")
     r.set_defaults(go=cmd_run)
     ab = sub.add_parser("ab", help="run a scenario against two builds, interleaved, with a verdict")
     ab.add_argument("scenario")
@@ -1050,6 +1118,8 @@ def main() -> None:
     ab.add_argument("--brush", help="preset id, optionally :size — replaces the scenario's brush on both sides")
     ab.add_argument("--sizes", help="brush sizes to sweep on both sides, e.g. 60,150,300 (1..500)")
     ab.add_argument("--fixture", help="document to open instead of the scenario's, e.g. blank-4k")
+    ab.add_argument("--speeds", help="pen speeds to sweep on both sides, px/s of document, e.g. 900,3000,6000")
+    ab.add_argument("--hz", help="pointer events per second for every drag (default: the scenario's, 120)")
     ab.set_defaults(go=cmd_ab)
     c = sub.add_parser("check", help="run a behaviour scenario once and check its expectations")
     c.add_argument("scenario")
