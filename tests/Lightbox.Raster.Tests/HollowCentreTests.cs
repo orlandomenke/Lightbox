@@ -6,7 +6,7 @@ using Xunit.Abstractions;
 namespace Lightbox.Raster.Tests;
 
 /// <summary>
-/// B427: a simulated wash must not be hollow down its middle. The capillary
+/// B431: a simulated wash must not be hollow down its middle. The capillary
 /// term carved a channel a few cells wide along the stroke's medial axis — the
 /// cells where the distance to dry paper peaks give pigment outward and, having
 /// no neighbour further in, receive none back — so even at the near-zero edge

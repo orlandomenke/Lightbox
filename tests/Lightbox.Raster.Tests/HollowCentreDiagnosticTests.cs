@@ -6,7 +6,7 @@ using Xunit.Abstractions;
 namespace Lightbox.Raster.Tests;
 
 /// <summary>
-/// B427, the measurement before the fix: where exactly is a simulated wash
+/// B431, the measurement before the fix: where exactly is a simulated wash
 /// hollow, and which part of the pipeline makes it so. Prints the alpha
 /// across the stroke at several points along it, for the shipped Watercolor
 /// and for the same brush with one thing changed at a time.

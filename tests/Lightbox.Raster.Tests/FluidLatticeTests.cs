@@ -355,7 +355,7 @@ public class FluidLatticeTests
 
             // The rim is wherever the water stopped, which the pull does not
             // move (it carries pigment, not water): the outermost four rings
-            // still wet when the run ends. Before B427 the band was fixed at
+            // still wet when the run ends. Before B431 the band was fixed at
             // the seeded radius, which the old per-cell walk happened to fill
             // because it carved the middle rather than building the edge; the
             // ring now forms at the contact line three cells further out.
@@ -398,7 +398,7 @@ public class FluidLatticeTests
 
         // With it, the outermost rings have to hold most of what the middle
         // does — the profile no longer thins toward the boundary. Measured
-        // 0.29 -> 0.89 under the uniform drain (B427): the front rings go
+        // 0.29 -> 0.89 under the uniform drain (B431): the front rings go
         // from a faint fringe to nearly as dark as the core, while the core
         // gives up about 40 % to build them. The old walk read 1.5 here by
         // hollowing the middle, which the stroke-level tests now forbid.
@@ -495,7 +495,7 @@ public class FluidLatticeTests
         Assert.True(ratios[0] < 1.05, $"a wash with no edge pull already had a rim: {ratios[0]:F2}");
         // At the top of the slider the rim is darker than the middle — a ring.
         // Measured 0.50 -> 1.30 across the pulls under the uniform drain
-        // (B427); the B24 thinness field gave 0.50 -> 0.44. The per-cell walk
+        // (B431); the B24 thinness field gave 0.50 -> 0.44. The per-cell walk
         // this replaced reached 4 here, and most of that was the core being
         // carved out rather than the rim built up, so the old bound of 3
         // was a measure of the defect the stroke tests now refuse.
@@ -514,7 +514,7 @@ public class FluidLatticeTests
         var (_, _, calm) = Pooling(0f);
         var (rim, core, pulled) = Pooling(1f);
 
-        // Measured 1.30 (B427); see EdgePull_RespondsMonotonically for why
+        // Measured 1.30 (B431); see EdgePull_RespondsMonotonically for why
         // the old bound of 3 measured the hollowing rather than the rim.
         Assert.True(rim / core > 1, $"no rim to speak of: {rim / core:F2}");
         // Measured: 0.13 -> 0.25 with the distance field, 0.13 -> 2.04 with the

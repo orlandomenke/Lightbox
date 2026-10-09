@@ -259,7 +259,7 @@ public static class BuiltInPresets
                     Wetness = 0.85, Viscosity = 0.1, Drag = 0.25, FlowSteps = 16,
                     // B35 — EdgePull 0.7 left the centre at 3/255 alpha: a
                     // white line down the middle of every stroke, and 0.06 was
-                    // as high as it could go. B427 found why: the capillary
+                    // as high as it could go. B431 found why: the capillary
                     // term carved a channel down the medial axis at any pull.
                     // With the interior draining evenly to the fringe instead,
                     // the pull is back to where a wash pools at its edge the

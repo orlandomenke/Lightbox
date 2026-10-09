@@ -117,7 +117,7 @@ public sealed class FluidLattice
     /// to the fringe in one step at EdgePull 1. It used to be 0.9, when the
     /// term walked pigment one cell per step and a rim twenty cells from the
     /// middle needed most of a cell's movement per step to be reached at all.
-    /// The transfer is direct now (B427), so the rate is the share of a
+    /// The transfer is direct now (B431), so the rate is the share of a
     /// cell's mobile pigment that leaves per step, against the quarter that
     /// <see cref="Deposit"/> binds in place: at this value a dried disc at
     /// EdgePull 1 reads a rim 1.3× its core (0.46× with the pull off) and a
@@ -130,7 +130,7 @@ public sealed class FluidLattice
 
     /// <summary>
     /// How much of the wet region's deepest distance to dry paper is fringe:
-    /// the band that receives what the interior gives (B427). A share rather
+    /// the band that receives what the interior gives (B431). A share rather
     /// than a count, so a broad wash grows a broader rim than a thin line.
     /// </summary>
     private const float RimShare = 0.2f;
@@ -856,7 +856,7 @@ public sealed class FluidLattice
     /// stays. The water makes a round trip and nets out; the pigment does not.
     /// Modelling only the residue is both cheaper and closer to what you see.
     ///
-    /// <b>The interior drains evenly and the fringe receives (B427).</b> Two
+    /// <b>The interior drains evenly and the fringe receives (B431).</b> Two
     /// earlier readings each left a mark that was not in the water. Climbing
     /// toward thinner film was gradient ascent on a noisy surface, and raising
     /// EdgePull mottled the interior instead of building a rim. Walking pigment

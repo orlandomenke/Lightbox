@@ -282,7 +282,7 @@ piece (1), but a first pass can take normals from the stroke's own alpha
 coverage, which already exists. That gets a light-catching edge on gouache and
 oil without the memory, and it is worth trying before committing to the buffer.
 
-### Capillary pull, third reading (B427, 2026-10-09)
+### Capillary pull, third reading (B431, 2026-10-09)
 
 The chamfer-distance walk that fixed B24 had a flaw the measurement only found
 once the seam was looked for: the cells on a stroke's medial axis give pigment

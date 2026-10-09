@@ -22,7 +22,7 @@ bristle or chisel tip survives only as coverage, which the opacity map
 0.95 for the solid. With a medium on, granulation, the stamped wet edge and the
 paper-texture pass are skipped as well. And at the time of writing the shipped
 Watercolor's `EdgePull` was 0.06 (B35), so the lattice's one unique effect was
-nearly off — B427 found why it had to be, fixed the term, and put it back to
+nearly off — B431 found why it had to be, fixed the term, and put it back to
 0.45.
 
 **Clip Studio Paint has no fluid simulation.** Its wet media are textured
