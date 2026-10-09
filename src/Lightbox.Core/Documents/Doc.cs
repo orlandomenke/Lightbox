@@ -43,8 +43,6 @@ public sealed class Doc
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Unknown { get; set; }
 
-    public int Version { get; set; } = 1;
-
     public Scene Scene { get; set; } = new();
 
     /// <summary>Character sheets: reference art outside the timeline.</summary>
