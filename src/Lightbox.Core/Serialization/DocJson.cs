@@ -165,9 +165,13 @@ public static class DocJson
     /// <summary>
     /// How many times its size on disk a document may inflate past the floor.
     /// Real documents compress about 5× (the lab's 30-layer document: 25 MB on
-    /// disk, 124 MB of JSON); a gzip bomb compresses a thousandfold (Q235).
+    /// disk, 124 MB of JSON), and pixel-heavy ones about 1.3×, because their
+    /// checkpoints are PNG; a gzip bomb compresses a thousandfold (Q235). 20×
+    /// rather than 100× because the limit grows with the file: at 100× a 20 MB
+    /// bomb was allowed 2 GB, past where the parser runs out of memory on one
+    /// token (the sensitivity review). At 20× that file stops at 400 MB.
     /// </summary>
-    public const int MaxInflationRatio = 100;
+    public const int MaxInflationRatio = 20;
 
     /// <summary>
     /// A document from a stream that can seek — gzip, as <see cref="Save"/>

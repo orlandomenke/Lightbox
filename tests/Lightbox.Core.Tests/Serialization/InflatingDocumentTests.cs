@@ -94,3 +94,11 @@ public class InflatingDocumentTests
         }
     }
 }
+
+/// <summary>
+/// Run alone: the bomb test lowers <see cref="DocJson.InflationFloorBytes"/>, which
+/// every load in the process reads, so another test's document must not be
+/// read while it is lowered (the sensitivity review).
+/// </summary>
+[CollectionDefinition("DocJsonLimits", DisableParallelization = true)]
+public sealed class DocJsonLimitsCollection;
