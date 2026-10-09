@@ -2039,6 +2039,9 @@ public partial class MainViewModel
             && Lightbox.Raster.PictureMemory.Total < Lightbox.Raster.PictureMemory.Brokered;
         if (idle)
         {
+            // Then the drawings either side, which a flip lands on: the paused
+            // canvas draws stills, and the playback range below is tiles.
+            jobs.AddRange(NeighbourStillJobs());
             var tileNative = Scene.Camera is null
                 && _publish.Viewport is { Width: > 0, Height: > 0 }
                 && !Lightbox.Raster.EffectPasses.AnyLive(Scene);
@@ -2305,6 +2308,50 @@ public partial class MainViewModel
         return jobs;
     }
 
+    /// <summary>
+    /// The stills of the frames either side of the playhead — the next first,
+    /// the usual direction of a flip — as guesses.
+    /// </summary>
+    /// <remarks>
+    /// The lab's 30-layer document spent most of a flip rendering the frame it
+    /// arrived at (2026-10-09). With onion on, the frames one either side are
+    /// already warmed as ghosts; with onion off, the owner's default, nothing
+    /// was. Not <c>Wanted</c>: a guess goes in only where there is room, and never
+    /// pushes out the frame on screen — so no more are asked for than the room
+    /// there is now, nearest first, or the rest would be rendered to be refused.
+    /// </remarks>
+    /// <summary>Neighbour stills rendered and then refused for room — for tests.</summary>
+    internal int NeighboursRefused { get; private set; }
+
+    private List<WarmRequest> NeighbourStillJobs()
+    {
+        var scene = Scene;
+        var jobs = new List<WarmRequest>();
+        var perStill = Math.Max(1L, (long)scene.Width * scene.Height * 4);
+        // Less one still's worth: other paths put smaller pictures in this cache
+        // while the guesses render, and the last guess would lose its room.
+        var room = (int)Math.Max(0, Math.Min(
+            FrameBitmapCache.MaxEntries - _cache.CachedFrames - 1,
+            (FrameBitmapCache.ByteBudget - _cache.CachedBytes) / perStill - 1));
+        var seen = new HashSet<string>();
+        foreach (var offset in (ReadOnlySpan<int>)[1, -1, 2, -2])
+        {
+            var index = CurrentFrameIndex + offset;
+            if (index < 0 || index >= scene.FrameCount) continue;
+            foreach (var layer in scene.Layers)
+            {
+                if (!scene.IsLayerVisible(layer)) continue;
+                if (ExposureSheet.ExposedFrame(layer, index) is not { } frame) continue;
+                if (!FrameBitmapCache.CanCache(frame) || _cache.Rig.IsPosed(frame)) continue;
+                if (_cache.Holds(frame, scene.Width, scene.Height, 1.0, index)) continue;
+                if (jobs.Count >= room) return jobs;
+                if (!seen.Add($"{frame.Id}#{index}")) continue;
+                jobs.Add(new WarmRequest(frame, scene.Width, scene.Height, index, WarmProduct.Bitmap, Neighbour: true));
+            }
+        }
+        return jobs;
+    }
+
     private void TakeWarmedFrames() => _prewarm.Drain(warmed =>
     {
         var want = warmed.Request;
@@ -2331,8 +2378,11 @@ public partial class MainViewModel
             held = _cache.Holds(want.Frame, want.Width, want.Height, 1.0, want.CelIndex);
         }
         // Refused and still not held: there was no room. The idle warm stops
-        // here rather than render the rest of the range into a full cache.
-        if (!taken && !held) _idleWarmFull = true;
+        // here rather than render the rest of the range into a full cache. Not
+        // for a neighbour: those are sized to the room when asked for, and a
+        // full still cache says nothing about the tile cache the range fills.
+        if (!taken && !held && !want.Neighbour) _idleWarmFull = true;
+        if (!taken && !held && want.Neighbour) NeighboursRefused++;
         return taken;
     });
 
