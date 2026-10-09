@@ -43,73 +43,93 @@ public sealed class FrameConverter : JsonConverter<Frame>
     /// </remarks>
     private static readonly HashSet<string> KnownKinds = ["vector", "painted"];
 
+    /// <remarks>
+    /// <b>Read straight off the reader, once.</b> It used to parse each drawing
+    /// into a <c>JsonDocument</c>, then copy every field back out as a UTF-16
+    /// string and parse that again: 4.5 s of a 30-layer, 200-drawing document's
+    /// open (2026-10-09, <c>FrameReadCostTests</c>). Key order still does not
+    /// matter, and a key this build does not know is skipped.
+    /// </remarks>
     public override Frame? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        using var doc = JsonDocument.ParseValue(ref reader);
-        var root = doc.RootElement;
+        if (reader.TokenType != JsonTokenType.StartObject)
+            throw new JsonException($"A frame is an object, not {reader.TokenType}.");
 
-        // Absent is correct for anything this build wrote; present must still be
-        // one of the two it used to write.
-        if (root.TryGetProperty("kind", out var kindProp))
+        var frame = new Frame();
+        string? id = null;
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
         {
-            var kind = kindProp.GetString();
-            if (kind is null || !KnownKinds.Contains(kind))
-                throw new JsonException($"Unknown frame kind \"{kind}\".");
-        }
-
-        var frame = new Frame
-        {
-            Id = root.TryGetProperty("id", out var id) ? id.GetString() ?? Ids.NewId("f") : Ids.NewId("f"),
-        };
-
-        if (root.TryGetProperty("role", out var role))
-            frame.Role = JsonSerializer.Deserialize<FrameRole>(role.GetRawText(), options);
-
-        // Empty and absent mean the same thing — no baseline — so an old file's
-        // `"pngBase64": ""` normalises to null on the way in. Without this, every
-        // pre-merge document would round-trip back out with the key it was
-        // supposed to lose.
-        if (root.TryGetProperty("pngBase64", out var png) && png.GetString() is { Length: > 0 } baseline)
-            frame.PngBase64 = baseline;
-
-        if (root.TryGetProperty("strokes", out var strokes))
-            frame.Strokes = JsonSerializer.Deserialize<List<Stroke>>(strokes.GetRawText(), options) ?? [];
-
-        if (root.TryGetProperty("anchors", out var anchors))
-            frame.Anchors = JsonSerializer.Deserialize<Dictionary<string, AnchorPoint>>(anchors.GetRawText(), options);
-
-        if (root.TryGetProperty("shapes", out var shapes))
-            frame.Shapes = JsonSerializer.Deserialize<Dictionary<string, ShapeBox>>(shapes.GetRawText(), options);
-
-        if (root.TryGetProperty("placements", out var placements))
-            frame.Placements = JsonSerializer.Deserialize<List<SymbolPlacement>>(placements.GetRawText(), options);
-
-        if (root.TryGetProperty("ai", out var ai))
-            frame.Ai = JsonSerializer.Deserialize<AiProvenance>(ai.GetRawText(), options);
-
-        if (root.TryGetProperty("chart", out var chart))
-            frame.Chart = JsonSerializer.Deserialize<List<double>>(chart.GetRawText(), options);
-
-        if (root.TryGetProperty("correctives", out var correctives))
-            frame.Correctives = JsonSerializer.Deserialize<List<Corrective>>(correctives.GetRawText(), options);
-
-        // Derived pixels, so a checkpoint that will not parse is dropped rather
-        // than thrown on: the drawing still renders, from the record, exactly as
-        // it would have. B137's rule, applied to the one field in the document
-        // that is allowed to be missing.
-        if (root.TryGetProperty("checkpoint", out var checkpoint))
-        {
-            try
+            if (reader.TokenType != JsonTokenType.PropertyName) throw new JsonException("Expected a property name.");
+            var name = reader.GetString();
+            reader.Read();
+            switch (name)
             {
-                frame.Checkpoint =
-                    JsonSerializer.Deserialize<StrokeCheckpoint>(checkpoint.GetRawText(), options);
-            }
-            catch (JsonException)
-            {
-                frame.Checkpoint = null;
+                // Absent is correct for anything this build wrote; present must
+                // still be one of the two it used to write.
+                case "kind":
+                    var kind = reader.GetString();
+                    if (kind is null || !KnownKinds.Contains(kind))
+                        throw new JsonException($"Unknown frame kind \"{kind}\".");
+                    break;
+                case "id":
+                    id = reader.GetString();
+                    break;
+                case "role":
+                    frame.Role = JsonSerializer.Deserialize<FrameRole>(ref reader, options);
+                    break;
+                // Empty and absent mean the same thing — no baseline — so an old
+                // file's `"pngBase64": ""` normalises to null on the way in.
+                // Without this, every pre-merge document would round-trip back
+                // out with the key it was supposed to lose.
+                case "pngBase64":
+                    if (reader.GetString() is { Length: > 0 } baseline) frame.PngBase64 = baseline;
+                    break;
+                case "strokes":
+                    frame.Strokes = JsonSerializer.Deserialize<List<Stroke>>(ref reader, options) ?? [];
+                    break;
+                case "anchors":
+                    frame.Anchors = JsonSerializer.Deserialize<Dictionary<string, AnchorPoint>>(ref reader, options);
+                    break;
+                case "shapes":
+                    frame.Shapes = JsonSerializer.Deserialize<Dictionary<string, ShapeBox>>(ref reader, options);
+                    break;
+                case "placements":
+                    frame.Placements = JsonSerializer.Deserialize<List<SymbolPlacement>>(ref reader, options);
+                    break;
+                case "ai":
+                    frame.Ai = JsonSerializer.Deserialize<AiProvenance>(ref reader, options);
+                    break;
+                case "chart":
+                    frame.Chart = JsonSerializer.Deserialize<List<double>>(ref reader, options);
+                    break;
+                case "correctives":
+                    frame.Correctives = JsonSerializer.Deserialize<List<Corrective>>(ref reader, options);
+                    break;
+                // Derived pixels, so a checkpoint that will not parse is dropped
+                // rather than thrown on: the drawing still renders, from the
+                // record, exactly as it would have. B137's rule, applied to the
+                // one field in the document that is allowed to be missing. Held
+                // as a document first, so a bad one cannot leave the reader
+                // half way through it.
+                case "checkpoint":
+                    using (var checkpoint = JsonDocument.ParseValue(ref reader))
+                    {
+                        try
+                        {
+                            frame.Checkpoint = checkpoint.RootElement.Deserialize<StrokeCheckpoint>(options);
+                        }
+                        catch (JsonException)
+                        {
+                            frame.Checkpoint = null;
+                        }
+                    }
+                    break;
+                default:
+                    reader.Skip();
+                    break;
             }
         }
-
+        frame.Id = id ?? Ids.NewId("f");
         return frame;
     }
 
