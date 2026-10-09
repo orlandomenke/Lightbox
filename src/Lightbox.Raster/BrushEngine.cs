@@ -3930,6 +3930,14 @@ public static class BrushEngine
     /// </summary>
     private const float ToothPressureGamma = 0.5f;
 
+    /// <summary>
+    /// <c>Pow(b / 255, ToothPressureGamma)</c> for every press byte, built once:
+    /// the press map is already quantised, and the perf-warden put the per-pixel
+    /// power at 22 ns of a 10–12 ms commit loop. Byte-identical to calling it.
+    /// </summary>
+    private static readonly float[] ToothPress =
+        [.. Enumerable.Range(0, 256).Select(b => MathF.Pow(b / 255f, ToothPressureGamma))];
+
     /// <param name="pressPix">
     /// The pressure map a pencil-like brush records (<see cref="StampPress"/>),
     /// or null for the ordinary texture whose bite is the same at any pressure.
@@ -4006,7 +4014,7 @@ public static class BrushEngine
                         for (var x = 0; x < w; x++)
                         {
                             var px = Math.Clamp((int)(x * scale + pressAt.OffsetX), 0, maxX);
-                            var p = MathF.Pow(pressBytes[py * pressRow + px * 4] / 255f, ToothPressureGamma);
+                            var p = ToothPress[pressBytes[py * pressRow + px * 4]];
                             var threshold = depth * (1f - gate * p);
                             var e = Math.Clamp((height[y * w + x] - threshold + ToothSoftness) / (2f * ToothSoftness), 0f, 1f);
                             var keep = e * e * (3f - 2f * e);
