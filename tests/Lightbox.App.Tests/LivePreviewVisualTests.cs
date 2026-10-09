@@ -228,4 +228,73 @@ public class LivePreviewVisualTests(ITestOutputHelper output) : BrushStateIsolat
         }
         foreach (var s in sheets) s.Dispose();
     }
+    /// <summary>
+    /// Q232: the media presets mix by default, and a blank sheet cannot show it.
+    /// Each one is drawn across a committed blue Ink stroke, so the sheet shows
+    /// what a yellow wash, gouache, oil and ink wash do to what is already there.
+    /// Written for looking at, which is the half a number cannot carry.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheMediaBrushesMixOverWhatIsThere()
+    {
+        if (!VisualSheet.Wanted) return;
+
+        var vm = new MainViewModel(null) { SmoothStrokes = false };
+        var ink = vm.BrushPresetChoices.First(p => p.Id == "builtin-ink").Settings.Clone();
+        ink.Size = 26;
+        var panels = new List<VisualSheet.Panel>();
+        var sheets = new List<SKBitmap>();
+
+        // Each preset twice: as shipped, and with the lattice's own re-wetting
+        // off, because the first sheet showed the medium greying every mark
+        // whatever the mixing did — the solver lifts the blue beneath and mixes
+        // it linearly in RGB, which is the film answer the pigment model exists
+        // to replace.
+        var variants = vm.BrushPresetChoices.Where(p => p.Settings.Mixing is not null)
+            .SelectMany(p => new[] { (p, "as shipped", false), (p, "no re-wetting", true) });
+        foreach (var (preset, label, dry) in variants)
+        {
+            var info = new SKImageInfo(300, 130, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using var layer = new SKBitmap(info);
+            using (var canvas = new SKCanvas(layer))
+            {
+                canvas.Clear(SKColors.Transparent);
+                var under = new Stroke
+                {
+                    Tool = ToolKind.Brush,
+                    Color = "#2040e0",
+                    Points = [new StrokePoint(30, 95, 1), new StrokePoint(150, 70, 1), new StrokePoint(270, 40, 1)],
+                    Brush = ink,
+                };
+                Lightbox.Raster.BrushEngine.StampStroke(canvas, under, info, layer);
+                canvas.Flush();
+
+                var over = new Stroke
+                {
+                    Tool = ToolKind.Brush,
+                    Color = "#f0d020",
+                    Points = [.. Enumerable.Range(0, 9).Select(i =>
+                        new StrokePoint(30 + i * 30.0, 65 + Math.Sin(i * 0.7) * 22, 0.5 + i * 0.06))],
+                    Brush = preset.Settings.Clone(),
+                };
+                if (dry) over.Brush.Medium.Rewetting = 0;
+                Lightbox.Raster.BrushEngine.StampStroke(canvas, over, info, layer);
+                canvas.Flush();
+            }
+
+            var flat = VisualSheet.OverPaper(layer);
+            sheets.Add(flat);
+            var mix = preset.Settings.Mixing!;
+            panels.Add(new VisualSheet.Panel(
+                $"{preset.Name}, {label} — amount {mix.Amount:0.00}, length {mix.Length:0.00}", flat));
+        }
+
+        output.WriteLine($"{panels.Count} mixing presets drawn over a blue stroke");
+        VisualSheet.Write(
+            "media-mixing",
+            "Q232 — each media preset, yellow, across a committed blue Ink stroke. What it picks up and how far it carries it.",
+            [.. panels]);
+        foreach (var s in sheets) s.Dispose();
+        Assert.NotEmpty(panels);
+    }
 }

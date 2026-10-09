@@ -290,6 +290,61 @@ public class LiveMatchesCommittedTests : BrushStateIsolated
         Assert.InRange(d.InkRatio, 0.96, 1.04);
     }
 
+    /// <summary>
+    /// Q232: a mixing brush's dab colour is its own history — what was under it,
+    /// carried along — so the live path has to checkpoint the carried colour at
+    /// the settled boundary exactly as the smudge does, or the tail re-stamps
+    /// with a different history than the commit replays. Drawn across a blue
+    /// stroke committed first, so there is something to pick up.
+    /// </summary>
+    [AvaloniaFact]
+    public void AMixingBrushLooksTheSameLiveAndCommitted()
+    {
+        var vm = Vm();
+        vm.NewDocument(new NewDocumentSettings("mixing", Width, Height, 12, 72, "#ffffff", false));
+        Apply(vm, "Ink");
+        vm.BrushSize = 40;
+        vm.ColorHex = "#2040e0";
+        vm.BeginStroke(40, 150, 1);
+        vm.MoveStroke(380, 70, 1);
+        vm.EndStroke();
+        for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Apply(vm, "Soft round");
+        vm.BrushSize = 28;
+        vm.ColorHex = "#f0e020";
+        vm.BrushMixing = true;
+        vm.BrushMixAmount = 0.5;
+        vm.BrushMixLength = 0.6;
+
+        var (live, committed) = DragAndRelease(vm, Curve());
+        try
+        {
+            var d = Compare(live, committed);
+            Report("mixing brush", d);
+            WriteComparison("mixing brush", live, committed);
+            // Not vacuous: somewhere along the mark the yellow picked up the
+            // blue and went green.
+            var green = 0;
+            for (var y = 0; y < committed.Height; y++)
+            {
+                for (var x = 0; x < committed.Width; x++)
+                {
+                    var p = committed.GetPixel(x, y);
+                    if (p.Green > p.Red + 30 && p.Green > p.Blue + 30) green++;
+                }
+            }
+            _out.WriteLine($"green pixels in the committed mark: {green}");
+            Assert.True(green > 50, "the mixing brush never picked up the blue it crossed");
+            Assert.True(d.MeanAbsolute < 1.0, $"live and committed differ by {d.MeanAbsolute:F2}/255 on average");
+        }
+        finally
+        {
+            live.Dispose();
+            committed.Dispose();
+        }
+    }
+
     [AvaloniaFact]
     public void PaintLoadDepletesWhileDrawingAndNotOnlyOnRelease()
     {
