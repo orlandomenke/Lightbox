@@ -376,8 +376,8 @@ public partial class MainWindow
 
     private void OnGroupColorClicked(object? sender, RoutedEventArgs e)
     {
-        if (GroupRowOf(sender) is { } row && (sender as Control)?.Tag is string hex)
-            row.Color = hex;
+        // No tag is "Same as parent": the folder gives its colour up.
+        if (GroupRowOf(sender) is { } row) row.PickColor((sender as Control)?.Tag as string);
     }
 
     private void OnGroupMenuCollapse(object? sender, RoutedEventArgs e)
