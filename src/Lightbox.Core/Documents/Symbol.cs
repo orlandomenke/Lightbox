@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 using Lightbox.Core.Timeline;
 
 namespace Lightbox.Core.Documents;
@@ -43,6 +45,16 @@ public enum SymbolKind
 /// </remarks>
 public sealed class Symbol
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Read and written by
+    /// <see cref="Serialization.SymbolConverter"/>, not by the serializer. Null unless a file supplied some; never
+    /// edited, so a clone may share it. Marked as extension data too, so
+    /// anything that reads the record by reflection counts it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("sym");
 
     public string Name { get; set; } = "Symbol";
@@ -232,6 +244,14 @@ public sealed class Symbol
 /// </remarks>
 public sealed class SymbolPlacement
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("pl");
 
     /// <summary>The symbol this shows. Resolved at render time, never copied.</summary>

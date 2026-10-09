@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>One control point's departure from where it was drawn, in rest space.</summary>
@@ -12,6 +14,14 @@ public readonly record struct PointOffset(double X, double Y);
 /// </remarks>
 public sealed class StrokeCorrection
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string StrokeId { get; set; } = "";
 
     public List<PointOffset> Offsets { get; set; } = [];
@@ -28,6 +38,14 @@ public sealed class StrokeCorrection
 /// <summary>The drawing's shape at one angle of the driving joint.</summary>
 public sealed class CorrectiveStop
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>The driver bone's pose rotation this shape was drawn at, in degrees.</summary>
     public double AngleDeg { get; set; }
 
@@ -70,6 +88,14 @@ public sealed class CorrectiveStop
 /// </remarks>
 public sealed class Corrective
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("fix");
 
     public string Name { get; set; } = "Corrective";

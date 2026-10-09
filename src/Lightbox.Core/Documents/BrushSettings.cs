@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -96,6 +98,14 @@ public enum BrushKind
 /// </summary>
 public sealed class BrushSettings
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>Dab diameter in document pixels at pressure 1.</summary>
     public double Size { get; set; } = 6;
 
@@ -408,6 +418,7 @@ public sealed class BrushSettings
 
     public BrushSettings Clone() => new()
     {
+        Unknown = Unknown,
         Size = Size,
         AntiAlias = AntiAlias,
         Hardness = Hardness,

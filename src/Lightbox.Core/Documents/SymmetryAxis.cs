@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Lightbox.Core.Documents;
@@ -70,6 +71,14 @@ public readonly record struct SymmetryPlacement(double RotationDeg, bool Mirrore
 /// </remarks>
 public sealed class SymmetryAxis
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>
     /// The most rotational copies an axis is ever given, whatever the record
     /// says. Twelve is a kaleidoscope; past it the copies overlap at any brush
@@ -182,6 +191,7 @@ public sealed class SymmetryAxis
     /// <summary>A copy, so editing an axis never reaches a stroke already painted.</summary>
     public SymmetryAxis Clone() => new()
     {
+        Unknown = Unknown,
         CenterX = CenterX,
         CenterY = CenterY,
         AngleDeg = AngleDeg,

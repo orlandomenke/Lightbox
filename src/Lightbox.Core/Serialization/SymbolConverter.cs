@@ -73,8 +73,19 @@ public sealed class SymbolConverter : JsonConverter<Symbol>
             symbol.Layers = Symbol.Flat(symbol.Name, read);
         }
 
+        // What a newer build wrote, kept and written back (Q230).
+        foreach (var property in root.EnumerateObject())
+        {
+            if (Known.Contains(property.Name)) continue;
+            (symbol.Unknown ??= new())[property.Name] = property.Value.Clone();
+        }
+
         return symbol;
     }
+
+    /// <summary>Every key this converter reads or writes; anything else is a newer build's.</summary>
+    private static readonly HashSet<string> Known =
+        ["id", "name", "kind", "tags", "fps", "pivotX", "pivotY", "version", "clipRegions", "layers", "frames"];
 
     public override void Write(Utf8JsonWriter writer, Symbol value, JsonSerializerOptions options)
     {
@@ -114,6 +125,16 @@ public sealed class SymbolConverter : JsonConverter<Symbol>
         {
             writer.WritePropertyName("layers");
             JsonSerializer.Serialize(writer, value.Layers, options);
+        }
+
+        // Last, and as they came: what a newer build wrote (Q230).
+        if (value.Unknown is { } unknown)
+        {
+            foreach (var (key, kept) in unknown)
+            {
+                writer.WritePropertyName(key);
+                kept.WriteTo(writer);
+            }
         }
 
         writer.WriteEndObject();

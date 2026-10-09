@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 using Lightbox.Core.Inbetween;
 
 namespace Lightbox.Core.Documents;
@@ -24,6 +26,14 @@ namespace Lightbox.Core.Documents;
 /// </remarks>
 public sealed class Bone
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("bone");
 
     public string Name { get; set; } = "Bone";
@@ -114,6 +124,14 @@ public sealed class Bone
 /// </remarks>
 public sealed class BoneJiggle
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>Pull toward the posed target per frame, 0.01–1. Higher catches up faster.</summary>
     public double Stiffness { get; set; } = 0.2;
 
@@ -154,6 +172,14 @@ public sealed class BoneJiggle
 /// </remarks>
 public sealed class Armature
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>
     /// This rig's own id, so a document holding several can say which one it
     /// means (Q182).
@@ -232,6 +258,14 @@ public enum BoneConstraintKind
 /// </remarks>
 public sealed class BoneConstraint
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("con");
 
     public string Name { get; set; } = "Constraint";
@@ -282,6 +316,14 @@ public sealed class BoneConstraint
 /// </remarks>
 public sealed class IkChain
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("ik");
 
     public string Name { get; set; } = "IK";
@@ -332,6 +374,14 @@ public sealed class IkChain
 /// </remarks>
 public sealed class SplineChain
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("spline");
 
     public string Name { get; set; } = "Spline";
@@ -375,6 +425,14 @@ public sealed class SplineChain
 /// </remarks>
 public sealed class BoneBinding
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string BoneId { get; set; } = "";
 
     /// <summary>Per-control-point influence, or null for 1.0 everywhere.</summary>
@@ -401,6 +459,14 @@ public sealed class BoneBinding
 /// </summary>
 public sealed class BonePose
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>Rotation added to the bone's rest rotation, clockwise degrees.</summary>
     public double RotationDeg { get; set; }
 
@@ -423,6 +489,14 @@ public sealed class BonePose
 /// </remarks>
 public sealed class PoseKey
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public int Frame { get; set; }
 
     /// <summary>Bone id → its departure from rest on this key.</summary>
@@ -450,6 +524,14 @@ public sealed class PoseKey
 /// </summary>
 public sealed class PoseTrack
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>Authored poses. Order is not guaranteed; read through <see cref="ArmatureOps"/>.</summary>
     public List<PoseKey> Keys { get; set; } = [];
 
