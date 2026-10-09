@@ -61,7 +61,7 @@ before; Delete is the exception, and refuses rather than guess.
 **Three things stay with the layer you draw on, not with the picked cel:**
 drawing itself, AI inbetweening, and stepping to the previous or next key
 (**1** and **2**), which walk the keys of the layer you are on. And one gesture
-still takes you to another layer besides the double click: Alt+dragging a
+still takes you to another layer besides the double click: dragging a
 drawing along another layer's row, and the commands on a cel's own right-click
 menu, which have always meant "here". A **keyed** cell holds a drawing; a **hold** repeats the drawing
 before it, which is what animating on 2s and 3s is made of.
@@ -363,16 +363,25 @@ The keys answer only with the pointer over the X-sheet: over the canvas Delete
 still clears the selection, and over the Layers docker it still deletes a
 layer.
 
-**Drag across the sheet to select a block of cels** — every frame you sweep
-on every row you sweep, as in a spreadsheet. **Shift+click** does the same from
-the last cel you clicked, so a block can be made in two clicks and resized with
-a third. A block stops at the end of the scene: there are no cels in the hatch.
-A plain click still moves the playhead and clears the selection.
+**Drag a drawing along its row to move it** — no modifier. Hold Ctrl as you
+drop to leave the original where it was and place a copy. This is how timing is
+changed by hand: pick the drawing up and put it on the frame it belongs on.
+Whatever the frame you drop on held is replaced, and dropping past the end of
+the scene makes the scene longer.
 
-**Alt+drag a cel along its row to move it** (hold Ctrl as well to copy it).
-This used to be a plain drag; the plain drag selects now, because building a
-selection is what the deletes and the re-timing commands need, and it is done
-far more often than carrying a single drawing.
+**Drag a selected drawing and everything selected goes with it**, by the same
+number of frames, each drawing along its own row. Select a run on one layer to
+slide a whole phrase later, or the same frames down several layers to keep them
+in step. It is one undo step, Ctrl copies the block, and a block that would
+push a drawing off the front of the sheet does not move at all. A drawing that
+is *not* part of the selection moves alone and leaves the selection as it was.
+
+**Drag from an empty cel to select a block** — every frame you sweep on every
+row you sweep, as in a spreadsheet. **Shift+click** does the same from the last
+cel you clicked, so a block can be made in two clicks and resized with a third,
+and it is the way to start a block *on* a drawing, since dragging a drawing
+moves it. A block stops at the end of the scene: there are no cels in the
+hatch. A plain click still moves the playhead and clears the selection.
 
 **Ctrl+click picks cels one at a time**, including ones that are not next to
 each other and ones on other layers — every third cel of a cycle, or the same
