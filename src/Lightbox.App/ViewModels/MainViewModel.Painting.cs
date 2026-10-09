@@ -695,8 +695,14 @@ public partial class MainViewModel
                     Lightbox.App.Controls.TrackKind.Camera));
             }
             tracks.AddRange(PoseTracks());
-            foreach (var row in LayerRows)
+            foreach (var item in SheetRows)
             {
+                if (item is SheetFolderRow folder)
+                {
+                    tracks.Add(FolderTrack(folder));
+                    continue;
+                }
+                if (item is not LayerRow row) continue;
                 var keys = new List<int>();
                 var holdEnds = new List<int>();
                 var breakdowns = new List<bool>();
@@ -715,7 +721,7 @@ public partial class MainViewModel
                     }
                     holdEnds.Add(end);
                 }
-                tracks.Add(new Lightbox.App.Controls.TrackRow(row.Name, keys, holdEnds, breakdowns));
+                tracks.Add(new Lightbox.App.Controls.TrackRow(Indented(row.Name, row.Depth), keys, holdEnds, breakdowns));
             }
             return tracks;
         }
@@ -829,6 +835,11 @@ public partial class MainViewModel
     /// </summary>
     public void ToggleTrackFold(int trackIndex)
     {
+        if (SheetItemAtTrack(trackIndex) is SheetFolderRow folder && !IsPoseTrack(trackIndex))
+        {
+            ToggleSheetFold(folder);
+            return;
+        }
         if (!IsPoseTrack(trackIndex)) return;
         if (BoneOfTrack(trackIndex) is { } boneId)
         {

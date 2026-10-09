@@ -68,6 +68,13 @@
   <Thickness x:Key="SectionGap">0,8,0,0</Thickness>
   <Thickness x:Key="SubsectionGap">0,6,0,0</Thickness>
   <Thickness x:Key="LineGap">0,4,0,0</Thickness>
+  <!-- The X-sheet's name column. The layer rows in the window still write the
+       number; a folder's row names it, and has to match them or its strip of
+       marks slides out from under the ruler. -->
+  <x:Double x:Key="SizeXsheetName">88</x:Double>
+  <!-- A folder's mark on the X-sheet, held off its cell's sides by the cel gap
+       so neighbouring marks read as a run of separate frames. -->
+  <Thickness x:Key="FolderMarkInset">2,0</Thickness>
 
   <!-- ===== Settings pages (step 2, area 2: the Configure window) ===== -->
   <!-- A settings page's inset inside the window. -->

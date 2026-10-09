@@ -92,7 +92,10 @@
     A folder header used to carry an opaque grey to set it apart from a layer.
     The wash does that now, and the grey would have hidden it.
   -->
-  <Style Selector="ItemsControl#LayerList > ContentPresenter">
+  <!-- The X-sheet's rows take the same wash (Q227), so a folder and the layers
+       inside it read as one band there too — the sheet has no indent to say it
+       with, since every row's cells must stay under the ruler. -->
+  <Style Selector="ItemsControl#LayerList > ContentPresenter, ItemsControl#XsheetLayerList > ContentPresenter">
     <Setter Property="Background" Value="{ReflectionBinding TintBrush}" />
     <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>

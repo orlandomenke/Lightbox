@@ -110,15 +110,15 @@ public partial class MainWindow
         RevealVertically(TimelineTrackView, TrackView.RulerHeight + row * TrackView.RowPitch, TrackView.RowPitch);
     }
 
-    /// <summary>The active layer's place in <see cref="MainViewModel.LayerRows"/>, or -1.</summary>
+    /// <summary>The active layer's place in <see cref="MainViewModel.SheetRows"/>, or -1 when its folder is folded there.</summary>
     private static int ActiveLayerRowIndex(MainViewModel vm)
     {
         var layers = vm.Doc.Scene.Layers;
         if (vm.ActiveLayerIndex < 0 || vm.ActiveLayerIndex >= layers.Count) return -1;
         var active = layers[vm.ActiveLayerIndex];
-        for (var i = 0; i < vm.LayerRows.Count; i++)
+        for (var i = 0; i < vm.SheetRows.Count; i++)
         {
-            if (ReferenceEquals(vm.LayerRows[i].Layer, active)) return i;
+            if (vm.SheetRows[i] is LayerRow row && ReferenceEquals(row.Layer, active)) return i;
         }
         return -1;
     }
@@ -129,7 +129,7 @@ public partial class MainWindow
     /// <remarks>
     /// The timeline's first rows are not layers — the camera, then the
     /// armature and its bones — and the layers follow in the order of
-    /// <see cref="MainViewModel.LayerRows"/>. How many come first is
+    /// <see cref="MainViewModel.SheetRows"/>. How many come first is
     /// <see cref="MainViewModel.TracksAboveLayers"/>, the one place that
     /// counts them; a second count here would be free to disagree with it.
     /// </remarks>

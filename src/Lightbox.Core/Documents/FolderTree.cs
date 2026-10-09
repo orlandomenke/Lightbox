@@ -194,6 +194,21 @@ public static class FolderTree
         return ParentOf(find, folder) is { } parent && !IsWithin(find, layer, parent) ? null : layer;
     }
 
+    /// <summary>
+    /// The rows the Timeline and the X-sheet show (Q227), topmost first: the
+    /// docker's tree, folded by <see cref="LayerGroup.SheetCollapsed"/> rather
+    /// than by the docker's own <see cref="LayerGroup.Collapsed"/>, and with
+    /// what is folded away left out rather than marked.
+    /// </summary>
+    /// <remarks>
+    /// The same walk as <see cref="Rows(Scene)"/> and deliberately not a second
+    /// one: where a folder sits, what a split folder does and what a crafted
+    /// file cannot do are decided there once, and a sheet that ordered its rows
+    /// by a different rule would disagree with the docker beside it.
+    /// </remarks>
+    public static List<StackRow> SheetRows(Scene scene) =>
+        Rows(scene, f => f.SheetCollapsed == true).Where(r => !r.Hidden).ToList();
+
     /// <summary>The docker's rows, topmost first.</summary>
     /// <remarks>
     /// Every walk here runs on one index built for the call and is bounded by
@@ -201,7 +216,10 @@ public static class FolderTree
     /// that share an id (a hand-edited file) are both listed rather than one
     /// throwing.
     /// </remarks>
-    public static List<StackRow> Rows(Scene scene)
+    public static List<StackRow> Rows(Scene scene) => Rows(scene, f => f.Collapsed);
+
+    /// <summary>The same rows, folded by whichever surface is asking.</summary>
+    private static List<StackRow> Rows(Scene scene, Func<LayerGroup, bool> folded)
     {
         var layers = scene.Layers;
         var rows = new List<StackRow>(layers.Count + scene.LayerGroups.Count);
@@ -229,7 +247,7 @@ public static class FolderTree
         var emitted = new HashSet<LayerGroup>(refs);
         var open = new List<LayerGroup>(); // outermost first
 
-        bool HiddenNow() => open.Any(f => f.Collapsed);
+        bool HiddenNow() => open.Any(folded);
 
         void EmitEmpty(LayerGroup folder, int depth, bool hidden)
         {
@@ -240,7 +258,7 @@ public static class FolderTree
             // MaxDepth the safety net below lists them instead, so a crafted
             // chain cannot recurse the stack away.
             if (depth >= MaxDepth) return;
-            foreach (var child in childrenOf[folder]) EmitEmpty(child.Folder, depth + 1, hidden || folder.Collapsed);
+            foreach (var child in childrenOf[folder]) EmitEmpty(child.Folder, depth + 1, hidden || folded(folder));
         }
 
         void EmitTopOf(LayerGroup? parent)
