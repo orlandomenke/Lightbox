@@ -83,14 +83,18 @@ options panel. It has four parts.
   **Overwrite** and **Save new…**. The **⋮** beside them holds tags, delete and
   the brush library.
 - **The option list** down the left: Tip, Size, Opacity, Flow, Spacing, Shape
-  dynamics, Scatter, Texture, Colour dynamics, Medium and Blend — and Smudge,
+  dynamics, Scatter, Texture, Colour dynamics, Colour mixing, Medium and Blend — and Smudge,
   for a smudge brush. A **check** says whether an option changes the mark at
   all. Untick Scatter and the brush stops scattering; tick it again and the
   values you had come back. The options every brush has (a tip, a size, an
   opacity) cannot be unticked. A paper you imported keeps Texture ticked until
-  you remove the paper with its **✕**.
+  you remove the paper with its **✕**. The list is ruled into three families —
+  what every brush has, what a brush may add to its mark, and how its paint
+  behaves — and it **never scrolls**: every option is on it at once.
 - **The chosen option's panel**, with its pen-pressure curve beside the value it
-  drives (see *How the brush answers the pen*).
+  drives (see *How the brush answers the pen*). This is the one part that
+  scrolls, downwards only, and only when an option is long — a simulated medium
+  is. Nothing in the editor is ever off to one side.
 - **The scratchpad** on the right, to try the brush on. It paints with the brush
   exactly as it is now, at its real size, and repaints what is on it whenever a
   setting changes. Nothing drawn there is ever part of your work, recorded or
@@ -99,7 +103,8 @@ options panel. It has four parts.
 Hardness, the tip and roundness are on **Tip**; the size floor and size jitter
 on **Size**; flow jitter on **Flow**; the jitters of roundness and angle on
 **Shape dynamics**; the paper and its grain on **Texture**; the second colour
-and the hue, saturation and brightness jitters on **Colour dynamics**.
+and the hue, saturation and brightness jitters on **Colour dynamics**; amount,
+length and reach on **Colour mixing**.
 
 **Edit this brush** and **Choose a brush preset** are in Configure's shortcut
 editor with no key: give them one there. Krita puts them on F5 and F6, and F5
@@ -372,6 +377,35 @@ and pools; the stroke carries the same pigment either way, and at zero it is
 simply the mark you drew. How strong the paint is comes from **pigment
 density** — a watercolour is meant to be transparent, so raise that rather than
 the flow if you want a darker wash.
+
+## Colour mixing
+
+A brush with **Colour mixing** on picks up the colour it is laid on — what is
+already on the layer, and what the stroke itself laid a moment ago — and mixes
+its own paint into it as pigment: yellow over blue goes green, not grey. The
+four media brushes ship with it on; any paint brush can turn it on in the brush
+editor, and the picker marks it expressive, because it reads the canvas as it
+goes.
+
+- **Amount** is how much of each dab is the brush's own paint. The rest is what
+  it picked up. Low amounts drag the ground along and barely cover it; at 1 the
+  brush mixes nothing. *Planned:* pressure driving it, so a firm press lays
+  more of its own paint — it waits on the file format carrying a version, so an
+  older build can tell a curve it does not know from a broken brush store.
+- **Length** is how far what the brush picked up travels before it fades — the
+  same word, and the same idea, as the smudge option's Length. At 0 the pickup
+  is replaced every dab; at 1 it is dragged the length of the stroke.
+- **Reach** is how far out from the dab's centre the brush reads the ground.
+  Near the edge it keeps picking up fresh colour at its leading edge as it
+  moves; near the centre it mostly reads what it just laid.
+
+On blank paper a mixing brush is exactly the same brush with mixing off: there
+is nothing to pick up. Everything it does is deterministic, so a stroke replays
+identically on reload, after undo, and when the inbetweener draws it.
+
+**Under a simulated medium** the simulation now takes the colours the dabs
+laid, cell by cell, rather than one colour for the whole stroke — which is what
+lets mixing, colour dynamics and a textured tip show through a wash.
 
 ## Brush tips
 

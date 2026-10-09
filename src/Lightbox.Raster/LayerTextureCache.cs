@@ -97,7 +97,24 @@ public sealed class LayerTextureCache : IDisposable
 
     private long? _budget;
 
-    public long ResidentBytes { get; private set; }
+    public long ResidentBytes
+    {
+        get => _resident;
+        private set
+        {
+            System.Threading.Interlocked.Add(ref _totalResident, value - _resident);
+            _resident = value;
+        }
+    }
+
+    private long _resident;
+    private static long _totalResident;
+
+    /// <summary>
+    /// Every cache's resident bytes together, for the memory report: the caches
+    /// live on the render thread, where the view model cannot ask them.
+    /// </summary>
+    public static long TotalResidentBytes => System.Threading.Interlocked.Read(ref _totalResident);
 
     public int Count => _entries.Count;
 

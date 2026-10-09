@@ -231,26 +231,39 @@ public sealed class TileFrameCache : IDisposable, Lightbox.Raster.IPictureStore
     }
 
     /// <summary>
-    /// A stroke was committed to this frame: stamp it into the cached tiles.
-    /// A frame that is not cached stays uncached — the next
-    /// <see cref="Get"/> rebuilds from the record, stroke included.
+    /// A stroke was committed to this frame, and <paramref name="rendered"/> is
+    /// the frame's bitmap with it appended exactly: bring the cached tiles under
+    /// the mark up to date from it. A frame that is not cached stays uncached —
+    /// the next <see cref="Get"/> rebuilds from the record, stroke included.
     /// </summary>
-    public void Append(Frame frame, Stroke stroke, int width, int height)
+    /// <remarks>
+    /// B424: this used to stamp the stroke into every tile it reached, which
+    /// cost a 300 px pen-up fourteen stamps of the mark. The commit renders the
+    /// frame bitmap anyway, so the tiles copy the mark's region out of it —
+    /// once, and exact for an effect brush too, so a smudge no longer drops the
+    /// frame from the cache for the next publish to rebuild whole.
+    /// </remarks>
+    public void Append(Frame frame, Stroke stroke, SKBitmap rendered, int width, int height)
     {
         if (!_map.TryGetValue(frame.Id, out var node)) return;
 
         var entry = node.Value.Entry;
         AllocatedBytes -= entry.Store.AllocatedBytes;
-        var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        if (!TiledRasterizer.AppendStroke(entry.Store, stroke, info))
+        try
         {
-            // An effect brush: the tiles cannot say what it did, so the whole
-            // frame leaves the cache and the next publish rebuilds it via the
-            // whole-frame fallback.
-            Remove(node);
-            return;
+            var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            if (BrushEngine.CommitRegion(stroke, info) is { } region)
+            {
+                TiledRasterizer.AppendRendered(entry.Store, rendered, region);
+            }
         }
-        AllocatedBytes += entry.Store.AllocatedBytes;
+        finally
+        {
+            // Re-added whatever happened inside, or a copy that threw (an
+            // allocation failure renting a tile) would leave the budget
+            // under-reporting by the whole store (leak-hunter, on landing).
+            AllocatedBytes += entry.Store.AllocatedBytes;
+        }
 
         // The mip levels describe the tiles as they stood; re-wrap rather than
         // patch. Levels are lazy, so this costs nothing until a zoomed-out

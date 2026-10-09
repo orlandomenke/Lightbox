@@ -346,8 +346,12 @@ internal static class ScenePassBuilder
         // self, adjustment or scene-wide — needs the isolation and backdrop
         // only the bounded compositor has.
         var docEffects = EffectPasses.AnyLive(scene);
+        // B409: nor paper whose corner has moved. The tiled rasterizer stamps
+        // with no origin, so its tiles would show a grown document un-moved;
+        // the bounded compositor draws from the frame cache, which knows.
+        var paperHasMoved = scene.Left != 0 || scene.Top != 0;
         var tileNativeDoc = tileModeOn && scene.Camera is null && state.HaveViewport
-            && !docEffects;
+            && !docEffects && !paperHasMoved;
 
         // Where the active layer's contribution begins and ends in the pass
         // list, so the layers that are NOT being drawn on can be folded into

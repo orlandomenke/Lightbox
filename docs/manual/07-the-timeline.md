@@ -4,13 +4,15 @@
 ## The timeline family
 
 **The everyday frame verbs are also on the Animation menu**, each aimed at the
-drawing under the playhead on the layer you are on: play/pause and flipping to
+cel you have picked — or, with nothing picked, the drawing under the playhead
+on the layer you are on: play/pause and flipping to
 the neighbouring keys, inserting a keyframe, breakdown or inbetween, inserting
 an empty cell or a blank keyframe, extending and reducing an exposure, the cel
 clipboard, Delete and Delete and pull, onion skin and motion trail, and the
-playback range. Delete, Delete and pull, Insert empty cell and Insert blank
-keyframe take the **selection** when there is one,
-wherever the playhead is. The cel's right-click menu stays the way
+playback range. Every one of them takes the **selection** when there is one,
+wherever the playhead is — Delete, Delete and pull, Insert empty cell and
+Insert blank keyframe cover all of it; the others act on the picked cel. None
+of them changes the layer you draw on. The cel's right-click menu stays the way
 to aim any of them at a *particular* cel — and keeps the dialogs (re-time,
 timing chart, markers), which need one to aim at.
 
@@ -31,8 +33,37 @@ and the sheet keeps its place along the frames: only up and down changes.
 
 ## The X-sheet
 
-One row per layer, one cell per frame. Click a cell to go there; the current one
-is highlighted. A **keyed** cell holds a drawing; a **hold** repeats the drawing
+One row per layer, one cell per frame. **Click a cell to go to its frame and
+pick it**; the current frame is highlighted down the sheet.
+
+**A click never changes the layer you are drawing on.** Click a cell in another
+layer's row and the playhead goes to that frame and that cell becomes the
+selection — so Delete, copy, cut and paste, extending or reducing an exposure,
+a timing preset and marking a keyframe or breakdown all act on *it* — while the
+next mark you make still lands on the layer you were on. Reading the timing of
+another layer, or tidying it, no longer costs you your place.
+**Double-click a cell to go there and draw there**: that switches to its layer.
+Clicking a layer's name at the start of its row, or picking it in the Layers
+docker, switches layer without moving the playhead. A click in your own layer's
+row simply moves the playhead, as it always has.
+
+**The cel that is highlighted is the one a command means**, however it came to
+be picked. Ctrl+click picks a cel without moving the playhead, so with a cel
+picked on frame 10 and the playhead on frame 3, copy copies frame 10's cel,
+paste lands on it, and **I** or *Insert breakdown* marks it — and the playhead
+stays on 3. With a block picked, copy takes the block's run and paste lands at
+the block's first cel, not at the playhead. When cels on several layers are
+picked at the same frame, a command that needs one of them takes the topmost
+row. With nothing picked — or only camera or bone keys picked on the Timeline
+tab — these commands mean the playhead's cel on the layer you are on, as
+before; Delete is the exception, and refuses rather than guess.
+
+**Three things stay with the layer you draw on, not with the picked cel:**
+drawing itself, AI inbetweening, and stepping to the previous or next key
+(**1** and **2**), which walk the keys of the layer you are on. And one gesture
+still takes you to another layer besides the double click: dragging a
+drawing along another layer's row, and the commands on a cel's own right-click
+menu, which have always meant "here". A **keyed** cell holds a drawing; a **hold** repeats the drawing
 before it, which is what animating on 2s and 3s is made of.
 
 **Two kinds of cell look empty, and they are not the same thing.** A plain empty
@@ -332,16 +363,72 @@ The keys answer only with the pointer over the X-sheet: over the canvas Delete
 still clears the selection, and over the Layers docker it still deletes a
 layer.
 
-**Drag across the sheet to select a block of cels** — every frame you sweep
-on every row you sweep, as in a spreadsheet. **Shift+click** does the same from
-the last cel you clicked, so a block can be made in two clicks and resized with
-a third. A block stops at the end of the scene: there are no cels in the hatch.
-A plain click still moves the playhead and clears the selection.
+**Folders are rows on the Timeline and the X-sheet**, in the same order as the
+Layers docker. Click a folder's chevron to **fold** it: the layers inside lose
+their rows and the folder's own row stands for them, with a mark on every frame
+where anything inside it — at any depth — has a drawing. Open it again to get
+the rows back. A character kept as rough, line and colour layers can be one row
+while you time it and three while you draw it.
 
-**Alt+drag a cel along its row to move it** (hold Ctrl as well to copy it).
-This used to be a plain drag; the plain drag selects now, because building a
-selection is what the deletes and the re-timing commands need, and it is done
-far more often than carrying a single drawing.
+**Folding here is separate from the Layers docker.** Collapsing a folder in the
+Layers docker does not fold it on the sheet, and the other way round, so the
+layers stay within reach where you paint while the sheet stays short. The fold
+is saved with the document and is not an undo step. Both surfaces fold
+together — the Timeline and the X-sheet are two views of one sheet.
+
+**Drag a folder's mark to move the whole pose.** A folder's row is a summary,
+and its marks are handles: drag one along the row — on the Timeline or on the
+X-sheet, folded or open — and every drawing inside the folder on that frame
+moves with it, each along its own layer, as one undo step. Layers inside with
+nothing drawn on that frame are left alone.
+
+It moves whole or not at all. If a layer inside already has a drawing on the
+frame you drop on, nothing moves and the status line names the layer — unlike
+dragging a single drawing, this never replaces one, because it reaches layers
+whose rows may be folded out of sight. Nor does it move while anything inside
+is locked. A folder's marks cannot be selected, copied or deleted; open the
+folder for that.
+
+**What is folded away is out of reach** of everything else: folding drops any
+cels inside it from the selection, and a block swept across a folded folder
+leaves its layers out, so nothing you cannot see is ever deleted.
+On the X-sheet a folder and the layers inside it share the folder's colour.
+
+**Pin the rows you are timing, and hide the rest.** Right-click a layer — in
+the Layers docker or on its name in the X-sheet — and choose **Pin to
+timeline**; a folder has the same item on its header's menu and a pin on its
+row in the X-sheet. Once anything is pinned, **Pinned only** appears on the
+Timeline's and the X-sheet's bars. Switch it on and both show just the pinned
+layers and folders, **plus the layer you are drawing on**, which is never
+hidden, and the folders those sit in so the sheet is still a tree you can fold.
+A pinned folder brings everything inside it. Switch it off and every row is
+back; the pins stay for next time.
+
+Pins and the switch are saved with the document and are not undo steps. As with
+folding, a row that leaves the sheet leaves the selection, so nothing out of
+sight is deleted. Both verbs can be given keys in **Edit ▸ Configure ▸
+Shortcuts** — *Show only pinned rows* and *Pin or unpin the active layer* —
+and have none by default.
+
+**Drag a drawing along its row to move it** — no modifier. Hold Ctrl as you
+drop to leave the original where it was and place a copy. This is how timing is
+changed by hand: pick the drawing up and put it on the frame it belongs on.
+Whatever the frame you drop on held is replaced, and dropping past the end of
+the scene makes the scene longer.
+
+**Drag a selected drawing and everything selected goes with it**, by the same
+number of frames, each drawing along its own row. Select a run on one layer to
+slide a whole phrase later, or the same frames down several layers to keep them
+in step. It is one undo step, Ctrl copies the block, and a block that would
+push a drawing off the front of the sheet does not move at all. A drawing that
+is *not* part of the selection moves alone and leaves the selection as it was.
+
+**Drag from an empty cel to select a block** — every frame you sweep on every
+row you sweep, as in a spreadsheet. **Shift+click** does the same from the last
+cel you clicked, so a block can be made in two clicks and resized with a third,
+and it is the way to start a block *on* a drawing, since dragging a drawing
+moves it. A block stops at the end of the scene: there are no cels in the
+hatch. A plain click still moves the playhead and clears the selection.
 
 **Ctrl+click picks cels one at a time**, including ones that are not next to
 each other and ones on other layers — every third cel of a cycle, or the same

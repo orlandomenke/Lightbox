@@ -151,6 +151,13 @@ public sealed class BrushSettings
     /// </summary>
     public double ColorRate { get; set; }
 
+    /// <summary>
+    /// Paint that picks up what it is laid on (Q232). Null for a brush that
+    /// never mixes, and null is what the file holds — absent, not disabled.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("mixing")]
+    public ColourMixing? Mixing { get; set; }
+
     /// <summary>0..1: darkened rim where paint pools at the stroke edge (watercolor).</summary>
     public double WetEdge { get; set; }
 
@@ -420,6 +427,7 @@ public sealed class BrushSettings
         SmudgeLength = SmudgeLength,
         SmudgeRadius = SmudgeRadius,
         ColorRate = ColorRate,
+        Mixing = Mixing?.Clone(),
         WetEdge = WetEdge,
         Granulation = Granulation,
         TipId = TipId,

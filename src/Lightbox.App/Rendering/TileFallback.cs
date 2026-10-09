@@ -23,7 +23,7 @@ public enum TileFallbackReason
     /// <summary>The frame places symbols, which are rasterized whole rather than per tile.</summary>
     Placements,
 
-    /// <summary>A smudge or blur stroke, which reads pixels one tile does not hold (B59).</summary>
+    /// <summary>A smudge, blur or colour-mixing stroke, which reads pixels one tile does not hold (B59).</summary>
     EffectStroke,
 
     /// <summary>An effect stroke is in flight on this layer right now.</summary>
@@ -131,9 +131,9 @@ public static class TileFallback
         TileFallbackReason.Camera => "the scene has a camera",
         TileFallbackReason.Baseline => "frames carry imported or flattened pixels",
         TileFallbackReason.Placements => "frames place symbols",
-        TileFallbackReason.EffectStroke => "frames contain smudge or blur strokes",
+        TileFallbackReason.EffectStroke => "frames contain smudge, blur or colour-mixing strokes",
         TileFallbackReason.BoundStrokes => "frames contain strokes bound to the rig",
-        TileFallbackReason.LiveEffect => "a smudge or blur was in flight",
+        TileFallbackReason.LiveEffect => "a smudge, blur or colour-mixing stroke was in flight",
         TileFallbackReason.Shaped => "layers carry a mask or clip to another",
         TileFallbackReason.Effects => "the document carries live effects",
         _ => reason.ToString(),

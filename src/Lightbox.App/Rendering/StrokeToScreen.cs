@@ -167,6 +167,7 @@ internal sealed class StrokeToScreen
     public void Rendered(long seq)
     {
         var now = Stopwatch.GetTimestamp();
+        double total = -1, tip = 0;
         lock (_gate)
         {
             for (var i = 0; i < Tracked; i++)
@@ -174,16 +175,27 @@ internal sealed class StrokeToScreen
                 if (_pending[i].Seq != seq || _pending[i].EventTicks == 0) continue;
 
                 var draw = Ms(now - _pending[i].PublishTicks);
-                var total = Ms(now - _pending[i].EventTicks);
-                var tip = Ms(now - _pending[i].NewestTicks);
+                total = Ms(now - _pending[i].EventTicks);
+                tip = Ms(now - _pending[i].NewestTicks);
                 _pending[i] = default;
 
                 _drawn++;
                 _toDraw.Add(draw);
                 _total.Add(total);
                 _tip.Add(tip);
-                return;
+                break;
             }
+        }
+        // Per frame for the performance lab, beside the session tallies the
+        // report prints: a paint scenario wants the median and the worst of
+        // these, and a session mean can name neither. Outside the lock, because
+        // the UI thread takes it on every pointer event and a file write held
+        // under it would land inside the very stamp timings being measured
+        // (leak-hunter, on landing).
+        if (total >= 0 && Services.PerfLog.On)
+        {
+            Services.PerfLog.Took("pen.screen", total);
+            Services.PerfLog.Took("tip.screen", tip);
         }
     }
 

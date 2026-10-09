@@ -111,7 +111,7 @@
         <StackPanel Spacing="{StaticResource Space6}">
           <TextBlock Text="Memory for pictures" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
-                     Text="Everything Lightbox keeps drawn in memory — still frames, playback, onion skin, undo pixels — shares this one limit, and the pictures used longest ago make room first. Raising it helps long scenes; lowering it frees memory for the rest of the machine. Starts at an eighth of this computer's memory." />
+                     Text="Everything Lightbox keeps drawn in memory — still frames, playback, onion skin, undo pixels — shares this one limit, and the pictures used longest ago make room first. Raising it helps long scenes; lowering it frees memory for the rest of the machine. Starts at a quarter of this computer's memory." />
           <DockPanel>
             <NumericUpDown DockPanel.Dock="Right" x:Name="CacheBudgetBox" Width="{StaticResource SizeSettingsField}"
                            Minimum="512" Maximum="16384" Increment="256" FormatString="0"
@@ -148,7 +148,7 @@
         <StackPanel Spacing="{StaticResource Space6}">
           <TextBlock Text="Prepare playback while idle" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
-                     Text="While you are not drawing or playing, Lightbox renders the playback range in the background, so play starts at full speed instead of rendering each frame as it reaches it. It stops the moment you draw or press play. Turn it off to save battery — the cost is the processor working for a few seconds after each change." />
+                     Text="While you are not drawing or playing, Lightbox renders the playback range and the drawings either side of the one you are on. Play starts at full speed, and stepping to the next or previous drawing does not wait. It stops the moment you draw or press play. Turn it off to save battery — the cost is the processor working for a few seconds after each change." />
           <CheckBox x:Name="WarmPlaybackBox" Content="Prepare playback while idle"
                     IsCheckedChanged="OnWarmPlaybackChanged" />
         </StackPanel>

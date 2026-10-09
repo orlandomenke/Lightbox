@@ -42,6 +42,13 @@ public partial class BrushEditor : UserControl
     /// <param name="Off">The view-model properties it owns and the value of each that leaves the mark alone.</param>
     /// <param name="Curves">The pen-pressure curves shown beside it, and the panel they go in.</param>
     /// <param name="Shown">Whether it applies to this brush at all (Smudge is for smudge brushes).</param>
+    /// <param name="Kept">
+    /// Properties captured when the option is unticked and written back when it
+    /// is ticked, but never written off: the values an option's block holds
+    /// when turning it off means dropping the block (Colour mixing), so that
+    /// re-ticking brings back what the artist tuned rather than the defaults
+    /// (ui-critic, against Q211's "nothing is lost").
+    /// </param>
     internal sealed record Option(
         string Name,
         string Panel,
@@ -49,7 +56,22 @@ public partial class BrushEditor : UserControl
         IReadOnlyDictionary<string, object?> Off,
         (BrushDynamic Target, string Label)[] Curves,
         string? CurvePanel = null,
-        Func<MainViewModel, bool>? Shown = null);
+        Func<MainViewModel, bool>? Shown = null,
+        OptionGroup Group = OptionGroup.Basics,
+        string[]? Kept = null);
+
+    /// <summary>The families the list is ruled into, in the order they appear.</summary>
+    internal enum OptionGroup
+    {
+        /// <summary>What every brush has: a tip, a size, opacity, flow, spacing.</summary>
+        Basics,
+
+        /// <summary>What a brush may add to the mark: shape, scatter, texture, colour.</summary>
+        Dynamics,
+
+        /// <summary>How its paint behaves: smudge, colour mixing, medium, blend.</summary>
+        Paint,
+    }
 
     private static readonly Dictionary<string, object?> None = [];
 
@@ -62,10 +84,10 @@ public partial class BrushEditor : UserControl
         new("Spacing", "OptionSpacing", true, None, []),
         new("Shape dynamics", "OptionShape", false,
             new Dictionary<string, object?> { [nameof(MainViewModel.BrushRoundnessJitter)] = 0.0, [nameof(MainViewModel.BrushRotationJitter)] = 0.0 },
-            [(BrushDynamic.Roundness, "Roundness")], "CurvesShape"),
+            [(BrushDynamic.Roundness, "Roundness")], "CurvesShape", Group: OptionGroup.Dynamics),
         new("Scatter", "OptionScatter", false,
             new Dictionary<string, object?> { [nameof(MainViewModel.BrushScatter)] = 0.0 },
-            [(BrushDynamic.Scatter, "Scatter")], "CurvesScatter"),
+            [(BrushDynamic.Scatter, "Scatter")], "CurvesScatter", Group: OptionGroup.Dynamics),
         new("Texture", "OptionTexture", false,
             new Dictionary<string, object?>
             {
@@ -73,7 +95,7 @@ public partial class BrushEditor : UserControl
                 [nameof(MainViewModel.BrushGranulation)] = 0.0,
                 [nameof(MainViewModel.BrushWetEdge)] = 0.0,
             },
-            []),
+            [], Group: OptionGroup.Dynamics),
         new("Colour dynamics", "OptionColour", false,
             new Dictionary<string, object?>
             {
@@ -83,14 +105,19 @@ public partial class BrushEditor : UserControl
                 [nameof(MainViewModel.BrushSaturationJitter)] = 0.0,
                 [nameof(MainViewModel.BrushBrightnessJitter)] = 0.0,
             },
-            []),
+            [], Group: OptionGroup.Dynamics),
         new("Smudge", "OptionSmudge", true, None,
             [(BrushDynamic.ColorRate, "Colour rate"), (BrushDynamic.SmudgeLength, "Length")], "CurvesSmudge",
-            Shown: vm => vm.IsSmudgeBrush),
+            Shown: vm => vm.IsSmudgeBrush, Group: OptionGroup.Paint),
+        new("Colour mixing", "OptionMixing", false,
+            new Dictionary<string, object?> { [nameof(MainViewModel.BrushMixing)] = false },
+            [], null,
+            Shown: vm => !vm.IsSmudgeBrush, Group: OptionGroup.Paint,
+            Kept: [nameof(MainViewModel.BrushMixAmount), nameof(MainViewModel.BrushMixLength), nameof(MainViewModel.BrushMixReach)]),
         new("Medium", "OptionMedium", false,
             new Dictionary<string, object?> { [nameof(MainViewModel.BrushMedium)] = MediumKind.None },
-            []),
-        new("Blend", "OptionBlend", true, None, []),
+            [], Group: OptionGroup.Paint),
+        new("Blend", "OptionBlend", true, None, [], Group: OptionGroup.Paint),
     ];
 
     /// <summary>
@@ -163,7 +190,11 @@ public partial class BrushEditor : UserControl
             DockPanel.SetDock(check, Dock.Left);
             row.Children.Add(check);
             row.Children.Add(label);
-            items.Add(new ListBoxItem { Content = row, Tag = option });
+            var item = new ListBoxItem { Content = row, Tag = option };
+            // Ruled off from the family before it. Read off the option before,
+            // not off a fixed name: Smudge leads its family only when shown.
+            if (items.Count > 0 && ((Option)items[^1].Tag!).Group != option.Group) item.Classes.Add("groupStart");
+            items.Add(item);
         }
         OptionList.ItemsSource = items;
         OptionList.SelectedItem = items.FirstOrDefault(i => ReferenceEquals(i.Tag, keep)) ?? items.FirstOrDefault();
@@ -198,14 +229,17 @@ public partial class BrushEditor : UserControl
         {
             if (!InUse(option)) return;
             _kept[KeptKey(option)] = (
-                option.Off.Keys.ToDictionary(k => k, Read),
+                option.Off.Keys.Concat(option.Kept ?? []).ToDictionary(k => k, Read),
                 option.Curves.ToDictionary(c => c.Target, c => _vm.BrushDrives(c.Target) ? _vm.BrushCurve(c.Target) : null));
             foreach (var (name, off) in option.Off) Write(name, off);
             foreach (var (target, _) in option.Curves) _vm.SetBrushDrives(target, false);
         }
         else if (_kept.Remove(KeptKey(option), out var kept))
         {
-            foreach (var (name, value) in kept.Values) Write(name, value);
+            // The Off keys first: for an option whose off is "no block", the
+            // block has to exist before the kept values can land in it.
+            foreach (var name in option.Off.Keys) Write(name, kept.Values[name]);
+            foreach (var name in option.Kept ?? []) Write(name, kept.Values[name]);
             foreach (var (target, curve) in kept.Curves)
             {
                 if (curve is not null) _vm.SetBrushCurve(target, curve);

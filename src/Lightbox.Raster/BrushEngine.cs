@@ -149,10 +149,13 @@ public static class BrushEngine
         // computes its own bounded region inside StampPaint.
         // One entry, holding null, for every ordinary stroke — so this is the
         // same call it always was, through a loop that runs once.
+        // A mixing brush's deposits are computed once, on the drawn mark, and
+        // every copy lays the same colours: the copy is the mark, moved (Q232).
+        var deposits = stroke.Brush.Mixing is null ? null : new List<MixDeposit>();
         foreach (var m in SymmetryCopies(stroke))
         {
             if (draft) StampPaintDraft(target, stroke, info, targetPixels, origin, m);
-            else StampPaint(target, stroke, info, targetPixels, outputScale, origin, m);
+            else StampPaint(target, stroke, info, targetPixels, outputScale, origin, m, deposits);
         }
     }
 
@@ -563,7 +566,7 @@ public static class BrushEngine
     /// </param>
     private static void StampPaint(
         SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels, double outputScale,
-        SKPointI origin, SKMatrix? symmetry = null)
+        SKPointI origin, SKMatrix? symmetry = null, List<MixDeposit>? deposits = null)
     {
         // The scratch covers only what the stroke can reach — dabs, effects
         // and feathered clips all happen inside it. This is what keeps a
@@ -604,9 +607,30 @@ public static class BrushEngine
 
         InDocumentSpace(canvas, dev, outputScale, origin, () =>
         {
+            // The dabs, mixed or plain. The drawn mark (no symmetry matrix)
+            // samples the ground and records what each dab deposited; a copy
+            // replays those deposits under its own transform.
+            void Dabs(SKCanvas? fp)
+            {
+                if (deposits is not null && symmetry is null)
+                {
+                    // Flushed per dab inside; the pixmap is a view of the raster
+                    // surface's own memory, so it sees every dab laid before.
+                    using var scratchPixels = scratch.PeekPixels();
+                    using var beneathPixels = targetPixels?.PeekPixels();
+                    var ground = new MixGround(
+                        scratchPixels, beneathPixels, new SKPointI(dev.Left, dev.Top), canvas.TotalMatrix);
+                    StampMixedDabRange(canvas, stroke, WalkDabs(stroke), 0, int.MaxValue, ground, default, deposits, fp);
+                }
+                else
+                {
+                    StampDabRange(canvas, stroke, WalkDabs(stroke), 0, int.MaxValue, fp, false, deposits);
+                }
+            }
+
             if (footprint is null)
             {
-                StampDabs(canvas, stroke);
+                Dabs(null);
             }
             else
             {
@@ -614,7 +638,7 @@ public static class BrushEngine
                 // dabs, so it takes the same transform rather than a rebuilt one.
                 InDocumentSpace(
                     footprint.Canvas, dev, outputScale, origin,
-                    () => StampDabs(canvas, stroke, footprint.Canvas), symmetry);
+                    () => Dabs(footprint.Canvas), symmetry);
                 CapToFootprint(scratch, footprint, local, CeilingReachPx(brush, outputScale));
             }
 
@@ -1338,7 +1362,9 @@ public static class BrushEngine
     /// </para>
     /// </remarks>
     public static double SettleTolerance(BrushSettings brush) =>
-        HasPositionSeededDynamics(brush) ? 0 : 0.25;
+        // A mixing dab's colour is sampled at its position, so a drift that
+        // would be invisible on a plain dab moves what it picked up.
+        HasPositionSeededDynamics(brush) || brush.Mixing is not null ? 0 : 0.25;
 
     /// <summary>
     /// Whether anything about how this brush's dabs are drawn is seeded from
@@ -1519,6 +1545,7 @@ public static class BrushEngine
         && brush.HueJitter <= 0
         && brush.SaturationJitter <= 0
         && brush.BrightnessJitter <= 0
+        && brush.Mixing is null
         && Math.Clamp(brush.Medium.PaintLoad, 0, 1) >= 1;
 
     /// <summary>
@@ -2546,7 +2573,7 @@ public static class BrushEngine
     /// </remarks>
     public static void StampDabRange(
         SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
-        SKCanvas? footprint = null, bool footprintOnly = false)
+        SKCanvas? footprint = null, bool footprintOnly = false, IReadOnlyList<MixDeposit>? replay = null)
     {
         if (DrawsAsOneSilhouette(stroke.Brush))
         {
@@ -2562,10 +2589,241 @@ public static class BrushEngine
         for (var i = Math.Max(0, from); i < Math.Min(to, dabs.Count); i++)
         {
             var dab = dabs[i];
+            // A symmetry copy of a mixing stroke lays the colours the drawn mark
+            // deposited, dab for dab, rather than sampling its own ground.
+            MixDeposit? mix = replay is not null && i < replay.Count ? replay[i] : null;
             StampDab(
                 canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load,
-                dab.Seed, footprint, footprintOnly, dab.Fidelity);
+                dab.Seed, footprint, footprintOnly, dab.Fidelity, mix);
         }
+    }
+
+    // ---- colour mixing (Q232) ----------------------------------------------------
+
+    /// <summary>What a mixing brush is carrying between dabs.</summary>
+    /// <param name="Colour">The pickup, with its alpha: how much there is of it.</param>
+    /// <param name="Started">Whether a first dab has sampled yet.</param>
+    public readonly record struct MixCarry(SKColor Colour, bool Started);
+
+    /// <summary>
+    /// What one dab deposits toward: the colour it is carrying and how far the
+    /// brush's own paint is mixed to it. Recorded per dab on the drawn mark so
+    /// symmetry copies, and the live path's copies, lay the same colours.
+    /// </summary>
+    public readonly record struct MixDeposit(SKColor Carried, float Weight);
+
+    /// <summary>
+    /// Where a mixing dab reads the ground: the stroke's own scratch so far,
+    /// composited over the layer beneath. Both in device pixels; the matrix
+    /// takes a document point to the scratch's pixels, and the offset takes a
+    /// scratch pixel to the layer's.
+    /// </summary>
+    public readonly struct MixGround
+    {
+        public MixGround(SKPixmap? scratch, SKPixmap? beneath, SKPointI beneathOffset, SKMatrix toScratch)
+        {
+            Scratch = scratch;
+            Beneath = beneath;
+            BeneathOffset = beneathOffset;
+            ToScratch = toScratch;
+        }
+
+        public SKPixmap? Scratch { get; }
+        /// <summary>The layer beneath, as a view of its pixels: one read route for both surfaces.</summary>
+        public SKPixmap? Beneath { get; }
+        public SKPointI BeneathOffset { get; }
+        public SKMatrix ToScratch { get; }
+    }
+
+    /// <summary>
+    /// Stamp a range of a mixing brush's dabs: each samples the ground under
+    /// it, advances what the brush carries, and lays its paint mixed toward
+    /// that. Returns the carry after the last dab, for the caller to checkpoint
+    /// — the live path resumes a settled boundary from it exactly as it does
+    /// for a smudge (B69/B89).
+    /// </summary>
+    /// <param name="deposits">
+    /// Filled at each dab's index with what it deposited toward, so a symmetry
+    /// copy can replay it through <see cref="StampDabRange"/>.
+    /// </param>
+    public static MixCarry StampMixedDabRange(
+        SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
+        in MixGround ground, MixCarry carry, List<MixDeposit>? deposits, SKCanvas? footprint = null)
+    {
+        var brush = stroke.Brush;
+        if (brush.Mixing is not { } mixing)
+        {
+            StampDabRange(canvas, stroke, dabs, from, to, footprint);
+            return carry;
+        }
+
+        var color = StrokeColor(stroke);
+        var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
+        var tipImage = brush.TipId is null ? null : BrushTipRegistry.ResolveImage(brush.TipId);
+        var baseAmount = (float)Math.Clamp(mixing.Amount, 0, 1);
+        var stretch = (float)Math.Clamp(mixing.Length, 0, 1);
+        var reach = (float)Math.Clamp(mixing.Reach, 0, 1);
+
+        for (var i = Math.Max(0, from); i < Math.Min(to, dabs.Count); i++)
+        {
+            var dab = dabs[i];
+            var radius = (float)RadiusAt(brush, dab.Pressure);
+
+            // The walk carries a heading only for a brush that follows its
+            // direction; every other brush gets one here from the path, so the
+            // ring's leading point leads whatever the tip does.
+            var heading = dab.Heading;
+            if (double.IsNaN(heading) && i > 0)
+            {
+                var prev = dabs[i - 1].Pos;
+                if (prev.X != dab.Pos.X || prev.Y != dab.Pos.Y)
+                {
+                    heading = Math.Atan2(dab.Pos.Y - prev.Y, dab.Pos.X - prev.X) * 180.0 / Math.PI;
+                }
+            }
+
+            // What is under the dab now, before it is laid: the dabs so far
+            // over the layer beneath. Flushed so the scratch view is current.
+            canvas.Flush();
+            var sample = SampleGround(ground, dab.Pos, Math.Max(1f, radius * reach), heading);
+
+            // The pickup: the first dab takes what is under it; later dabs keep
+            // what they carried by Length and take the rest from the ground.
+            var pickup = carry.Started ? BlendCarried(sample, carry.Colour, stretch) : sample;
+            carry = new MixCarry(pickup, true);
+
+            // How far this dab's paint goes toward the pickup: the share that is
+            // not its own paint, scaled by how much there is to pick up. On a
+            // blank canvas that is nothing, and the dab is exactly its own.
+            var weight = (1f - baseAmount) * (pickup.Alpha / 255f);
+            var deposit = new MixDeposit(pickup, weight);
+            if (deposits is not null)
+            {
+                while (deposits.Count <= i) deposits.Add(default);
+                deposits[i] = deposit;
+            }
+
+            StampDab(
+                canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load,
+                dab.Seed, footprint, false, dab.Fidelity, deposit);
+        }
+        return carry;
+    }
+
+    /// <summary>
+    /// The ground under a document point: a five-point average of the scratch
+    /// so far, composited over the same average of the layer beneath. The
+    /// dulling smudge's sampler, read through two surfaces.
+    /// </summary>
+    private static SKColor SampleGround(in MixGround ground, SKPoint doc, float spread, double headingDeg)
+    {
+        var at = ground.ToScratch.MapPoint(doc);
+        // The ring is in DEVICE pixels, so its radius takes the matrix's scale:
+        // at 2x the same document reach is twice as many pixels, and a ring left
+        // in document units would read half as far out and drift toward the
+        // stroke's own trail sooner than at 1x — invariant 7 (the adversary).
+        var m = ground.ToScratch;
+        spread *= MathF.Sqrt(m.ScaleX * m.ScaleX + m.SkewY * m.SkewY);
+        // The ring is turned to the stroke: one point straight ahead of the dab,
+        // where the ground is still untouched, one behind in the stroke's own
+        // trail, one each side. Sampling only around the centre read the
+        // previous dab's deposit every time at ordinary spacing, and a yellow
+        // stroke across a blue field went yellow within ten dabs — real paint
+        // keeps picking up blue at its leading edge. Heading-less (the first
+        // dab, or a brush whose walk carries no heading) falls back to the axes.
+        var rad = double.IsNaN(headingDeg) ? 0.0 : headingDeg * Math.PI / 180.0;
+        var fx = (float)Math.Cos(rad);
+        var fy = (float)Math.Sin(rad);
+        Span<SKPoint> ring =
+        [
+            new(0, 0),
+            new(fx, fy), new(-fx, -fy),
+            new(-fy, fx), new(fy, -fx),
+        ];
+        var over = ground.Scratch is { } scratch ? Average(scratch, at, spread, ring) : SKColors.Transparent;
+        var under = ground.Beneath is { } beneath
+            ? Average(beneath, new SKPoint(at.X + ground.BeneathOffset.X, at.Y + ground.BeneathOffset.Y), spread, ring)
+            : SKColors.Transparent;
+        return OverUnpremul(over, under);
+    }
+
+    // A plain loop rather than one with a reader delegate: a delegate is an
+    // allocation, and this runs twice per dab (leak-hunter's shape). Both
+    // surfaces are read as pixmap views, so one loop serves.
+    private static SKColor Average(SKPixmap pixels, SKPoint pos, float spread, ReadOnlySpan<SKPoint> ring)
+    {
+        int a = 0, r = 0, g = 0, b = 0, n = 0;
+        foreach (var offset in ring)
+        {
+            var x = (int)MathF.Floor(pos.X + offset.X * spread);
+            var y = (int)MathF.Floor(pos.Y + offset.Y * spread);
+            n++;
+            // Off the surface is transparent, and it still counts.
+            if (x < 0 || y < 0 || x >= pixels.Width || y >= pixels.Height) continue;
+            var c = pixels.GetPixelColor(x, y);
+            // Alpha-weighted, so a transparent neighbour dilutes rather than
+            // dragging the colour toward black.
+            a += c.Alpha;
+            r += c.Red * c.Alpha;
+            g += c.Green * c.Alpha;
+            b += c.Blue * c.Alpha;
+        }
+        return a == 0 ? SKColors.Transparent : new SKColor((byte)(r / a), (byte)(g / a), (byte)(b / a), (byte)(a / n));
+    }
+
+    /// <summary>Source-over of two unpremultiplied colours, alpha included.</summary>
+    private static SKColor OverUnpremul(SKColor over, SKColor under)
+    {
+        var ao = over.Alpha / 255f;
+        var au = under.Alpha / 255f;
+        var a = ao + au * (1f - ao);
+        if (a <= 0f) return SKColors.Transparent;
+        byte Ch(byte o, byte u) => (byte)Math.Clamp((o * ao + u * au * (1f - ao)) / a + 0.5f, 0, 255);
+        return new SKColor(Ch(over.Red, under.Red), Ch(over.Green, under.Green), Ch(over.Blue, under.Blue),
+            (byte)Math.Clamp(a * 255f + 0.5f, 0, 255));
+    }
+
+    /// <summary>
+    /// What the brush carries into the next dab: the ground now, kept toward
+    /// what it carried by <paramref name="stretch"/>. Alpha lerps; colour mixes
+    /// as pigment where both have any.
+    /// </summary>
+    private static SKColor BlendCarried(SKColor ground, SKColor carried, float stretch)
+    {
+        var alpha = ground.Alpha + (carried.Alpha - ground.Alpha) * stretch;
+        if (alpha < 0.5f) return SKColors.Transparent;
+        if (ground.Alpha == 0) return carried.WithAlpha((byte)(alpha + 0.5f));
+        if (carried.Alpha == 0) return ground.WithAlpha((byte)(alpha + 0.5f));
+        // Weighted by how much of each there is, as paint of two quantities mixes.
+        var t = carried.Alpha * stretch / (ground.Alpha * (1f - stretch) + carried.Alpha * stretch);
+        return MixPaint(ground, carried, t).WithAlpha((byte)(alpha + 0.5f));
+    }
+
+    /// <summary>
+    /// <paramref name="paint"/> mixed <paramref name="weight"/> of the way toward
+    /// <paramref name="carried"/>, as pigment: Kubelka–Munk on K and S, so
+    /// yellow into blue goes green where a lerp would go grey. The paint's
+    /// alpha is kept; only the colour goes through the model.
+    /// </summary>
+    private static SKColor MixPaint(SKColor paint, SKColor carried, float weight)
+    {
+        if (weight <= 0f) return paint;
+        // A colour mixed with itself is itself. Said outright because the model's
+        // round trip (sRGB to K and S and back) can land a level off, and on a
+        // blank canvas every pickup is the stroke's own paint — that case must
+        // stay byte-identical to the same brush without mixing. "Itself" is
+        // within two levels: the scratch stores premultiplied pixels, and the
+        // paint read back off an antialiased edge is the same paint rounded.
+        if (Math.Abs(carried.Red - paint.Red) <= 2
+            && Math.Abs(carried.Green - paint.Green) <= 2
+            && Math.Abs(carried.Blue - paint.Blue) <= 2)
+        {
+            return paint;
+        }
+        var mixed = Media.Pigment.Mix(
+            Media.Pigment.FromColor(paint, 1.0), Media.Pigment.FromColor(carried, 1.0), weight);
+        // The mass tone: a fully hiding layer over anything is its own colour.
+        return mixed.Over(SKColors.White, 1.0).WithAlpha(paint.Alpha);
     }
 
     /// <summary>
@@ -2846,6 +3104,45 @@ public static class BrushEngine
             : null;
 
     /// <summary>
+    /// Every pixel a <em>commit</em> can touch: <see cref="CommitBounds"/> for
+    /// the authored mark, the same reach under every symmetry and wrap copy
+    /// the render draws, and the whole surface for a gradient — which fills
+    /// the layer whatever its two points say. What a tile store or a publish
+    /// takes after a pen-up.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="CommitBounds"/> is built from the authored points alone and
+    /// never knew about <see cref="SymmetryCopies"/>: a mirrored stroke's copy,
+    /// a wrapped stroke's far-edge copy and a gradient's fill all landed in the
+    /// frame bitmap outside the rectangle the commit said it changed. On screen
+    /// that was masked because the live layer had already shown them; in a
+    /// tile store, which takes exactly the region it is told, the copies were
+    /// missing (found by the adversary on B424, present on main before it).
+    /// Mapped from the unclamped reach, not the clamped bounds: a mark that
+    /// runs off the left edge has a copy that comes back onto the surface from
+    /// beyond the mirror of that edge.
+    /// </remarks>
+    public static SKRectI? CommitRegion(Stroke stroke, SKImageInfo info, SKPointI origin = default)
+    {
+        var surface = SKRectI.Create(0, 0, info.Width, info.Height);
+        if (stroke.Tool == ToolKind.Gradient) return surface;
+        if (ReachBounds(stroke) is not { } reach) return null;
+
+        var union = reach;
+        foreach (var copy in SymmetryCopies(stroke))
+        {
+            if (copy is not { } m) continue;
+            var mapped = m.MapRect(SKRect.Create(reach.Left, reach.Top, reach.Width, reach.Height));
+            var boxed = new SKRectI(
+                (int)Math.Floor(mapped.Left), (int)Math.Floor(mapped.Top),
+                (int)Math.Ceiling(mapped.Right), (int)Math.Ceiling(mapped.Bottom));
+            union = SKRectI.Union(union, boxed);
+        }
+        var clamped = SKRectI.Intersect(ToSurface(union, origin), surface);
+        return clamped.Width > 0 && clamped.Height > 0 ? clamped : null;
+    }
+
+    /// <summary>
     /// The same reach, unclamped — bounds as <em>where the stroke is</em> rather
     /// than <em>what to repaint</em>. <see cref="CommitBounds"/> clamps to the
     /// surface because nothing off the surface needs repainting; the stroke
@@ -2976,7 +3273,7 @@ public static class BrushEngine
         SKCanvas canvas, SKPoint pos, double pressure, BrushSettings brush, SKColor color,
         SKBitmap? tip, double directionDeg = double.NaN, SKImage? tipImage = null,
         double load = 1, SKPoint? seed = null, SKCanvas? footprint = null,
-        bool footprintOnly = false, int fidelity = 1)
+        bool footprintOnly = false, int fidelity = 1, MixDeposit? mix = null)
     {
         var radius = (float)(RadiusAt(brush, pressure));
         if (radius <= 0) return;
@@ -3012,6 +3309,9 @@ public static class BrushEngine
         }
 
         color = JitterColor(color, s, brush);
+        // After the jitter: the brush's own paint, as it varies, is what mixes
+        // with what it picked up (Q232).
+        if (mix is { Weight: > 0f } m) color = MixPaint(color, m.Carried, m.Weight);
 
         // Position-seeded scatter keeps re-renders identical. Pressure scales
         // how far it throws, not whether it throws — the direction stays the

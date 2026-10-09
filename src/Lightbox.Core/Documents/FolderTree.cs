@@ -90,6 +90,19 @@ public static class FolderTree
         return chain;
     }
 
+    /// <summary>
+    /// The colour a folder shows: its own once chosen, else the nearest
+    /// containing folder's that has one, else <see cref="LayerGroup.DefaultColor"/>.
+    /// </summary>
+    public static string ColorOf(Scene scene, LayerGroup folder) =>
+        folder.Color
+        ?? Ancestors(scene, folder).FirstOrDefault(f => f.Color is not null)?.Color
+        ?? LayerGroup.DefaultColor;
+
+    /// <summary>The colour of the folder a layer is in, or null for a loose layer.</summary>
+    public static string? ColorOf(Scene scene, Layer layer) =>
+        FoldersOf(scene, layer) is [var innermost, ..] ? ColorOf(scene, innermost) : null;
+
     /// <summary>The folder directly containing <paramref name="folder"/>, as the tree resolves it.</summary>
     public static LayerGroup? ParentOf(Scene scene, LayerGroup folder) => ParentOf(Linear(scene), folder);
 
@@ -111,6 +124,21 @@ public static class FolderTree
     /// <summary>The innermost locked folder a layer is inside, or null — the one to name when an edit is refused.</summary>
     public static LayerGroup? LockedFolderOf(Scene scene, Layer layer) =>
         layer.GroupId is null ? null : FoldersOf(scene, layer).FirstOrDefault(f => f.Locked);
+
+    /// <summary>The innermost locked folder a folder is inside, or null. Its own lock is not counted.</summary>
+    public static LayerGroup? LockedFolderOf(Scene scene, LayerGroup folder) =>
+        Ancestors(scene, folder).FirstOrDefault(f => f.Locked);
+
+    /// <summary>
+    /// The innermost hidden folder a layer is inside, or null. A layer in one
+    /// draws nothing whatever its own switch says.
+    /// </summary>
+    public static LayerGroup? HiddenFolderOf(Scene scene, Layer layer) =>
+        layer.GroupId is null ? null : FoldersOf(scene, layer).FirstOrDefault(f => !f.Visible);
+
+    /// <summary>The innermost hidden folder a folder is inside, or null. Its own switch is not counted.</summary>
+    public static LayerGroup? HiddenFolderOf(Scene scene, LayerGroup folder) =>
+        Ancestors(scene, folder).FirstOrDefault(f => !f.Visible);
 
     /// <summary>Whether <paramref name="inner"/> is <paramref name="outer"/> or inside it at any depth.</summary>
     public static bool IsWithin(Scene scene, LayerGroup inner, LayerGroup outer) =>
@@ -166,6 +194,65 @@ public static class FolderTree
         return ParentOf(find, folder) is { } parent && !IsWithin(find, layer, parent) ? null : layer;
     }
 
+    /// <summary>
+    /// The rows the Timeline and the X-sheet show (Q227), topmost first: the
+    /// docker's tree, folded by <see cref="LayerGroup.SheetCollapsed"/> rather
+    /// than by the docker's own <see cref="LayerGroup.Collapsed"/>, and with
+    /// what is folded away left out rather than marked.
+    /// </summary>
+    /// <remarks>
+    /// The same walk as <see cref="Rows(Scene)"/> and deliberately not a second
+    /// one: where a folder sits, what a split folder does and what a crafted
+    /// file cannot do are decided there once, and a sheet that ordered its rows
+    /// by a different rule would disagree with the docker beside it.
+    /// </remarks>
+    /// <param name="active">
+    /// The layer being drawn on. With <see cref="Scene.SheetPinnedOnly"/> on it
+    /// keeps its row whether or not it is pinned — a sheet that hid the layer a
+    /// mark is about to land on would be showing timing for everything but it.
+    /// </param>
+    public static List<StackRow> SheetRows(Scene scene, Layer? active = null)
+    {
+        var rows = Rows(scene, f => f.SheetCollapsed == true).Where(r => !r.Hidden).ToList();
+        if (scene.SheetPinnedOnly != true) return rows;
+        // The switch with nothing pinned shows everything. It is how the
+        // feature is met for the first time — switch on, sheet empty — and an
+        // empty sheet reads as a lost document, not as a filter.
+        if (!scene.Layers.Any(l => l.SheetPinned == true) && !scene.LayerGroups.Any(g => g.SheetPinned == true))
+        {
+            return rows;
+        }
+
+        var find = Indexed(scene);
+        var refs = ReferenceEqualityComparer.Instance;
+        var folders = new HashSet<LayerGroup>(refs);
+        var layers = new HashSet<Layer>(refs);
+        foreach (var layer in scene.Layers)
+        {
+            var path = FoldersOf(find, layer);
+            // Pinned itself, the one being drawn on, or inside a pinned folder
+            // at any depth: a pinned folder brings what is in it.
+            if (layer.SheetPinned != true && !ReferenceEquals(layer, active) && !path.Any(f => f.SheetPinned == true)) continue;
+            layers.Add(layer);
+            // The folders a kept row sits in stay, so the tree is still a tree
+            // and can still be folded.
+            foreach (var f in path) folders.Add(f);
+        }
+        foreach (var folder in scene.LayerGroups)
+        {
+            var above = Ancestors(find, folder);
+            if (folder.SheetPinned != true && !above.Any(f => f.SheetPinned == true)) continue;
+            folders.Add(folder);
+            foreach (var f in above) folders.Add(f);
+        }
+        return rows.Where(r => r.Item switch
+        {
+            Layer l => layers.Contains(l),
+            LayerGroup g => folders.Contains(g),
+            _ => false,
+        }).ToList();
+    }
+
     /// <summary>The docker's rows, topmost first.</summary>
     /// <remarks>
     /// Every walk here runs on one index built for the call and is bounded by
@@ -173,7 +260,10 @@ public static class FolderTree
     /// that share an id (a hand-edited file) are both listed rather than one
     /// throwing.
     /// </remarks>
-    public static List<StackRow> Rows(Scene scene)
+    public static List<StackRow> Rows(Scene scene) => Rows(scene, f => f.Collapsed);
+
+    /// <summary>The same rows, folded by whichever surface is asking.</summary>
+    private static List<StackRow> Rows(Scene scene, Func<LayerGroup, bool> folded)
     {
         var layers = scene.Layers;
         var rows = new List<StackRow>(layers.Count + scene.LayerGroups.Count);
@@ -201,7 +291,7 @@ public static class FolderTree
         var emitted = new HashSet<LayerGroup>(refs);
         var open = new List<LayerGroup>(); // outermost first
 
-        bool HiddenNow() => open.Any(f => f.Collapsed);
+        bool HiddenNow() => open.Any(folded);
 
         void EmitEmpty(LayerGroup folder, int depth, bool hidden)
         {
@@ -212,7 +302,7 @@ public static class FolderTree
             // MaxDepth the safety net below lists them instead, so a crafted
             // chain cannot recurse the stack away.
             if (depth >= MaxDepth) return;
-            foreach (var child in childrenOf[folder]) EmitEmpty(child.Folder, depth + 1, hidden || folder.Collapsed);
+            foreach (var child in childrenOf[folder]) EmitEmpty(child.Folder, depth + 1, hidden || folded(folder));
         }
 
         void EmitTopOf(LayerGroup? parent)

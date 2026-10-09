@@ -29,7 +29,8 @@ namespace Lightbox.App.Services;
 /// </para>
 /// <para>
 /// Each line: <c>{"t": ms since start, "ev": name, "ms": duration, "d": detail}</c>.
-/// <c>t</c> is when the action began, so spans and stalls can be overlapped.
+/// <c>t</c> is when the action began, so spans and stalls can be overlapped. A
+/// count (<see cref="Count"/>) carries its value in <c>v</c> instead of a duration.
 /// </para>
 /// </remarks>
 public static class PerfLog
@@ -131,6 +132,29 @@ public static class PerfLog
         Write(Clock.Elapsed.TotalMilliseconds, name, 0, detail);
     }
 
+    /// <summary>
+    /// A duration that was measured elsewhere and has just ended. Written as a
+    /// span whose start is backdated by its own length, so the lab can overlap
+    /// it with stalls like any other action. The pen-to-screen chain clocks
+    /// itself from pointer event to drawn frame and reports here per frame.
+    /// </summary>
+    public static void Took(string name, double ms, string? detail = null)
+    {
+        if (!On) return;
+        Write(Clock.Elapsed.TotalMilliseconds - ms, name, ms, detail);
+    }
+
+    /// <summary>
+    /// A moment with a value that is not a time — how many points the pen is
+    /// ahead of the mark. Carried in its own field (<c>v</c>) so the lab never
+    /// reads a count as milliseconds.
+    /// </summary>
+    public static void Count(string name, long value)
+    {
+        if (!On) return;
+        Write(Clock.Elapsed.TotalMilliseconds, name, 0, null, value);
+    }
+
     /// <summary>A timed action. A default instance — what an off log hands out — records nothing.</summary>
     public readonly struct Span : IDisposable
     {
@@ -152,7 +176,7 @@ public static class PerfLog
         }
     }
 
-    private static void Write(double t, string name, double ms, string? detail)
+    private static void Write(double t, string name, double ms, string? detail, long? value = null)
     {
         // Hand-escaped rather than through the serializer: this runs per
         // publish while the log is on, and a measuring tool should not tax
@@ -166,6 +190,10 @@ public static class PerfLog
         {
             line.Append(",\"d\":");
             AppendJsonString(line, detail);
+        }
+        if (value is { } v)
+        {
+            line.Append(",\"v\":").Append(v.ToString(CultureInfo.InvariantCulture));
         }
         line.Append('}');
         lock (Gate) _out?.WriteLine(line.ToString());

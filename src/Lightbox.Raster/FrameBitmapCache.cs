@@ -79,6 +79,9 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     {
         /// <summary>When it was last fetched or put in, on <see cref="PictureMemory.Clock"/> (Q221).</summary>
         public long Used { get; init; } = PictureMemory.Clock();
+
+        /// <summary>The publish that last used it, or -1 (<see cref="BeginPublish"/>).</summary>
+        public long Publish { get; init; } = -1;
     }
 
     private readonly Dictionary<string, LinkedListNode<Entry>> _map = [];
@@ -352,6 +355,14 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         var key = string.Create(
             CultureInfo.InvariantCulture,
             $"{frame.Id}|{width}x{height}@{outputScale:0.####}");
+        // Paper of the same size with a different corner is a different
+        // picture: grown on the left and cropped on the right by the same
+        // amount, the size is unchanged and every pixel has moved.
+        var origin = Origin;
+        if (origin != default)
+        {
+            key = string.Create(CultureInfo.InvariantCulture, $"{key}+{origin.X},{origin.Y}");
+        }
         // A placed symbol and a rig-moved drawing share the same property: the
         // frame's pixels depend on where the playhead is, so the timeline
         // position joins the key. Everything else keys by id alone.
@@ -377,6 +388,51 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     /// pair that disagree gives one pose a key that says "any position".
     /// </remarks>
     public RigIndex Rig { get; set; } = RigIndex.Empty;
+
+    /// <summary>
+    /// Where the paper's top-left corner sits in stroke coordinates, for every
+    /// frame this cache renders (B409).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On the cache rather than on each fetch, the way <see cref="Rig"/> is:
+    /// it is a fact about the document the cache is rendering, there are two
+    /// dozen places that fetch, and one of them forgetting it would put one
+    /// layer in the wrong place on a grown document and nowhere else.
+    /// </para>
+    /// <para>
+    /// It joins the key only when it is not zero, so a document nobody has
+    /// resized keys — and renders — exactly as it always did.
+    /// </para>
+    /// </remarks>
+    public SKPointI Origin
+    {
+        get => OriginSource?.Invoke() ?? _origin;
+        set
+        {
+            // A cache that follows a document is not also told. Agreeing with
+            // it is harmless — an export handed the live cache says the same
+            // corner the document does. Disagreeing is a second document being
+            // rendered through the first one's cache, and it is refused here
+            // rather than drawn in the wrong place.
+            if (OriginSource is { } source && source() != value)
+            {
+                throw new InvalidOperationException(
+                    "This cache takes its origin from its owner; it cannot be given another.");
+            }
+            _origin = value;
+        }
+    }
+
+    private SKPointI _origin;
+
+    /// <summary>
+    /// Asks the owner for the origin at every fetch, for an owner whose
+    /// document can change under it: a resize, a crop, the undo of either, a
+    /// switch of tab. A cache that had to be told would be told by most of
+    /// those and not by the one somebody adds next.
+    /// </summary>
+    public Func<SKPointI>? OriginSource { get; set; }
 
     /// <summary>
     /// Turns a frame into what a render at a timeline position should see —
@@ -449,7 +505,7 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         {
             Hits++;
             _lru.Remove(node);
-            node.Value = node.Value with { Used = PictureMemory.Clock() };
+            node.Value = node.Value with { Used = PictureMemory.Clock(), Publish = Stamp(node.Value.Publish) };
             _lru.AddFirst(node);
             return Held(node.Value.Bmp);
         }
@@ -482,7 +538,7 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         // keeps that true by construction rather than by coincidence.
         var checkpoint = ReferenceEquals(source, frame) ? CheckpointResolver?.Invoke(frame) : null;
         var bmp = Render(source, width, height, outputScale, celIndex, backdrop, checkpoint);
-        var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale));
+        var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale) { Publish = Stamp(-1) });
         _map[key] = newNode;
         CachedBytes += BytesOf(bmp);
 
@@ -526,9 +582,16 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     /// <see cref="System.Collections.Concurrent.ConcurrentDictionary{TKey,TValue}"/>,
     /// so reads race with nothing.
     /// </remarks>
+    /// <param name="origin">
+    /// The paper's corner (B409). Passed rather than read from a cache because
+    /// this runs with no cache in hand, possibly on another thread; the caller
+    /// reads <see cref="Origin"/> on the thread that owns the document and
+    /// hands the value over.
+    /// </param>
     public static SKBitmap RenderDetached(
-        Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0) =>
-        Render(frame, width, height, outputScale, celIndex, backdrop: null);
+        Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0,
+        SKPointI origin = default) =>
+        FrameRasterizer.Materialize(frame, width, height, outputScale, celIndex, backdrop: null, origin: origin);
 
     /// <summary>
     /// Take ownership of a bitmap rendered elsewhere, or refuse it. False means
@@ -594,21 +657,22 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
 
         // At the most-recent end, as a fetch would put it: eviction takes from
         // the far end, and never the only entry, so this one stays.
-        var node = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale));
+        // Inside a publish it is the frame on screen, as a fetch would be.
+        var node = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale) { Publish = Stamp(-1) });
         _map[key] = node;
         CachedBytes += BytesOf(bmp);
         Evict();
         return true;
     }
 
-    private static SKBitmap Render(
+    private SKBitmap Render(
         Frame frame, int width, int height, double outputScale, int celIndex, SKBitmap? backdrop,
         StrokeCheckpoint? checkpoint = null) =>
         // Baseline-then-strokes, in one call. The vector arm used to skip
         // straight to `Rasterize` because a `VectorFrame` had no baseline to
         // consider; `Materialize` treats an absent one as nothing to draw.
         FrameRasterizer.Materialize(
-            frame, width, height, outputScale, celIndex, backdrop, checkpoint);
+            frame, width, height, outputScale, celIndex, backdrop, checkpoint, Origin);
 
     /// <summary>
     /// The byte budget wins. It used to be gated behind the frame floor, so at
@@ -623,8 +687,22 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         // Under MostRecent this is the node just inserted's neighbour rather
         // than the node itself: evicting what was only this moment put in
         // would make the cache a no-op on the very frame being shown.
-        LinkedListNode<Entry>? Victim() =>
-            Eviction == EvictionOrder.LeastRecent ? _lru.Last : _lru.First?.Next ?? _lru.First;
+        LinkedListNode<Entry>? Victim()
+        {
+            if (Eviction == EvictionOrder.LeastRecent)
+            {
+                for (var n = _lru.Last; n is not null; n = n.Previous)
+                {
+                    if (!Protected(n.Value)) return n;
+                }
+                return null;
+            }
+            for (var n = _lru.First?.Next ?? _lru.First; n is not null; n = n.Next)
+            {
+                if (!Protected(n.Value)) return n;
+            }
+            return null;
+        }
 
         while (_lru.Count > MaxFrames && Victim() is { } a) RemoveNode(a);
         while (_lru.Count > MinFrames && CachedBytes > ByteBudget && Victim() is { } b) RemoveNode(b);
@@ -806,6 +884,89 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         }
     }
 
+    /// <summary>
+    /// A publish is starting: what it fetches is the frame on screen, and is not
+    /// evicted to make room for the rest of it (<see cref="Protected"/>) — until
+    /// the next publish begins.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Found by the lab on a large document</b> (2026-10-09): 30 layers at 4K
+    /// with onion ghosts need ~3 GB for one frame, more than the byte budget, so
+    /// each publish evicted the drawings it had just made and rendered them
+    /// again — 542 renders of 203 drawings and 204 s of UI time in the flip test.
+    /// </para>
+    /// <para>
+    /// <b>The overshoot is one frame's worth</b>, and the rest of the cache still
+    /// answers to the budget. Only the most recent publish is protected: also
+    /// protecting the one before let playback, a publish per tick, hold two
+    /// frames past the budget — about 6 GB at 4K with 30 layers and ghosts (the
+    /// leak review). The end of a publish evicts, so a frame the playhead has
+    /// left goes back under the budget at once; the start does not, or a
+    /// republish of the same frame would evict its own stills before fetching
+    /// them. Only fetches inside a publish are protected: an export or a
+    /// background render that walks the document never is, or it would hold every
+    /// frame it touched.
+    /// </para>
+    /// <para>
+    /// <b>Nests.</b> A publish inside a publish is part of it: it neither starts a
+    /// new frame on screen nor ends the outer one's protection.
+    /// </para>
+    /// </remarks>
+    public void BeginPublish() => BeginPublish(null, 0, 0);
+
+    /// <summary>
+    /// A publish is starting, and these are the stills the frame on screen
+    /// draws. They are held from the start, not only once fetched: a republish
+    /// with one changed drawing otherwise evicted the stills it had not fetched
+    /// yet, each of those then missed and evicted the next, and an over-budget
+    /// frame rendered nearly whole again (the leak review, 2026-10-09).
+    /// </summary>
+    public void BeginPublish(IEnumerable<(Frame Frame, int Cel)>? onScreen, int width, int height)
+    {
+        if (_publishDepth++ > 0) return;
+        _publish++;
+        // The same list again (a stroke's publishes): the same keys.
+        if (onScreen is not null && ReferenceEquals(onScreen, _onScreenSource)) return;
+        _onScreenSource = onScreen;
+        _onScreen = onScreen is null
+            ? null
+            : onScreen.Select(s => KeyOf(s.Frame, width, height, 1.0, s.Cel)).ToHashSet();
+    }
+
+    /// <summary>The publish has composed; fetches after this are not the frame on screen.</summary>
+    public void EndPublish()
+    {
+        if (_publishDepth == 0 || --_publishDepth > 0) return;
+        Evict();
+    }
+
+    /// <summary><see cref="BeginPublish"/> now, <see cref="EndPublish"/> when disposed, on every path out.</summary>
+    public PublishScope Publishing() => Publishing(null, 0, 0);
+
+    /// <summary><see cref="BeginPublish(IEnumerable{ValueTuple{Frame, int}}?, int, int)"/> now, <see cref="EndPublish"/> when disposed.</summary>
+    public PublishScope Publishing(IEnumerable<(Frame Frame, int Cel)>? onScreen, int width, int height)
+    {
+        BeginPublish(onScreen, width, height);
+        return new PublishScope(this);
+    }
+
+    public readonly struct PublishScope(FrameBitmapCache cache) : IDisposable
+    {
+        public void Dispose() => cache.EndPublish();
+    }
+
+    private long _publish;
+    private int _publishDepth;
+    private HashSet<string>? _onScreen;
+    private object? _onScreenSource;
+
+    private long Stamp(long previous) => _publishDepth > 0 ? _publish : previous;
+
+    /// <summary>Used by the most recent publish, or named by it: the frame on screen, which eviction leaves alone.</summary>
+    private bool Protected(Entry e) =>
+        _publish > 0 && (e.Publish == _publish || _onScreen?.Contains(e.Key) == true);
+
     public void Clear()
     {
         // Deferring here too, not just on eviction: closing a document while a
@@ -851,7 +1012,7 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         if (_lru.Count <= MinFrames) return null;
         for (var node = _lru.Last; node is not null; node = node.Previous)
         {
-            if (!_pins.ContainsKey(node.Value.Bmp)) return node;
+            if (!_pins.ContainsKey(node.Value.Bmp) && !Protected(node.Value)) return node;
         }
         return null;
     }

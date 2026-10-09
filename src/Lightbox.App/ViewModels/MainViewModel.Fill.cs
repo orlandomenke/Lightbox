@@ -195,7 +195,8 @@ public partial class MainViewModel
         // Not on a posed drawing (B382): AppendToFrameRender rebuilds its
         // render instead of appending, which disposes the bitmap a probe
         // would hold; a clear there is recorded like any other mark.
-        var erasure = IsErasure(stroke) && !_cache.Rig.IsPosed(target)
+        // Not on paper whose corner has moved (B409): see CommitStroke.
+        var erasure = IsErasure(stroke) && !_cache.Rig.IsPosed(target) && !PaperHasMoved
             ? StrokeChangeProbe.Open(stroke, _cache.Get(target, scene.Width, scene.Height))
             : null;
 

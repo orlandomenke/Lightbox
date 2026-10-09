@@ -36,7 +36,7 @@ public static class PictureMemory
     /// <summary>The shared clock every store stamps its entries with.</summary>
     public static long Clock() => Stopwatch.GetTimestamp();
 
-    /// <summary>The limit, in bytes. Defaults to an eighth of the machine.</summary>
+    /// <summary>The limit, in bytes. Defaults to a quarter of the machine.</summary>
     public static long Limit { get; set; } = MemoryBudget.Pictures();
 
     /// <summary>

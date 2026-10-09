@@ -149,7 +149,9 @@ background while you are not drawing or playing**: after you open a document,
 and again a moment after each change, it works through the playback range in the
 order it will play, starting from the playhead. By the time you press play the
 drawings are usually ready, and the first loop runs at full speed instead of
-painting each frame as it reaches it.
+painting each frame as it reaches it. It also paints the drawings either side of the
+one you are on, so stepping to the next or previous drawing shows it at
+once rather than painting it first.
 
 It gets out of the way on its own: it stops the moment you start a stroke or press
 play, and picks up again when you pause. On a large document on a machine with
@@ -598,7 +600,7 @@ Two lines to read first:
   memory spare and long scenes, lower it if something else on the machine needs
   the room. It is one limit for everything Lightbox keeps drawn — still frames,
   playback, onion skin and undo pixels — and the pictures used longest ago make
-  room first, whichever kind they are. It starts at an eighth of the computer's
+  room first, whichever kind they are. It starts at a quarter of the computer's
   memory.
 - **reused a flatten** — while a sequence plays, most drawings are not changing:
   a layer on 2s shows the same drawing two frames running, and a background may

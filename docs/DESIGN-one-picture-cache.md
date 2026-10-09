@@ -59,6 +59,28 @@ card (confirmed 2026-08-12, 310 of 310 publishes). So moving the paused canvas
 onto the tiled route does not move it off the GPU. B167 phase 5 (resident tiles
 instead of flattens) stays blocked on its own measurement and is not needed here.
 
+## Phase 1 was tried and withdrawn (Q223, 2026-10-08)
+
+Phase 1 was built (#632) and closed after the lab measured it in the real app.
+
+- **Exact:** the paused tiled canvas was the still route's bytes at every zoom,
+  so the identity gate held.
+- **Process memory barely moved.** On the owner-shaped document the still cache
+  fell from 620 to 252 MB, but process memory went from 2.53–2.63 GB to only
+  2.38–2.50 GB.
+- **The app answered worse.** Pressing Play went from 200 ms to 2.7 s, Stop
+  from 3.6 to 7.7 s, and jumping to a frame from 290 ms to 4.3 s before the
+  fix for cold frames.
+- **Best explanation:** dropping the stills of frames off screen makes Play,
+  Stop and jumps re-render what main kept.
+- **Why the probes missed it:** the local probes never reproduced that, because
+  their frames always arrived with playback tiles in hand.
+
+The phases below are kept as the record of the plan. Do not resume them before:
+
+- the remaining process memory is accounted for (Q223's chosen next step);
+- a probe reproduces the lab's jump, Play and Stop scenarios on a cold cache.
+
 ## Phases
 
 Each lands alone, behind the tests named, and changes nothing an artist sees.

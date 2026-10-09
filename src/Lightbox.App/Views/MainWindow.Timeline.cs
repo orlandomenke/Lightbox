@@ -110,15 +110,15 @@ public partial class MainWindow
         RevealVertically(TimelineTrackView, TrackView.RulerHeight + row * TrackView.RowPitch, TrackView.RowPitch);
     }
 
-    /// <summary>The active layer's place in <see cref="MainViewModel.LayerRows"/>, or -1.</summary>
+    /// <summary>The active layer's place in <see cref="MainViewModel.SheetRows"/>, or -1 when its folder is folded there.</summary>
     private static int ActiveLayerRowIndex(MainViewModel vm)
     {
         var layers = vm.Doc.Scene.Layers;
         if (vm.ActiveLayerIndex < 0 || vm.ActiveLayerIndex >= layers.Count) return -1;
         var active = layers[vm.ActiveLayerIndex];
-        for (var i = 0; i < vm.LayerRows.Count; i++)
+        for (var i = 0; i < vm.SheetRows.Count; i++)
         {
-            if (ReferenceEquals(vm.LayerRows[i].Layer, active)) return i;
+            if (vm.SheetRows[i] is LayerRow row && ReferenceEquals(row.Layer, active)) return i;
         }
         return -1;
     }
@@ -129,7 +129,7 @@ public partial class MainWindow
     /// <remarks>
     /// The timeline's first rows are not layers — the camera, then the
     /// armature and its bones — and the layers follow in the order of
-    /// <see cref="MainViewModel.LayerRows"/>. How many come first is
+    /// <see cref="MainViewModel.SheetRows"/>. How many come first is
     /// <see cref="MainViewModel.TracksAboveLayers"/>, the one place that
     /// counts them; a second count here would be free to disagree with it.
     /// </remarks>
@@ -417,7 +417,7 @@ public partial class MainWindow
 
     // ---- multi-cel selection (Ctrl+click, Shift+click, drag) --------------------
 
-    /// <summary>A plain drag across the sheet selects a block (Q207); Alt+drag moves a cel.</summary>
+    /// <summary>A drag from an empty cel selects a block (Q207); a drag from a drawing moves it.</summary>
     private readonly Input.CelBlockSelectGesture _celSelect = new();
 
     private static FrameCell? CellUnder(object? source) =>
@@ -441,14 +441,27 @@ public partial class MainWindow
             e.Handled = true;
             return;
         }
-        // Remember the press so a later move can turn it into a drag: Alt
-        // carries the drawing along its row, a plain drag selects a block (Q207).
-        // Exactly one of the two is armed, so they cannot both claim the press.
-        var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
-        _celDrag.Press(cell, e.GetPosition(this), leftButton: true, keyed: alt && cell.IsKeyed && !cell.IsVirtual);
+        // A second click on the same cel: go there AND draw there (Q224). The
+        // first click of the pair has already picked the cel through the
+        // button's own command; this one switches the layer, and is marked
+        // handled so the command does not then pick it back.
+        if (e.ClickCount == 2 && e.KeyModifiers == KeyModifiers.None)
+        {
+            _celDrag.Cancel();
+            _celDragPress = null;
+            _celSelect.Cancel();
+            _vm.ActivateCel(cell);
+            e.Handled = true;
+            return;
+        }
+        // Remember the press so a later move can turn it into a drag. Which
+        // drag is CelPressRouting's call, and it arms exactly one of the two,
+        // so they cannot both claim the press.
+        var press = Input.CelPressRouting.For(cell, e.KeyModifiers.HasFlag(KeyModifiers.Alt));
+        _celDrag.Press(cell, e.GetPosition(this), leftButton: true, keyed: press == Input.CelPress.Move);
         _celDragPress = _celDrag.Candidate is null ? null : e;
-        if (alt) _celSelect.Cancel();
-        else _celSelect.Press(cell, e.GetPosition(this), leftButton: true);
+        if (press == Input.CelPress.Select) _celSelect.Press(cell, e.GetPosition(this), leftButton: true);
+        else _celSelect.Cancel();
     }
 
     /// <summary>

@@ -108,6 +108,10 @@ public sealed class LayerStackBake : IDisposable
         public SKBitmap? Baked;
     }
 
+    /// <summary>What the baked layer stacks hold, for the memory report.</summary>
+    public long BakedBytes =>
+        (_below.Baked?.ByteCount ?? 0) + (_above.Baked?.ByteCount ?? 0) + (_held.Baked?.ByteCount ?? 0);
+
     private readonly Segment _below = new();
     private readonly Segment _above = new();
     private readonly HeldSegment _held = new();

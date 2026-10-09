@@ -12,6 +12,7 @@ first: a run takes the mouse and keyboard for its duration, and aborts if you mo
 What it relies on in the app, all absent unless the lab asks for it:
   LIGHTBOX_PERF_LOG     one JSON line per action, and a heartbeat logging every UI stall
   LIGHTBOX_PROFILE_DIR  a throwaway profile, so a run never touches the artist's own
+  LIGHTBOX_BRUSH        the brush to put in hand at launch (only with the profile above)
   <file>.lightbox.json  on the command line: open it straight away and log "ready"
 """
 from __future__ import annotations
@@ -68,7 +69,21 @@ PRESETS = {
     "large": ["--layers", "30", "--drawings", "200", "--frames", "48", "--step", "2"],
     "large-4k": ["--layers", "30", "--drawings", "200", "--frames", "48", "--step", "2",
                  "--width", "3840", "--height", "2160"],
+    # One empty drawing layer over the paper: what a paint scenario needs is a canvas,
+    # and a document with art in it would make the brush pay for compositing it.
+    "blank-1080p": ["--layers", "1", "--drawings", "1", "--strokes", "0", "--frames", "1"],
+    "blank-4k": ["--width", "3840", "--height", "2160",
+                 "--layers", "1", "--drawings", "1", "--strokes", "0", "--frames", "1"],
 }
+
+
+def fixture_size(preset: str) -> tuple[int, int]:
+    """The document a fixture preset generates, in pixels — the generator's defaults
+    unless its arguments say otherwise (the owner's shape is 1920x1080)."""
+    args = PRESETS.get(preset, [])
+    def arg(name: str, default: int) -> int:
+        return int(args[args.index(name) + 1]) if name in args else default
+    return arg("--width", 1920), arg("--height", 1080)
 
 
 def fixture_path(preset: str) -> Path:
@@ -259,18 +274,27 @@ class Pointer:
         time.sleep(0.03)
         _send(*[_key(c, True) for c in reversed(held)]) if held else None
 
-    def drag(self, start: tuple[float, float], end: tuple[float, float], ms: float, hz: float) -> None:
-        """Press, move at `hz` events a second for `ms`, release — a hand's drag, paced."""
+    def drag(self, start: tuple[float, float], end: tuple[float, float], ms: float, hz: float,
+             legs: int = 1) -> None:
+        """Press, move at `hz` events a second for `ms`, release — a hand's drag, paced.
+
+        `legs` > 1 bounces between the two ends: start→end, end→start, ... within the
+        same `ms`. That is how a speed sweep raises the pen's speed without shortening
+        the stroke or thinning its samples — the September harness's trick, kept."""
         self.move(*start)
         time.sleep(0.05)
         _send(_mouse(MOUSEEVENTF_LEFTDOWN))
         steps = max(2, int(ms / 1000 * hz))
         t0 = time.perf_counter()
         for i in range(1, steps + 1):
-            f = i / steps
+            # Position along a polyline of `legs` alternating legs, as a fraction 0..1
+            # of the whole drag; a single leg is the straight line it always was.
+            u = i / steps * legs
+            leg, f = min(int(u), legs - 1), u - min(int(u), legs - 1)
+            a, b = (start, end) if leg % 2 == 0 else (end, start)
             # Unguarded inside the drag: a hung app can hold the cursor back, and that
             # is the stall being measured, not somebody's hand.
-            self.move(start[0] + (end[0] - start[0]) * f, start[1] + (end[1] - start[1]) * f, guarded=False)
+            self.move(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, guarded=False)
             # Paced against the clock, not slept per step, so a slow app does not stretch the drag.
             while time.perf_counter() - t0 < i / hz:
                 time.sleep(0.0005)
@@ -502,15 +526,6 @@ def with_onion(scenario: dict, onion: str | None) -> dict:
     return {**scenario, "onion": onion, "name": f"{scenario['name']}-onion{onion}"}
 
 
-def with_fixture(scenario: dict, fixture: str | None) -> dict:
-    """The scenario on another document: the same gestures, measured at another scale."""
-    if fixture is None:
-        return scenario
-    if fixture not in PRESETS:
-        sys.exit(f"unknown fixture {fixture!r}; known: {', '.join(PRESETS)}")
-    return {**scenario, "fixture": fixture, "name": f"{scenario['name']}@{fixture}"}
-
-
 def resolve_exe(build: str | None) -> Path:
     exe = Path(build) if build else DEFAULT_EXE
     if exe.is_dir():
@@ -518,6 +533,23 @@ def resolve_exe(build: str | None) -> Path:
     if not exe.exists():
         sys.exit(f"no Lightbox.App.exe at {exe} — build Release first, or pass --build")
     return exe.resolve()
+
+
+def brush_of(scenario: dict) -> tuple[str, float | None] | None:
+    """The scenario's brush as (preset id, size or None), from `"brush": "id[:size]"`."""
+    spec = scenario.get("brush")
+    if not spec:
+        return None
+    preset, _, size = str(spec).partition(":")
+    return preset.strip(), (float(size) if size else None)
+
+
+def brush_line(preset: str, size: float | None) -> str:
+    """What the app logs for that brush: `<id> size <n>`, the size as the app prints a double."""
+    if size is None:
+        return preset
+    shown = str(int(size)) if float(size).is_integer() else repr(float(size))
+    return f"{preset} size {shown}"
 
 
 def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> dict:
@@ -531,6 +563,12 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
         (out / "profile").mkdir(parents=True, exist_ok=True)
         (out / "profile" / "settings.json").write_text('{"Onion": {"Enabled": false}}', encoding="utf-8")
     env["LIGHTBOX_PERF_LOG"] = str(log.path.resolve())
+    brush = brush_of(scenario)
+    # Set for this run or cleared: a shell that exports LIGHTBOX_BRUSH must not put a
+    # brush in hand for a scenario that never asked for one (the adversary's case).
+    env.pop("LIGHTBOX_BRUSH", None)
+    if brush is not None:
+        env["LIGHTBOX_BRUSH"] = str(scenario["brush"])
     fixture = ensure_fixture(scenario.get("fixture", "owner-shape"))
 
     proc = subprocess.Popen([str(exe), str(fixture)], env=env, cwd=str(out),
@@ -550,6 +588,15 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
     outcome = "ok"
     try:
         ready = log.wait_for("ready", timeout=float(scenario.get("open_timeout_s", 120)))
+        if brush is not None:
+            # The app says which brush it put in hand, and at what size, before it is
+            # ready. A run that measured some other brush — or the same brush clamped to
+            # another size — is not this scenario (the September harness's rule: every
+            # unverified effect-brush row turned out to be Ink).
+            taken = next((l.get("d", "") for l in log.lines if l["ev"] == "brush"), None)
+            want = brush_line(*brush)
+            if taken is None or not (taken == want if brush[1] is not None else taken.startswith(brush[0] + " ")):
+                raise RuntimeError(f"the app did not take the brush {want!r} (it logged {taken!r})")
         place = Placement(**json.loads(ready["d"]))
         hwnd = window_of(proc.pid)
         if hwnd is None:
@@ -602,6 +649,7 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
         log.poll()
     metrics = summarise(log.lines, marks)
     result = {"scenario": scenario["name"], "exe": str(exe), "build": build_of(log.lines),
+              "brush": next((l.get("d") for l in log.lines if l["ev"] == "brush"), None),
               "outcome": outcome, "metrics": metrics, "checks": checks,
               # Raw, so a run can be re-read step by step (first round against second).
               "marks": marks}
@@ -626,7 +674,8 @@ def do_step(step: dict, place: Placement, pointer: Pointer, log: Log, hwnd: int)
     elif kind == "drag":
         a = place.at(*step["from"])
         b = place.at(step["from"][0] + step["by"][0], step["from"][1] + step["by"][1])
-        pointer.drag(a, b, ms=float(step.get("ms", 1000)), hz=float(step.get("hz", 120)))
+        pointer.drag(a, b, ms=float(step.get("ms", 1000)), hz=float(step.get("hz", 120)),
+                     legs=max(1, int(step.get("legs", 1))))
     elif kind == "hover":
         pointer.move(*(step["_screen"] if "_screen" in step else place.at(*step["at"])))
     elif kind == "wait":
@@ -645,7 +694,13 @@ def build_of(lines: list[dict]) -> str | None:
 # ---- what a run says -----------------------------------------------------------------
 
 MARKS = ("stall", "hang", "start", "ready", "document.opened", "playhead", "play.start",
-         "clock", "input", "shown")
+         "clock", "input", "shown", "brush")
+
+# Backdated spans that describe how long something WAITED, not what the app was doing:
+# a frame's pen->screen overlaps every stall on its way and would be blamed for all of
+# them, summing past the stall's own length (the adversary measured 150 ms of blame
+# on a 100 ms stall). They are symptoms, and they stay out of the blame.
+SYMPTOMS = ("pen.screen", "tip.screen")
 
 
 def summarise(lines: list[dict], marks: list[dict] | None = None) -> dict:
@@ -656,21 +711,28 @@ def summarise(lines: list[dict], marks: list[dict] | None = None) -> dict:
     ready_t = next((l["t"] for l in lines if l["ev"] == "ready"), 0.0)
     after = [l for l in lines if l["t"] >= ready_t]  # opening is its own scenario
     by: dict[str, list[float]] = {}
+    values: dict[str, list[float]] = {}
     for l in after:
         if l["ev"] in MARKS:
+            continue
+        if "v" in l:
+            # A count, not a time: how many points behind the pen a live pass landed.
+            values.setdefault(l["ev"], []).append(float(l["v"]))
             continue
         # An edit is named by its history label, so each X-sheet verb is its own row.
         key = f'{l["ev"]}:{l.get("d", "")}' if l["ev"].startswith("edit") else l["ev"]
         by.setdefault(key, []).append(l["ms"])
     actions = {k: {"n": len(v), "total_ms": round(sum(v), 1), "median_ms": round(statistics.median(v), 2),
                    "worst_ms": round(max(v), 1)} for k, v in sorted(by.items())}
+    counts = {k: {"n": len(v), "median": round(statistics.median(v), 1), "worst": round(max(v), 1)}
+              for k, v in sorted(values.items())}
 
     stalls = [l for l in after if l["ev"] == "stall"]
     blame: dict[str, float] = {}
     for s in stalls:
         s0, s1 = s["t"], s["t"] + s["ms"]
         for l in after:
-            if l["ev"] in ("stall", "hang") or l["ms"] <= 0:
+            if l["ev"] in ("stall", "hang") or l["ev"] in SYMPTOMS or l["ms"] <= 0:
                 continue
             overlap = min(s1, l["t"] + l["ms"]) - max(s0, l["t"])
             if overlap > 0:
@@ -680,6 +742,7 @@ def summarise(lines: list[dict], marks: list[dict] | None = None) -> dict:
     responses, phases = responses_and_phases(lines, marks or [])
     return {
         "actions": actions,
+        "counts": counts,
         "responses": responses,
         "phases": phases,
         "stalls": {
@@ -760,6 +823,9 @@ def flat(metrics: dict) -> dict[str, float]:
     for name, a in metrics["actions"].items():
         out[f"{name}.median_ms"] = a["median_ms"]
         out[f"{name}.worst_ms"] = a["worst_ms"]
+    for name, c in metrics.get("counts", {}).items():
+        out[f"{name}.median"] = c["median"]
+        out[f"{name}.worst"] = c["worst"]
     for label, r in metrics.get("responses", {}).items():
         for part in ("response", "queued", "first_publish"):
             if r[part]["n"]:
@@ -773,11 +839,16 @@ def flat(metrics: dict) -> dict[str, float]:
 
 
 def aggregate(results: list[dict]) -> dict[str, float]:
+    """One number per metric over the good runs — and per variant, when a scenario was
+    swept over brush sizes: `300px/pen.screen.worst_ms` is judged only against runs at
+    300 px, so a verdict never compares a small brush on one build with a big one on
+    the other."""
     good = [r for r in results if r["outcome"] == "ok"]
     series: dict[str, list[float]] = {}
     for r in good:
+        prefix = f"{r['variant']}/" if r.get("variant") else ""
         for k, v in flat(r["metrics"]).items():
-            series.setdefault(k, []).append(v)
+            series.setdefault(prefix + k, []).append(v)
     return {k: (min(v) if ("worst" in k or "longest" in k) else statistics.median(v))
             for k, v in series.items()}
 
@@ -789,8 +860,11 @@ def verdict(a: dict[str, float], b: dict[str, float], tolerance: float) -> list[
         if va is None or vb is None:
             rows.append((k, va or 0.0, vb or 0.0, "only one side"))
             continue
-        # Under a few ms the timer and the scheduler are the measurement.
-        if max(va, vb) < 5:
+        # Under a few ms the timer and the scheduler are the measurement. A count
+        # (points behind the pen, frames) has no such floor: one to five points
+        # behind is 8 to 42 ms of trailing at 120 Hz, which is the thing measured.
+        floor = 5 if k.endswith("_ms") else 1
+        if max(va, vb) < floor:
             call = "same"
         elif vb > va * (1 + tolerance):
             call = "REGRESSION"
@@ -813,23 +887,127 @@ def cmd_fixture(args) -> None:
         print(ensure_fixture(preset, rebuild=True))
 
 
+def with_brush(scenario: dict, override: str | None, fixture: str | None = None) -> dict:
+    """`--brush id[:size]` replaces the scenario's own, `--fixture` its document; the folder
+    name carries whichever won."""
+    if override:
+        scenario["brush"] = override
+    if fixture:
+        if fixture not in PRESETS:
+            sys.exit(f"unknown fixture {fixture!r}; known: {', '.join(PRESETS)}")
+        scenario["fixture"] = fixture
+    return scenario
+
+
+def size_variants(scenario: dict, sizes: str | None, brush_override: str | None) -> list[tuple[str | None, dict]]:
+    """The scenario once per brush size, smallest first — or once as it is.
+
+    Large brushes are where drawing falls over (every stall in the September captures
+    needed size x speed x canvas together), so a paint scenario is swept over sizes
+    rather than run at one. Which sizes: `--sizes 60,150,300` first; else a `--brush`
+    that names its own size runs that one size; else the scenario's `sizes`; else the
+    scenario as written. Sizes above 500 are clamped by the app and refused by the
+    run's brush check, so they are refused here, with the reason."""
+    brush = brush_of(scenario)
+    if sizes:
+        wanted = [float(x) for x in sizes.split(",") if x.strip()]
+    elif brush_override and brush is not None and brush[1] is not None:
+        wanted = []
+    else:
+        wanted = [float(x) for x in scenario.get("sizes", [])]
+    if not wanted:
+        return [(None, scenario)]
+    if brush is None:
+        sys.exit("sizes need a brush: give the scenario a `brush`, or pass --brush")
+    bad = [x for x in wanted if not 1 <= x <= 500]
+    if bad:
+        sys.exit(f"brush sizes must be 1..500 (the app clamps there, and a clamped run is refused): {bad}")
+    out = []
+    for size in sorted(wanted):
+        label = f"{int(size) if size.is_integer() else size}px"
+        out.append((label, {**scenario, "brush": f"{brush[0]}:{label[:-2]}"}))
+    return out
+
+
+def at_speed(scenario: dict, speed: float, hz: float | None) -> dict:
+    """The scenario with every drag bouncing often enough to average `speed` px/s of
+    document, over the same duration and at the same event rate — a fast pen is not
+    a short stroke with fewer samples. Legs are whole, so the speed reached is the
+    nearest the drag's own length allows; the run's record keeps the one asked for."""
+    w, h = fixture_size(scenario.get("fixture", "owner-shape"))
+    steps = []
+    for step in scenario["steps"]:
+        if step.get("do") != "drag":
+            steps.append(step)
+            continue
+        dx, dy = step["by"][0] * w, step["by"][1] * h
+        leg = (dx * dx + dy * dy) ** 0.5
+        ms = float(step.get("ms", 1000))
+        legs = max(1, round(speed * ms / 1000 / leg)) if leg > 0 and speed > 0 else 1
+        new = {**step, "legs": legs}
+        if hz:
+            new["hz"] = hz
+        steps.append(new)
+    return {**scenario, "steps": steps}
+
+
+def variants(scenario: dict, sizes: str | None, brush_override: str | None,
+             speeds: str | None = None, hz: str | None = None) -> list[tuple[str | None, dict]]:
+    """Sizes x speeds, size outermost, slow before fast. Speeds (px/s of document) from
+    `--speeds 900,3000,6000`, else the scenario's `speeds`, else the drags as written;
+    `--hz` sets the event rate of every drag either way."""
+    if speeds:
+        wanted = [float(x) for x in speeds.split(",") if x.strip()]
+    else:
+        wanted = [float(x) for x in scenario.get("speeds", [])]
+    rate = float(hz) if hz else None
+    bad = [x for x in wanted if not 10 <= x <= 30000]
+    if bad:
+        sys.exit(f"speeds are px/s of document, 10..30000: {bad}")
+    out = []
+    for size_label, by_size in size_variants(scenario, sizes, brush_override):
+        if not wanted:
+            out.append((size_label, at_speed(by_size, 0, rate) if rate else by_size))
+            continue
+        for speed in sorted(wanted):
+            label = f"{int(speed)}pxs"
+            out.append(("-".join(l for l in (size_label, label) if l), at_speed(by_size, speed, rate)))
+    return out
+
+
+def folder_name(scenario: dict, tail: str, labels: list[str | None] = ()) -> str:
+    brush = brush_of(scenario)
+    part = f"-{brush[0].removeprefix('builtin-')}" if brush else ""
+    sweep = "+".join(l for l in labels if l)
+    if sweep:
+        part += f"-{sweep}"
+    return f"{stamp()}-{scenario['name']}{part}-{tail}"
+
+
 def cmd_run(args) -> None:
     make_dpi_aware()
     require_input()
-    scenario = with_onion(with_fixture(load_scenario(args.scenario), getattr(args, "fixture", None)), getattr(args, "onion", None))
+    scenario = with_onion(with_brush(load_scenario(args.scenario), args.brush, args.fixture), getattr(args, "onion", None))
+    sweep = variants(scenario, args.sizes, args.brush, args.speeds, args.hz)
     exe = resolve_exe(args.build)
-    folder = RUNS / f"{stamp()}-{scenario['name']}-{args.tag}"
-    print(f"{scenario['name']}: {args.runs} run(s) of {exe}\n  results in {folder}\n"
-          "  hands off the mouse and keyboard until it says done.")
+    folder = RUNS / folder_name(scenario, args.tag, [l for l, _ in sweep])
+    print(f"{scenario['name']}: {args.runs} run(s) of {exe}"
+          + (f", at {', '.join(l for l, _ in sweep)}" if len(sweep) > 1 else "")
+          + f"\n  results in {folder}\n  hands off the mouse and keyboard until it says done.")
     results = []
-    for i in range(args.runs):
-        r = run_once(scenario, exe, folder / f"run-{i + 1}", args.presentmon)
-        print(f"  run {i + 1}: {r['outcome']}")
-        if r["outcome"].startswith("refused"):
-            print(f"\nSTOPPED: {LOCKED}")
-            sys.exit(3)
-        results.append(r)
-    summary = {"scenario": scenario["name"], "exe": str(exe), "runs": results, "aggregate": aggregate(results)}
+    for label, variant in sweep:
+        for i in range(args.runs):
+            name = f"{label}-run-{i + 1}" if label else f"run-{i + 1}"
+            r = run_once(variant, exe, folder / name, args.presentmon)
+            r["variant"] = label
+            print(f"  {name}: {r['outcome']}")
+            if r["outcome"].startswith("refused"):
+                print(f"\nSTOPPED: {LOCKED}")
+                sys.exit(3)
+            results.append(r)
+    summary = {"scenario": scenario["name"], "brush": scenario.get("brush"),
+               "variants": [l for l, _ in sweep if l], "fixture": scenario.get("fixture", "owner-shape"),
+               "exe": str(exe), "runs": results, "aggregate": aggregate(results)}
     (folder / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print_report(summary)
     print(f"done — {folder / 'summary.json'}")
@@ -839,7 +1017,7 @@ def cmd_check(args) -> None:
     """Run a behaviour scenario once and say, expectation by expectation, whether the
     app did what the scenario expects — on any build, the installed one included."""
     make_dpi_aware()
-    scenario = with_onion(with_fixture(load_scenario(args.scenario), getattr(args, "fixture", None)), getattr(args, "onion", None))
+    scenario = load_scenario(args.scenario)
     exe = resolve_exe(args.build)
     folder = RUNS / f"{stamp()}-{scenario['name']}-check"
     print(f"{scenario['name']}: checking {exe}\n  hands off the mouse and keyboard until it says done.")
@@ -860,35 +1038,46 @@ def cmd_check(args) -> None:
 def cmd_ab(args) -> None:
     make_dpi_aware()
     require_input()
-    scenario = with_onion(with_fixture(load_scenario(args.scenario), getattr(args, "fixture", None)), getattr(args, "onion", None))
+    scenario = with_onion(with_brush(load_scenario(args.scenario), args.brush, args.fixture), getattr(args, "onion", None))
+    sweep = variants(scenario, args.sizes, args.brush, args.speeds, args.hz)
     a, b = resolve_exe(args.a), resolve_exe(args.b)
-    folder = RUNS / f"{stamp()}-{scenario['name']}-ab"
-    print(f"{scenario['name']}: A/B, {args.runs} interleaved pair(s)\n  A {a}\n  B {b}\n"
-          f"  results in {folder}\n  hands off the mouse and keyboard until it says done.")
+    folder = RUNS / folder_name(scenario, "ab", [l for l, _ in sweep])
+    print(f"{scenario['name']}: A/B, {args.runs} interleaved pair(s)"
+          + (f" at each of {', '.join(l for l, _ in sweep)}" if len(sweep) > 1 else "")
+          + f"\n  A {a}\n  B {b}\n  results in {folder}\n  hands off the mouse and keyboard until it says done.")
     ra, rb = [], []
-    for i in range(args.runs):
-        # Interleaved, and the order alternates, so drift over the session lands on both.
-        order = [("A", a, ra), ("B", b, rb)] if i % 2 == 0 else [("B", b, rb), ("A", a, ra)]
-        for label, exe, sink in order:
-            r = run_once(scenario, exe, folder / f"{label}-{i + 1}", args.presentmon)
-            print(f"  {label} {i + 1}: {r['outcome']}")
-            if r["outcome"].startswith("refused"):
-                print(f"\nSTOPPED: {LOCKED}")
-                sys.exit(3)
-            sink.append(r)
+    for size, variant in sweep:
+        for i in range(args.runs):
+            # Interleaved, and the order alternates, so drift over the session lands on both.
+            order = [("A", a, ra), ("B", b, rb)] if i % 2 == 0 else [("B", b, rb), ("A", a, ra)]
+            for label, exe, sink in order:
+                name = f"{size}-{label}-{i + 1}" if size else f"{label}-{i + 1}"
+                r = run_once(variant, exe, folder / name, args.presentmon)
+                r["variant"] = size
+                print(f"  {name}: {r['outcome']}")
+                if r["outcome"].startswith("refused"):
+                    print(f"\nSTOPPED: {LOCKED}")
+                    sys.exit(3)
+                sink.append(r)
     agg_a, agg_b = aggregate(ra), aggregate(rb)
     rows = verdict(agg_a, agg_b, args.tolerance)
-    summary = {"scenario": scenario["name"], "a": str(a), "b": str(b), "aggregate_a": agg_a,
+    summary = {"scenario": scenario["name"], "brush": scenario.get("brush"),
+               "variants": [l for l, _ in sweep if l], "fixture": scenario.get("fixture", "owner-shape"),
+               "a": str(a), "b": str(b), "aggregate_a": agg_a,
                "aggregate_b": agg_b, "verdict": rows, "runs_a": ra, "runs_b": rb}
     (folder / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(f"\n{'metric':44} {'A':>10} {'B':>10}  call")
     for k, va, vb, call in rows:
         print(f"{k:44} {va:10.1f} {vb:10.1f}  {call}")
-    ok_a = sum(r["outcome"] == "ok" for r in ra)
-    ok_b = sum(r["outcome"] == "ok" for r in rb)
-    if min(ok_a, ok_b) < 2:
-        print(f"\nINCONCLUSIVE: only {ok_a} good A run(s) and {ok_b} good B run(s)")
-        sys.exit(2)
+    # Too few good runs on either side of any one size is inconclusive for the whole
+    # sweep: a verdict at 60 px says nothing about 300 px, which is where it matters.
+    for size, _ in sweep:
+        ok_a = sum(r["outcome"] == "ok" and r.get("variant") == size for r in ra)
+        ok_b = sum(r["outcome"] == "ok" and r.get("variant") == size for r in rb)
+        if min(ok_a, ok_b) < 2:
+            at = f" at {size}" if size else ""
+            print(f"\nINCONCLUSIVE: only {ok_a} good A run(s) and {ok_b} good B run(s){at}")
+            sys.exit(2)
     regressed = [k for k, *_rest, call in rows if call == "REGRESSION"]
     print(f"\n{'REGRESSION in ' + ', '.join(regressed) if regressed else 'PASS'} — {folder / 'summary.json'}")
     sys.exit(1 if regressed else 0)
@@ -896,7 +1085,10 @@ def cmd_ab(args) -> None:
 
 def print_report(summary: dict) -> None:
     good = [r for r in summary["runs"] if r["outcome"] == "ok"]
-    print(f"\n{summary['scenario']}: {len(good)}/{len(summary['runs'])} good run(s)")
+    brush = f" with {summary['brush']}" if summary.get("brush") else ""
+    variants_ = summary.get("variants") or summary.get("sizes")
+    at = f" at {', '.join(variants_)}" if variants_ else ""
+    print(f"\n{summary['scenario']}{brush}{at}: {len(good)}/{len(summary['runs'])} good run(s)")
     for k, v in summary["aggregate"].items():
         print(f"  {k:44} {v:10.1f}")
     if good:
@@ -925,9 +1117,13 @@ def main() -> None:
     r.add_argument("--build", help="Lightbox.App.exe, or the folder holding it (default: this repo's Release build)")
     r.add_argument("--runs", type=int, default=3)
     r.add_argument("--tag", default="adhoc")
-    r.add_argument("--fixture", help="run on another document: " + ", ".join(PRESETS))
     r.add_argument("--onion", choices=["on", "off"], help="force onion skin on or off")
     r.add_argument("--presentmon", help="path to presentmon.exe, to record what reached the screen")
+    r.add_argument("--brush", help="preset id, optionally :size — replaces the scenario's brush, e.g. builtin-ink:60")
+    r.add_argument("--sizes", help="brush sizes to sweep, e.g. 60,150,300 (1..500); replaces the scenario's `sizes`")
+    r.add_argument("--fixture", help="document to open instead of the scenario's, e.g. blank-4k")
+    r.add_argument("--speeds", help="pen speeds to sweep, px/s of document, e.g. 900,3000,6000; replaces the scenario's `speeds`")
+    r.add_argument("--hz", help="pointer events per second for every drag (default: the scenario's, 120)")
     r.set_defaults(go=cmd_run)
     ab = sub.add_parser("ab", help="run a scenario against two builds, interleaved, with a verdict")
     ab.add_argument("scenario")
@@ -935,9 +1131,13 @@ def main() -> None:
     ab.add_argument("--b", required=True, help="the build under test")
     ab.add_argument("--runs", type=int, default=3)
     ab.add_argument("--tolerance", type=float, default=0.15, help="relative change that counts (default 0.15)")
-    ab.add_argument("--fixture", help="run on another document: " + ", ".join(PRESETS))
     ab.add_argument("--onion", choices=["on", "off"], help="force onion skin on or off")
     ab.add_argument("--presentmon")
+    ab.add_argument("--brush", help="preset id, optionally :size — replaces the scenario's brush on both sides")
+    ab.add_argument("--sizes", help="brush sizes to sweep on both sides, e.g. 60,150,300 (1..500)")
+    ab.add_argument("--fixture", help="document to open instead of the scenario's, e.g. blank-4k")
+    ab.add_argument("--speeds", help="pen speeds to sweep on both sides, px/s of document, e.g. 900,3000,6000")
+    ab.add_argument("--hz", help="pointer events per second for every drag (default: the scenario's, 120)")
     ab.set_defaults(go=cmd_ab)
     c = sub.add_parser("check", help="run a behaviour scenario once and check its expectations")
     c.add_argument("scenario")

@@ -136,18 +136,21 @@ public static class MediumSimulator
         // into a mark; `brushalloc --check` holds every medium preset to it.
         var pool = System.Buffers.ArrayPool<float>.Shared;
         var coverageRent = pool.Rent(w * h);
+        var coloursRent = pool.Rent(w * h * 3);
         var paperRent = pool.Rent(w * h);
         var depositRent = pool.Rent(w * h * 4);
         try
         {
             var coverage = coverageRent.AsSpan(0, w * h);
-            if (!SampleCoverage(scratch, rect, w, h, step, coverage)) return;
+            var colours = coloursRent.AsSpan(0, w * h * 3);
+            if (!SampleCoverage(scratch, rect, w, h, step, coverage, colours)) return;
             Simulate(scratch, existing, strokeColor, medium, rect, w, h, step, existingOrigin,
-                coverage, paperRent.AsSpan(0, w * h), depositRent.AsSpan(0, w * h * 4));
+                coverage, colours, paperRent.AsSpan(0, w * h), depositRent.AsSpan(0, w * h * 4));
         }
         finally
         {
             pool.Return(coverageRent);
+            pool.Return(coloursRent);
             pool.Return(paperRent);
             pool.Return(depositRent);
         }
@@ -156,7 +159,7 @@ public static class MediumSimulator
     private static void Simulate(
         SKSurface scratch, SKBitmap? existing, SKColor strokeColor, MediumSettings medium,
         SKRectI rect, int w, int h, int step, SKPointI existingOrigin,
-        ReadOnlySpan<float> coverage, Span<float> paper, Span<float> deposit)
+        ReadOnlySpan<float> coverage, ReadOnlySpan<float> colours, Span<float> paper, Span<float> deposit)
     {
         // Rented, not built: a 320-cell lattice is nine megabytes of large-object
         // arrays, and one per stroke is a gigabyte of LOH churn every few
@@ -166,7 +169,7 @@ public static class MediumSimulator
         PaperField.Fill(paper, w, h, rect.Left / step, rect.Top / step, medium.Paper, medium.PaperScale / step);
         lattice.SetPaper(paper, medium.PaperInfluence);
 
-        SeedFromCoverage(lattice, coverage, strokeColor, medium, w, h);
+        SeedFromCoverage(lattice, coverage, colours, medium, w, h);
         if (medium.Rewetting > 0 && existing is not null)
         {
             SeedRewetted(lattice, existing, coverage, medium, rect, w, h, step, existingOrigin);
@@ -213,7 +216,14 @@ public static class MediumSimulator
     /// alpha already carries it, so low coverage means a light touch.
     /// </summary>
     /// <returns>False when there is nothing to sample; <paramref name="coverage"/> is then unwritten.</returns>
-    private static bool SampleCoverage(SKSurface scratch, SKRectI rect, int w, int h, int step, Span<float> coverage)
+    /// <summary>
+    /// The stroke's alpha, downsampled — and beside it, per cell, the linear
+    /// colour the dabs actually laid there (Q232). The lattice used to be seeded
+    /// with one stroke colour, which threw away every per-dab colour the engine
+    /// had computed: jitter, a second colour, and the mixing that reads as paint.
+    /// </summary>
+    private static bool SampleCoverage(
+        SKSurface scratch, SKRectI rect, int w, int h, int step, Span<float> coverage, Span<float> colours)
     {
         using var image = scratch.Snapshot();
         if (image is null) return false;
@@ -232,7 +242,15 @@ public static class MediumSimulator
         {
             for (var x = 0; x < w; x++)
             {
-                coverage[y * w + x] = view.AlphaAt(x, y) / 255f;
+                var i = y * w + x;
+                coverage[i] = view.AlphaAt(x, y) / 255f;
+                if (coverage[i] <= 0f) continue;
+                // The downsample lands in an unpremultiplied bitmap, so this is
+                // the colour itself, averaged over the cell's dabs.
+                var (r, g, b) = Linear(view.At(x, y));
+                colours[i * 3] = r;
+                colours[i * 3 + 1] = g;
+                colours[i * 3 + 2] = b;
             }
         }
         return true;
@@ -245,9 +263,8 @@ public static class MediumSimulator
     /// to blooming rather than merely thin.
     /// </summary>
     private static void SeedFromCoverage(
-        FluidLattice lattice, ReadOnlySpan<float> coverage, SKColor color, MediumSettings medium, int w, int h)
+        FluidLattice lattice, ReadOnlySpan<float> coverage, ReadOnlySpan<float> colours, MediumSettings medium, int w, int h)
     {
-        var (r, g, b) = Linear(color);
         var wetness = (float)Math.Clamp(medium.Wetness, 0, 1);
         var density = (float)Math.Clamp(medium.PigmentDensity, 0, 1);
         var pressureWater = (float)Math.Clamp(medium.PressureWater, 0, 1);
@@ -269,7 +286,8 @@ public static class MediumSimulator
                 // twice.
                 var water = WetnessDepth * wetness * c * (1f + pressureWater * (1f - c));
                 var pigment = density * c;
-                lattice.Seed(x, y, water, pigment, r, g, b);
+                var i = (y * w + x) * 3;
+                lattice.Seed(x, y, water, pigment, colours[i], colours[i + 1], colours[i + 2]);
             }
         }
     }

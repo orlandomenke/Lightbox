@@ -155,6 +155,9 @@ public static class FrameRasterizer
             // edge would therefore drag future ink into the past. No coordinate
             // fixes that, so the whole repaint goes back to the slow path.
             if (stroke.Brush.Kind is BrushKind.Smudge or BrushKind.Blur) return false;
+            // A mixing brush reads what it sits on too, and would carry the
+            // later strokes outside the region into the pickup (the adversary).
+            if (stroke.Brush.Mixing is not null) return false;
             replay.Add(stroke);
         }
 
@@ -229,9 +232,18 @@ public static class FrameRasterizer
     /// export, a thumbnail, a symbol tile — gets the record replayed in full, as
     /// it always has been.
     /// </param>
+    /// <param name="origin">
+    /// Where the paper's top-left corner sits in stroke coordinates —
+    /// <see cref="Scene.Left"/> and <see cref="Scene.Top"/>. B409: this method
+    /// had no such parameter while <see cref="Rasterize"/> beside it did, and
+    /// every picture the application shows or writes comes through here, so a
+    /// document whose paper had been grown leftward or upward was drawn as
+    /// though it had not been — the drawing un-moved, anything in the new
+    /// margin nowhere.
+    /// </param>
     public static SKBitmap Materialize(
         Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0,
-        SKBitmap? backdrop = null, StrokeCheckpoint? checkpoint = null)
+        SKBitmap? backdrop = null, StrokeCheckpoint? checkpoint = null, SKPointI origin = default)
     {
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
         var scaled = Scaled(info, outputScale);
@@ -240,7 +252,11 @@ public static class FrameRasterizer
         canvas.Clear(SKColors.Transparent);
 
         var replayFrom = 0;
-        if (checkpoint is not null && CheckpointApplies(frame, checkpoint, outputScale, width, height))
+        // A checkpoint is pixels of a surface, and it does not record which
+        // corner that surface had. On paper that has been grown it is not
+        // trusted: the record is replayed instead, which is always right.
+        if (checkpoint is not null && origin == default
+            && CheckpointApplies(frame, checkpoint, outputScale, width, height))
         {
             using var stored = FrameCheckpoints.Pixels(checkpoint);
             if (stored is not null)
@@ -265,21 +281,37 @@ public static class FrameRasterizer
             // baseline — but a document that carries one will show it.
             using var baseline = PngCodec.Decode(frame.PngBase64);
             using var image = SKImage.FromBitmap(baseline);
-            canvas.DrawImage(
-                image,
-                new SKRect(0, 0, scaled.Width, scaled.Height),
-                new SKSamplingOptions(SKFilterMode.Linear));
+            // On paper nobody has resized this is the whole surface, as it
+            // always was. Once there is an origin the baseline is no longer
+            // the size of the paper: it is laid out in stroke coordinates,
+            // corner at zero, its own size — so it is placed there, and the
+            // paper's corner decides where that lands on the surface.
+            var dest = origin == default
+                ? new SKRect(0, 0, scaled.Width, scaled.Height)
+                : SKRect.Create(
+                    (float)(-origin.X * outputScale), (float)(-origin.Y * outputScale),
+                    (float)(baseline.Width * outputScale), (float)(baseline.Height * outputScale));
+            canvas.DrawImage(image, dest, new SKSamplingOptions(SKFilterMode.Linear));
         }
         for (var i = replayFrom; i < frame.Strokes.Count; i++)
         {
             BrushEngine.StampStroke(
-                canvas, frame.Strokes[i], info, bitmap, outputScale: outputScale, backdrop: backdrop);
+                canvas, frame.Strokes[i], info, bitmap, outputScale: outputScale, backdrop: backdrop,
+                origin: origin);
         }
         // Placements last, over the strokes. A placement is a drawing put on
         // top of this cel, not one mixed into it — and the ordering has to be
         // fixed, because "over" is the only answer that stays true when the
         // symbol is edited later.
+        // A placement is positioned in stroke coordinates and drawn through the
+        // canvas, so the paper's corner is a translation of the canvas.
+        if (origin != default)
+        {
+            canvas.Save();
+            canvas.Translate((float)(-origin.X * outputScale), (float)(-origin.Y * outputScale));
+        }
         SymbolRasterizer.StampPlacements(canvas, frame, info, celIndex, outputScale);
+        if (origin != default) canvas.Restore();
         canvas.Flush();
         return bitmap;
     }

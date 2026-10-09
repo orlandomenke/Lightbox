@@ -28,13 +28,16 @@ folder holding it, so an installed alpha build can be measured against a branch.
   shows up as slowness. The first transform-undo runs measured opening at 18 s and
   27 s on the same build, minutes apart, with other work going on.
 - **Nothing touches your profile or your keys.** Every run gets its own throwaway
-  profile (`LIGHTBOX_PROFILE_DIR`), and `ANTHROPIC_API_KEY` and the other AI variables
+  profile (`LIGHTBOX_PROFILE_DIR`) — which is also the only place the app honours
+  `LIGHTBOX_BRUSH`, the brush a paint scenario asks for, because the brush in hand is
+  saved to the profile at exit and a run must never leave one in yours — and `ANTHROPIC_API_KEY` and the other AI variables
   are removed from the app's environment — every `*_API_KEY` and the Ollama
   variables, by rule. AI features therefore do not run — never
   use the lab to judge AI output (the art-director's note).
 - **No private document is ever used.** Fixtures are generated from a seed by
   `tools/Lightbox.Bench` (`fixture` command). `owner-shape` matches the counts of the
   document that prompted all this — 11 layers, 64 drawings, ~1,260 strokes, 1920×1080,
+<<<<<<< HEAD
   ~7.9 MB — and contains none of its art.
 - **Large documents** (2026-10-09, for responsiveness at scale): `large` is 30 layers
   and 200 drawings at 1080p, `large-4k` the same at 3840×2160. Run any scenario on one
@@ -44,6 +47,10 @@ folder holding it, so an installed alpha build can be measured against a branch.
   owner-shaped document: with 30 layers the cell they aim at is off screen, so they
   stop rather than measure on `large`. `paint-strokes` is the painting scenario
   written for these documents: three strokes, an undo, a flip, a stroke straight after.
+=======
+  ~7.9 MB — and contains none of its art. `blank-1080p` and `blank-4k` are one empty
+  drawing layer over the paper, for the paint scenario.
+>>>>>>> origin/main
 
 ## What a run reports
 
@@ -58,7 +65,21 @@ can see.
 | `open.longest_stall_ms` | the longest freeze while opening |
 | `<action>.median_ms` / `.worst_ms` | the action's own cost: `undo`, `transform.begin`, `transform.commit`, `thumbnails`, `publish` (one screen update), `frame.add`, … |
 | `stalls.total_ms` / `.longest_ms` | how long the app did not answer, after opening |
-| stalls overlapped | which actions were running during the stalls — nested actions both count, so these overlap |
+| `stroke.move.median_ms` / `.worst_ms` | what one pointer batch costs the UI thread while painting: stamp, preview, publish request |
+| `pen.screen.median_ms` / `.worst_ms` | per drawn frame that carried fresh ink: the oldest pointer event in it → on screen. The artist's number |
+| `tip.screen.median_ms` / `.worst_ms` | the same frame's newest event → on screen: how stale the ink under the nib is, without the coalescing term |
+| `live.pass.median_ms` / `.worst_ms` | one live pass of a textured or simulated brush (wet edge, grain, medium), off the UI thread |
+| `live.behind.median` / `.worst` | when that pass landed, how many stroke points the pen had added since it started — the trailing you see. Points, not ms: at the drag's `hz` one point is one event, give or take the near-duplicate samples the stroke drops |
+| `stroke.commit.median_ms` / `.worst_ms` | the pen-up hitch: append, probe, undo record |
+| stalls overlapped | which actions were running during the stalls — nested actions both count, so these overlap. `pen.screen` and `tip.screen` are left out: they are how long ink waited, not what the app was doing |
+
+The paint metrics are **upper bounds**: while the log is on, every pointer batch and every
+drawn ink frame writes a line, and that write sits inside the very numbers it reports.
+Small, and the same on both sides of an A/B — but not zero, so compare, do not quote.
+
+A swept scenario reports each variant on its own, as `300px-3000pxs/pen.screen.worst_ms`
+and so on, and an A/B judges each variant against the same one on the other build; too
+few good runs at any one variant makes the whole sweep inconclusive.
 
 Across runs, **"worst" and "longest" are judged on the minimum** (contention only ever
 adds to them) and everything else on the median. `ab` interleaves the two builds and
@@ -77,7 +98,7 @@ need no handling here.
 |---|---|
 | `{"do": "key", "keys": "ctrl+t"}` | a shortcut — use the defaults in `ShortcutMap` |
 | `{"do": "click", "at": [x, y]}` | |
-| `{"do": "drag", "from": [x, y], "by": [dx, dy], "ms": 1500, "hz": 120}` | a paced drag, real mouse events |
+| `{"do": "drag", "from": [x, y], "by": [dx, dy], "ms": 1500, "hz": 120, "legs": 1}` | a paced drag, real mouse events; `legs` > 1 bounces between the ends within the same `ms` |
 | `{"do": "hover", "at": [x, y]}` | |
 | `{"do": "settle", "quiet_s": 1.0}` | wait for the app to answer and go quiet |
 | `{"do": "wait", "ms": 200}` | |
@@ -92,6 +113,7 @@ start a move drag a little off it (`transform-undo` uses `[0.53, 0.53]`).
 | `open-document` | opening the owner-shaped document |
 | `transform-undo` | select all, transform, move, commit, undo — three rounds |
 | `flip-keys` | flipping key to key with 1 and 2 |
+| `paint-stroke` | four strokes across a blank canvas with the brush in `brush`, swept over `sizes` (60, 150, 300 px) and `speeds` (900 and 3000 px/s of document), size outermost — large brushes and a fast pen are where drawing falls over. A faster variant bounces the same 1.5 s drag across the canvas more times (whole legs, so the speed reached is the nearest the drag allows), keeping the stroke's duration and sample count. `--sizes 60,300` and `--speeds 900,6000` replace the lists, `--hz 240` the event rate, `--brush builtin-ink` is the control (a `--brush id:size` runs that one size), `--fixture blank-4k` puts it on a 4K canvas. Sizes are 1–500; above that the app clamps and the run is refused |
 
 Planned, from the owner's list: first playback, adding a frame, click-to-jump on the
 timeline (scrubbing is fine; jumping is not), and the X-sheet operations that lag.

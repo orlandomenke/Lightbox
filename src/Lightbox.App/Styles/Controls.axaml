@@ -435,11 +435,36 @@
   <Style Selector="ToggleButton.eye:checked Path">
     <Setter Property="Data" Value="{StaticResource IconEyeOpen}" />
   </Style>
+  <!-- Inside a hidden folder: the row's own switch may well be on, and it
+       draws nothing all the same. The eye says what the canvas does — shut,
+       and as quiet as an eye that was turned off — while IsChecked keeps what
+       the artist set, so showing the folder again puts every eye back.
+       After `:checked` above, because of two styles at one level the later
+       wins. -->
+  <Style Selector="ToggleButton.eye.gated Path">
+    <Setter Property="Data" Value="{StaticResource IconEyeClosed}" />
+    <Setter Property="Opacity" Value="0.45" />
+    <Setter Property="Stroke" Value="{DynamicResource TextSecondaryBrush}" />
+  </Style>
   <Style Selector="ToggleButton.lock Path">
     <Setter Property="Data" Value="{StaticResource IconLockOpen}" />
   </Style>
   <Style Selector="ToggleButton.lock:checked Path">
     <Setter Property="Data" Value="{StaticResource IconLockClosed}" />
+  </Style>
+  <!-- Locked by a folder above: the row refuses edits, so its padlock is shut
+       — it used to stay open, on a layer that could not be drawn on. Quiet,
+       because the lock that is set is the folder's; IsChecked keeps the row's
+       own. After `:checked`, since the later of two styles wins. -->
+  <Style Selector="ToggleButton.lock.gated Path">
+    <Setter Property="Data" Value="{StaticResource IconLockClosed}" />
+    <Setter Property="Opacity" Value="0.45" />
+    <Setter Property="Stroke" Value="{DynamicResource TextSecondaryBrush}" />
+  </Style>
+  <!-- Pinned to the Timeline and the X-sheet (Q227). One drawing, dim when
+       off like the alpha lock: a pin has no "open" picture to change to. -->
+  <Style Selector="ToggleButton.pin Path">
+    <Setter Property="Data" Value="{StaticResource IconPin}" />
   </Style>
   <Style Selector="ToggleButton.alpha Path">
     <Setter Property="Data" Value="{StaticResource IconAlphaLock}" />
@@ -583,6 +608,31 @@
   <Style Selector="MenuFlyoutPresenter, FlyoutPresenter, ContextMenu">
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+  </Style>
+
+  <!--
+    The brush editor's popup is as wide as the editor and never scrolls.
+
+    A flyout's presenter is a ScrollViewer with Fluent's ceiling on it — 456
+    wide — and scroll bars for whatever does not fit. The editor is 780 by
+    design: an option list, the chosen option and a scratchpad, side by side.
+    So the popup showed the left 454 pixels of it with a horizontal scroll bar
+    underneath and the scratchpad out of sight to the right (the owner's
+    report, 2026-10-09).
+
+    The editor sets its own width, and scrolls the one part of itself that can
+    be long — the chosen option — so sideways the popup has nothing left to
+    decide and is told to decide nothing.
+
+    Its HEIGHT ceiling and its vertical scroll bar are left exactly as Fluent
+    has them, on purpose. The editor stops at 600, under that ceiling, so the
+    bar never shows; but it is the only thing that would make the foot of the
+    editor reachable on a screen too short for it, and taking it away to be
+    tidy would trade a scroll bar nobody sees for a popup nobody can finish.
+  -->
+  <Style Selector="FlyoutPresenter.brushEditor">
+    <Setter Property="MaxWidth" Value="Infinity" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
   </Style>
 
   <!-- ===== Section tabs ============================================== -->
@@ -749,7 +799,7 @@
     mark goes somewhere the artist did not mean. Deliberately not a glyph
     toggle like the eye and the lock: those switch a state, this is a second
     *surface* you draw on, and it reads as a pane for that reason. Cyan is
-    the chosen-state accent, the lockedLayer precedent. Here beside
+    the chosen-state accent. Here beside
     `.selected` for the same reason it is: the row template stays in
     MainWindow.axaml, whose ratchet is why no style joins it that can live
     application-wide.

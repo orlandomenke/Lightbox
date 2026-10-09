@@ -9,8 +9,8 @@ namespace Lightbox.App.Tests;
 
 /// <summary>
 /// Selecting a block of X-sheet cels (Q207): Shift+click ranges across rows as
-/// well as frames, and a plain drag selects the block it sweeps. Alt+drag is
-/// the gesture that moves a cel.
+/// well as frames, and a drag from an empty cel selects the block it sweeps. A
+/// drag from a drawing moves it (<see cref="XsheetDragMoveTests"/>).
 /// </summary>
 /// <remarks>
 /// Before, Shift+click ranged along one row and dropped its anchor on any
