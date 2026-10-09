@@ -48,7 +48,7 @@ public sealed class FrameConverter : JsonConverter<Frame>
     /// into a <c>JsonDocument</c>, then copy every field back out as a UTF-16
     /// string and parse that again: 4.5 s of a 30-layer, 200-drawing document's
     /// open (2026-10-09, <c>FrameReadCostTests</c>). Key order still does not
-    /// matter, and a key this build does not know is skipped.
+    /// matter, and a key this build does not know is kept and written back (Q230).
     /// </remarks>
     public override Frame? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
