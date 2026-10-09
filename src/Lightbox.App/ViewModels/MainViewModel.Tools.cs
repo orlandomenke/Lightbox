@@ -1145,6 +1145,11 @@ public partial class MainViewModel
         // playhead or the pose may have moved between sessions.
         _posedViews.Clear();
         var shown = PosedViews(frames);
+        // B433: a session whose subject is the selection cuts pixels by it as
+        // well as strokes. Decided before the filter is derived, because the
+        // filter alone cannot say whether it came from the selection or from
+        // picked lines.
+        TakePixelRegion(selectionIsTheSubject: filter is null);
         filter ??= DerivedTransformFilter(shown);
         // B302: the box round the drawing as it LOOKS, not as the record
         // remembers it. TransformOps.Bounds walked stroke points and nothing
@@ -1152,7 +1157,7 @@ public partial class MainViewModel
         // not cosmetic, a frame that is nothing but imported pixels measured as
         // empty and this method refused it. See VisibleDrawingBounds for why
         // wrapping the strokes in StrokeRecordCleaner is the wrong fix.
-        var bounds = VisibleDrawingBounds.Of(shown, filter, PaperRect());
+        var bounds = VisibleDrawingBounds.Of(shown, filter, PaperRect(), BaselineInsideRegion);
         if (frames.Count == 0 || bounds is null)
         {
             AiStatus = "Nothing to transform in this scope.";
@@ -1163,7 +1168,7 @@ public partial class MainViewModel
         // this one is keyed to nothing but the session it was built for.
         _previewSplit = null;
         _transform.Begin(frames, filter);
-        _transform.MovingBounds = PreviewMovingBounds(shown, filter);
+        _transform.MovingBounds = PreviewMovingBounds(shown, filter, BaselineInsideRegion);
         // B225: the gizmo's own box, which is what a move lines up against a
         // guide. Set from the same value the gizmo is raised with below, so the
         // box that snaps and the box on screen cannot disagree.

@@ -275,6 +275,8 @@ public class ContentEqualityTests(ITestOutputHelper output)
         if (u == typeof(bool)) return true;
         if (u.IsEnum) return Enum.GetValues(u).Cast<object>().Last();
         if (u == typeof(StrokePoint)) return new StrokePoint(1, 2, 0.5, 0.1, 0.2, 0.3);
+        // What a newer build wrote (Q230); a default element cannot be written.
+        if (u == typeof(System.Text.Json.JsonElement)) return System.Text.Json.JsonDocument.Parse("{\"from\":\"later\"}").RootElement.Clone();
         if (u.IsValueType) return Activator.CreateInstance(u);
         if (u.IsAbstract || u.IsInterface) return null;
         if (IsCollection(u))
@@ -328,6 +330,17 @@ public class ContentEqualityTests(ITestOutputHelper output)
         if (current is IDictionary dict)
         {
             if (dict.Count == 0) return false;
+            // A newer build's keys (Q230) are shared between copies by design and
+            // never edited, so real code would put a changed holder in its place.
+            if (p.GetCustomAttribute<System.Text.Json.Serialization.JsonExtensionDataAttribute>() is not null
+                && p.SetMethod is { IsPublic: true })
+            {
+                var fresh = (IDictionary)Activator.CreateInstance(current.GetType())!;
+                foreach (DictionaryEntry e in dict) fresh[e.Key] = e.Value;
+                fresh.Remove(dict.Keys.Cast<object>().First());
+                p.SetValue(owner, fresh);
+                return true;
+            }
             dict.Remove(dict.Keys.Cast<object>().First());
             return true;
         }
@@ -353,6 +366,7 @@ public class ContentEqualityTests(ITestOutputHelper output)
             string s => s + "x",
             Enum e => Enum.GetValues(t).Cast<object>().FirstOrDefault(v => !v.Equals(e)),
             StrokePoint sp => sp with { X = sp.X + 0.5 },
+            System.Text.Json.JsonElement => System.Text.Json.JsonDocument.Parse("2").RootElement.Clone(),
             _ when t.IsValueType => ChangedStruct(current),
             _ => null, // a reference: made absent
         };

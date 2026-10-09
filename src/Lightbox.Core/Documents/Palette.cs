@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 using System.Globalization;
 using System.Text;
 
@@ -7,6 +9,14 @@ namespace Lightbox.Core.Documents;
 /// a vocabulary rather than a row of squares — "skin shadow", not "#b07a5e".</summary>
 public sealed class Swatch
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>
     /// Stable identity, so a stroke can reference the swatch rather than
     /// copying its colour. Recolouring the swatch then recolours the art.
@@ -32,6 +42,14 @@ public sealed class Swatch
 /// </summary>
 public sealed class Palette
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("pal");
 
     public string Name { get; set; } = "Palette";

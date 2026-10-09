@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 using Lightbox.Core.Inbetween;
 
 namespace Lightbox.Core.Documents;
@@ -9,6 +11,14 @@ namespace Lightbox.Core.Documents;
 /// </summary>
 public sealed class CameraKey
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public int Frame { get; set; }
 
     /// <summary>Document x the frame is centred on.</summary>
@@ -48,6 +58,14 @@ public sealed class CameraKey
 /// </summary>
 public sealed class Camera
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>Rendered size of what the camera sees.</summary>
     public int OutputWidth { get; set; } = 1920;
 

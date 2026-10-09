@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -29,7 +31,16 @@ public enum FrameRole
 /// artist whether the model they brought is borderline (Q85).
 /// </para>
 /// </remarks>
-public sealed record AiProvenance(string Provider, string? Model = null, int? Attempts = null);
+public sealed record AiProvenance(string Provider, string? Model = null, int? Attempts = null)
+{
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+}
 
 /// <summary>
 /// One drawing: strokes, an optional pixel baseline, optional placed symbols,
@@ -66,6 +77,16 @@ public sealed record AiProvenance(string Provider, string? Model = null, int? At
 /// </remarks>
 public sealed class Frame
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Read and written by
+    /// <see cref="Serialization.FrameConverter"/>, not by the serializer. Null unless a file supplied some; never
+    /// edited, so a clone may share it. Marked as extension data too, so
+    /// anything that reads the record by reflection counts it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("f");
 
     public FrameRole Role { get; set; } = FrameRole.Key;

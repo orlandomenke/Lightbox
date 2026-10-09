@@ -58,6 +58,9 @@ public static class ContentEquality
         if (t == typeof(string)) return (a, b, _) => string.Equals((string)a, (string)b, StringComparison.Ordinal);
         if (t.IsPrimitive || t.IsEnum || t == typeof(decimal)) return (a, b, _) => a.Equals(b);
         if (t == typeof(StrokePoint)) return (a, b, _) => SamePoint((StrokePoint)a, (StrokePoint)b);
+        // What a newer build wrote (Q230): the same JSON is the same content.
+        if (t == typeof(System.Text.Json.JsonElement))
+            return (a, b, _) => System.Text.Json.JsonElement.DeepEquals((System.Text.Json.JsonElement)a, (System.Text.Json.JsonElement)b);
         if (t == typeof(List<StrokePoint>)) return (a, b, _) => SamePoints((List<StrokePoint>)a, (List<StrokePoint>)b);
         if (typeof(IDictionary).IsAssignableFrom(t)) return (a, b, d) => SameDictionary((IDictionary)a, (IDictionary)b, d);
         if (typeof(IEnumerable).IsAssignableFrom(t)) return (a, b, d) => SameSequence((IEnumerable)a, (IEnumerable)b, d);

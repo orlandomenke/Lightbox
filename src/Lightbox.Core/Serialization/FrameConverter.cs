@@ -48,7 +48,7 @@ public sealed class FrameConverter : JsonConverter<Frame>
     /// into a <c>JsonDocument</c>, then copy every field back out as a UTF-16
     /// string and parse that again: 4.5 s of a 30-layer, 200-drawing document's
     /// open (2026-10-09, <c>FrameReadCostTests</c>). Key order still does not
-    /// matter, and a key this build does not know is skipped.
+    /// matter, and a key this build does not know is kept and written back (Q230).
     /// </remarks>
     public override Frame? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -129,12 +129,12 @@ public sealed class FrameConverter : JsonConverter<Frame>
                         }
                     }
                     break;
-                // TrySkip, never Skip: a saved document is gzip, read as a
-                // stream, so this reader is not the final block and Skip throws
-                // even though the serializer has buffered the whole frame (the
-                // sensitivity review, 2026-10-09).
+                // A key a newer build wrote: kept, and written back (Q230).
+                // ParseValue rather than Skip: a saved document is gzip, read as
+                // a stream, so this reader is not the final block, and the
+                // serializer has buffered the whole frame for it.
                 default:
-                    if (!reader.TrySkip()) throw new JsonException("A frame ends part way through a value.");
+                    (frame.Unknown ??= new())[name!] = JsonElement.ParseValue(ref reader);
                     break;
             }
         }
@@ -204,6 +204,17 @@ public sealed class FrameConverter : JsonConverter<Frame>
         {
             writer.WritePropertyName("checkpoint");
             JsonSerializer.Serialize(writer, snapshot, options);
+        }
+
+        // Last, and as they came: what a newer build wrote (Q230).
+        if (value.Unknown is { Count: > 0 } unknown)
+        {
+            CheckpointFingerprint.NoteKeptWritten(unknown.Keys);
+            foreach (var (key, kept) in unknown)
+            {
+                writer.WritePropertyName(key);
+                kept.WriteTo(writer);
+            }
         }
 
         writer.WriteEndObject();

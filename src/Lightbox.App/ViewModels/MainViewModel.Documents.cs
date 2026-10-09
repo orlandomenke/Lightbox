@@ -192,7 +192,15 @@ public partial class MainViewModel
             OnProjectChanged();
             Remember(root, RecentKind.Project);
         }
-        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+        // NotSupported is ProjectIo refusing an earlier alpha's project with a
+        // sentence written for the artist (Q36): shown as it is, not thrown past
+        // the status strip from a click.
+        catch (NotSupportedException ex)
+        {
+            AiStatus = ex.Message;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException
+                                       or System.Text.Json.JsonException or UnauthorizedAccessException)
         {
             AiStatus = $"Could not open that project: {ex.Message}";
         }
@@ -530,32 +538,90 @@ public partial class MainViewModel
     /// take the same route — including the part where a file that has since
     /// been moved says so instead of doing nothing.
     /// </remarks>
-    public void OpenRecent(RecentItem? item)
+    public Task OpenRecent(RecentItem? item)
     {
-        if (item is null) return;
+        if (item is null) return Task.CompletedTask;
         if (item.Kind == RecentKind.Project)
         {
             if (!Directory.Exists(item.Path))
             {
                 AiStatus = $"“{item.Name}” is no longer at {item.Path}.";
-                return;
+                return Task.CompletedTask;
             }
             OpenProject(item.Path);
-            return;
+            return Task.CompletedTask;
         }
         if (!File.Exists(item.Path))
         {
             AiStatus = $"“{item.Name}” is no longer at {item.Path}.";
-            return;
+            return Task.CompletedTask;
         }
+        // Read on a worker (Q229); a file that will not open says why.
+        return OpenDocumentFileAsync(item.Path);
+    }
+
+    // ---- opening off the UI thread (Q229) -------------------------------------------
+
+    /// <summary>
+    /// How a document is read from disk. A seam so a test can hold a load open
+    /// and look at the window in between; the app never changes it.
+    /// </summary>
+    internal static Func<string, Doc> LoadDocument = DocJson.Load;
+
+    /// <summary>Documents being read from disk, shown in the tab strip until they are tabs.</summary>
+    public ObservableCollection<OpeningDocument> OpeningDocuments { get; } = [];
+
+    /// <summary>A document is being read: the canvas is covered and the window takes no edits.</summary>
+    public bool IsOpeningDocument => OpeningDocuments.Count > 0;
+
+    /// <summary>The name the cover shows: the latest document asked for.</summary>
+    public string? OpeningTitle => OpeningDocuments.LastOrDefault()?.Title;
+
+    /// <summary>
+    /// Read a document on a worker and open it as a tab when it arrives (Q229).
+    /// False, with the reason in the status strip, when it will not open.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A 30-layer, 200-drawing document took about 2.5 s to parse cold, all of
+    /// it on the UI thread, so the window neither repainted nor answered.
+    /// </para>
+    /// <para>
+    /// <b>No stand-in document while it loads.</b> The owner asked for an
+    /// "Opening…" tab with no canvas; a blank document behind that tab could be
+    /// drawn on and then discarded when the real one arrived. So the opening
+    /// file is an entry of its own (<see cref="OpeningDocuments"/>), the window
+    /// covers the canvas and takes no edits while there is one, and the file
+    /// becomes a tab — through <see cref="OpenDocumentTab"/>, as before — only
+    /// once it exists.
+    /// </para>
+    /// </remarks>
+    public async Task<bool> OpenDocumentFileAsync(string path)
+    {
+        var opening = new OpeningDocument(TitleFromPath(path), path);
+        OpeningDocuments.Add(opening);
+        OnPropertyChanged(nameof(IsOpeningDocument));
+        OnPropertyChanged(nameof(OpeningTitle));
+        Doc doc;
         try
         {
-            OpenDocumentTab(DocJson.Load(item.Path), item.Path);
+            var load = LoadDocument;
+            doc = await Task.Run(() => load(path));
         }
-        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+        catch (Exception e) when (e is IOException or InvalidDataException
+                                      or System.Text.Json.JsonException or UnauthorizedAccessException)
         {
-            AiStatus = $"Could not open {item.Name}: {ex.Message}";
+            AiStatus = $"Could not open {System.IO.Path.GetFileName(path)}: {e.Message}";
+            return false;
         }
+        finally
+        {
+            OpeningDocuments.Remove(opening);
+            OnPropertyChanged(nameof(IsOpeningDocument));
+            OnPropertyChanged(nameof(OpeningTitle));
+        }
+        OpenDocumentTab(doc, path);
+        return true;
     }
 
     // ---- crash recovery (B394) ----------------------------------------------------

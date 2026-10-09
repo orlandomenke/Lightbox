@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 using Lightbox.Core.Inbetween;
 
 namespace Lightbox.Core.Effects;
@@ -5,6 +7,14 @@ namespace Lightbox.Core.Effects;
 /// <summary>One value at one frame, and how it eases into the next.</summary>
 public sealed class EffectKey
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public int Frame { get; set; }
 
     public double Value { get; set; }
@@ -46,6 +56,14 @@ public sealed class EffectKey
 /// </remarks>
 public sealed class EffectParam
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public EffectParam() { }
 
     public EffectParam(double value) => Value = value;
@@ -92,6 +110,7 @@ public sealed class EffectParam
 
     public EffectParam Clone() => new()
     {
+        Unknown = Unknown,
         Value = Value,
         Keys = Keys?.Select(k => k.Clone()).ToList(),
     };

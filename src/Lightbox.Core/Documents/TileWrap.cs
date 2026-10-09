@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Lightbox.Core.Documents;
@@ -38,6 +39,14 @@ namespace Lightbox.Core.Documents;
 /// </remarks>
 public sealed class TileWrap
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>The tile's left edge, in document coordinates.</summary>
     public double Left { get; set; }
 
@@ -141,5 +150,5 @@ public sealed class TileWrap
     public const int MaxTilesAway = 4;
 
     /// <summary>A copy, so editing a tile never reaches a stroke already painted.</summary>
-    public TileWrap Clone() => new() { Left = Left, Top = Top, Width = Width, Height = Height };
+    public TileWrap Clone() => new() { Unknown = Unknown, Left = Left, Top = Top, Width = Width, Height = Height };
 }

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -53,6 +55,14 @@ public enum PaperKind
 /// </summary>
 public sealed class MediumSettings
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>Which medium to simulate. <see cref="MediumKind.None"/> skips the whole pass.</summary>
     public MediumKind Kind { get; set; } = MediumKind.None;
 
@@ -185,6 +195,7 @@ public sealed class MediumSettings
 
     public MediumSettings Clone() => new()
     {
+        Unknown = Unknown,
         Kind = Kind,
         Wetness = Wetness,
         Viscosity = Viscosity,

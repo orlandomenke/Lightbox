@@ -273,6 +273,8 @@ public class FluidEffectsWindowTests(Xunit.ITestOutputHelper output)
         // and forgetting the window fails here rather than shipping invisible.
         foreach (var property in typeof(SimParams).GetProperties())
         {
+            // What a newer build wrote (Q230) is carried, not edited: no row.
+            if (property.GetCustomAttributes(typeof(System.Text.Json.Serialization.JsonExtensionDataAttribute), false).Length > 0) continue;
             Assert.True(
                 physics.Any(n => n.Replace(" ", string.Empty)
                     .Equals(property.Name, StringComparison.OrdinalIgnoreCase)),
