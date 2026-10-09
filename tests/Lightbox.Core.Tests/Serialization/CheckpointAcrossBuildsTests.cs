@@ -73,6 +73,8 @@ public class CheckpointAcrossBuildsTests
     [InlineData("document")]
     [InlineData("scene")]
     [InlineData("drawing")]
+    [InlineData("symbol")]
+    [InlineData("a drawing in a symbol")]
     public void KeptDataAnywhereTheFingerprintCoversMarksIt(string where)
     {
         var doc = Drawing(out var frame);
@@ -83,6 +85,19 @@ public class CheckpointAcrossBuildsTests
             case "document": doc.Unknown = Later(); break;
             case "scene": doc.Scene.Unknown = Later(); break;
             case "drawing": frame.Unknown = Later(); break;
+            // Symbols ride in the render shell and are written by their own
+            // converter, as the drawings inside them are by theirs.
+            case "symbol": doc.Symbols = new() { ["s"] = new Symbol { Id = "s", Unknown = Later() } }; break;
+            case "a drawing in a symbol":
+                doc.Symbols = new()
+                {
+                    ["s"] = new Symbol
+                    {
+                        Id = "s",
+                        Layers = [new Layer { Cels = [new Cel { Frame = new Frame { Unknown = Later() } }] }],
+                    },
+                };
+                break;
         }
 
         var marked = CheckpointFingerprint.Of(doc, frame, 4);

@@ -207,8 +207,9 @@ public sealed class FrameConverter : JsonConverter<Frame>
         }
 
         // Last, and as they came: what a newer build wrote (Q230).
-        if (value.Unknown is { } unknown)
+        if (value.Unknown is { Count: > 0 } unknown)
         {
+            CheckpointFingerprint.NoteKeptWritten(unknown.Keys);
             foreach (var (key, kept) in unknown)
             {
                 writer.WritePropertyName(key);
