@@ -152,15 +152,24 @@ public static class DocJson
     public static Doc Load(string path)
     {
         using var file = File.OpenRead(path);
+        return Load(file);
+    }
+
+    /// <summary>
+    /// A document from a stream that can seek — gzip, as <see cref="Save"/>
+    /// writes it, or plain JSON, as older builds and hand edits do.
+    /// </summary>
+    public static Doc Load(Stream file)
+    {
         var isGzip = file.ReadByte() == 0x1f && file.ReadByte() == 0x8b;
         file.Position = 0;
         if (isGzip)
         {
-            using var gzip = new GZipStream(file, CompressionMode.Decompress);
+            using var gzip = new GZipStream(file, CompressionMode.Decompress, leaveOpen: true);
             return JsonSerializer.Deserialize<Doc>(gzip, Options)
                 ?? throw new JsonException("Document deserialized to null.");
         }
-        using var reader = new StreamReader(file);
+        using var reader = new StreamReader(file, leaveOpen: true);
         return Deserialize(reader.ReadToEnd());
     }
 

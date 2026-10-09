@@ -234,6 +234,33 @@ sealed class LivePaintSession
     /// </remarks>
     internal SKBitmap? CoverageTailBackup { get; set; }
 
+    /// <summary>
+    /// Where the pen was and how hard, for a brush whose texture is gated by
+    /// pressure (the pencil's tooth): a document-sized running maximum the dabs
+    /// accumulate into, carried across the stroke exactly as
+    /// <see cref="Coverage"/> is, so a pointer event never re-walks the mark.
+    /// Always at document scale — the gate's grain is a few pixels, and a
+    /// coarser map would gate the wrong ones.
+    /// </summary>
+    internal SKBitmap? Press { get; private set; }
+
+    internal SKCanvas? PressCanvas { get; private set; }
+
+    internal SKBitmap? PressTailBackup { get; set; }
+
+    internal void BeginPress(int width, int height)
+    {
+        if (Press is null || Press.Width != width || Press.Height != height)
+        {
+            PressCanvas?.Dispose();
+            Press?.Dispose();
+            Press = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+            PressCanvas = new SKCanvas(Press);
+        }
+        PressCanvas!.Clear(SKColors.Black);
+        PressCanvas.Flush();
+    }
+
     internal SKBitmap? TailBackup { get; set; }
 
     internal SKRectI? TailRegion { get; set; }

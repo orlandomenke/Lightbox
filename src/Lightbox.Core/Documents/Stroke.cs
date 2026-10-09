@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -8,6 +10,14 @@ namespace Lightbox.Core.Documents;
 /// </summary>
 public sealed class Stroke
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("s");
 
     public ToolKind Tool { get; set; } = ToolKind.Brush;
@@ -319,6 +329,14 @@ public sealed class Stroke
 /// </remarks>
 public sealed class BakedSample
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>Bare base64 of a PNG, no data-URL prefix.</summary>
     public string PngBase64 { get; init; } = "";
 

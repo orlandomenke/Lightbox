@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 using Lightbox.Core.Effects;
 
 namespace Lightbox.Core.Documents;
@@ -141,6 +143,14 @@ public readonly record struct Combustion
 /// </remarks>
 public sealed record SimParams
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>How hard heat lifts. Up is −Y, the document's own convention.</summary>
     public double Buoyancy { get; set; } = 0.35;
 
@@ -267,6 +277,14 @@ public enum EmitterShape
 public sealed class EmitterScatter
 {
     /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
+    /// <summary>
     /// What fraction of the candidate sites actually burn, 0..1.
     /// </summary>
     /// <remarks>
@@ -336,6 +354,14 @@ public sealed class EmitterScatter
 
 public sealed class Emitter
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("em");
 
     public EmitterShape Shape { get; set; } = EmitterShape.Disc;
@@ -503,6 +529,14 @@ public sealed class Emitter
 /// </remarks>
 public sealed class ParticleSpec
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>How many are spawned per frame.</summary>
     public int PerFrame { get; set; } = 12;
 
@@ -550,6 +584,14 @@ public sealed class ParticleSpec
 /// </remarks>
 public sealed class SimElement
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("sim");
 
     /// <summary>What is being simulated: <c>fire</c>, <c>smoke</c>, <c>steam</c>.</summary>

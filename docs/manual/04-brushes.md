@@ -274,6 +274,16 @@ Two things worth knowing:
 **Depth** is how hard it bites. Depth starts at zero, so importing a paper
 opens it for you — a texture you cannot see looks like a broken import.
 
+**Tooth** is what makes a pencil a pencil. At zero the bite is the same
+however hard you press, the way a texture overlay is. Turn it up and the bite
+becomes something pressure fills in: a light touch catches only the peaks of
+the paper, a firm stroke reaches the valleys, and the edge of a mark — where
+the tip presses least — shows more paper than its middle. It needs a paper and
+a Depth above zero, like everything on this option, and it follows the pen
+only when **Pen pressure** is on for the brush. The shipped **Pencil** is a
+fine cold-press grain with this most of the way up; a mouse, which always
+presses fully, draws it at its darkest.
+
 ## How the brush answers the pen
 
 Each thing pen pressure can drive has its own curve, and **the curve sits
@@ -358,7 +368,12 @@ yet build a ridge where they meet.
 out. Below that the mark begins full and fades as you draw, and at low values
 it is gone within a short scrape — that is dry-brush, and it works whether or
 not a medium is switched on. The length scale follows the brush size, so
-resizing a brush does not change how far its paint goes.
+resizing a brush does not change how far its paint goes, and it climbs
+steeply near the top: a half load lasts six diameters, 0.9 lasts fifty, and
+only 1 never runs out. The shipped
+**Watercolor** starts a little short of full, so a long wash fades and narrows
+toward its end the way a real one does rather than growing heavier as your
+hand presses on; turn it up to 1 for a wash that never runs out.
 
 **Wetness** is how far the paint travels. A wet mark spreads past where the
 brush went, more so the longer the flow runs — a 40-pixel stroke reaches nearly
@@ -369,7 +384,9 @@ does not pay for it.
 dries, so the mark ends up darker at its border than in the middle. At 0 the
 wash dries flat. Turn it up and the border darkens and the middle pales — the
 paint is being moved, not added, so a strong wet edge is paid for out of the
-centre. That is what a real one costs too.
+centre. That is what a real one costs too. The middle pales as a whole and
+stays an even wash; it never opens into a pale line down the stroke, at any
+setting.
 
 **Flow steps** decide how far the paint travels, not how much of it there is.
 Turn them down for a mark that stays where you put it, up for one that spreads
@@ -465,7 +482,8 @@ Brushes come in three kinds, and the picker tells them apart:
 - **Textured ◇** — stamps dabs and then finishes the mark: a wet edge or
   granulation pass runs over the whole stroke when the pen lifts. Drawing
   stays light; the finish is a beat at pen-lift, longer on a big stroke.
-  Pencil and the paper-grain brushes live here.
+  Pencil and the paper-grain brushes live here — a pencil's tooth is a paper
+  texture that pressure fills in, so it pays what a textured brush pays.
 - **Expressive ◈** — reads the canvas back, simulates a medium, or blends the
   layers underneath. The mark behaves like a material instead of like paint
   being placed. Slower, particularly on a large canvas.

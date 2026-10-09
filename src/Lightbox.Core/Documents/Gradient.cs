@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 public enum GradientKind
@@ -31,6 +33,14 @@ public enum GradientSpread
 /// </remarks>
 public sealed class GradientStop
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public double Position { get; set; }
 
     public string Color { get; set; } = "#000000";
@@ -59,6 +69,14 @@ public sealed class GradientStop
 /// </remarks>
 public sealed class GradientAlphaStop
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public double Position { get; set; }
 
     public double Alpha { get; set; } = 1.0;
@@ -76,6 +94,14 @@ public sealed class GradientAlphaStop
 /// </summary>
 public sealed class Gradient
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("grad");
 
     public string Name { get; set; } = "Gradient";

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -28,6 +30,14 @@ namespace Lightbox.Core.Documents;
 /// </remarks>
 public sealed class ReferenceBoard
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("board");
 
     /// <summary>Tiles, back to front. See the class remarks on z-order.</summary>
@@ -89,6 +99,14 @@ public sealed class ReferenceBoard
 /// </remarks>
 public sealed class BoardTile
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("tile");
 
     /// <summary>What the board labels it — the view's name, or the file's.</summary>

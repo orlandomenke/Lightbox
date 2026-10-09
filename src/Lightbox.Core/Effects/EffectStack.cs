@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Lightbox.Core.Documents;
 
@@ -28,6 +29,14 @@ namespace Lightbox.Core.Effects;
 /// </remarks>
 public sealed class EffectUse
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public string Id { get; set; } = Ids.NewId("fx");
 
     public string Kind { get; set; } = "";
@@ -79,6 +88,14 @@ public sealed class EffectUse
 /// </summary>
 public sealed class EffectStack
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public List<EffectUse> Uses { get; set; } = [];
 
     /// <summary>

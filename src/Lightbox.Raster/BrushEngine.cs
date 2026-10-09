@@ -605,6 +605,13 @@ public static class BrushEngine
             : null;
         footprint?.Canvas.Clear(SKColors.Black);
 
+        // Where the pen was and how hard, for a texture that fills in under
+        // pressure. Its own surface: the footprint's three channels are taken.
+        using var press = NeedsPressMap(brush)
+            ? SKSurface.Create(new SKImageInfo(dev.Width, dev.Height, SKColorType.Rgba8888, SKAlphaType.Opaque))
+            : null;
+        press?.Canvas.Clear(SKColors.Black);
+
         InDocumentSpace(canvas, dev, outputScale, origin, () =>
         {
             // The dabs, mixed or plain. The drawn mark (no symmetry matrix)
@@ -642,6 +649,13 @@ public static class BrushEngine
                 CapToFootprint(scratch, footprint, local, CeilingReachPx(brush, outputScale));
             }
 
+            if (press is not null)
+            {
+                InDocumentSpace(
+                    press.Canvas, dev, outputScale, origin,
+                    () => StampPressPass(press.Canvas, stroke), symmetry);
+            }
+
             // The medium replaces the flat texture effects: wet edge and
             // granulation are the cheap stand-ins for what the simulation
             // actually computes, so running both would double the rim and the
@@ -676,7 +690,14 @@ public static class BrushEngine
         else
         {
             if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, outputScale);
-            if (HasTexture(brush)) ApplyTexture(canvas, brush, rect, local);
+            if (HasTexture(brush))
+            {
+                press?.Canvas.Flush();
+                using var pressPix = press?.PeekPixels();
+                // The press surface is the scratch's size, device pixels; the
+                // texture's mask is the document rect's. Same origin, scaled.
+                ApplyTexture(canvas, brush, rect, local, pressPix, new FootprintSpace(outputScale, 0, 0));
+            }
         }
         ApplyClip(canvas, stroke, local, dev, outputScale, origin);
         ApplyAlphaLock(canvas, stroke, targetPixels, dev);
@@ -784,7 +805,8 @@ public static class BrushEngine
     public static SKImage? PostProcessRegion(
         SKBitmap dabs, Stroke stroke, SKRectI rect, SKBitmap? targetPixels,
         SKPointI origin = default, SKPointI beneathOrigin = default,
-        SKBitmap? footprintPixels = null, FootprintSpace? footprintSpace = null)
+        SKBitmap? footprintPixels = null, FootprintSpace? footprintSpace = null,
+        SKBitmap? pressPixels = null, FootprintSpace? pressSpace = null)
     {
         var brush = stroke.Brush;
 
@@ -853,15 +875,51 @@ public static class BrushEngine
             InDocumentSpace(canvas, surface, 1.0, origin, () => ApplyGranulation(canvas, brush, rect));
         }
 
-        if (brush.Medium.Kind != MediumKind.None)
+        // The press map: carried by the caller across the stroke when it has
+        // one (the footprint's discipline), rebuilt from the stroke record
+        // otherwise — which walks every dab per pass and is the fallback, not
+        // the path (leak-hunter, 2026-10-09).
+        SKSurface? pressRebuilt = null;
+        SKPixmap? pressPix = null;
+        var pressAt = FootprintSpace.Document;
+        try
         {
-            Media.MediumSimulator.Apply(
-                scratch, targetPixels, StrokeColor(stroke), brush.Medium, rect, beneathOrigin);
+            if (NeedsPressMap(brush))
+            {
+                if (pressPixels is not null)
+                {
+                    pressPix = pressPixels.PeekPixels();
+                    pressAt = pressSpace ?? FootprintSpace.Document;
+                }
+                else
+                {
+                    pressRebuilt = SKSurface.Create(
+                        new SKImageInfo(rect.Width, rect.Height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+                    if (pressRebuilt is not null)
+                    {
+                        pressRebuilt.Canvas.Clear(SKColors.Black);
+                        InDocumentSpace(pressRebuilt.Canvas, surface, 1.0, origin, () => StampPressPass(pressRebuilt.Canvas, stroke));
+                        pressRebuilt.Canvas.Flush();
+                        pressPix = pressRebuilt.PeekPixels();
+                    }
+                }
+            }
+
+            if (brush.Medium.Kind != MediumKind.None)
+            {
+                Media.MediumSimulator.Apply(
+                    scratch, targetPixels, StrokeColor(stroke), brush.Medium, rect, beneathOrigin);
+            }
+            else
+            {
+                if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, 1.0);
+                if (HasTexture(brush)) ApplyTexture(canvas, brush, rect, local, pressPix, pressAt);
+            }
         }
-        else
+        finally
         {
-            if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, 1.0);
-            if (HasTexture(brush)) ApplyTexture(canvas, brush, rect, local);
+            pressPix?.Dispose();
+            pressRebuilt?.Dispose();
         }
 
         return scratch.Snapshot();
@@ -2573,9 +2631,12 @@ public static class BrushEngine
     /// </remarks>
     public static void StampDabRange(
         SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
-        SKCanvas? footprint = null, bool footprintOnly = false, IReadOnlyList<MixDeposit>? replay = null)
+        SKCanvas? footprint = null, bool footprintOnly = false, IReadOnlyList<MixDeposit>? replay = null,
+        SKCanvas? press = null)
     {
-        if (DrawsAsOneSilhouette(stroke.Brush))
+        // The silhouette is the colour draw; a pass that only records the
+        // footprint or the press map walks the dabs like any other brush.
+        if (DrawsAsOneSilhouette(stroke.Brush) && !footprintOnly)
         {
             StampSilhouette(canvas, stroke, dabs, from, to);
             return;
@@ -2594,7 +2655,7 @@ public static class BrushEngine
             MixDeposit? mix = replay is not null && i < replay.Count ? replay[i] : null;
             StampDab(
                 canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load,
-                dab.Seed, footprint, footprintOnly, dab.Fidelity, mix);
+                dab.Seed, footprint, footprintOnly, dab.Fidelity, mix, press);
         }
     }
 
@@ -2905,6 +2966,30 @@ public static class BrushEngine
     /// </remarks>
     private static void StampFootprintPass(SKCanvas footprint, Stroke stroke) =>
         StampDabs(footprint, stroke, footprint, footprintOnly: true);
+
+    /// <summary>
+    /// Lay down only the press map — where the pen was and how hard — for the
+    /// pressure-gated texture pass. The same walk as the dabs, colour skipped,
+    /// for the reason <see cref="StampFootprintPass"/> gives.
+    /// </summary>
+    private static void StampPressPass(SKCanvas press, Stroke stroke) =>
+        StampDabRange(press, stroke, WalkDabs(stroke), 0, int.MaxValue, null, footprintOnly: true, press: press);
+
+    /// <summary>Does this brush's texture answer the pen's pressure (the pencil's tooth)?</summary>
+    public static bool NeedsPressMap(BrushSettings brush) =>
+        brush.Medium.Kind == MediumKind.None
+        && HasTexture(brush) && brush.TextureDepth > 0 && (brush.TexturePressure ?? 0) > 0;
+
+    /// <summary>
+    /// The live path's half of <see cref="StampPressPass"/>: the dabs that are
+    /// new, into a document-sized buffer the caller keeps for the stroke. A
+    /// maximum accumulates, so stamping only the new dabs reaches the same
+    /// pixels as stamping the lot — the footprint's discipline (B293), which is
+    /// what keeps a pointer event from paying for the whole mark.
+    /// </summary>
+    public static void AccumulatePress(
+        SKCanvas press, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to) =>
+        StampDabRange(press, stroke, dabs, from, to, null, footprintOnly: true, press: press);
 
 
     /// <summary>Everything a dab can reach beyond its center: radius, scatter offset, soft edge.</summary>
@@ -3273,7 +3358,7 @@ public static class BrushEngine
         SKCanvas canvas, SKPoint pos, double pressure, BrushSettings brush, SKColor color,
         SKBitmap? tip, double directionDeg = double.NaN, SKImage? tipImage = null,
         double load = 1, SKPoint? seed = null, SKCanvas? footprint = null,
-        bool footprintOnly = false, int fidelity = 1, MixDeposit? mix = null)
+        bool footprintOnly = false, int fidelity = 1, MixDeposit? mix = null, SKCanvas? press = null)
     {
         var radius = (float)(RadiusAt(brush, pressure));
         if (radius <= 0) return;
@@ -3370,16 +3455,32 @@ public static class BrushEngine
             // opposite of what the artist asked for. The chain is built once
             // because the image is held by the registry rather than wrapped per
             // dab.
-            if (tipImage is not null)
+            if (!footprintOnly)
             {
-                canvas.DrawImage(tipImage, -tip.Width / 2f, -tip.Height / 2f, TipSampling, paint);
-            }
-            else
-            {
-                canvas.DrawBitmap(tip, -tip.Width / 2f, -tip.Height / 2f, paint);
+                // A press-only pass records where the tip landed, never its
+                // colour: the draw would land in the channel the gate reads.
+                if (tipImage is not null)
+                {
+                    canvas.DrawImage(tipImage, -tip.Width / 2f, -tip.Height / 2f, TipSampling, paint);
+                }
+                else
+                {
+                    canvas.DrawBitmap(tip, -tip.Width / 2f, -tip.Height / 2f, paint);
+                }
             }
             paint.ColorFilter = null;
             canvas.Restore();
+            if (press is not null)
+            {
+                // The tip's bounding disc, under the tip's own transform: close
+                // enough for a gate whose grain is the paper's, not the tip's.
+                press.Save();
+                press.Translate(pos.X, pos.Y);
+                press.RotateDegrees((float)rotation);
+                press.Scale(1f, (float)roundness);
+                StampPress(press, SKPoint.Empty, radius, HardnessAt(brush, pressure), brush.AntiAlias, PressFor(brush, pressure));
+                press.Restore();
+            }
             return;
         }
 
@@ -3421,6 +3522,15 @@ public static class BrushEngine
                 StampFootprint(footprint, SKPoint.Empty, radius, hardness, brush.AntiAlias);
                 footprint.Restore();
             }
+            if (press is not null)
+            {
+                press.Save();
+                press.Translate(pos.X, pos.Y);
+                press.RotateDegrees((float)rotation);
+                press.Scale(1f, (float)roundness);
+                StampPress(press, SKPoint.Empty, radius, hardness, brush.AntiAlias, PressFor(brush, pressure));
+                press.Restore();
+            }
             return;
         }
 
@@ -3431,6 +3541,38 @@ public static class BrushEngine
             ReleaseShader(round, shader);
         }
         if (footprint is not null) StampFootprint(footprint, pos, radius, hardness, brush.AntiAlias);
+        if (press is not null) StampPress(press, pos, radius, hardness, brush.AntiAlias, PressFor(brush, pressure));
+    }
+
+    /// <summary>
+    /// The pressure the tooth answers: the pen's, unless the brush's pen-pressure
+    /// master is off, in which case it is fully pressed — the same rule
+    /// <c>PressureResponse.Factor</c> applies to every other dynamic.
+    /// </summary>
+    private static double PressFor(BrushSettings brush, double pressure) =>
+        brush.PressureEnabled ? pressure : 1.0;
+
+    /// <summary>
+    /// Record how hard the pen was pressed where this dab landed, as a running
+    /// maximum the pressure-gated texture pass reads (the pencil's tooth).
+    /// </summary>
+    /// <remarks>
+    /// The same trick as <see cref="StampFootprint"/>: an opaque surface, the
+    /// value in a colour channel, <c>Lighten</c> as a per-channel max. Red is
+    /// the dab's shape scaled by its pressure, so a dab's soft edge presses
+    /// less than its core and the mark's border shows more paper than its
+    /// middle — which is what a pencil held at an angle does.
+    /// </remarks>
+    private static void StampPress(
+        SKCanvas press, SKPoint centre, float radius, float hardness, bool antiAlias, double pressure)
+    {
+        var p = (byte)Math.Round(Math.Clamp(pressure, 0, 1) * 255);
+        var paint = DabPaint(ref t_pressPaint, antiAlias);
+        paint.BlendMode = SKBlendMode.Lighten;
+        var shader = TwoStopRadial(centre, radius, new SKColor(p, 0, 0), new SKColor(0, 0, 0), hardness);
+        paint.Shader = shader;
+        press.DrawCircle(centre, radius, paint);
+        ReleaseShader(paint, shader);
     }
 
     // ---- the dab's paints, one per thread (playback phase 2a, step 2) --------
@@ -3448,6 +3590,7 @@ public static class BrushEngine
     [ThreadStatic] private static SKPaint? t_roundPaint;
     [ThreadStatic] private static SKPaint? t_tipPaint;
     [ThreadStatic] private static SKPaint? t_footprintPaint;
+    [ThreadStatic] private static SKPaint? t_pressPaint;
     [ThreadStatic] private static SKColor[]? t_stopColors;
     [ThreadStatic] private static float[]? t_stopPositions;
 
@@ -3767,13 +3910,56 @@ public static class BrushEngine
         }
     }
 
-    private static void ApplyTexture(SKCanvas canvas, BrushSettings brush, SKRectI rect, SKImageInfo local)
+    /// <summary>
+    /// Half the width, in paper height, of the ramp between "the tooth keeps
+    /// this" and "the graphite reaches this" when the texture is gated by
+    /// pressure. The procedural papers pack their heights between about 0.3
+    /// and 0.7, so a narrow ramp (0.12 was the first try) turned every stretch
+    /// of a line fully on or off and a medium press read as dashes; this wide
+    /// the valleys read as lighter graphite inside a continuous line, which is
+    /// what a pencil does.
+    /// </summary>
+    private const float ToothSoftness = 0.25f;
+
+    /// <summary>
+    /// Pressure enters the gate as this power of itself. Below 1 because the
+    /// paper's heights sit around the middle of the range: a linear gate spends
+    /// the first half of the pen's travel above every peak (nothing marks) and
+    /// the second half below every valley (everything does). The square root
+    /// puts a light touch on the peaks and a medium press into the valleys.
+    /// </summary>
+    private const float ToothPressureGamma = 0.5f;
+
+    /// <summary>
+    /// <c>Pow(b / 255, ToothPressureGamma)</c> for every press byte, built once:
+    /// the press map is already quantised, and the perf-warden put the per-pixel
+    /// power at 22 ns of a 10–12 ms commit loop. Byte-identical to calling it.
+    /// </summary>
+    private static readonly float[] ToothPress =
+        [.. Enumerable.Range(0, 256).Select(b => MathF.Pow(b / 255f, ToothPressureGamma))];
+
+    /// <param name="pressPix">
+    /// The pressure map a pencil-like brush records (<see cref="StampPress"/>),
+    /// or null for the ordinary texture whose bite is the same at any pressure.
+    /// With it the bite becomes a threshold that pressure lowers: at a light
+    /// touch only the paper's peaks take graphite, at a hard press the valleys
+    /// fill. The ungated path is untouched, byte for byte.
+    /// </param>
+    /// <param name="pressAt">
+    /// Where a mask pixel (document rect coordinates) sits in the press map —
+    /// the commit's device-scaled surface or the live path's crop of its
+    /// document-sized buffer.
+    /// </param>
+    private static void ApplyTexture(
+        SKCanvas canvas, BrushSettings brush, SKRectI rect, SKImageInfo local,
+        SKPixmap? pressPix = null, FootprintSpace pressAt = default)
     {
         var imported = TextureRegistry.Resolve(brush.TextureId);
         if (imported is null && brush.TextureSurface is null) return;
 
         var depth = (float)Math.Clamp(brush.TextureDepth, 0, 1);
         if (depth <= 0) return;
+        var gate = (float)Math.Clamp(brush.TexturePressure ?? 0, 0, 1);
 
         var w = Math.Max(1, rect.Width);
         var h = Math.Max(1, rect.Height);
@@ -3795,16 +3981,51 @@ public static class BrushEngine
             // bounds-checks and repacks an SKColor each time; a managed copy of
             // the bytes was a second stroke-sized array, then a copy.
             var rgba = mask.GetPixelSpan();
-            for (var i = 0; i < height.Length; i++)
+            if (gate <= 0) pressPix = null;
             {
-                // A' = 1 - depth * (1 - height): the tooth keeps paint, the
-                // valleys let it through, and depth decides how deep the bite.
-                var keep = 1f - depth * (1f - height[i]);
-                var o = i * 4;
-                rgba[o] = 255;
-                rgba[o + 1] = 255;
-                rgba[o + 2] = 255;
-                rgba[o + 3] = (byte)Math.Round(Math.Clamp(keep, 0, 1) * 255);
+                if (pressPix is null)
+                {
+                    for (var i = 0; i < height.Length; i++)
+                    {
+                        // A' = 1 - depth * (1 - height): the tooth keeps paint, the
+                        // valleys let it through, and depth decides how deep the bite.
+                        var keep = 1f - depth * (1f - height[i]);
+                        var o = i * 4;
+                        rgba[o] = 255;
+                        rgba[o + 1] = 255;
+                        rgba[o + 2] = 255;
+                        rgba[o + 3] = (byte)Math.Round(Math.Clamp(keep, 0, 1) * 255);
+                    }
+                }
+                else
+                {
+                    // The gate: the bite is a threshold on the paper's height,
+                    // depth * (1 - gate * press), with a short ramp either side.
+                    // Pressing harder lowers it, so more of the paper takes
+                    // graphite; where the pen was light only the peaks do.
+                    var pressBytes = pressPix.GetPixelSpan<byte>();
+                    var pressRow = pressPix.RowBytes;
+                    var scale = pressAt.Scale <= 0 ? 1.0 : pressAt.Scale;
+                    var maxX = pressPix.Width - 1;
+                    var maxY = pressPix.Height - 1;
+                    for (var y = 0; y < h; y++)
+                    {
+                        var py = Math.Clamp((int)(y * scale + pressAt.OffsetY), 0, maxY);
+                        for (var x = 0; x < w; x++)
+                        {
+                            var px = Math.Clamp((int)(x * scale + pressAt.OffsetX), 0, maxX);
+                            var p = ToothPress[pressBytes[py * pressRow + px * 4]];
+                            var threshold = depth * (1f - gate * p);
+                            var e = Math.Clamp((height[y * w + x] - threshold + ToothSoftness) / (2f * ToothSoftness), 0f, 1f);
+                            var keep = e * e * (3f - 2f * e);
+                            var o = (y * w + x) * 4;
+                            rgba[o] = 255;
+                            rgba[o + 1] = 255;
+                            rgba[o + 2] = 255;
+                            rgba[o + 3] = (byte)Math.Round(keep * 255);
+                        }
+                    }
+                }
             }
 
             using var image = SKImage.FromBitmap(mask);
@@ -5206,8 +5427,9 @@ public static class BrushEngine
     {
         var load = Math.Clamp(brush.Medium.PaintLoad, 0, 1);
         if (load >= 1) return 1;
+        if (load <= 0) return travelled > 0 ? 0 : 1;
 
-        // Diameters of stroke the paint lasts, per unit of load.
+        // Diameters of stroke the paint lasts at a load of one half.
         //
         // Small, and the reason is dab overlap. At the usual spacing a dozen
         // dabs land on any given pixel, so the mark's alpha is
@@ -5216,8 +5438,15 @@ public static class BrushEngine
         // faded from 1.000 to 0.858 over seven hundred pixels, which is not a
         // brush running out, it is a brush thinking about it. The per-dab
         // curve has to fall much further than the mark does.
-        const double Reach = 12;
-        var scale = Math.Max(brush.Size, 1) * Reach * load;
+        //
+        // The reach is load / (1 - load) times that, not load times it (Q236).
+        // Linear in the load, the slider was a cliff: at exactly 1 the brush
+        // never ran out and at 0.99 it was spent inside twenty diameters, so a
+        // long gentle wash was not reachable at any setting. This keeps a half
+        // load where it was, lets 0.9 last nine times as long, and goes to
+        // "never" continuously as the load goes to 1.
+        const double Reach = 6;
+        var scale = Math.Max(brush.Size, 1) * Reach * load / (1 - load);
         return Math.Exp(-travelled / scale);
     }
 

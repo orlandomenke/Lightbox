@@ -37,8 +37,20 @@ folder holding it, so an installed alpha build can be measured against a branch.
 - **No private document is ever used.** Fixtures are generated from a seed by
   `tools/Lightbox.Bench` (`fixture` command). `owner-shape` matches the counts of the
   document that prompted all this — 11 layers, 64 drawings, ~1,260 strokes, 1920×1080,
+<<<<<<< HEAD
+  ~7.9 MB — and contains none of its art.
+- **Large documents** (2026-10-09, for responsiveness at scale): `large` is 30 layers
+  and 200 drawings at 1080p, `large-4k` the same at 3840×2160. Run any scenario on one
+  with `--fixture large`; the run is named `<scenario>@large`. `--onion off` writes a
+  profile with onion skin off (the owner's own setting) — a fresh profile has it on.
+  `jump-to-frame` and `xsheet-ops` click X-sheet cells by layer name and assume the
+  owner-shaped document: with 30 layers the cell they aim at is off screen, so they
+  stop rather than measure on `large`. `paint-strokes` is the painting scenario
+  written for these documents: three strokes, an undo, a flip, a stroke straight after.
+=======
   ~7.9 MB — and contains none of its art. `blank-1080p` and `blank-4k` are one empty
   drawing layer over the paper, for the paint scenario.
+>>>>>>> origin/main
 
 ## What a run reports
 

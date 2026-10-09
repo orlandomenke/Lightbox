@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -8,6 +10,14 @@ namespace Lightbox.Core.Documents;
 /// </summary>
 public sealed class AudioSegment
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>First source frame this section plays, at the scene's fps.</summary>
     public int SourceStartFrames { get; set; }
 
@@ -37,6 +47,14 @@ public sealed class AudioSegment
 /// </summary>
 public sealed class AudioTrack
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>
     /// Where the sound lives. Relative paths resolve against the document's
     /// own directory, so a project folder moves as one thing; absolute paths

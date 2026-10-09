@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -69,6 +71,14 @@ public readonly record struct CurvePoint(double In, double Out);
 /// </remarks>
 public sealed class ResponseCurve
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     /// <summary>
     /// Handles, in pressure order. Two are enough and two is the default: the
     /// straight line, which is what a curve means before anybody has touched it.
@@ -220,7 +230,7 @@ public sealed class ResponseCurve
         return ordered;
     }
 
-    public ResponseCurve Clone() => new() { Points = [.. Points] };
+    public ResponseCurve Clone() => new() { Unknown = Unknown, Points = [.. Points] };
 }
 
 /// <summary>

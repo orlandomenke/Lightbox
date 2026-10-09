@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+using System.Text.Json;
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -68,6 +70,14 @@ public readonly record struct PathNode(
 /// </remarks>
 public sealed class StrokePath
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched so a save here does not drop them (Q230). Null unless a file
+    /// supplied some; never edited, so a clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public List<PathNode> Nodes { get; set; } = [];
 
     /// <summary>Whether the last node joins the first.</summary>
@@ -90,5 +100,5 @@ public sealed class StrokePath
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsUsable => Nodes.Count >= 2;
 
-    public StrokePath Clone() => new() { Nodes = [.. Nodes], Closed = Closed };
+    public StrokePath Clone() => new() { Unknown = Unknown, Nodes = [.. Nodes], Closed = Closed };
 }
