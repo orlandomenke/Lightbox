@@ -52,6 +52,9 @@ public sealed class ThumbnailCache
 
     public int Count => _thumbs.Count;
 
+    /// <summary>What the thumbnails hold, for the memory report: four bytes a pixel.</summary>
+    public long Bytes => _thumbs.Values.Sum(b => (long)b.PixelSize.Width * b.PixelSize.Height * 4);
+
     /// <summary>How many thumbnails have been rendered rather than found (B202's guard).</summary>
     public int Renders { get; private set; }
 

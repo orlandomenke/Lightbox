@@ -659,7 +659,16 @@ public partial class MainViewModel
             $"ring={Mb(_composeRing.AllocatedBytes)} marks={Mb(_markSnapshots.Bytes)} " +
             $"composed={Mb(Rendering.ComposeCacheHost.Shared.CachedBytes)} flats={Mb(_tileFlats.CachedBytes + _tileFlats.AwaitingUnpinBytes)} " +
             $"undo={undo} redo={redo} " +
-            $"heap={Mb(GC.GetTotalMemory(false))} private={Mb(self.PrivateMemorySize64)}"));
+            $"heap={Mb(GC.GetTotalMemory(false))} private={Mb(self.PrivateMemorySize64)} " +
+            // The rest of the process, so the report can say what it does not
+            // explain (Q223): GPU-side layer textures, the folded stacks,
+            // thumbnails, bitmaps waiting for the render thread to let go, what
+            // the GC has committed beyond the live heap, and Skia's own caches.
+            $"textures={Mb(Lightbox.Raster.LayerTextureCache.TotalResidentBytes)} bakes={Mb(_stackBake.BakedBytes)} " +
+            $"thumbs={Mb(_thumbs.Bytes)}/{_thumbs.Count} stillsWaiting={Mb(_cache.AwaitingUnpinBytes)} " +
+            $"gcCommitted={Mb(GC.GetGCMemoryInfo().TotalCommittedBytes)} " +
+            $"skia={Mb(SkiaSharp.SKGraphics.GetResourceCacheTotalBytesUsed())} fonts={Mb(SkiaSharp.SKGraphics.GetFontCacheUsed())} " +
+            $"workingSet={Mb(self.WorkingSet64)}"));
     }
 
     /// <summary>
