@@ -6,7 +6,7 @@ using Lightbox.Core.Serialization;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// B427: File ▸ Open opens the documents this application saves.
+/// B430: File ▸ Open opens the documents this application saves.
 /// </summary>
 /// <remarks>
 /// The dialog read the picked file as text and parsed it, but

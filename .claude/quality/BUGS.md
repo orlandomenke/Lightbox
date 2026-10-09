@@ -2865,7 +2865,7 @@ test reopens the bug.
 
 ### project
 
-- [x] **B428** `P1` `project` File ▸ Open cannot open a document this application saved `evidence: TheOpenDialogOpensADocumentThisApplicationSaved`
+- [x] **B430** `P1` `project` File ▸ Open cannot open a document this application saved `evidence: TheOpenDialogOpensADocumentThisApplicationSaved`
   - Found 2026-10-09 while moving opening off the UI thread (Q229). The Open dialog read the picked file as text and parsed it, but `DocJson.Save` writes every document as gzip, so the dialog failed with "'0x1F' is an invalid start of a value" on any document the app had saved (shown red on main's code). The start screen and the recents used the gzip-aware `DocJson.Load`, which is how it went unnoticed. Both dialog routes now go through the gzip-aware loader (`DocJson.Load(Stream)` for a file with no path), and a file that is not a drawing says so in the status strip instead of escaping an `async void` handler.
 
 - [x] **B394** `P1` `project` A crash loses everything since the last save: one shared recovery file, written for one tab, overwritten by the next launch and never offered back `evidence: CrashRecoveryTests, ANewSessionNeverWritesOverWhatADeadOneLeft, EveryDirtyDocumentGetsItsOwnCopy, ALiveSessionsCopiesAreNeverOfferedToAnother, SavingOrClosingADocumentRetiresItsCopy, ARestoredCopyBelongsToTheSessionThatRestoredIt, AutosaveStopsWritingTheSharedCopyWhenRecoveryIsRunning, ARestoredDocumentIsUnsavedWorkUntilItIsSaved, ACameraEditIsWorkToLoseAndGetsACopy, ACameraEditInAProjectIsWrittenBeforeItsCopyIsLetGo, ADrawnDocumentGetsACopyAndSavingItRetiresTheCopy, AnExitThatSkippedThePromptKeepsTheCopies, AFailedCopyIsWrittenAgainOnTheNextTick`

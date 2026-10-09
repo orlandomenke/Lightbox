@@ -617,7 +617,7 @@ public partial class MainWindow
 
     /// <summary>A document chosen in the Open dialog: a path when it has one, a stream when it does not.</summary>
     /// <remarks>
-    /// B427: it read the picked file as text and parsed that, but every
+    /// B430: it read the picked file as text and parsed that, but every
     /// document <see cref="DocJson.Save"/> writes is gzip, so the dialog could
     /// not open the application's own files. Both routes now go through the
     /// gzip-aware loader.
@@ -633,7 +633,7 @@ public partial class MainWindow
             _vm.OpenDocumentTab(DocJson.Load(copy), localPath);
         }
         catch (Exception e) when (e is IOException or InvalidDataException
-                                      or System.Text.Json.JsonException or UnauthorizedAccessException)
+                                      or System.Text.Json.JsonException or UnauthorizedAccessException or NotSupportedException)
         {
             _vm.AiStatus = $"Could not open {name}: {e.Message}";
         }
