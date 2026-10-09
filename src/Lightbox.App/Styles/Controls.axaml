@@ -441,6 +441,15 @@
   <Style Selector="ToggleButton.lock:checked Path">
     <Setter Property="Data" Value="{StaticResource IconLockClosed}" />
   </Style>
+  <!-- Locked by a folder above: the row refuses edits, so its padlock is shut
+       — it used to stay open, on a layer that could not be drawn on. Quiet,
+       because the lock that is set is the folder's; IsChecked keeps the row's
+       own. After `:checked`, since the later of two styles wins. -->
+  <Style Selector="ToggleButton.lock.gated Path">
+    <Setter Property="Data" Value="{StaticResource IconLockClosed}" />
+    <Setter Property="Opacity" Value="0.45" />
+    <Setter Property="Stroke" Value="{DynamicResource TextSecondaryBrush}" />
+  </Style>
   <Style Selector="ToggleButton.alpha Path">
     <Setter Property="Data" Value="{StaticResource IconAlphaLock}" />
   </Style>
@@ -749,7 +758,7 @@
     mark goes somewhere the artist did not mean. Deliberately not a glyph
     toggle like the eye and the lock: those switch a state, this is a second
     *surface* you draw on, and it reads as a pane for that reason. Cyan is
-    the chosen-state accent, the lockedLayer precedent. Here beside
+    the chosen-state accent. Here beside
     `.selected` for the same reason it is: the row template stays in
     MainWindow.axaml, whose ratchet is why no style joins it that can live
     application-wide.

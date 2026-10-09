@@ -1316,6 +1316,9 @@ public partial class MainViewModel
     /// <summary>A row needs this to dim itself without reaching into the scene.</summary>
     internal bool IsLayerLockedByFolder(Layer layer) => FolderTree.LockedFolderOf(Scene, layer) is not null;
 
+    /// <summary>The same for a folder: one above it is locked, so it is too.</summary>
+    internal bool IsFolderLockedByFolder(LayerGroup group) => FolderTree.LockedFolderOf(Scene, group) is not null;
+
     /// <summary>Shown in the tool options so the restriction is never invisible.</summary>
     /// <remarks>
     /// The setter exists for the Layer menu's checkbox: a two-way binding wants

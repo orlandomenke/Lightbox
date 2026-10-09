@@ -32,6 +32,13 @@ skipped, so the first stroke after opening lands instead of going nowhere. If
 *every* layer is out of reach the selection still goes to a real layer rather
 than the paper, and the status line says which lock is in the way.
 
+**A locked row shows a shut padlock and a quieter name**, and nothing round the
+row: the highlighted row is always the one you are drawing on, never a locked
+one. A layer or folder inside a locked folder shows the padlock shut as well,
+dimmer, because the lock that is set is the folder's — unlock the folder and
+those rows are as they were. (A locked row used to be outlined, which made it
+look like the active layer.)
+
 **And it reopens on the layer you left it on**, the way it reopens on the frame
 you were parked on. A file saved while you were inking comes back on the ink
 layer. If that layer has since been deleted, locked or hidden, the selection

@@ -36,6 +36,7 @@ public sealed partial class GroupRow : ObservableObject
         Name = group.Name;
         Visible = group.Visible;
         Locked = group.Locked;
+        LockedByFolder = _owner.IsFolderLockedByFolder(group);
         Collapsed = group.Collapsed;
         Color = group.Color;
         _syncing = false;
@@ -55,6 +56,17 @@ public sealed partial class GroupRow : ObservableObject
 
     /// <summary>The left margin <see cref="Depth"/> asks for.</summary>
     public Avalonia.Thickness Indent => new(Depth * LayerRow.IndentStep, 0, 0, 0);
+
+    /// <summary>
+    /// A folder this one is inside is locked, so this one refuses edits too —
+    /// whatever its own padlock says. The docker shuts the padlock for it.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EditsBlocked))]
+    private bool _lockedByFolder;
+
+    /// <summary>Locked, for either reason. Drives how the header is drawn.</summary>
+    public bool EditsBlocked => Locked || LockedByFolder;
 
     [ObservableProperty]
     private string _name = "";
@@ -115,6 +127,7 @@ public sealed partial class GroupRow : ObservableObject
 
     partial void OnLockedChanged(bool value)
     {
+        OnPropertyChanged(nameof(EditsBlocked));
         if (!_syncing) _owner.SetGroupLocked(Group, value);
     }
 
@@ -189,8 +202,6 @@ public sealed partial class LayerRow : ObservableObject
     /// <summary>Paint only where the layer already has content.</summary>
     [ObservableProperty]
     private bool _alphaLocked;
-
-    private bool _lockedByFolder;
 
     [ObservableProperty]
     private bool _onionEnabled = true;
@@ -381,7 +392,7 @@ public sealed partial class LayerRow : ObservableObject
         Locked = layer.Locked;
         AlphaLocked = layer.AlphaLocked;
         OnionEnabled = layer.OnionEnabled;
-        _lockedByFolder = _owner.IsLayerLockedByFolder(layer);
+        LockedByFolder = _owner.IsLayerLockedByFolder(layer);
         _syncing = false;
         OnPropertyChanged(nameof(IsGrouped));
         SyncLinkFromModel();
@@ -413,7 +424,15 @@ public sealed partial class LayerRow : ObservableObject
     /// Whether this row refuses edits, folder included. Drives the dimmed row
     /// so a layer locked by its folder does not look editable.
     /// </summary>
-    public bool EditsBlocked => Locked || _lockedByFolder;
+    public bool EditsBlocked => Locked || LockedByFolder;
+
+    /// <summary>
+    /// Locked only because a folder above is. The padlock is drawn shut for it
+    /// while the layer's own lock stays as it was set.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EditsBlocked))]
+    private bool _lockedByFolder;
 
     partial void OnOnionEnabledChanged(bool value)
     {
