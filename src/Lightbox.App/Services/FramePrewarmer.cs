@@ -210,6 +210,56 @@ public sealed class FramePrewarmer : IDisposable
     public int Failed { get; private set; }
 
     /// <summary>Whether anything is queued or in flight.</summary>
+    /// <summary>Workers rendering right now — for tests.</summary>
+    internal int RunningWorkers
+    {
+        get
+        {
+            lock (_gate) return _running;
+        }
+    }
+
+    /// <summary>
+    /// Start no new renders until the returned scope is disposed; the queue is
+    /// kept, and what is already running finishes.
+    /// </summary>
+    /// <remarks>
+    /// For the UI thread, while it waits on renders of its own: speculative work
+    /// must never cost real work, and on a machine whose cores are full a warm
+    /// worker slows the render somebody is waiting for. Measured on a 30-layer
+    /// 4K document: an undo whose publish rendered evicted drawings in parallel
+    /// beside eight warm workers took 1.5 s. Nests.
+    /// </remarks>
+    public IDisposable Hold()
+    {
+        lock (_gate) _held++;
+        return new HoldScope(Release);
+    }
+
+    private void Release()
+    {
+        var start = 0;
+        lock (_gate)
+        {
+            _held--;
+            if (_held == 0 && !_disposed)
+            {
+                start = Math.Max(0, Math.Min(_workers - _running, _pending.Count));
+                _running += start;
+            }
+        }
+        for (var i = 0; i < start; i++) Task.Run(Work);
+    }
+
+    private int _held;
+
+    private sealed class HoldScope(Action release) : IDisposable
+    {
+        private Action? _release = release;
+
+        public void Dispose() => Interlocked.Exchange(ref _release, null)?.Invoke();
+    }
+
     public bool IsBusy
     {
         get
@@ -267,7 +317,7 @@ public sealed class FramePrewarmer : IDisposable
                 if (Rig.IsPosed(job.Frame)) continue;
                 if (accountedFor.Add(job.Key)) _pending.Enqueue(job);
             }
-            start = Math.Min(_workers - _running, _pending.Count);
+            start = _held > 0 ? 0 : Math.Min(_workers - _running, _pending.Count);
             if (start <= 0) return;
             _running += start;
         }
@@ -383,7 +433,7 @@ public sealed class FramePrewarmer : IDisposable
             {
                 // Out of work, or one worker too many since playback asked for
                 // fewer: this one stops, and says so if it was the last.
-                if (_disposed || _pending.Count == 0 || _running > _workers)
+                if (_disposed || _pending.Count == 0 || _running > _workers || _held > 0)
                 {
                     _running--;
                     var last = _running == 0;

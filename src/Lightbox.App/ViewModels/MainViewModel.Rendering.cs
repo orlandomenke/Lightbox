@@ -1429,6 +1429,11 @@ public partial class MainViewModel
         }
         using var perf = PerfLog.Begin(IsPlaying ? "publish.play" : "publish", publisher);
         PublishCount++;
+        // A frame arrived at with its drawings not cached: render them on the
+        // workers, all at once, before this publish asks for them one by one.
+        // Not while Stop holds the playback tiles: that frame is shown at
+        // once and its stills arrive in the background (Q218).
+        if (!IsPlaying && !_strokeBuilder.IsActive && !_holdTilesAfterStop) RenderMissingStillsInParallel();
         // B178: publishing outran drawing 1.5× in the field capture — 757
         // published against 339 ticks — and which of PublishSnapshot's 45 call
         // sites supply the surplus is a question for a counter, not a grep.
@@ -2153,6 +2158,83 @@ public partial class MainViewModel
         for (var i = from; i <= end; i++) yield return i;
         for (var i = start; i < from; i++) yield return i;
     }
+
+    /// <summary>
+    /// Render the frame on screen's missing stills on the prewarmer's workers,
+    /// in parallel, and wait for them, rather than have the publish render them
+    /// one after another on this thread.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Found by the lab on a large document</b> (2026-10-09, 30 layers, 200
+    /// drawings): a flip took 3.6 s at 1080p and 12.5 s at 4K, nearly all of it
+    /// the UI thread rendering layer after layer (<c>raster.miss</c>) while the
+    /// other cores idled. The wait is now about the slowest drawing rather than
+    /// all of them in turn.
+    /// </para>
+    /// <para>
+    /// Only when more than one is missing: a single still costs the same either
+    /// way — an undo, a stroke — and the hand-off would only add latency.
+    /// </para>
+    /// </remarks>
+    /// <summary>The most <see cref="RenderMissingStillsInParallel"/> has rendered at once — for tests.</summary>
+    internal int LargestParallelRender { get; set; }
+
+    /// <summary>What <see cref="RenderMissingStillsInParallel"/> rendered last — for tests.</summary>
+    internal IReadOnlyList<(string FrameId, int Cel)> LastParallelBatch { get; private set; } = [];
+
+    private void RenderMissingStillsInParallel()
+    {
+        var scene = Scene;
+        var missing = StillImagesNeeded()
+            .Where(s => !_cache.Holds(s.Frame, scene.Width, scene.Height, 1.0, s.Cel)
+                        // A posed drawing renders through the cache's pose
+                        // resolver, which a detached render does not have.
+                        && !_cache.Rig.IsPosed(s.Frame))
+            .DistinctBy(s => (s.Frame.Id, s.Cel))
+            // The frame's own drawings before its ghosts (stable, so layer order
+            // holds within each), so a cut below takes ghosts rather than layers.
+            .OrderBy(s => s.Cel == CurrentFrameIndex ? 0 : 1)
+            // No more than the cache can hold: past it the batch would evict its
+            // own first renders for the publish to render again, and every one is
+            // in hand before any is taken in — 30 layers at 4K with onion ghosts
+            // is several GB. The rest render the ordinary way.
+            .Take(StillsTheCacheCanHold(scene.Width, scene.Height))
+            .ToList();
+        if (missing.Count < 2) return;
+
+        // Rendered here and waited for here, not handed to the prewarmer: its
+        // queue also holds playback tiles for other frames, and waiting for it
+        // waited for those too — an undo at 4K went from 0.3 to 3.5 s in the
+        // lab before this was separated.
+        LargestParallelRender = Math.Max(LargestParallelRender, missing.Count);
+        LastParallelBatch = missing.Select(s => (s.Frame.Id, s.Cel)).ToList();
+        var rendered = new SKBitmap[missing.Count];
+        // The cores go to the renders this publish is waiting for, not to guesses.
+        using var held = _prewarm.Hold();
+        try
+        {
+            Parallel.For(0, missing.Count, new ParallelOptions { MaxDegreeOfParallelism = FramePrewarmer.IdleWorkers },
+                i => rendered[i] = FrameBitmapCache.RenderDetached(
+                    missing[i].Frame, scene.Width, scene.Height, celIndex: missing[i].Cel));
+        }
+        catch
+        {
+            // One render failed: the others finished, and nothing will take them in.
+            foreach (var bmp in rendered) bmp?.Dispose();
+            throw;
+        }
+        for (var i = 0; i < missing.Count; i++)
+        {
+            if (!_cache.InsertWanted(missing[i].Frame, scene.Width, scene.Height, 1.0, missing[i].Cel, rendered[i]))
+            {
+                rendered[i].Dispose();
+            }
+        }
+    }
+
+    private static int StillsTheCacheCanHold(int width, int height) =>
+        (int)Math.Min(FrameBitmapCache.MaxEntries, FrameBitmapCache.ByteBudget / Math.Max(1L, (long)width * height * 4));
 
     private List<Services.WarmRequest>? StrokeWarmJobs()
     {
