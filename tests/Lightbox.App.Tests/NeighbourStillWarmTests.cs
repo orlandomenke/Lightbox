@@ -30,12 +30,14 @@ namespace Lightbox.App.Tests;
 public sealed class NeighbourStillWarmTests : BrushStateIsolated
 {
     private readonly ConcurrentQueue<Action> _posted = new();
+    private readonly long _stillBudget = Lightbox.Raster.FrameBitmapCache.ByteBudget;
 
     public NeighbourStillWarmTests() => ThumbnailWorker.Post = _posted.Enqueue;
 
     public override void Dispose()
     {
         ThumbnailWorker.Post = null;
+        Lightbox.Raster.FrameBitmapCache.ByteBudget = _stillBudget;
         base.Dispose();
     }
 
@@ -78,7 +80,7 @@ public sealed class NeighbourStillWarmTests : BrushStateIsolated
                 Thread.Sleep(5);
             }
         }
-        throw new TimeoutException("the idle warm never settled");
+        throw new TimeoutException($"the idle warm never settled: rendered {vm.Prewarm.Rendered}, installed {vm.Prewarm.Installed}, refused {vm.Prewarm.Refused}, busy {vm.Prewarm.IsBusy}, still entries {vm.FrameCache.CachedFrames}");
     }
 
     private static Frame DrawingAt(MainViewModel vm, int index) =>
@@ -105,6 +107,54 @@ public sealed class NeighbourStillWarmTests : BrushStateIsolated
         vm.PublishSnapshot();
         Assert.True(misses == vm.FrameCache.Misses,
             "the flip rendered on the UI thread: " + string.Join(" | ", vm.FrameCache.RecentMisses));
+    }
+
+    /// <summary>
+    /// Only as many as there is room for, nearest first: a guess the cache will
+    /// refuse is a render thrown away, every idle (the leak review; B408's shape).
+    /// </summary>
+    [AvaloniaFact]
+    public void OnlyTheNeighboursThereIsRoomForAreRendered()
+    {
+        var vm = Vm();
+        var scene = vm.Doc.Scene;
+        vm.CurrentFrameIndex = 2;
+        vm.FrameCache.Clear();
+        // The frame on screen (its paper and its drawing), two more, and the
+        // one still's slack the warm leaves for smaller pictures.
+        Lightbox.Raster.FrameBitmapCache.ByteBudget = 5L * scene.Width * scene.Height * 4 + 1024;
+        vm.PublishSnapshot();
+        Settle(vm);
+
+        Assert.Equal(0, vm.NeighboursRefused);
+        Assert.True(Held(vm, 3) && Held(vm, 1), "the nearest neighbours were not the ones given the room");
+    }
+
+    /// <summary>
+    /// A still cache with no room must not stop the playback warm, which fills
+    /// another cache: a refused neighbour used to set the flag that ends all
+    /// idle warming until the next edit (the leak review, 2026-10-09).
+    /// </summary>
+    [AvaloniaFact]
+    public void AFullStillCacheDoesNotStopThePlaybackWarm()
+    {
+        var vm = Vm();
+        var scene = vm.Doc.Scene;
+        vm.CurrentFrameIndex = 2;
+        vm.FrameCache.Clear();
+        // Room for the frame on screen, its paper and its drawing, and no more.
+        // (Less than that loops the idle warm on main — B-filed separately.)
+        Lightbox.Raster.FrameBitmapCache.ByteBudget = 2L * scene.Width * scene.Height * 4 + 1024;
+        vm.PublishSnapshot();
+        Settle(vm);
+
+        vm.TileFrames.Clear();
+        vm.CurrentFrameIndex = 3; // a flip, not an edit
+        vm.PublishSnapshot();
+        Settle(vm);
+
+        var drawings = Enumerable.Range(0, scene.FrameCount).Select(i => DrawingAt(vm, i)).ToList();
+        Assert.All(drawings, f => Assert.True(vm.TileFrames.Holds(f.Id), $"{f.Id}'s playback tiles were not prepared again"));
     }
 
     [AvaloniaFact]

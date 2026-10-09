@@ -21,7 +21,8 @@ public enum WarmProduct
 /// picture — so it is taken in even if that evicts (B408).
 /// </param>
 public readonly record struct WarmRequest(
-    Frame Frame, int Width, int Height, int CelIndex, WarmProduct Want, int Level = 0, bool Wanted = false)
+    Frame Frame, int Width, int Height, int CelIndex, WarmProduct Want, int Level = 0, bool Wanted = false,
+    bool Neighbour = false)
 {
     /// <summary>
     /// What this job would produce, as a string — so two requests for the same
