@@ -65,17 +65,18 @@ public class WashRunsDryTests(ITestOutputHelper output)
     /// <summary>
     /// A hand's stroke: pressure rising 0.35 → 0.95 along it. At paint load 1
     /// the wash reads 34 46 55 62 62 — the complaint; at the shipped load the
-    /// depletion and the hand cancel and the end is no heavier than the start.
+    /// depletion and the hand cancel and the end is no heavier than the start
+    /// (30 33 33 32 27 measured, on Q236's reach).
     /// </summary>
     [Fact]
     public void AWashUnderARisingHandDoesNotGetHeavierAlongTheStroke()
     {
         using var never = FrameRasterizer.Rasterize([Wash(1.0, i => 0.35 + 0.6 * i / 39.0)], W, H);
-        using var loaded = FrameRasterizer.Rasterize([Wash(0.85, i => 0.35 + 0.6 * i / 39.0)], W, H);
+        using var loaded = FrameRasterizer.Rasterize([Wash(0.6, i => 0.35 + 0.6 * i / 39.0)], W, H);
         var (n, _) = AlongTheStroke(never);
         var (l, lw) = AlongTheStroke(loaded);
         output.WriteLine($"load 1.0:  {Row(n)}");
-        output.WriteLine($"load 0.85: {Row(l)}   width {string.Join(" ", lw)}");
+        output.WriteLine($"load 0.6:  {Row(l)}   width {string.Join(" ", lw)}");
         Assert.True(n[4] > n[0] * 1.5, $"the control did not reproduce the complaint: {Row(n)}");
         Assert.True(l[4] <= l[0] * 1.15, $"the wash still gets heavier along the stroke: {Row(l)}");
         Assert.True(l[2] > 15, $"the wash ran out before its middle: {Row(l)}");
@@ -84,13 +85,13 @@ public class WashRunsDryTests(ITestOutputHelper output)
     /// <summary>
     /// A level hand: the wash starts full, fades, and narrows as the brush
     /// runs out — "pools more and becomes smaller the longer the stroke".
-    /// Measured 59 52 44 36 25 and widths 56 56 48 45 40 at the shipped load;
-    /// flat at load 1.
+    /// Measured 59 51 42 34 22 and widths 56 55 48 43 38 at the shipped load on
+    /// Q236's reach; flat at load 1.
     /// </summary>
     [Fact]
     public void AWashAtALevelHandFadesAndNarrowsAsTheBrushRunsOut()
     {
-        using var bmp = FrameRasterizer.Rasterize([Wash(0.85, _ => 0.8)], W, H);
+        using var bmp = FrameRasterizer.Rasterize([Wash(0.6, _ => 0.8)], W, H);
         var (a, w) = AlongTheStroke(bmp);
         output.WriteLine($"level hand: {Row(a)}   width {string.Join(" ", w)}");
         Assert.True(a[4] < a[0] * 0.6, $"the wash did not run dry: {Row(a)}");

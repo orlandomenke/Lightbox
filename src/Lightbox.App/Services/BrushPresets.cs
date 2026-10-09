@@ -276,9 +276,10 @@ public static class BuiltInPresets
                     PressureWater = 0.8, Rewetting = 0,
                     // B434: a loaded brush runs out. At 1 a wash grew heavier along
                     // every stroke whose pressure rose, which is every stroke a hand
-                    // draws; at 0.85 the depletion and the hand cancel over the first
-                    // fifths and the wash then fades and narrows.
-                    PaintLoad = 0.85,
+                    // draws; here the depletion and the hand cancel over the first
+                    // fifths and the wash then fades and narrows. On Q236's reach
+                    // (Size * 6 * load / (1 - load)): nine diameters.
+                    PaintLoad = 0.6,
                 },
             },
         },
@@ -304,7 +305,9 @@ public static class BuiltInPresets
                     Absorbency = 0.8, EdgePull = 0.05,
                     PigmentDensity = 0.9, Granularity = 0.15, Hiding = 0.9,
                     Paper = PaperKind.ColdPress, PaperScale = 10, PaperInfluence = 0.35,
-                    Body = 0.35, Relief = 0.2, PaintLoad = 0.85,
+                    // Q236 moved the reach to Size * 6 * load / (1 - load); 0.63 is
+                    // the load whose reach is what 0.85 had before (ten diameters).
+                    Body = 0.35, Relief = 0.2, PaintLoad = 0.63,
                     // Body colour: pressure decides how much it picks up.
                     PressureWater = 0.15, PressureMix = 0.8, Rewetting = 0, // Q232: see Watercolor
                 },
@@ -335,7 +338,9 @@ public static class BuiltInPresets
                     Absorbency = 0.9, EdgePull = 0.02,
                     PigmentDensity = 1, Granularity = 0.1, Hiding = 0.95,
                     Paper = PaperKind.Canvas, PaperScale = 8, PaperInfluence = 0.6,
-                    Body = 0.8, Relief = 0.6, PaintLoad = 0.6,
+                    // Q236: 0.55 is the load whose reach is what 0.6 had before
+                    // (seven diameters), so the scrape still runs out where it did.
+                    Body = 0.8, Relief = 0.6, PaintLoad = 0.55,
                     // No BristleDrag or Pickup: the engine reads neither, so setting
                     // them wrote two keys on every oil stroke promising behaviour that
                     // does not exist. The dragged-bristle *look* comes from the tip
