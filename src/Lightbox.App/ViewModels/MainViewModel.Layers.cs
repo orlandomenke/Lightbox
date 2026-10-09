@@ -439,6 +439,7 @@ public partial class MainViewModel
             {
                 case Layer layer when byId.TryGetValue(layer.Id, out var row):
                     row.Depth = line.Depth;
+                    row.FolderColor = FolderTree.ColorOf(Scene, layer);
                     if (!line.Hidden) desired.Add(row);
                     break;
                 case LayerGroup group:
@@ -795,11 +796,15 @@ public partial class MainViewModel
         }, label: targets.Count == 1 ? "Set folder visible" : "Set folders visible", frameContentUnchanged: true);
     }
 
-    internal void SetGroupColor(LayerGroup group, string color)
+    /// <summary>Choose a folder's colour; null goes back to showing its parent's (Q226).</summary>
+    internal void SetGroupColor(LayerGroup group, string? color)
     {
         if (group.Color == color) return;
         _editor.Perform(_ => group.Color = color, frameContentUnchanged: true);
     }
+
+    /// <summary>The colour a folder's header shows — its own, or inherited.</summary>
+    internal string FolderColorOf(LayerGroup group) => FolderTree.ColorOf(Scene, group);
 
     /// <summary>Collapse is a view preference: persisted, but not an undo step.</summary>
     internal void SetGroupCollapsed(LayerGroup group, bool collapsed)

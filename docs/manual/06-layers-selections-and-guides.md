@@ -78,6 +78,15 @@ folders, or nothing at all, and it stays where you put it either way.
   own eyes are not changed by it: show the folder again and everything comes
   back as it was, including the layers you had hidden one by one. The X-sheet's
   rows do the same.
+- **A folder's colour washes its whole row, and the rows of the layers inside
+  it more faintly**, so a folder reads as one band down the docker rather than
+  as a mark beside its header. Choose it from **Folder color** on the header's
+  right-click menu. **A folder inside another shows its parent's colour** until
+  you give it one of its own, and then everything inside *it* follows that
+  instead; **Same as parent**, on the same menu, gives the colour up again. The
+  row you are drawing on and the rows you have selected are still the brightest
+  things in the list. A file saved before this recorded a colour on every
+  folder, so its subfolders keep theirs until you choose **Same as parent**.
 - **Click a folder's header to pick it on its own** — an empty one included.
   With a folder picked, a new layer or folder goes inside it, and **Delete**
   deletes the folder.

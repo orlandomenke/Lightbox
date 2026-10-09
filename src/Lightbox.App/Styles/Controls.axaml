@@ -596,6 +596,31 @@
     <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
   </Style>
 
+  <!--
+    The brush editor's popup is as wide as the editor and never scrolls.
+
+    A flyout's presenter is a ScrollViewer with Fluent's ceiling on it — 456
+    wide — and scroll bars for whatever does not fit. The editor is 780 by
+    design: an option list, the chosen option and a scratchpad, side by side.
+    So the popup showed the left 454 pixels of it with a horizontal scroll bar
+    underneath and the scratchpad out of sight to the right (the owner's
+    report, 2026-10-09).
+
+    The editor sets its own width, and scrolls the one part of itself that can
+    be long — the chosen option — so sideways the popup has nothing left to
+    decide and is told to decide nothing.
+
+    Its HEIGHT ceiling and its vertical scroll bar are left exactly as Fluent
+    has them, on purpose. The editor stops at 600, under that ceiling, so the
+    bar never shows; but it is the only thing that would make the foot of the
+    editor reachable on a screen too short for it, and taking it away to be
+    tidy would trade a scroll bar nobody sees for a popup nobody can finish.
+  -->
+  <Style Selector="FlyoutPresenter.brushEditor">
+    <Setter Property="MaxWidth" Value="Infinity" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+  </Style>
+
   <!-- ===== Section tabs ============================================== -->
   <!--
     The second tab kind: flush text with a bottom highlight, for strips that
