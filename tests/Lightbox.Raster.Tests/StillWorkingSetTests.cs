@@ -31,7 +31,7 @@ public sealed class StillWorkingSetTests
 
     private static void Publish(FrameBitmapCache cache, IEnumerable<Frame> frame)
     {
-        using var publish = cache.Publishing();
+        using var publish = cache.Publishing(frame.Select(f => (f, 0)), W, H);
         foreach (var f in frame) cache.Get(f, W, H);
     }
 
@@ -55,6 +55,35 @@ public sealed class StillWorkingSetTests
             Publish(cache, Drawings(12));
 
             Assert.Equal(12, cache.CachedFrames);
+        }
+        finally
+        {
+            FrameBitmapCache.ByteBudget = before;
+        }
+    }
+
+    /// <summary>
+    /// A republish with one changed drawing renders that drawing, not the frame.
+    /// With only the newest publish held, the one miss evicted the stills this
+    /// publish had not fetched yet, each of those then missed and evicted the
+    /// next, and an over-budget frame re-rendered nearly whole (the leak review).
+    /// </summary>
+    [Fact]
+    public void ARepublishWithOneChangedDrawingRendersOnlyThatOne()
+    {
+        var before = FrameBitmapCache.ByteBudget;
+        try
+        {
+            FrameBitmapCache.ByteBudget = (long)W * H * 4 * 8;
+            var cache = new FrameBitmapCache();
+            var frame = Drawings(12);
+            Publish(cache, frame);
+
+            frame[0] = Drawings(13)[12]; // the first layer's drawing, edited
+            var misses = cache.Misses;
+            Publish(cache, frame);
+
+            Assert.Equal(misses + 1, cache.Misses);
         }
         finally
         {

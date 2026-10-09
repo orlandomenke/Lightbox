@@ -913,9 +913,22 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     /// new frame on screen nor ends the outer one's protection.
     /// </para>
     /// </remarks>
-    public void BeginPublish()
+    public void BeginPublish() => BeginPublish(null, 0, 0);
+
+    /// <summary>
+    /// A publish is starting, and these are the stills the frame on screen
+    /// draws. They are held from the start, not only once fetched: a republish
+    /// with one changed drawing otherwise evicted the stills it had not fetched
+    /// yet, each of those then missed and evicted the next, and an over-budget
+    /// frame rendered nearly whole again (the leak review, 2026-10-09).
+    /// </summary>
+    public void BeginPublish(IEnumerable<(Frame Frame, int Cel)>? onScreen, int width, int height)
     {
-        if (_publishDepth++ == 0) _publish++;
+        if (_publishDepth++ > 0) return;
+        _publish++;
+        _onScreen = onScreen is null
+            ? null
+            : onScreen.Select(s => KeyOf(s.Frame, width, height, 1.0, s.Cel)).ToHashSet();
     }
 
     /// <summary>The publish has composed; fetches after this are not the frame on screen.</summary>
@@ -926,9 +939,12 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     }
 
     /// <summary><see cref="BeginPublish"/> now, <see cref="EndPublish"/> when disposed, on every path out.</summary>
-    public PublishScope Publishing()
+    public PublishScope Publishing() => Publishing(null, 0, 0);
+
+    /// <summary><see cref="BeginPublish(IEnumerable{ValueTuple{Frame, int}}?, int, int)"/> now, <see cref="EndPublish"/> when disposed.</summary>
+    public PublishScope Publishing(IEnumerable<(Frame Frame, int Cel)>? onScreen, int width, int height)
     {
-        BeginPublish();
+        BeginPublish(onScreen, width, height);
         return new PublishScope(this);
     }
 
@@ -939,11 +955,13 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
 
     private long _publish;
     private int _publishDepth;
+    private HashSet<string>? _onScreen;
 
     private long Stamp(long previous) => _publishDepth > 0 ? _publish : previous;
 
-    /// <summary>Used by the most recent publish: the frame on screen, which eviction leaves alone.</summary>
-    private bool Protected(Entry e) => _publish > 0 && e.Publish == _publish;
+    /// <summary>Used by the most recent publish, or named by it: the frame on screen, which eviction leaves alone.</summary>
+    private bool Protected(Entry e) =>
+        _publish > 0 && (e.Publish == _publish || _onScreen?.Contains(e.Key) == true);
 
     public void Clear()
     {
