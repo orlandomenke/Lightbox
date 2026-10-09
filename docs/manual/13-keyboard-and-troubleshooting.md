@@ -600,7 +600,7 @@ Two lines to read first:
   memory spare and long scenes, lower it if something else on the machine needs
   the room. It is one limit for everything Lightbox keeps drawn — still frames,
   playback, onion skin and undo pixels — and the pictures used longest ago make
-  room first, whichever kind they are. It starts at an eighth of the computer's
+  room first, whichever kind they are. It starts at a quarter of the computer's
   memory.
 - **reused a flatten** — while a sequence plays, most drawings are not changing:
   a layer on 2s shows the same drawing two frames running, and a background may
