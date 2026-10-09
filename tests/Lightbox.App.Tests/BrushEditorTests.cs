@@ -207,6 +207,92 @@ public sealed class BrushEditorTests(ITestOutputHelper output) : BrushStateIsola
         Assert.Empty(bad);
         window.Close();
     }
+
+    /// <summary>
+    /// The popup the editor opens in never scrolls: not sideways, and — on a
+    /// screen with room for it — not as a whole. Only the chosen option's panel
+    /// does, and only downwards.
+    /// </summary>
+    /// <remarks>
+    /// The owner's report, 2026-10-09: the editor showed a horizontal scroll
+    /// bar. <see cref="NothingInAnyOptionIsCutOff"/> could not see it, because
+    /// it measures the panel against its own viewer and the bar belonged to the
+    /// flyout around the whole editor.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ThePopupNeverScrolls_OnlyTheChosenOptionDoes()
+    {
+        var (window, vm, editor) = Open();
+        var presenter = editor.FindAncestorOfType<FlyoutPresenter>();
+        Assert.NotNull(presenter);
+        var outer = presenter.GetVisualDescendants().OfType<ScrollViewer>().First();
+        var bad = new List<string>();
+        foreach (var option in BrushEditor.Options.Where(o => o.Shown?.Invoke(vm) ?? true))
+        {
+            editor.SelectOption(option);
+            Pump();
+            output.WriteLine($"{option.Name}: popup {outer.Extent.Width:F0}x{outer.Extent.Height:F0} in {outer.Viewport.Width:F0}x{outer.Viewport.Height:F0}, editor {editor.Bounds.Width:F0}x{editor.Bounds.Height:F0}");
+            if (outer.Extent.Width > outer.Viewport.Width + 0.5)
+            {
+                bad.Add($"{option.Name}: the popup scrolls sideways, {outer.Extent.Width:F0} in {outer.Viewport.Width:F0}");
+            }
+            if (outer.Extent.Height > outer.Viewport.Height + 0.5)
+            {
+                bad.Add($"{option.Name}: the popup scrolls as a whole, {outer.Extent.Height:F0} in {outer.Viewport.Height:F0}");
+            }
+        }
+        // The longest page there is — a simulated medium, some forty rows — is
+        // the one that would push a popup past its ceiling. It scrolls inside
+        // its own panel instead, and the popup stays the size of the editor.
+        vm.BrushMedium = vm.MediumKindChoices.First(k => k != MediumKind.None);
+        editor.SelectOption(Option("Medium"));
+        Pump();
+        var inner = editor.GetVisualDescendants().OfType<ScrollViewer>()
+            .First(s => s.Content is Panel { Name: "OptionPanels" });
+        output.WriteLine($"Medium, simulated: popup {outer.Extent.Width:F0}x{outer.Extent.Height:F0} in {outer.Viewport.Width:F0}x{outer.Viewport.Height:F0}, panel {inner.Extent.Height:F0} in {inner.Viewport.Height:F0}");
+        Assert.True(inner.Extent.Height > inner.Viewport.Height, "the simulated medium fitted without scrolling, so this proves nothing");
+        Assert.True(outer.Extent.Width <= outer.Viewport.Width + 0.5, "the popup scrolls sideways under a long page");
+        Assert.True(outer.Extent.Height <= outer.Viewport.Height + 0.5, "the popup scrolls as a whole under a long page");
+        Assert.True(inner.Extent.Width <= inner.Viewport.Width + 0.5, "the long page scrolls sideways");
+
+        foreach (var line in bad) output.WriteLine(line);
+        Assert.Empty(bad);
+        window.Close();
+    }
+
+    /// <summary>
+    /// Every option is on the list at once, whichever is chosen — the list is
+    /// how the brush is read at a glance, and a list that scrolls hides part of it.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheOptionListShowsEveryOptionWithoutScrolling(bool smudge)
+    {
+        var (window, vm, editor) = Open();
+        if (smudge)
+        {
+            vm.SelectedBrushPreset = vm.BrushPresetChoices.First(p => p.Settings.Kind == BrushKind.Smudge);
+            Pump();
+            Assert.Contains("Smudge", Listed(editor));
+        }
+        var list = editor.GetVisualDescendants().OfType<ListBox>().First(l => l.Name == "OptionList");
+        var viewer = list.GetVisualDescendants().OfType<ScrollViewer>().First();
+        var bad = new List<string>();
+        foreach (var option in BrushEditor.Options.Where(o => o.Shown?.Invoke(vm) ?? true))
+        {
+            editor.SelectOption(option);
+            Pump();
+            output.WriteLine($"{option.Name}: list {viewer.Extent.Height:F0} in {viewer.Viewport.Height:F0}");
+            if (viewer.Extent.Height > viewer.Viewport.Height + 0.5)
+            {
+                bad.Add($"{option.Name}: the option list needs {viewer.Extent.Height:F0} and has {viewer.Viewport.Height:F0}");
+            }
+        }
+        foreach (var line in bad) output.WriteLine(line);
+        Assert.Empty(bad);
+        window.Close();
+    }
 }
 
 /// <summary>The bar's half of Q211, and the shortcuts.</summary>
