@@ -151,6 +151,28 @@ which is a weak test and still far better than none.
 
 ### brush
 
+- [ ] **B424** `P2` `brush` The pen-up commit grows with the size and the length of the mark: up to 1.4 s for Ink and 2.3 s for Watercolor on an empty 1080p canvas `evidence: PenLiftCommitDoesNotGrowWithBrushSize`
+  - **The first thing the lab's paint-stroke scenario found, 2026-10-09.** Four 1.5 s strokes across a blank 1080p document, one run per size, Release, owner off the mouse. While the pen moves both brushes keep up — `stroke.move` stays under a millisecond and `pen.screen` sits at the 41 ms display floor at every size. What scales is the pen-up:
+
+    | `stroke.commit` median / worst | 60 px | 150 px | 300 px |
+    | --- | --- | --- | --- |
+    | Ink | 84 / 116 ms | 232 / 248 ms | **514 / 1155 ms** |
+    | Watercolor (simulated) | 330 / 391 ms | 641 / 821 ms | **2072 / 2719 ms** |
+
+    And with the pen's speed, at one size — the same 1.5 s drag bounced across the canvas 1, 3 and 7 times, so the mark is 1.3, 4 and 9.4 metres of stroke at 150 px:
+
+    | `stroke.commit` median / worst, 150 px | 900 px/s | 3000 px/s | 6000 px/s |
+    | --- | --- | --- | --- |
+    | Ink | 250 / 292 ms | 582 / 756 ms | **1394 / 2357 ms** |
+    | Watercolor (simulated) | 735 / 854 ms | 1137 / 1379 ms | **2256 / 2365 ms** |
+
+    Size and length together say the commit is paying for the mark's whole area again at pen-up — the dabs, not the stroke record. The moving pen holds up through all of it: at 6000 px/s `stroke.move` is 2–3 ms median and the medium's pass lands 4–5 points behind the pen, the same as at 900 px/s.
+
+    The stall list for the 300 px Watercolor run charges `stroke.commit` with 8.8 s of the run's 8.8 s of stalls. Every stroke an artist makes with a large brush ends in a freeze, which is the delay they report, and it is there on an *empty* canvas with Ink — no medium, no layers, nothing to composite.
+  - **What it is not.** The record edit (`edit:Stroke`) is 8–12 ms at every size, thumbnails 17–25 ms, the publish after it 1–3 ms. The half-second is somewhere between `EndStroke`'s `AppendToFrameRender` and the first draw after it, and it grows with the brush — so suspect whatever re-renders by the mark's *area* at pen-up rather than reusing the live scratch: the exact append (`FrameRasterizer.Append` stamps the whole stroke again at full resolution), the committed-frame publish, or the live-to-committed handover. A CPU trace of one 300 px pen-up names it; the lab runs are the `20261009-1115*` size sweeps and the `20261009-11*-speed` speed sweeps under `perf/.runs`.
+  - **Filed rather than fixed because the branch in hand is the scenario that found it, and the owner is running performance work as its own track (2026-10-09).** The fix is its own branch; measure it with `python perf/lab.py ab paint-stroke --a OLD --b NEW --sizes 60,300 --speeds 900,6000`, Ink and Watercolor both.
+  - Evidence to write: `PenLiftCommitDoesNotGrowWithBrushSize` in `PenLiftStallTests` — the pen-lift at 300 px, and at seven times the stroke length, on an empty 1080p canvas costs no more than a small multiple of the pen-lift at 60 px and one length, minimum of repeated runs, absolutes printed. Set the multiple by breaking it, not by what the fixed version clears.
+  - Cost: **M** — a trace to name the cost, then one path made bounded.
 - [ ] **B331** `P2` `brush` The live pass band grows to the whole mark when the pass is starved, and each feeds the other `evidence: ABandStaysLocalWhileThePassIsBehind, TheBandIsCappedRatherThanGrowingToTheMark`
   - **Three captures on the owner's machine, one hour apart, same build lineage — the pass degrades and takes the preview down with it.**
 

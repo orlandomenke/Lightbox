@@ -175,6 +175,11 @@ REPO_RULES: list[tuple[str, object, str]] = [
      "LedgerGateTests drives bugs.py and questions.py; CiTestCountTests and "
      "PublishLayoutTests read testcount.py and get-build.ps1"),
 
+    # The lab's runner parses the lines the app writes, and the tests that pin
+    # those lines live in App.Tests; nothing else reads perf/.
+    ("perf/*", {"Lightbox.App.Tests"},
+     "PerfLabHookTests and PaintStrokePerfLogTests pin the log lines perf/lab.py parses"),
+
     # -- test inputs that happen to be spelled as documentation ---------------
     ("README.md", {"Lightbox.Core.Tests"},
      "PublishLayoutTests asserts it names the folder the MCP server ships in (PR #95)"),
