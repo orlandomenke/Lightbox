@@ -29,7 +29,13 @@
                     ToolTip.Tip="Pin this folder: with Pinned only on, it and everything inside it stay on the Timeline and the X-sheet"><Path /></ToggleButton>
       <TextBlock Width="{StaticResource SizeXsheetName}" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center"
                  TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
-      <ItemsControl ItemsSource="{Binding Cells}">
+      <!-- Drag a mark along the strip to retime everything inside the folder on
+           that frame (Q227). Transparent rather than null, so a press between
+           two marks still reaches the strip. -->
+      <ItemsControl x:Name="Strip" ItemsSource="{Binding Cells}" Background="Transparent"
+                    PointerPressed="OnStripPressed" PointerMoved="OnStripMoved"
+                    PointerReleased="OnStripReleased" PointerCaptureLost="OnStripCaptureLost"
+                    ToolTip.Tip="Drag a mark to move every drawing inside this folder on that frame">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}" />

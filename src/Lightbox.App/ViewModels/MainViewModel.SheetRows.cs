@@ -231,6 +231,106 @@ public partial class MainViewModel
         return -1;
     }
 
+    // ---- dragging a folder's summary ----------------------------------------------------
+
+    /// <summary>
+    /// Drag a folder's mark from one frame to another: every drawing inside
+    /// the folder on <paramref name="from"/>, at any depth, moves to
+    /// <paramref name="to"/> on its own layer, as one undo step. Returns how
+    /// many moved.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A pose moves whole or not at all.</b> The point of the handle is that
+    /// the layers stay in step, so anything that would stop one of them stops
+    /// all of them: a layer inside that is locked, or one that already has a
+    /// drawing on the frame being dropped on.
+    /// </para>
+    /// <para>
+    /// <b>It will not land on a drawing</b>, where dragging a single cel
+    /// replaces what it lands on. That cel is dropped in plain sight; this
+    /// reaches layers whose rows may be folded away, and replacing a drawing
+    /// nobody is looking at is how work is lost without anyone doing anything
+    /// wrong. The status line names the layer in the way.
+    /// </para>
+    /// <para>
+    /// A layer inside with no drawing on <paramref name="from"/> is simply not
+    /// part of it — the mark means "something inside is drawn here", not
+    /// "everything is".
+    /// </para>
+    /// </remarks>
+    public int RetimeFolder(SheetFolderRow folder, int from, int to)
+    {
+        if (from == to || from < 0 || to < 0) return 0;
+        var moving = FolderTree.SubtreeLayers(Scene, folder.Group)
+            .Where(l => from < l.Cels.Count && l.Cels[from].Frame is not null)
+            .ToList();
+        if (moving.Count == 0) return 0;
+
+        var taken = moving.Where(l => to < l.Cels.Count && l.Cels[to].Frame is not null).ToList();
+        if (taken.Count > 0)
+        {
+            var names = string.Join(", ", taken.Select(l => $"“{l.Name}”"));
+            AiStatus = taken.Count == 1
+                ? $"“{folder.Name}” was not moved: {names} already has a drawing on frame {to + 1}. Move or clear it first."
+                : $"“{folder.Name}” was not moved: {names} already have drawings on frame {to + 1}. Move or clear them first.";
+            return 0;
+        }
+        // CanEdit says which lock is in the way, as it does for every cel verb.
+        if (moving.Any(l => !CanEdit(l, "retime its folder"))) return 0;
+
+        var ids = moving.Select(l => l.Id).ToList();
+        var indices = moving.Select(l => Scene.Layers.IndexOf(l)).ToList();
+        var moved = 0;
+        var revision = _editor.NextRevision;
+        _editor.Perform(doc =>
+        {
+            foreach (var id in ids)
+            {
+                if (DocumentEditor.MoveCelIn(doc, id, from, to)) moved++;
+            }
+        }, label: "Retime folder");
+        if (moved == 0)
+        {
+            _editor.DiscardStep(revision);
+            return 0;
+        }
+
+        // The selection follows the drawings it was on, so it never points at
+        // the empty cel a drawing just left.
+        foreach (var index in indices)
+        {
+            if (_keySelection.Remove(TimelineKey.Cel(index, from))) _keySelection.Add(TimelineKey.Cel(index, to));
+        }
+        AfterRetimeSelection(indices.Select(i => TimelineKey.Cel(i, to)).ToList());
+        CurrentFrameIndex = Math.Min(to, Scene.FrameCount - 1);
+        var by = to - from;
+        AiStatus = $"“{folder.Name}”: {moved} drawing{(moved == 1 ? "" : "s")} moved {by:+#;-#;0} frame{(Math.Abs(by) == 1 ? "" : "s")}.";
+        return moved;
+    }
+
+    /// <summary>
+    /// A key was dragged along a track of the Timeline. On a folder's track
+    /// that is <see cref="RetimeFolder"/>; on any other it retimes the grabbed
+    /// key, with the selection when the key is in it.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in the window so the routing can be tested: which verb
+    /// a row gets is exactly the row arithmetic <see cref="SheetItemAtTrack"/>
+    /// exists to keep in one place.
+    /// </remarks>
+    public void DragTrackKey(int trackIndex, int fromFrame, int toFrame)
+    {
+        if (!IsPoseTrack(trackIndex) && TrackKeyAt(trackIndex, fromFrame) is null
+            && SheetItemAtTrack(trackIndex) is SheetFolderRow folder)
+        {
+            RetimeFolder(folder, fromFrame, toFrame);
+            return;
+        }
+        if (TrackKeyAt(trackIndex, fromFrame) is not { } grabbed) return;
+        RetimeSelection(grabbed, toFrame - fromFrame);
+    }
+
     /// <summary>A folder's track: its summary's marks, and the chevron.</summary>
     private static Controls.TrackRow FolderTrack(SheetFolderRow folder)
     {
