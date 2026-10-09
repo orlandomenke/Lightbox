@@ -1033,8 +1033,9 @@ public partial class MainViewModel
         _prewarm.Flush();
         _idleWarmFull = false;
         _holdTilesAfterStop = false;
-        _tileFrames.Append(target, stroke, Scene.Width, Scene.Height);
-        var bitmap = _cache.Get(target, Scene.Width, Scene.Height);
+        // The append's parts, for the lab (B424): each a static read off.
+        SKBitmap bitmap;
+        using (Services.PerfLog.Begin("append.get")) bitmap = _cache.Get(target, Scene.Width, Scene.Height);
         // Q167, and the ordering is the whole of it: this is the last moment the
         // pixels under the mark still exist, and Get above is what guarantees
         // there is a bitmap to read them from. Held rather than filed, because
@@ -1042,9 +1043,12 @@ public partial class MainViewModel
         // revision — see MarkSnapshot.Promote.
         if (RepaintBoundsOf(stroke) is { } footprint)
         {
-            _markSnapshots.Hold(_cache, target, RegionOf(footprint));
+            using (Services.PerfLog.Begin("append.hold")) _markSnapshots.Hold(_cache, target, RegionOf(footprint));
         }
-        FrameRasterizer.Append(bitmap, stroke);
+        using (Services.PerfLog.Begin("append.raster")) FrameRasterizer.Append(bitmap, stroke);
+        // After the bitmap, because the tiles take the mark from it (B424): one
+        // stamp for the frame, a copy for the tiles, not a stamp per tile.
+        using (Services.PerfLog.Begin("append.tiles")) _tileFrames.Append(target, stroke, bitmap, Scene.Width, Scene.Height);
         // Almost always a no-op — the active layer's own segment is never
         // baked — but the same Frame can be exposed on another layer too, and
         // a bake covering that layer would otherwise keep the pre-stroke

@@ -151,28 +151,6 @@ which is a weak test and still far better than none.
 
 ### brush
 
-- [ ] **B424** `P2` `brush` The pen-up commit grows with the size and the length of the mark: up to 1.4 s for Ink and 2.3 s for Watercolor on an empty 1080p canvas `evidence: PenLiftCommitDoesNotGrowWithBrushSize`
-  - **The first thing the lab's paint-stroke scenario found, 2026-10-09.** Four 1.5 s strokes across a blank 1080p document, one run per size, Release, owner off the mouse. While the pen moves both brushes keep up — `stroke.move` stays under a millisecond and `pen.screen` sits at the 41 ms display floor at every size. What scales is the pen-up:
-
-    | `stroke.commit` median / worst | 60 px | 150 px | 300 px |
-    | --- | --- | --- | --- |
-    | Ink | 84 / 116 ms | 232 / 248 ms | **514 / 1155 ms** |
-    | Watercolor (simulated) | 330 / 391 ms | 641 / 821 ms | **2072 / 2719 ms** |
-
-    And with the pen's speed, at one size — the same 1.5 s drag bounced across the canvas 1, 3 and 7 times, so the mark is 1.3, 4 and 9.4 metres of stroke at 150 px:
-
-    | `stroke.commit` median / worst, 150 px | 900 px/s | 3000 px/s | 6000 px/s |
-    | --- | --- | --- | --- |
-    | Ink | 250 / 292 ms | 582 / 756 ms | **1394 / 2357 ms** |
-    | Watercolor (simulated) | 735 / 854 ms | 1137 / 1379 ms | **2256 / 2365 ms** |
-
-    Size and length together say the commit is paying for the mark's whole area again at pen-up — the dabs, not the stroke record. The moving pen holds up through all of it: at 6000 px/s `stroke.move` is 2–3 ms median and the medium's pass lands 4–5 points behind the pen, the same as at 900 px/s.
-
-    The stall list for the 300 px Watercolor run charges `stroke.commit` with 8.8 s of the run's 8.8 s of stalls. Every stroke an artist makes with a large brush ends in a freeze, which is the delay they report, and it is there on an *empty* canvas with Ink — no medium, no layers, nothing to composite.
-  - **What it is not.** The record edit (`edit:Stroke`) is 8–12 ms at every size, thumbnails 17–25 ms, the publish after it 1–3 ms. The half-second is somewhere between `EndStroke`'s `AppendToFrameRender` and the first draw after it, and it grows with the brush — so suspect whatever re-renders by the mark's *area* at pen-up rather than reusing the live scratch: the exact append (`FrameRasterizer.Append` stamps the whole stroke again at full resolution), the committed-frame publish, or the live-to-committed handover. A CPU trace of one 300 px pen-up names it; the lab runs are the `20261009-1115*` size sweeps and the `20261009-11*-speed` speed sweeps under `perf/.runs`.
-  - **Filed rather than fixed because the branch in hand is the scenario that found it, and the owner is running performance work as its own track (2026-10-09).** The fix is its own branch; measure it with `python perf/lab.py ab paint-stroke --a OLD --b NEW --sizes 60,300 --speeds 900,6000`, Ink and Watercolor both.
-  - Evidence to write: `PenLiftCommitDoesNotGrowWithBrushSize` in `PenLiftStallTests` — the pen-lift at 300 px, and at seven times the stroke length, on an empty 1080p canvas costs no more than a small multiple of the pen-lift at 60 px and one length, minimum of repeated runs, absolutes printed. Set the multiple by breaking it, not by what the fixed version clears.
-  - Cost: **M** — a trace to name the cost, then one path made bounded.
 - [ ] **B331** `P2` `brush` The live pass band grows to the whole mark when the pass is starved, and each feeds the other `evidence: ABandStaysLocalWhileThePassIsBehind, TheBandIsCappedRatherThanGrowingToTheMark`
   - **Three captures on the owner's machine, one hour apart, same build lineage — the pass degrades and takes the preview down with it.**
 
@@ -1282,6 +1260,32 @@ test reopens the bug.
   - Fix: `SKBlendMode.Src`. A blur **replaces** its dab with the softened version; there was never a reason to composite a second copy over the first.
   - Measured: peak alpha on a wash of 60 stays **60** after a blur. It used to climb to opaque. Cost: S
   - **Smudge and blender have the same runaway and it is not fixed — that is B38.** Splitting them because the fixes are not the same size: blur replaces a region and `Src` says exactly that, while a smudge has to blend and there is no blend mode for it.
+
+- [x] **B424** `P2` `brush` The pen-up commit grows with the size and the length of the mark: up to 1.4 s for Ink and 2.3 s for Watercolor on an empty 1080p canvas `evidence: ACommitStampsTheMarkOnceNotOncePerTile, AppendingFromTheRenderedFrameMatchesRasterisingTheWholeRecord`
+  - **The first thing the lab's paint-stroke scenario found, 2026-10-09.** Four 1.5 s strokes across a blank 1080p document, one run per size, Release, owner off the mouse. While the pen moves both brushes keep up — `stroke.move` stays under a millisecond and `pen.screen` sits at the 41 ms display floor at every size. What scales is the pen-up:
+
+    | `stroke.commit` median / worst | 60 px | 150 px | 300 px |
+    | --- | --- | --- | --- |
+    | Ink | 84 / 116 ms | 232 / 248 ms | **514 / 1155 ms** |
+    | Watercolor (simulated) | 330 / 391 ms | 641 / 821 ms | **2072 / 2719 ms** |
+
+    And with the pen's speed, at one size — the same 1.5 s drag bounced across the canvas 1, 3 and 7 times, so the mark is 1.3, 4 and 9.4 metres of stroke at 150 px:
+
+    | `stroke.commit` median / worst, 150 px | 900 px/s | 3000 px/s | 6000 px/s |
+    | --- | --- | --- | --- |
+    | Ink | 250 / 292 ms | 582 / 756 ms | **1394 / 2357 ms** |
+    | Watercolor (simulated) | 735 / 854 ms | 1137 / 1379 ms | **2256 / 2365 ms** |
+
+    Size and length together say the commit is paying for the mark's whole area again at pen-up — the dabs, not the stroke record. The moving pen holds up through all of it: at 6000 px/s `stroke.move` is 2–3 ms median and the medium's pass lands 4–5 points behind the pen, the same as at 900 px/s.
+
+    The stall list for the 300 px Watercolor run charges `stroke.commit` with 8.8 s of the run's 8.8 s of stalls. Every stroke an artist makes with a large brush ends in a freeze, which is the delay they report, and it is there on an *empty* canvas with Ink — no medium, no layers, nothing to composite.
+  - **What it is not.** The record edit (`edit:Stroke`) is 8–12 ms at every size, thumbnails 17–25 ms, the publish after it 1–3 ms. The half-second is somewhere between `EndStroke`'s `AppendToFrameRender` and the first draw after it, and it grows with the brush — so suspect whatever re-renders by the mark's *area* at pen-up rather than reusing the live scratch: the exact append (`FrameRasterizer.Append` stamps the whole stroke again at full resolution), the committed-frame publish, or the live-to-committed handover. A CPU trace of one 300 px pen-up names it; the lab runs are the `20261009-1115*` size sweeps and the `20261009-11*-speed` speed sweeps under `perf/.runs`.
+  - **Filed rather than fixed because the branch in hand is the scenario that found it, and the owner is running performance work as its own track (2026-10-09).** The fix is its own branch; measure it with `python perf/lab.py ab paint-stroke --a OLD --b NEW --sizes 60,300 --speeds 900,6000`, Ink and Watercolor both.
+  - **Found and fixed the same day.** Sub-spans inside the commit (now permanent, `commit.*` and `append.*` in the perf log) named it without a trace: of a 300 px pen-up, `append.tiles` was 726 ms for Ink and 2414 ms for Watercolor, against `append.raster` — the one exact stamp onto the cached frame bitmap — at 51 and 99 ms, with everything else under 35 ms. `TiledRasterizer.AppendStroke` stamped the whole stroke once per tile its bounds covered, so a wide mark paid for itself fourteen times and a simulated medium ran its lattice fourteen times. The commit already holds the frame rendered exactly, so the tiles now take the mark's region from that bitmap (`AppendRendered`, a Src copy per tile) instead of stamping into it, and the frame bitmap is appended first. Byte-identical by construction, which also makes an effect brush's commit exact in the tiles — a smudge no longer drops the frame from the tile cache for the next publish to rebuild whole.
+  - **Measured in the test rather than against a number**: the per-tile route stays in `ACommitStampsTheMarkOnceNotOncePerTile` as the thing to beat — 41.3 ms per tile against 9.8 ms once from the render at 960×540 with a 150 px brush, minimum of three — and the bar is half of it. The lab A/B at 300 px, two interleaved pairs per brush on an empty 1080p canvas: Watercolor's pen-up **3495 → 247 ms** median (worst 3748 → 268), Ink's **770 → 136 ms** (worst 754 → 148); stalls over the run 14.0 s → 1.0 s and 3.3 s → 0.6 s. What is left of the pen-up is the one stamp (132 ms for the medium, 47 for Ink) plus a 40–50 ms copy into the tiles.
+  - **And a second defect the exactness test exposed, present on main before this.** `CommitBounds` is built from the authored points alone: a mirrored stroke's copy, a wrapped stroke's far-edge copy and a gradient's whole-layer fill all land in the frame bitmap outside the rectangle the commit said it changed. On screen that was masked, because the live layer had already shown the copies; in the tile store, which takes exactly the region it is told, they were missing — 1828 stale pixels for a mirror, 6 for a wrap, the whole canvas for a gradient, on the old per-tile path as much as on the new copy (the adversary's measurement). `BrushEngine.CommitRegion` is the region a commit actually touches — the unclamped reach mapped through every symmetry and wrap copy, the surface for a gradient — and both the tile append and the committed-layer publish take it now. The three cases are in the exactness theory.
+  - What remains of a pen-up is the one exact stamp of the mark, which still grows with the mark's area — that is invariant 6's shape, not this bug.
+  - Cost was **S** once the sub-spans had named the part: the instrument built for the scenario paid for itself on its first use.
 
 - [x] **B423** `P2` `brush` The brush editor's popup shows the left 454 pixels of it and scrolls the rest sideways `evidence: ThePopupNeverScrolls_OnlyTheChosenOptionDoes, TheOptionListShowsEveryOptionWithoutScrolling`
   - **The popup was narrower than the thing in it.** The editor is 780 wide by design (Q211): an option list, the chosen option and a scratchpad side by side. It opens in a `Flyout`, whose presenter is a `ScrollViewer` capped at Fluent's 456 — so it showed the left 454 pixels with a horizontal scroll bar under them, and the scratchpad was out of sight to the right. Measured, not inferred: content 804 in a viewport of 454, on every option. Reported by the owner, 2026-10-09, as "a horizontal scroll bar" and "too crowded".

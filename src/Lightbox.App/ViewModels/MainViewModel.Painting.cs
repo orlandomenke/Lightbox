@@ -2035,7 +2035,7 @@ public partial class MainViewModel
 
         var clip = PrepareClipForSelection();
         if (clip is not null) stroke.ClipId = clip.Value.Id;
-        FreezeSampledBackdrop(stroke);
+        using (PerfLog.Begin("commit.freeze")) FreezeSampledBackdrop(stroke);
         RememberDocumentBrush();
         // B382: a shape drawn on a posed layer is carried back to rest like a
         // brush stroke, so it stays where it was dragged out.
@@ -3897,14 +3897,16 @@ public partial class MainViewModel
         using var perf = PerfLog.Begin("stroke.commit");
         NoteStrokeEnded(_strokeBuilder.Current?.Points.Count ?? 0, _live.StableDabs);
         var stroke = _strokeBuilder.End();
-        _live.ClearEffectState();
+        // The commit's parts, for the lab: which of them a pen-up is paying for
+        // (B424). Each is a static read when the log is off, like the whole.
+        using (PerfLog.Begin("commit.clear")) _live.ClearEffectState();
         if (stroke is null) return;
         var target = PaintTarget();
         if (target is null) return;
 
         _stabilizer.End();
         LazyBrushCleared?.Invoke();
-        stroke.Points = _stabilizer.PostProcess(stroke.Points);
+        using (PerfLog.Begin("commit.smooth")) stroke.Points = _stabilizer.PostProcess(stroke.Points);
 
         // Remembered for the next Shift+click. The post-processed end, not the
         // raw one, so the next segment starts exactly where this mark stops.
@@ -3965,7 +3967,7 @@ public partial class MainViewModel
             ? StrokeChangeProbe.Open(stroke, _cache.Get(target, Scene.Width, Scene.Height))
             : null;
 
-        AppendToFrameRender(target, stroke); // pre-stroke state (record not yet updated)
+        using (PerfLog.Begin("commit.append")) AppendToFrameRender(target, stroke); // pre-stroke state (record not yet updated)
 
         if (erasure?.ChangedNothing() == true)
         {
@@ -4011,8 +4013,14 @@ public partial class MainViewModel
         // Only the stroke's own neighbourhood changed: the layer gained the
         // committed pixels and the live scratch stopped contributing there.
         var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        if (BrushEngine.CommitBounds(shown, commitInfo) is { } touched) _publish.MarkDirty(touched);
-        else _publish.InvalidateWholeCanvas();
+        using (PerfLog.Begin("commit.bounds"))
+        {
+            // CommitRegion, not CommitBounds: a mirrored or wrapped copy lands
+            // outside the authored mark's rectangle, and the committed layer
+            // has to repaint there too once the live layer lets go (B424).
+            if (BrushEngine.CommitRegion(shown, commitInfo) is { } touched) _publish.MarkDirty(touched);
+            else _publish.InvalidateWholeCanvas();
+        }
         PublishSnapshot();
         RefreshThumbnails();
     }

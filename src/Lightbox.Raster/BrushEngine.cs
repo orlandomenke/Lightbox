@@ -2846,6 +2846,45 @@ public static class BrushEngine
             : null;
 
     /// <summary>
+    /// Every pixel a <em>commit</em> can touch: <see cref="CommitBounds"/> for
+    /// the authored mark, the same reach under every symmetry and wrap copy
+    /// the render draws, and the whole surface for a gradient — which fills
+    /// the layer whatever its two points say. What a tile store or a publish
+    /// takes after a pen-up.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="CommitBounds"/> is built from the authored points alone and
+    /// never knew about <see cref="SymmetryCopies"/>: a mirrored stroke's copy,
+    /// a wrapped stroke's far-edge copy and a gradient's fill all landed in the
+    /// frame bitmap outside the rectangle the commit said it changed. On screen
+    /// that was masked because the live layer had already shown them; in a
+    /// tile store, which takes exactly the region it is told, the copies were
+    /// missing (found by the adversary on B424, present on main before it).
+    /// Mapped from the unclamped reach, not the clamped bounds: a mark that
+    /// runs off the left edge has a copy that comes back onto the surface from
+    /// beyond the mirror of that edge.
+    /// </remarks>
+    public static SKRectI? CommitRegion(Stroke stroke, SKImageInfo info, SKPointI origin = default)
+    {
+        var surface = SKRectI.Create(0, 0, info.Width, info.Height);
+        if (stroke.Tool == ToolKind.Gradient) return surface;
+        if (ReachBounds(stroke) is not { } reach) return null;
+
+        var union = reach;
+        foreach (var copy in SymmetryCopies(stroke))
+        {
+            if (copy is not { } m) continue;
+            var mapped = m.MapRect(SKRect.Create(reach.Left, reach.Top, reach.Width, reach.Height));
+            var boxed = new SKRectI(
+                (int)Math.Floor(mapped.Left), (int)Math.Floor(mapped.Top),
+                (int)Math.Ceiling(mapped.Right), (int)Math.Ceiling(mapped.Bottom));
+            union = SKRectI.Union(union, boxed);
+        }
+        var clamped = SKRectI.Intersect(ToSurface(union, origin), surface);
+        return clamped.Width > 0 && clamped.Height > 0 ? clamped : null;
+    }
+
+    /// <summary>
     /// The same reach, unclamped — bounds as <em>where the stroke is</em> rather
     /// than <em>what to repaint</em>. <see cref="CommitBounds"/> clamps to the
     /// surface because nothing off the surface needs repainting; the stroke
