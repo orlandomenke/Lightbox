@@ -35,6 +35,7 @@ public sealed partial class GroupRow : ObservableObject
         _syncing = true;
         Name = group.Name;
         Visible = group.Visible;
+        HiddenByFolder = _owner.IsFolderHiddenByFolder(group);
         Locked = group.Locked;
         Collapsed = group.Collapsed;
         Color = group.Color;
@@ -55,6 +56,22 @@ public sealed partial class GroupRow : ObservableObject
 
     /// <summary>The left margin <see cref="Depth"/> asks for.</summary>
     public Avalonia.Thickness Indent => new(Depth * LayerRow.IndentStep, 0, 0, 0);
+
+    /// <summary>
+    /// A folder this row is inside is hidden, so the row draws nothing whatever
+    /// its own eye says. The docker shuts the eye and dims the row for it.
+    /// </summary>
+    /// <remarks>
+    /// Reported, never written back: the row's own <see cref="Visible"/> is
+    /// left as the artist set it, so showing the folder again restores exactly
+    /// what was there — including the rows that were hidden in their own right.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDimmed))]
+    private bool _hiddenByFolder;
+
+    /// <summary>Not drawn on the canvas, for either reason. Drives the dimmed row.</summary>
+    public bool IsDimmed => !Visible || HiddenByFolder;
 
     [ObservableProperty]
     private string _name = "";
@@ -120,6 +137,7 @@ public sealed partial class GroupRow : ObservableObject
 
     partial void OnVisibleChanged(bool value)
     {
+        OnPropertyChanged(nameof(IsDimmed));
         if (!_syncing) _owner.SetGroupVisible(Group, value);
     }
 
@@ -314,6 +332,22 @@ public sealed partial class LayerRow : ObservableObject
     /// <summary>The left margin <see cref="Depth"/> asks for.</summary>
     public Avalonia.Thickness Indent => new(Depth * IndentStep, 0, 0, 0);
 
+    /// <summary>
+    /// A folder this row is inside is hidden, so the row draws nothing whatever
+    /// its own eye says. The docker shuts the eye and dims the row for it.
+    /// </summary>
+    /// <remarks>
+    /// Reported, never written back: the row's own <see cref="Visible"/> is
+    /// left as the artist set it, so showing the folder again restores exactly
+    /// what was there — including the rows that were hidden in their own right.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDimmed))]
+    private bool _hiddenByFolder;
+
+    /// <summary>Not drawn on the canvas, for either reason. Drives the dimmed row.</summary>
+    public bool IsDimmed => !Visible || HiddenByFolder;
+
     /// <summary>In a link — the docker marks it, or the artist cannot tell it is one drawing.</summary>
     public bool IsLinked => Layer.LinkId is not null;
 
@@ -382,6 +416,7 @@ public sealed partial class LayerRow : ObservableObject
         AlphaLocked = layer.AlphaLocked;
         OnionEnabled = layer.OnionEnabled;
         _lockedByFolder = _owner.IsLayerLockedByFolder(layer);
+        HiddenByFolder = _owner.IsLayerHiddenByFolder(layer);
         _syncing = false;
         OnPropertyChanged(nameof(IsGrouped));
         SyncLinkFromModel();
@@ -395,6 +430,7 @@ public sealed partial class LayerRow : ObservableObject
 
     partial void OnVisibleChanged(bool value)
     {
+        OnPropertyChanged(nameof(IsDimmed));
         if (!_syncing) _owner.SetLayerVisible(Layer, value);
     }
 

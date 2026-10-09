@@ -72,6 +72,12 @@ folders, or nothing at all, and it stays where you put it either way.
 - **Folders go inside folders**, as deep as you like. Each level is indented one
   step, and hiding or locking a folder hides or locks everything in it, at
   every depth.
+- **A hidden folder shows on every row it reaches.** Each layer and folder
+  inside it is dimmed and its eye is drawn shut, at every depth, so the docker
+  never shows an open eye on something the canvas is not drawing. Those rows'
+  own eyes are not changed by it: show the folder again and everything comes
+  back as it was, including the layers you had hidden one by one. The X-sheet's
+  rows do the same.
 - **Click a folder's header to pick it on its own** — an empty one included.
   With a folder picked, a new layer or folder goes inside it, and **Delete**
   deletes the folder.
