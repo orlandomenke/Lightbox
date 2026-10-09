@@ -282,7 +282,27 @@ piece (1), but a first pass can take normals from the stroke's own alpha
 coverage, which already exists. That gets a light-catching edge on gouache and
 oil without the memory, and it is worth trying before committing to the buffer.
 
-### On brush tip textures
+### Capillary pull, third reading (B427, 2026-10-09)
+
+The chamfer-distance walk that fixed B24 had a flaw the measurement only found
+once the seam was looked for: the cells on a stroke's medial axis give pigment
+to both sides and receive none, so every wash had a channel down its exact
+middle at any pull above zero. That is why B35 could only turn EdgePull down to
+0.06, where nothing pools. The term now drains the whole interior evenly into
+the fringe band — the physics of a drying wash, evaporation at the contact line
+pulling from everywhere — and the Watercolor preset pools again at 0.45. See
+`FluidLattice.CapillaryPull` and `HollowCentreTests`.
+
+Two numbers worth keeping beside it. The rate is set against the deposit, not
+on its own: `Deposit` binds a quarter of the suspension in place every step,
+so a pull of 0.12 per step at full slider moves roughly a third of the
+interior's pigment before it is pinned, which reads as a rim 1.3× the core on
+a dried disc and a stroke that keeps 55 % of its middle. And the B24 bounds
+were re-derived rather than relaxed: the old walk's rim/core of 4 was mostly
+the core being carved, so "above 3" measured the defect; "rim darker than
+core" is what a ring is.
+
+## On brush tip textures
 
 Raised as a possible answer, and it is a partial one — worth being precise
 about which part.

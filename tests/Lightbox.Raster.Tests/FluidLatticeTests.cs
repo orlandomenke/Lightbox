@@ -353,8 +353,24 @@ public class FluidLatticeTests
             lat.Run(20, new FluidParams(
                 Viscosity: 0.2f, Drag: 0.3f, Absorbency: 0.4f, EdgePull: edge, Granularity: 0f));
 
-            var rgba = DepositOf(lat);
+            // The rim is wherever the water stopped, which the pull does not
+            // move (it carries pigment, not water): the outermost four rings
+            // still wet when the run ends. Before B427 the band was fixed at
+            // the seeded radius, which the old per-cell walk happened to fill
+            // because it carved the middle rather than building the edge; the
+            // ring now forms at the contact line three cells further out.
             var c = Size / 2;
+            var front = 0;
+            for (var y = 0; y < Size; y++)
+            for (var x = 0; x < Size; x++)
+            {
+                var dx = x - c;
+                var dy = y - c;
+                var ring = (int)Math.Round(Math.Sqrt(dx * dx + dy * dy));
+                if (ring > front && lat.WaterAt(x, y) > 0.02f) front = ring;
+            }
+
+            var rgba = DepositOf(lat);
             double rim = 0, core = 0;
             int rimN = 0, coreN = 0;
             for (var y = 0; y < Size; y++)
@@ -364,7 +380,7 @@ public class FluidLatticeTests
                 var dy = y - c;
                 var d = Math.Sqrt(dx * dx + dy * dy);
                 var a = rgba[(y * Size + x) * 4 + 3];
-                if (d >= R - 4 && d <= R + 2) { rim += a; rimN++; }
+                if (d >= front - 3 && d <= front) { rim += a; rimN++; }
                 else if (d <= 4) { core += a; coreN++; }
             }
             return rim / rimN / (core / coreN);
@@ -380,11 +396,15 @@ public class FluidLatticeTests
         Assert.True(without < 1,
             $"deposit already favoured the edge without EdgePull: rim/core {without:F3}");
 
-        // With it, the edge has to be genuinely darker than the middle — an
-        // actual rim, not just a slightly fatter fringe.
-        Assert.True(with > 1.15,
+        // With it, the outermost rings have to hold most of what the middle
+        // does — the profile no longer thins toward the boundary. Measured
+        // 0.29 -> 0.89 under the uniform drain (B427): the front rings go
+        // from a faint fringe to nearly as dark as the core, while the core
+        // gives up about 40 % to build them. The old walk read 1.5 here by
+        // hollowing the middle, which the stroke-level tests now forbid.
+        Assert.True(with >= 0.8,
             $"EdgePull produced no rim: rim/core {with:F3}");
-        Assert.True(with > without * 1.5,
+        Assert.True(with > without * 2,
             $"EdgePull barely moved the deposit: rim/core {without:F3} -> {with:F3}");
     }
 
@@ -473,7 +493,13 @@ public class FluidLatticeTests
         }
 
         Assert.True(ratios[0] < 1.05, $"a wash with no edge pull already had a rim: {ratios[0]:F2}");
-        Assert.True(ratios[^1] > 3,
+        // At the top of the slider the rim is darker than the middle — a ring.
+        // Measured 0.50 -> 1.30 across the pulls under the uniform drain
+        // (B427); the B24 thinness field gave 0.50 -> 0.44. The per-cell walk
+        // this replaced reached 4 here, and most of that was the core being
+        // carved out rather than the rim built up, so the old bound of 3
+        // was a measure of the defect the stroke tests now refuse.
+        Assert.True(ratios[^1] > 1,
             $"EdgePull 1 barely pooled: {string.Join(", ", ratios.Select(r => r.ToString("F2")))}");
     }
 
@@ -488,7 +514,9 @@ public class FluidLatticeTests
         var (_, _, calm) = Pooling(0f);
         var (rim, core, pulled) = Pooling(1f);
 
-        Assert.True(rim / core > 3, $"no rim to speak of: {rim / core:F2}");
+        // Measured 1.30 (B427); see EdgePull_RespondsMonotonically for why
+        // the old bound of 3 measured the hollowing rather than the rim.
+        Assert.True(rim / core > 1, $"no rim to speak of: {rim / core:F2}");
         // Measured: 0.13 -> 0.25 with the distance field, 0.13 -> 2.04 with the
         // thinness field it replaced. The bound is between the two and nowhere near
         // either.

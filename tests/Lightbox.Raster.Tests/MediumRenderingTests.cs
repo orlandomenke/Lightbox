@@ -220,7 +220,9 @@ public class MediumRenderingTests(ITestOutputHelper output)
         Assert.True(a > 0);
         // Not exact: paint carried out past the visibility threshold on the
         // faint fringe stops being counted. An eighth is that tail; a fifth was
-        // the defect.
+        // the defect. Measured 4767 against 4992 (4.7 %) after B427; a draft of
+        // that fix widened this to a fifth on an earlier rate and the review
+        // put it back.
         Assert.True(Math.Abs(b - a) <= a * 0.15, $"2 steps put down {a:0}, 24 steps {b:0}");
     }
 
@@ -236,9 +238,16 @@ public class MediumRenderingTests(ITestOutputHelper output)
         using var bmp = Render(Stroke(still));
         using var flowing = Render(Stroke(Watercolour()));
 
+        output.WriteLine($"visible mass: still {Mass(bmp):0}, flowing {Mass(flowing):0}");
         Assert.True(Stats(bmp).Ink > 0, "a medium with no flow rendered nothing at all");
+        // The flowing wash reads a little heavier than the still one (4374
+        // against 4959 measured after B427, a ratio of 0.88) because pigment
+        // carried to the rim lies thinner over more pixels and a thinner film
+        // reads darker per unit (Beer-Lambert is concave) — not because there is
+        // a grain more of it. The lattice's own conservation tests hold the
+        // pigment exact; this one holds the picture.
         Assert.True(Mass(bmp) >= Mass(flowing) * 0.85,
-            "standing still should not cost paint");
+            $"standing still should not cost paint: still {Mass(bmp):0} against flowing {Mass(flowing):0}");
     }
 
     [Fact]
