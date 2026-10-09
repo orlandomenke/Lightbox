@@ -611,10 +611,38 @@ public partial class MainWindow
             return;
         }
 
-        await using var stream = await files[0].OpenReadAsync();
-        using var reader = new StreamReader(stream);
-        var json = await reader.ReadToEndAsync();
-        _vm.OpenDocumentTab(DocJson.Deserialize(json), files[0].TryGetLocalPath());
+        var picked = files[0];
+        await OpenPickedDocumentAsync(picked.TryGetLocalPath(), picked.Name, picked.OpenReadAsync);
+    }
+
+    /// <summary>A document chosen in the Open dialog: a path when it has one, a stream when it does not.</summary>
+    /// <remarks>
+    /// It read the picked file as text and parsed that, but every document
+    /// <see cref="DocJson.Save"/> writes is gzip, so the dialog could not open
+    /// the application's own files. Both routes now go through the gzip-aware
+    /// loader, on a worker (Q229).
+    /// </remarks>
+    internal async Task OpenPickedDocumentAsync(string? localPath, string name, Func<Task<Stream>> openRead)
+    {
+        if (localPath is not null)
+        {
+            await _vm.OpenDocumentFileAsync(localPath);
+            return;
+        }
+        try
+        {
+            await using var stream = await openRead();
+            var copy = new MemoryStream();
+            await stream.CopyToAsync(copy);
+            copy.Position = 0;
+            var doc = await Task.Run(() => DocJson.Load(copy));
+            _vm.OpenDocumentTab(doc, null);
+        }
+        catch (Exception e) when (e is IOException or InvalidDataException
+                                      or System.Text.Json.JsonException or UnauthorizedAccessException)
+        {
+            _vm.AiStatus = $"Could not open {name}: {e.Message}";
+        }
     }
 
     /// <summary>Whether a picked file should go through the PSD reader.</summary>
