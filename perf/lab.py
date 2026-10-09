@@ -63,6 +63,11 @@ PRESETS = {
     # A small named sheet for behaviour checks: Ink A . . B . . . ., Color X . Y . . . . .,
     # Shade and Line inside a folder named Character.
     "sheet": ["--preset", "sheet"],
+    # Large documents, for responsiveness at scale (2026-10-09): about three times the
+    # owner's layers and drawings, at 1080p and at 4K. Synthetic, like owner-shape.
+    "large": ["--layers", "30", "--drawings", "200", "--frames", "48", "--step", "2"],
+    "large-4k": ["--layers", "30", "--drawings", "200", "--frames", "48", "--step", "2",
+                 "--width", "3840", "--height", "2160"],
 }
 
 
@@ -490,6 +495,22 @@ def load_scenario(name: str) -> dict:
     return scenario
 
 
+def with_onion(scenario: dict, onion: str | None) -> dict:
+    """The scenario with onion skin forced on or off, named so the runs do not mix."""
+    if onion is None:
+        return scenario
+    return {**scenario, "onion": onion, "name": f"{scenario['name']}-onion{onion}"}
+
+
+def with_fixture(scenario: dict, fixture: str | None) -> dict:
+    """The scenario on another document: the same gestures, measured at another scale."""
+    if fixture is None:
+        return scenario
+    if fixture not in PRESETS:
+        sys.exit(f"unknown fixture {fixture!r}; known: {', '.join(PRESETS)}")
+    return {**scenario, "fixture": fixture, "name": f"{scenario['name']}@{fixture}"}
+
+
 def resolve_exe(build: str | None) -> Path:
     exe = Path(build) if build else DEFAULT_EXE
     if exe.is_dir():
@@ -505,6 +526,10 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
     env = {k: v for k, v in os.environ.items() if not stripped(k)}
     env["LIGHTBOX_LAB"] = "1"  # the explicit opt-in: only the lab makes a lab instance
     env["LIGHTBOX_PROFILE_DIR"] = str((out / "profile").resolve())
+    if scenario.get("onion") == "off":
+        # The owner's default is onion off; a fresh profile has it on.
+        (out / "profile").mkdir(parents=True, exist_ok=True)
+        (out / "profile" / "settings.json").write_text('{"Onion": {"Enabled": false}}', encoding="utf-8")
     env["LIGHTBOX_PERF_LOG"] = str(log.path.resolve())
     fixture = ensure_fixture(scenario.get("fixture", "owner-shape"))
 
@@ -791,7 +816,7 @@ def cmd_fixture(args) -> None:
 def cmd_run(args) -> None:
     make_dpi_aware()
     require_input()
-    scenario = load_scenario(args.scenario)
+    scenario = with_onion(with_fixture(load_scenario(args.scenario), getattr(args, "fixture", None)), getattr(args, "onion", None))
     exe = resolve_exe(args.build)
     folder = RUNS / f"{stamp()}-{scenario['name']}-{args.tag}"
     print(f"{scenario['name']}: {args.runs} run(s) of {exe}\n  results in {folder}\n"
@@ -814,7 +839,7 @@ def cmd_check(args) -> None:
     """Run a behaviour scenario once and say, expectation by expectation, whether the
     app did what the scenario expects — on any build, the installed one included."""
     make_dpi_aware()
-    scenario = load_scenario(args.scenario)
+    scenario = with_onion(with_fixture(load_scenario(args.scenario), getattr(args, "fixture", None)), getattr(args, "onion", None))
     exe = resolve_exe(args.build)
     folder = RUNS / f"{stamp()}-{scenario['name']}-check"
     print(f"{scenario['name']}: checking {exe}\n  hands off the mouse and keyboard until it says done.")
@@ -835,7 +860,7 @@ def cmd_check(args) -> None:
 def cmd_ab(args) -> None:
     make_dpi_aware()
     require_input()
-    scenario = load_scenario(args.scenario)
+    scenario = with_onion(with_fixture(load_scenario(args.scenario), getattr(args, "fixture", None)), getattr(args, "onion", None))
     a, b = resolve_exe(args.a), resolve_exe(args.b)
     folder = RUNS / f"{stamp()}-{scenario['name']}-ab"
     print(f"{scenario['name']}: A/B, {args.runs} interleaved pair(s)\n  A {a}\n  B {b}\n"
@@ -900,6 +925,8 @@ def main() -> None:
     r.add_argument("--build", help="Lightbox.App.exe, or the folder holding it (default: this repo's Release build)")
     r.add_argument("--runs", type=int, default=3)
     r.add_argument("--tag", default="adhoc")
+    r.add_argument("--fixture", help="run on another document: " + ", ".join(PRESETS))
+    r.add_argument("--onion", choices=["on", "off"], help="force onion skin on or off")
     r.add_argument("--presentmon", help="path to presentmon.exe, to record what reached the screen")
     r.set_defaults(go=cmd_run)
     ab = sub.add_parser("ab", help="run a scenario against two builds, interleaved, with a verdict")
@@ -908,6 +935,8 @@ def main() -> None:
     ab.add_argument("--b", required=True, help="the build under test")
     ab.add_argument("--runs", type=int, default=3)
     ab.add_argument("--tolerance", type=float, default=0.15, help="relative change that counts (default 0.15)")
+    ab.add_argument("--fixture", help="run on another document: " + ", ".join(PRESETS))
+    ab.add_argument("--onion", choices=["on", "off"], help="force onion skin on or off")
     ab.add_argument("--presentmon")
     ab.set_defaults(go=cmd_ab)
     c = sub.add_parser("check", help="run a behaviour scenario once and check its expectations")
