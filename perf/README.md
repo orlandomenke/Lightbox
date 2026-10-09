@@ -65,6 +65,10 @@ The paint metrics are **upper bounds**: while the log is on, every pointer batch
 drawn ink frame writes a line, and that write sits inside the very numbers it reports.
 Small, and the same on both sides of an A/B — but not zero, so compare, do not quote.
 
+A swept scenario reports each size on its own, as `300px/pen.screen.worst_ms` and so on,
+and an A/B judges each size against the same size on the other build; too few good
+runs at any one size makes the whole sweep inconclusive.
+
 Across runs, **"worst" and "longest" are judged on the minimum** (contention only ever
 adds to them) and everything else on the median. `ab` interleaves the two builds and
 alternates the order, so drift over the session lands on both; a metric is a
@@ -97,7 +101,7 @@ start a move drag a little off it (`transform-undo` uses `[0.53, 0.53]`).
 | `open-document` | opening the owner-shaped document |
 | `transform-undo` | select all, transform, move, commit, undo — three rounds |
 | `flip-keys` | flipping key to key with 1 and 2 |
-| `paint-stroke` | four strokes across a blank canvas with the brush in `brush` (`"id[:size]"`); `--brush builtin-ink:60` overrides it, and is the control |
+| `paint-stroke` | four strokes across a blank canvas with the brush in `brush`, swept over `sizes` (60, 150, 300 px) smallest first — large brushes are where drawing falls over. `--sizes 60,300` replaces the list, `--brush builtin-ink` is the control (a `--brush id:size` runs that one size), `--fixture blank-4k` puts it on a 4K canvas. Sizes are 1–500; above that the app clamps and the run is refused |
 
 Planned, from the owner's list: first playback, adding a frame, click-to-jump on the
 timeline (scrubbing is fine; jumping is not), and the X-sheet operations that lag.

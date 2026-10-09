@@ -804,11 +804,16 @@ def flat(metrics: dict) -> dict[str, float]:
 
 
 def aggregate(results: list[dict]) -> dict[str, float]:
+    """One number per metric over the good runs — and per variant, when a scenario was
+    swept over brush sizes: `300px/pen.screen.worst_ms` is judged only against runs at
+    300 px, so a verdict never compares a small brush on one build with a big one on
+    the other."""
     good = [r for r in results if r["outcome"] == "ok"]
     series: dict[str, list[float]] = {}
     for r in good:
+        prefix = f"{r['variant']}/" if r.get("variant") else ""
         for k, v in flat(r["metrics"]).items():
-            series.setdefault(k, []).append(v)
+            series.setdefault(prefix + k, []).append(v)
     return {k: (min(v) if ("worst" in k or "longest" in k) else statistics.median(v))
             for k, v in series.items()}
 
@@ -847,37 +852,81 @@ def cmd_fixture(args) -> None:
         print(ensure_fixture(preset, rebuild=True))
 
 
-def with_brush(scenario: dict, override: str | None) -> dict:
-    """`--brush id[:size]` replaces the scenario's own; the folder name carries whichever won."""
+def with_brush(scenario: dict, override: str | None, fixture: str | None = None) -> dict:
+    """`--brush id[:size]` replaces the scenario's own, `--fixture` its document; the folder
+    name carries whichever won."""
     if override:
         scenario["brush"] = override
+    if fixture:
+        if fixture not in PRESETS:
+            sys.exit(f"unknown fixture {fixture!r}; known: {', '.join(PRESETS)}")
+        scenario["fixture"] = fixture
     return scenario
 
 
-def folder_name(scenario: dict, tail: str) -> str:
+def variants(scenario: dict, sizes: str | None, brush_override: str | None) -> list[tuple[str | None, dict]]:
+    """The scenario once per brush size, smallest first — or once as it is.
+
+    Large brushes are where drawing falls over (every stall in the September captures
+    needed size x speed x canvas together), so a paint scenario is swept over sizes
+    rather than run at one. Which sizes: `--sizes 60,150,300` first; else a `--brush`
+    that names its own size runs that one size; else the scenario's `sizes`; else the
+    scenario as written. Sizes above 500 are clamped by the app and refused by the
+    run's brush check, so they are refused here, with the reason."""
+    brush = brush_of(scenario)
+    if sizes:
+        wanted = [float(x) for x in sizes.split(",") if x.strip()]
+    elif brush_override and brush is not None and brush[1] is not None:
+        wanted = []
+    else:
+        wanted = [float(x) for x in scenario.get("sizes", [])]
+    if not wanted:
+        return [(None, scenario)]
+    if brush is None:
+        sys.exit("sizes need a brush: give the scenario a `brush`, or pass --brush")
+    bad = [x for x in wanted if not 1 <= x <= 500]
+    if bad:
+        sys.exit(f"brush sizes must be 1..500 (the app clamps there, and a clamped run is refused): {bad}")
+    out = []
+    for size in sorted(wanted):
+        label = f"{int(size) if size.is_integer() else size}px"
+        out.append((label, {**scenario, "brush": f"{brush[0]}:{label[:-2]}"}))
+    return out
+
+
+def folder_name(scenario: dict, tail: str, labels: list[str | None] = ()) -> str:
     brush = brush_of(scenario)
     part = f"-{brush[0].removeprefix('builtin-')}" if brush else ""
+    sweep = "+".join(l for l in labels if l)
+    if sweep:
+        part += f"-{sweep}"
     return f"{stamp()}-{scenario['name']}{part}-{tail}"
 
 
 def cmd_run(args) -> None:
     make_dpi_aware()
     require_input()
-    scenario = with_brush(load_scenario(args.scenario), args.brush)
+    scenario = with_brush(load_scenario(args.scenario), args.brush, args.fixture)
+    sweep = variants(scenario, args.sizes, args.brush)
     exe = resolve_exe(args.build)
-    folder = RUNS / folder_name(scenario, args.tag)
-    print(f"{scenario['name']}: {args.runs} run(s) of {exe}\n  results in {folder}\n"
-          "  hands off the mouse and keyboard until it says done.")
+    folder = RUNS / folder_name(scenario, args.tag, [l for l, _ in sweep])
+    print(f"{scenario['name']}: {args.runs} run(s) of {exe}"
+          + (f", at {', '.join(l for l, _ in sweep)}" if len(sweep) > 1 else "")
+          + f"\n  results in {folder}\n  hands off the mouse and keyboard until it says done.")
     results = []
-    for i in range(args.runs):
-        r = run_once(scenario, exe, folder / f"run-{i + 1}", args.presentmon)
-        print(f"  run {i + 1}: {r['outcome']}")
-        if r["outcome"].startswith("refused"):
-            print(f"\nSTOPPED: {LOCKED}")
-            sys.exit(3)
-        results.append(r)
-    summary = {"scenario": scenario["name"], "brush": scenario.get("brush"), "exe": str(exe),
-               "runs": results, "aggregate": aggregate(results)}
+    for label, variant in sweep:
+        for i in range(args.runs):
+            name = f"{label}-run-{i + 1}" if label else f"run-{i + 1}"
+            r = run_once(variant, exe, folder / name, args.presentmon)
+            r["variant"] = label
+            print(f"  {name}: {r['outcome']}")
+            if r["outcome"].startswith("refused"):
+                print(f"\nSTOPPED: {LOCKED}")
+                sys.exit(3)
+            results.append(r)
+    summary = {"scenario": scenario["name"], "brush": scenario.get("brush"),
+               "sizes": [l for l, _ in sweep if l], "fixture": scenario.get("fixture", "owner-shape"),
+               "exe": str(exe), "runs": results, "aggregate": aggregate(results)}
     (folder / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print_report(summary)
     print(f"done — {folder / 'summary.json'}")
@@ -908,36 +957,46 @@ def cmd_check(args) -> None:
 def cmd_ab(args) -> None:
     make_dpi_aware()
     require_input()
-    scenario = with_brush(load_scenario(args.scenario), args.brush)
+    scenario = with_brush(load_scenario(args.scenario), args.brush, args.fixture)
+    sweep = variants(scenario, args.sizes, args.brush)
     a, b = resolve_exe(args.a), resolve_exe(args.b)
-    folder = RUNS / folder_name(scenario, "ab")
-    print(f"{scenario['name']}: A/B, {args.runs} interleaved pair(s)\n  A {a}\n  B {b}\n"
-          f"  results in {folder}\n  hands off the mouse and keyboard until it says done.")
+    folder = RUNS / folder_name(scenario, "ab", [l for l, _ in sweep])
+    print(f"{scenario['name']}: A/B, {args.runs} interleaved pair(s)"
+          + (f" at each of {', '.join(l for l, _ in sweep)}" if len(sweep) > 1 else "")
+          + f"\n  A {a}\n  B {b}\n  results in {folder}\n  hands off the mouse and keyboard until it says done.")
     ra, rb = [], []
-    for i in range(args.runs):
-        # Interleaved, and the order alternates, so drift over the session lands on both.
-        order = [("A", a, ra), ("B", b, rb)] if i % 2 == 0 else [("B", b, rb), ("A", a, ra)]
-        for label, exe, sink in order:
-            r = run_once(scenario, exe, folder / f"{label}-{i + 1}", args.presentmon)
-            print(f"  {label} {i + 1}: {r['outcome']}")
-            if r["outcome"].startswith("refused"):
-                print(f"\nSTOPPED: {LOCKED}")
-                sys.exit(3)
-            sink.append(r)
+    for size, variant in sweep:
+        for i in range(args.runs):
+            # Interleaved, and the order alternates, so drift over the session lands on both.
+            order = [("A", a, ra), ("B", b, rb)] if i % 2 == 0 else [("B", b, rb), ("A", a, ra)]
+            for label, exe, sink in order:
+                name = f"{size}-{label}-{i + 1}" if size else f"{label}-{i + 1}"
+                r = run_once(variant, exe, folder / name, args.presentmon)
+                r["variant"] = size
+                print(f"  {name}: {r['outcome']}")
+                if r["outcome"].startswith("refused"):
+                    print(f"\nSTOPPED: {LOCKED}")
+                    sys.exit(3)
+                sink.append(r)
     agg_a, agg_b = aggregate(ra), aggregate(rb)
     rows = verdict(agg_a, agg_b, args.tolerance)
-    summary = {"scenario": scenario["name"], "brush": scenario.get("brush"), "a": str(a), "b": str(b),
-               "aggregate_a": agg_a,
+    summary = {"scenario": scenario["name"], "brush": scenario.get("brush"),
+               "sizes": [l for l, _ in sweep if l], "fixture": scenario.get("fixture", "owner-shape"),
+               "a": str(a), "b": str(b), "aggregate_a": agg_a,
                "aggregate_b": agg_b, "verdict": rows, "runs_a": ra, "runs_b": rb}
     (folder / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(f"\n{'metric':44} {'A':>10} {'B':>10}  call")
     for k, va, vb, call in rows:
         print(f"{k:44} {va:10.1f} {vb:10.1f}  {call}")
-    ok_a = sum(r["outcome"] == "ok" for r in ra)
-    ok_b = sum(r["outcome"] == "ok" for r in rb)
-    if min(ok_a, ok_b) < 2:
-        print(f"\nINCONCLUSIVE: only {ok_a} good A run(s) and {ok_b} good B run(s)")
-        sys.exit(2)
+    # Too few good runs on either side of any one size is inconclusive for the whole
+    # sweep: a verdict at 60 px says nothing about 300 px, which is where it matters.
+    for size, _ in sweep:
+        ok_a = sum(r["outcome"] == "ok" and r.get("variant") == size for r in ra)
+        ok_b = sum(r["outcome"] == "ok" and r.get("variant") == size for r in rb)
+        if min(ok_a, ok_b) < 2:
+            at = f" at {size}" if size else ""
+            print(f"\nINCONCLUSIVE: only {ok_a} good A run(s) and {ok_b} good B run(s){at}")
+            sys.exit(2)
     regressed = [k for k, *_rest, call in rows if call == "REGRESSION"]
     print(f"\n{'REGRESSION in ' + ', '.join(regressed) if regressed else 'PASS'} — {folder / 'summary.json'}")
     sys.exit(1 if regressed else 0)
@@ -946,7 +1005,8 @@ def cmd_ab(args) -> None:
 def print_report(summary: dict) -> None:
     good = [r for r in summary["runs"] if r["outcome"] == "ok"]
     brush = f" with {summary['brush']}" if summary.get("brush") else ""
-    print(f"\n{summary['scenario']}{brush}: {len(good)}/{len(summary['runs'])} good run(s)")
+    sizes = f" at {', '.join(summary['sizes'])}" if summary.get("sizes") else ""
+    print(f"\n{summary['scenario']}{brush}{sizes}: {len(good)}/{len(summary['runs'])} good run(s)")
     for k, v in summary["aggregate"].items():
         print(f"  {k:44} {v:10.1f}")
     if good:
@@ -977,6 +1037,8 @@ def main() -> None:
     r.add_argument("--tag", default="adhoc")
     r.add_argument("--presentmon", help="path to presentmon.exe, to record what reached the screen")
     r.add_argument("--brush", help="preset id, optionally :size — replaces the scenario's brush, e.g. builtin-ink:60")
+    r.add_argument("--sizes", help="brush sizes to sweep, e.g. 60,150,300 (1..500); replaces the scenario's `sizes`")
+    r.add_argument("--fixture", help="document to open instead of the scenario's, e.g. blank-4k")
     r.set_defaults(go=cmd_run)
     ab = sub.add_parser("ab", help="run a scenario against two builds, interleaved, with a verdict")
     ab.add_argument("scenario")
@@ -986,6 +1048,8 @@ def main() -> None:
     ab.add_argument("--tolerance", type=float, default=0.15, help="relative change that counts (default 0.15)")
     ab.add_argument("--presentmon")
     ab.add_argument("--brush", help="preset id, optionally :size — replaces the scenario's brush on both sides")
+    ab.add_argument("--sizes", help="brush sizes to sweep on both sides, e.g. 60,150,300 (1..500)")
+    ab.add_argument("--fixture", help="document to open instead of the scenario's, e.g. blank-4k")
     ab.set_defaults(go=cmd_ab)
     c = sub.add_parser("check", help="run a behaviour scenario once and check its expectations")
     c.add_argument("scenario")
