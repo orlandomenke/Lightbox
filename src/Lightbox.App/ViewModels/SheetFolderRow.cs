@@ -20,6 +20,8 @@ namespace Lightbox.App.ViewModels;
 /// <para>
 /// The cells are a summary and belong to no layer, so their
 /// <see cref="FrameCell.LayerIndex"/> is -1 and no cel verb can be aimed at one.
+/// The one thing a mark can do is be dragged (<see cref="DragMark"/>), which
+/// retimes every drawing beneath it together.
 /// </para>
 /// </remarks>
 public sealed partial class SheetFolderRow : ObservableObject
@@ -71,4 +73,7 @@ public sealed partial class SheetFolderRow : ObservableObject
 
     [RelayCommand]
     private void ToggleFold() => _owner.ToggleSheetFold(this);
+
+    /// <summary>A mark was dragged along this row: retime everything inside the folder on that frame.</summary>
+    public int DragMark(int from, int to) => _owner.RetimeFolder(this, from, to);
 }

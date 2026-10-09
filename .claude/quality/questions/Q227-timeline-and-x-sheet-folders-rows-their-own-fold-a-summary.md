@@ -47,8 +47,8 @@ need the first's rows:
 
 1. **Folders as rows, with the summary** — this file's commit.
 2. **Pinning.**
-3. **Dragging the summary.** Until it lands a folder's row is read-only: it
-   names no key, so nothing can be selected, dragged or deleted through it.
+3. **Dragging the summary.** A folder's row still names no key — nothing can
+   be selected, copied or deleted through it — and gains the one verb.
 
 ## Pinning, as it landed
 
@@ -67,6 +67,26 @@ need the first's rows:
   folder's header menu, and on a folder's X-sheet row. An X-sheet layer row has
   no pin column: its columns are fixed by the ruler above them.
 - Two commands in `ShortcutMap`, unbound by default.
+
+## Dragging the summary, as it landed
+
+The owner chose this over the recommended read-only row. Three calls inside it
+were not put to the owner; each is the cautious reading and can be loosened.
+
+- **It refuses to land on a drawing.** A single cel dragged onto another
+  replaces it, in plain sight. This drag reaches layers whose rows may be
+  folded away, and replacing a drawing nobody is looking at loses work without
+  anyone doing anything wrong. Nothing moves; the status line names the layer.
+- **It refuses while anything it would move is locked**, rather than moving
+  the rest. A pose that arrives with one layer missing is worse than a pose
+  that did not move.
+- **No copy.** Ctrl copies a cel and a selected block; a folder's mark only
+  moves. Copying a pose across every layer of a folder is a real want and its
+  own piece of work.
+
+`MainViewModel.RetimeFolder` is the verb; the Timeline reaches it through
+`DragTrackKey` and the X-sheet through `SheetFolderRow.DragMark`. One undo
+step, and the selection follows any drawing that moved.
 
 ## What it costs
 

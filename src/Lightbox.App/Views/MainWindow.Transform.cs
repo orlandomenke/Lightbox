@@ -318,8 +318,7 @@ public partial class MainWindow
     /// </remarks>
     private void OnTrackKeyDragged(int trackIndex, int fromFrame, int toFrame)
     {
-        if (_vm.TrackKeyAt(trackIndex, fromFrame) is not { } grabbed) return;
-        _vm.RetimeSelection(grabbed, toFrame - fromFrame);
+        _vm.DragTrackKey(trackIndex, fromFrame, toFrame);
     }
 
     /// <summary>A modified click on a key: Ctrl adds or drops, Shift ranges.</summary>

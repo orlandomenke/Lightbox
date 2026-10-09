@@ -376,11 +376,22 @@ layers stay within reach where you paint while the sheet stays short. The fold
 is saved with the document and is not an undo step. Both surfaces fold
 together — the Timeline and the X-sheet are two views of one sheet.
 
-A folder's row is a summary: it shows timing, and for now it cannot be clicked,
-dragged or deleted through (*Planned: dragging a folder's mark to retime
-everything inside it on that frame*). **What is folded away is out of reach**:
-folding drops any cels inside it from the selection, and a block swept across a
-folded folder leaves its layers out, so nothing you cannot see is ever deleted.
+**Drag a folder's mark to move the whole pose.** A folder's row is a summary,
+and its marks are handles: drag one along the row — on the Timeline or on the
+X-sheet, folded or open — and every drawing inside the folder on that frame
+moves with it, each along its own layer, as one undo step. Layers inside with
+nothing drawn on that frame are left alone.
+
+It moves whole or not at all. If a layer inside already has a drawing on the
+frame you drop on, nothing moves and the status line names the layer — unlike
+dragging a single drawing, this never replaces one, because it reaches layers
+whose rows may be folded out of sight. Nor does it move while anything inside
+is locked. A folder's marks cannot be selected, copied or deleted; open the
+folder for that.
+
+**What is folded away is out of reach** of everything else: folding drops any
+cels inside it from the selection, and a block swept across a folded folder
+leaves its layers out, so nothing you cannot see is ever deleted.
 On the X-sheet a folder and the layers inside it share the folder's colour.
 
 **Pin the rows you are timing, and hide the rest.** Right-click a layer — in

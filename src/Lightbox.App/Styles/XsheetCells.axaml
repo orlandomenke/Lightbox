@@ -57,6 +57,11 @@
   <Style Selector="Border.folderCel.current">
     <Setter Property="Background" Value="{DynamicResource CelCurrentBrush}" />
   </Style>
+  <!-- Where a dragged mark would land. The cel selection's brush: the same
+       "this one" the sheet already uses, on a row that has no other use for it. -->
+  <Style Selector="Border.folderCel.dropTarget">
+    <Setter Property="Background" Value="{DynamicResource CelSelectedBrush}" />
+  </Style>
   <Style Selector="Border.folderMark">
     <Setter Property="Height" Value="{StaticResource Space6}" />
     <Setter Property="Margin" Value="{StaticResource FolderMarkInset}" />
