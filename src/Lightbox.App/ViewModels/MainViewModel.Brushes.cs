@@ -198,7 +198,11 @@ public partial class MainViewModel
         _clock.Tick += OnPlaybackTick;
         Settings = AppSettings.Load();
         // Held to the range on the way in, like the scale below: the file is input.
-        if (Settings.MemoryForPicturesMb is { } pictureMb) ApplyPictureLimit(pictureMb * 1024L * 1024L);
+        // Always: the still cache follows the overall limit, set or derived,
+        // rather than its own older and smaller ceiling.
+        ApplyPictureLimit(Settings.MemoryForPicturesMb is { } pictureMb
+            ? pictureMb * 1024L * 1024L
+            : Lightbox.Raster.PictureMemory.Limit);
         // Through the normaliser on the way in: the file is input, and a
         // hand-edited 0.1 must not produce a window nobody can read (Q200).
         Settings.UiScale = UiScale.Normalise(Settings.UiScale);

@@ -128,9 +128,9 @@ public sealed class PictureMemoryTests : IDisposable
     }
 
     [Fact]
-    public void ByDefaultTheLimitIsAnEighthOfTheMachineWithinItsFloor()
+    public void ByDefaultTheLimitIsAQuarterOfTheMachineWithinItsFloor()
     {
-        var expected = Math.Clamp(MemoryBudget.Available / 8, MemoryBudget.PicturesFloorBytes, MemoryBudget.PicturesCeilingBytes);
+        var expected = Math.Clamp(MemoryBudget.Available / 4, MemoryBudget.PicturesFloorBytes, MemoryBudget.PicturesCeilingBytes);
         Assert.Equal(expected, MemoryBudget.Pictures());
     }
 }
