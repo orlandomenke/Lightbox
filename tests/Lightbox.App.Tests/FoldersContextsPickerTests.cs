@@ -237,7 +237,8 @@ public class LayerFolderTests
         Assert.Equal("#c25050", restored.Scene.LayerGroups[0].Color);
 
         vm.UndoCommand.Execute(null);
-        Assert.Equal("#4a6ea9", vm.Doc.Scene.LayerGroups[0].Color); // back to the default
+        Assert.Null(vm.Doc.Scene.LayerGroups[0].Color); // back to never having chosen one
+        Assert.Equal(LayerGroup.DefaultColor, vm.LayerPanelItems.OfType<GroupRow>().Single().Color);
     }
 
     [AvaloniaFact]
