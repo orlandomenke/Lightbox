@@ -196,7 +196,7 @@ public sealed class OpenOffTheUiThreadTests : BrushStateIsolated
         var opening = vm.OpenDocumentFileAsync(Path.Combine(Path.GetTempPath(), "Big scene.lightbox.json"));
         Pump();
 
-        var cover = window.FindControl<Avalonia.Controls.Border>("OpeningDocument")!;
+        var cover = window.FindControl<Avalonia.Controls.Control>("OpeningDocument")!;
         Assert.True(cover.IsVisible, "the canvas was not covered while the file opened");
         Assert.Contains(cover.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>(), t => t.Text?.Contains("Big scene") == true);
         Assert.Contains(cover.GetVisualDescendants().OfType<Avalonia.Controls.ProgressBar>(), p => p.IsIndeterminate);
