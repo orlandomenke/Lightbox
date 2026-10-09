@@ -139,7 +139,7 @@
 
     <!-- Menu bar -->
     <Menu DockPanel.Dock="Left" VerticalAlignment="Center" x:Name="MainMenu"
-          Background="Transparent" BorderThickness="0">
+          Background="Transparent" BorderThickness="0" IsEnabled="{Binding !IsOpeningDocument}">
       <MenuItem Header="_File" Classes="top">
         <MenuItem Header="_New…" Click="OnNewClicked" />
         <MenuItem Header="_Open…" Click="OnOpenClicked" />
@@ -1584,7 +1584,7 @@
 
     <!-- Open documents: click to switch, ✕ to close, • marks unsaved changes -->
     <controls:ScaledChrome DockPanel.Dock="Top"><Border Background="{DynamicResource BackgroundSecondaryBrush}" Padding="4,2,4,0">
-      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><StackPanel Orientation="Horizontal">
         <ItemsControl ItemsSource="{Binding Tabs}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
@@ -1617,7 +1617,8 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-      </ScrollViewer>
+        <views:OpeningTabs />
+      </StackPanel></ScrollViewer>
     </Border></controls:ScaledChrome>
 
     <!--
@@ -2097,6 +2098,7 @@
         </StackPanel></controls:ScaledChrome>
       </Border>
 
+      <views:OpeningCover x:Name="OpeningDocument" Grid.Row="0" Grid.RowSpan="5" IsVisible="{Binding IsOpeningDocument}" />
       <!-- Where panels wait when they are not in a strip: closed, or in flight
            during a drag. Never shown. -->
       <Panel x:Name="PanelPool" IsVisible="False">

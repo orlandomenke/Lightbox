@@ -163,7 +163,7 @@ public sealed class StartScreenTests : BrushStateIsolated
     // ---- the recents list ------------------------------------------------------
 
     [AvaloniaFact]
-    public void OpeningADocumentPutsItInTheRecents()
+    public async Task OpeningADocumentPutsItInTheRecents()
     {
         var dir = Directory.CreateTempSubdirectory("lightbox-recent-open");
         try
@@ -172,7 +172,7 @@ public sealed class StartScreenTests : BrushStateIsolated
             var path = Path.Combine(dir.FullName, "walk.lightbox.json");
             File.WriteAllText(path, vm.SerializeDocument());
 
-            vm.OpenRecent(new RecentItem { Path = path, Name = "walk", Kind = RecentKind.Document });
+            await vm.OpenRecent(new RecentItem { Path = path, Name = "walk", Kind = RecentKind.Document });
 
             Assert.Contains(vm.RecentEntries, i => i.Path == path);
             Assert.True(vm.HasRecents);

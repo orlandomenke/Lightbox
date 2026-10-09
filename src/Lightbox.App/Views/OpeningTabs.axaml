@@ -1,0 +1,36 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.OpeningTabs"
+             x:DataType="vm:MainViewModel">
+  <!--
+    Documents being read from disk (Q229), after the open tabs: a tab of their
+    own until they are tabs. A rest word rather than a lit tab — the lit one is
+    the document on screen, and this one is not on screen yet — and nothing to
+    hover, because clicking it does nothing.
+  -->
+  <UserControl.Styles>
+    <Style Selector="Border.docTab.opening">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="{StaticResource TabLabelPadding}" />
+    </Style>
+    <Style Selector="Border.docTab.opening:pointerover">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+  </UserControl.Styles>
+  <ItemsControl x:Name="Opening" ItemsSource="{Binding OpeningDocuments}">
+    <ItemsControl.ItemsPanel>
+      <ItemsPanelTemplate>
+        <StackPanel Orientation="Horizontal" />
+      </ItemsPanelTemplate>
+    </ItemsControl.ItemsPanel>
+    <ItemsControl.ItemTemplate>
+      <DataTemplate x:DataType="vm:OpeningDocument">
+        <Border Classes="docTab opening" ToolTip.Tip="{Binding Path}">
+          <TextBlock VerticalAlignment="Center" Text="{Binding Title, StringFormat='{}{0} — opening…'}"
+                     Foreground="{DynamicResource TextSecondaryBrush}" />
+        </Border>
+      </DataTemplate>
+    </ItemsControl.ItemTemplate>
+  </ItemsControl>
+</UserControl>
