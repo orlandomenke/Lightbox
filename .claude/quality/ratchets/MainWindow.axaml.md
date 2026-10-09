@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4439
+budget: 4440
 
 ## Why it is here despite being XAML
 
@@ -342,3 +342,4 @@ leaves a number nobody can account for. So every reason above stays, and
 - **→ 4,431** (2026-10-08): folder shapes (Q215) — one row-menu item, whose header the row words for what a click will do so keeping and releasing share it, and one hosting line for `ShapeBracket.axaml`, which carries the bracket and the warning chrome off the window as `LinkBracket.axaml` does. +3 over main's 4,428, which is the size of the change; measured alone on the old tree it was 4,887 → 4,890.
 - **→ 4,434** (2026-10-08): Edit ▸ Transform ▸ *Every frame of this layer* (Q216) — one `MenuItem`, three lines in the shape of its neighbours, handler in `MainWindow.Transform.cs`. The Scope combo's artist-readable names cost nothing: they are a `DisplayMemberBinding` on the existing element rather than an item template, which is what took the branch from +9 to +3. +3 over main's 4,431, the size of the change.
 - **→ 4,439** (2026-10-08): the ramp's row on the Transform page (Q216) — a `DockPanel` holding the *Ramp* label, its check box and the ease picker, five lines — the label is its own `TextBlock` in the label column like *Scope* and *Sampling*, which the ui-critic asked for over a check box standing in that column, shown only while the session can ramp. The ease names are a `DisplayMemberBinding`, not a template. +5, the size of the change.
+- **→ 4,440** (2026-10-09): *Same as parent* on a folder's colour menu (Q226) — one `MenuItem` beside the six colours it is the alternative to. The wash itself costs the window nothing: it is a style on the row's container in `Styles/LayerRows.axaml`, put there so the row's own fills draw over it.

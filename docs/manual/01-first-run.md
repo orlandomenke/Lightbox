@@ -87,6 +87,11 @@ Each panel's header is three things at once:
   panel.
 - **A close button.**
 
+**A pen drags; only a finger pans.** Dragging a pen inside a list picks things
+up and moves them — it never slides the list. To scroll with a pen, use the
+wheel or the scrollbar, or hold a drag at the list's top or bottom edge. A
+finger on a touch screen still pans a list by dragging it.
+
 **A list scrolls under a drag.** Whatever you are dragging — a layer, a swatch,
 a cel, a symbol, a project row — holding it within a row's height of the top or
 bottom of a list longer than its panel scrolls that list, for as long as you

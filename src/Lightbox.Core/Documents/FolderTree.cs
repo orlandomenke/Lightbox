@@ -90,6 +90,19 @@ public static class FolderTree
         return chain;
     }
 
+    /// <summary>
+    /// The colour a folder shows: its own once chosen, else the nearest
+    /// containing folder's that has one, else <see cref="LayerGroup.DefaultColor"/>.
+    /// </summary>
+    public static string ColorOf(Scene scene, LayerGroup folder) =>
+        folder.Color
+        ?? Ancestors(scene, folder).FirstOrDefault(f => f.Color is not null)?.Color
+        ?? LayerGroup.DefaultColor;
+
+    /// <summary>The colour of the folder a layer is in, or null for a loose layer.</summary>
+    public static string? ColorOf(Scene scene, Layer layer) =>
+        FoldersOf(scene, layer) is [var innermost, ..] ? ColorOf(scene, innermost) : null;
+
     /// <summary>The folder directly containing <paramref name="folder"/>, as the tree resolves it.</summary>
     public static LayerGroup? ParentOf(Scene scene, LayerGroup folder) => ParentOf(Linear(scene), folder);
 

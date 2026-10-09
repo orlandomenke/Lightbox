@@ -81,8 +81,21 @@ public sealed class LayerGroup
     /// <summary>Locking a folder locks every layer inside it.</summary>
     public bool Locked { get; set; }
 
-    /// <summary>Header accent color in the docker (hex, e.g. "#4a6ea9").</summary>
-    public string Color { get; set; } = "#4a6ea9";
+    /// <summary>What a folder with no colour of its own, and no parent with one, shows.</summary>
+    public const string DefaultColor = "#4a6ea9";
+
+    /// <summary>
+    /// The colour chosen for this folder in the docker (hex), or null — and
+    /// absent from the file — when none was: it then shows its parent's, which
+    /// <see cref="FolderTree.ColorOf(Scene, LayerGroup)"/> resolves.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than a default, because "this folder is blue" and "this
+    /// folder never chose" have to be different things for a subfolder to
+    /// follow its parent. A file from before this wrote a colour on every
+    /// folder and reads back as it was written: those folders chose.
+    /// </remarks>
+    public string? Color { get; set; }
 
     /// <summary>Docker-only view preference (not undoable).</summary>
     public bool Collapsed { get; set; }

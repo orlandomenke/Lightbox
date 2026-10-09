@@ -41,6 +41,15 @@
       <Setter Property="MinHeight" Value="{StaticResource SizeRow}" />
       <Setter Property="Padding" Value="{StaticResource ItemPadding}" />
     </Style>
+    <!-- The first option of a family: what every brush has, what a brush may
+         add, and how its paint behaves. A rule rather than a heading — Photoshop's
+         list does the same — because three headings would cost three rows and
+         the list has to show every option without scrolling. -->
+    <Style Selector="ListBox#OptionList > ListBoxItem.groupStart">
+      <Setter Property="Margin" Value="{StaticResource SectionGap}" />
+      <Setter Property="BorderThickness" Value="{StaticResource BrushEditorGroupRule}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    </Style>
     <Style Selector="TextBlock.note">
       <Setter Property="FontSize" Value="{StaticResource TypeDense}" />
       <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
@@ -99,11 +108,15 @@
         <CheckBox x:Name="PressureMaster" DockPanel.Dock="Bottom" Content="Pen pressure" IsChecked="{Binding BrushPressureEnabled}"
                   Margin="{StaticResource BrushEditorFootGap}"
                   ToolTip.Tip="Master switch for this brush: off ignores the tablet's pressure entirely, whatever the curves say" />
-        <ListBox x:Name="OptionList" SelectionChanged="OnOptionChosen" Background="{DynamicResource BackgroundSecondaryBrush}" />
+        <!-- Never scrolls: with its scroll bar off the list asks for the height
+             of every option, and the editor is at least that tall. An option
+             below the fold is one the artist does not know the brush has. -->
+        <ListBox x:Name="OptionList" SelectionChanged="OnOptionChosen" Background="{DynamicResource BackgroundSecondaryBrush}"
+                 ScrollViewer.VerticalScrollBarVisibility="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
       </DockPanel>
       <ScrollViewer Grid.Column="1" Margin="{StaticResource BrushEditorColumnGap}"
                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <Panel x:Name="OptionPanels">
+        <Panel x:Name="OptionPanels" Margin="{StaticResource BrushEditorPanelFoot}">
         <StackPanel x:Name="OptionTip" Spacing="{StaticResource Space6}" IsVisible="False">
           <TextBlock Classes="optionTitle" Text="Tip" />
           <!--

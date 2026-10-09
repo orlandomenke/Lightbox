@@ -10,7 +10,13 @@ namespace Lightbox.App;
 
 public sealed class App : Application
 {
-    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    public override void Initialize()
+    {
+        AvaloniaXamlLoader.Load(this);
+        // A pen drags; only a finger pans a list. Before any window exists, so
+        // that no scroller is ever loaded without it.
+        Input.TouchOnlyPan.Install();
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {

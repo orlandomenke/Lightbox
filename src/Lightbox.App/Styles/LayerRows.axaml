@@ -76,8 +76,28 @@
   <Style Selector="Border.layerRow.lockedLayer TextBlock, Border.groupRow.lockedLayer TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
   </Style>
+  <!--
+    A folder's colour, as a wash across the whole row (Q226): strongly on the
+    folder's own header, faintly on every layer inside it, so a folder reads as
+    one band rather than as a four-pixel bar beside one of its rows. A subfolder
+    shows its parent's colour until it is given its own.
+
+    On the row's CONTAINER, not on the row. The row's Background belongs to the
+    styles above — transparent, selected, active — and those fills are
+    translucent white, so they have to be drawn OVER the wash to stay the
+    strongest thing on the row; a wash bound onto the row itself would replace
+    them, which is the B400 failure with a colour on it. It also keeps the
+    window's markup, which is on a ratchet, out of it.
+
+    A folder header used to carry an opaque grey to set it apart from a layer.
+    The wash does that now, and the grey would have hidden it.
+  -->
+  <Style Selector="ItemsControl#LayerList > ContentPresenter">
+    <Setter Property="Background" Value="{ReflectionBinding TintBrush}" />
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
+  </Style>
   <Style Selector="Border.groupRow">
-    <Setter Property="Background" Value="{DynamicResource GroupRowBrush}" />
+    <Setter Property="Background" Value="Transparent" />
     <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
     <Setter Property="Padding" Value="2,0" />
   </Style>
