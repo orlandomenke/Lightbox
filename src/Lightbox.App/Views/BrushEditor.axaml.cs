@@ -94,6 +94,7 @@ public partial class BrushEditor : UserControl
                 [nameof(MainViewModel.BrushTextureSurface)] = "None",
                 [nameof(MainViewModel.BrushGranulation)] = 0.0,
                 [nameof(MainViewModel.BrushWetEdge)] = 0.0,
+                [nameof(MainViewModel.BrushTexturePressure)] = 0.0,
             },
             [], Group: OptionGroup.Dynamics),
         new("Colour dynamics", "OptionColour", false,
@@ -211,6 +212,13 @@ public partial class BrushEditor : UserControl
         if (option.Name == "Texture" && _vm.HasImportedTexture) return true;
         foreach (var (name, off) in option.Off)
         {
+            // The tooth gates a paper; with no paper it changes nothing, so it
+            // must not tick the box on its own (ui-critic).
+            if (name == nameof(MainViewModel.BrushTexturePressure)
+                && _vm.BrushTextureSurface == "None" && !_vm.HasImportedTexture)
+            {
+                continue;
+            }
             if (!Equals(Read(name), off)) return true;
         }
         return option.Curves.Any(c => _vm.BrushDrives(c.Target));

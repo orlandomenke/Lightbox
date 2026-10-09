@@ -105,7 +105,7 @@ public class PostStampedUnitsTests(ITestOutputHelper output) : BrushStateIsolate
 
     /// <summary>
     /// The cap-only path (Soft round: ceiling in place, no deferred pass) and
-    /// the worker path (Pencil: granulation, a real pass) each write points into
+    /// the worker path (Pencil: a paper texture, a real pass) each write points into
     /// the points field and dabs into the dabs field. This is the assertion the
     /// old single field could not satisfy on both paths at once.
     /// </summary>
@@ -119,7 +119,8 @@ public class PostStampedUnitsTests(ITestOutputHelper output) : BrushStateIsolate
             Assert.Equal(
                 expectCapOnly,
                 BrushEngine.NeedsFootprintCap(vm.CurrentToolSettingsForTest)
-                && vm.CurrentToolSettingsForTest.Granulation == 0);
+                && vm.CurrentToolSettingsForTest.Granulation == 0
+                && vm.CurrentToolSettingsForTest.TextureSurface is null);
 
             DrawWithoutLifting(vm);
             try

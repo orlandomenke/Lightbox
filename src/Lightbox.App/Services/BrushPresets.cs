@@ -146,10 +146,15 @@ public static class BuiltInPresets
         {
             Id = "builtin-pencil",
             Name = "Pencil",
+            // Graphite caught on the paper's tooth: a light touch marks the
+            // peaks, a hard press fills the valleys (TexturePressure), over a
+            // fine cold-press grain. docs/DESIGN-pencil-tooth.md has why.
             Settings = new BrushSettings
             {
-                Size = 3, Hardness = 0.9, Opacity = 1, Flow = 0.85, Spacing = 0.12,
-                Granulation = 0.15, PressureFlowGamma = 1,
+                Size = 4, Hardness = 0.7, Opacity = 1, Flow = 0.9, Spacing = 0.1,
+                PressureFlowGamma = 0.8,
+                TextureSurface = PaperKind.ColdPress, TextureScale = 2, TextureDepth = 0.8,
+                TexturePressure = 0.8,
             },
         },
         new()

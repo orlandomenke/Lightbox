@@ -1402,6 +1402,35 @@ public partial class MainViewModel
     /// duplicates them, and the source rectangle already bounds what is read.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Keep what the press map holds under the tail, so the tail's dabs can be
+    /// taken back when the next event moves them — the coverage's own tail
+    /// discipline (B299), at document scale.
+    /// </summary>
+    private void BackUpPressTail(SKRectI tail)
+    {
+        if (_live.Press is null || tail.Width <= 0 || tail.Height <= 0) return;
+        if (_live.PressTailBackup is null
+            || _live.PressTailBackup.Width < tail.Width
+            || _live.PressTailBackup.Height < tail.Height)
+        {
+            _live.PressTailBackup?.Dispose();
+            _live.PressTailBackup = new SKBitmap(new SKImageInfo(
+                Math.Max(tail.Width, 64), Math.Max(tail.Height, 64),
+                SKColorType.Rgba8888, SKAlphaType.Premul));
+        }
+
+        using var region = new SKBitmap();
+        if (!_live.Press.ExtractSubset(region, tail)) return;
+        using var px = region.PeekPixels();
+        using var view = px is null ? null : SKImage.FromPixels(px);
+        if (view is null) return;
+        using var into = new SKCanvas(_live.PressTailBackup);
+        using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+        into.DrawImage(view, 0, 0, src);
+        into.Flush();
+    }
+
     private static void RestoreTail(SKCanvas canvas, SKBitmap backup, SKRectI where)
     {
         using var pixels = backup.PeekPixels();
@@ -1914,6 +1943,10 @@ public partial class MainViewModel
                         ? Rendering.LiveFootprintScale.For(ComposeScale)
                         : 1.0);
                 LiveFootprintScaleUsed = _live.CoverageScale;
+            }
+            if (BrushEngine.NeedsPressMap(CurrentToolSettings))
+            {
+                _live.BeginPress(Scene.Width, Scene.Height);
             }
         }
         _live.ResetPostProcess();
@@ -2544,7 +2577,7 @@ public partial class MainViewModel
     /// </remarks>
     private void StampSettledCopies(
         Stroke live, IReadOnlyList<BrushEngine.Dab> dabs, int from, int to, SKImageInfo info,
-        bool carriesFootprint)
+        bool carriesFootprint, bool carriesPress = false)
     {
         if (_live.ScratchCanvas is null || to <= from) return;
 
@@ -2580,10 +2613,20 @@ public partial class MainViewModel
                 BrushEngine.StampDabRange(cover, live, dabs, from, to, cover, footprintOnly: true);
                 cover.Restore();
             }
+
+            if (carriesPress && _live.PressCanvas is { } pressCanvas)
+            {
+                // Document scale, so the copy's transform composes alone.
+                pressCanvas.Save();
+                pressCanvas.Concat(m);
+                BrushEngine.AccumulatePress(pressCanvas, live, dabs, from, to);
+                pressCanvas.Restore();
+            }
         }
 
         _live.ScratchCanvas.Flush();
         _live.CoverageCanvas?.Flush();
+        _live.PressCanvas?.Flush();
 
         // The scratch now holds ink outside the drawn mark's extent, so the
         // clear at stroke end has to know about it.
@@ -2659,6 +2702,7 @@ public partial class MainViewModel
             if (stable < _live.StableDabs)
             {
                 coverage.Clear(SKColors.Black);
+                _live.PressCanvas?.Clear(SKColors.Black);
                 _live.StableDabs = 0;
                 _live.TailRegion = null;
             }
@@ -2811,6 +2855,9 @@ public partial class MainViewModel
         var carriesFootprint = BrushEngine.NeedsFootprintCap(live.Brush)
             && _live.CoverageCanvas is not null
             && _live.Coverage is not null;
+        var carriesPress = BrushEngine.NeedsPressMap(live.Brush)
+            && _live.PressCanvas is not null
+            && _live.Press is not null;
 
         // 1. Take back the tail lent out last time. Only the part of the buffer this
         // tail actually used: the backup is sized to the largest tail seen, so drawing
@@ -2822,6 +2869,10 @@ public partial class MainViewModel
             // the backup was taken over exactly this rectangle in exactly this
             // conversion — so the round trip is a copy either way.
             RestoreTail(_live.CoverageCanvas!, _live.CoverageTailBackup, _live.ToCoverage(coverLent));
+        }
+        if (carriesPress && _live.TailRegion is { } pressLent && _live.PressTailBackup is not null)
+        {
+            RestoreTail(_live.PressCanvas!, _live.PressTailBackup, pressLent);
         }
 
         if (_live.TailRegion is { } lent && _live.TailBackup is not null)
@@ -2871,13 +2922,18 @@ public partial class MainViewModel
             _live.CoverageCanvas!.Flush();
             StampFootprintMs.Add(Ms(footprintAt));
         }
+        if (carriesPress)
+        {
+            BrushEngine.AccumulatePress(_live.PressCanvas!, live, dabs, settledFrom, stable);
+            _live.PressCanvas!.Flush();
+        }
 
         StampSettledMs.Add(Ms(settledAt));
 
         // 2c. Symmetry's copies of the same settled dabs. Before the loan
         //     below, so a copy landing inside the drawn mark's tail is in the
         //     backup and survives next event's rollback.
-        StampSettledCopies(live, dabs, settledFrom, _live.StableDabs, info, carriesFootprint);
+        StampSettledCopies(live, dabs, settledFrom, _live.StableDabs, info, carriesFootprint, carriesPress);
 
         // 3. The rest on loan, so the mark reaches the pen tip.
         var backupAt = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -2957,6 +3013,7 @@ public partial class MainViewModel
                 // backup would be four times the size it needs and the copy
                 // would give back what the smaller buffer just saved.
                 var coverTail = _live.ToCoverage(tail);
+                if (carriesPress) BackUpPressTail(tail);
                 if (_live.CoverageTailBackup is null
                     || _live.CoverageTailBackup.Width < coverTail.Width
                     || _live.CoverageTailBackup.Height < coverTail.Height)
@@ -2992,6 +3049,16 @@ public partial class MainViewModel
                     _live.CoverageScale);
                 _live.CoverageCanvas!.Flush();
                 StampFootprintMs.Add(Ms(tailFootprintAt));
+            }
+            else if (carriesPress)
+            {
+                BackUpPressTail(tail);
+            }
+
+            if (carriesPress)
+            {
+                BrushEngine.AccumulatePress(_live.PressCanvas!, live, dabs, _live.StableDabs, dabs.Count);
+                _live.PressCanvas!.Flush();
             }
         }
 
@@ -3343,6 +3410,15 @@ public partial class MainViewModel
                 (rect.Top * _live.CoverageScale) - cropRect.Top);
         }
 
+        SKBitmap? pressCrop = null;
+        var pressSpace = Lightbox.Raster.FootprintSpace.Document;
+        if (BrushEngine.NeedsPressMap(whole.Brush) && _live.Press is { } pressMap)
+        {
+            var pressRect = SKRectI.Intersect(rect, new SKRectI(0, 0, pressMap.Width, pressMap.Height));
+            pressCrop = CopyRegion(pressMap, pressRect);
+            pressSpace = new Lightbox.Raster.FootprintSpace(1.0, rect.Left - pressRect.Left, rect.Top - pressRect.Top);
+        }
+
         var generation = _live.PostGeneration;
         // For the lab: how much of the mark this pass reads, which is the number
         // B313 changed and B331 is about. Built here, on the UI thread, and only
@@ -3373,6 +3449,7 @@ public partial class MainViewModel
             dabsCrop.Dispose();
             beneathCrop?.Dispose();
             footprintCrop?.Dispose();
+            pressCrop?.Dispose();
         }
         return;
 
@@ -3390,7 +3467,7 @@ public partial class MainViewModel
                 // growing with the length of the stroke.
                 processed = BrushEngine.PostProcessRegion(
                     dabsCrop, whole, rect, beneathCrop, rect.Location, beneathOrigin,
-                    footprintCrop, footprintSpace);
+                    footprintCrop, footprintSpace, pressCrop, pressSpace);
             }
             catch
             {
@@ -3401,6 +3478,7 @@ public partial class MainViewModel
             {
                 dabsCrop.Dispose();
                 beneathCrop?.Dispose();
+                pressCrop?.Dispose();
             }
             var costMs = (System.Diagnostics.Stopwatch.GetTimestamp() - started)
                          * 1000.0 / System.Diagnostics.Stopwatch.Frequency;

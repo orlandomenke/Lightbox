@@ -98,9 +98,11 @@ public class SoftBrushLiveIsExactTests(ITestOutputHelper output) : BrushStateIso
     public void AGranulatedBrushStillQueuesThePass()
     {
         var (vm, passes) = Ready("Pencil");
+        // Granulation until 2026-10-09, a paper texture since: either is a
+        // full-stroke pass at pen-lift, which is what this control needs.
         Assert.True(
-            vm.CurrentToolSettingsForTest.Granulation > 0,
-            "Pencil must carry granulation, or it is not the control this needs");
+            vm.CurrentToolSettingsForTest.Granulation > 0 || vm.CurrentToolSettingsForTest.TextureSurface is not null,
+            "Pencil must carry a grain or a paper, or it is not the control this needs");
 
         Draw(vm);
 

@@ -274,6 +274,16 @@ Two things worth knowing:
 **Depth** is how hard it bites. Depth starts at zero, so importing a paper
 opens it for you — a texture you cannot see looks like a broken import.
 
+**Tooth** is what makes a pencil a pencil. At zero the bite is the same
+however hard you press, the way a texture overlay is. Turn it up and the bite
+becomes something pressure fills in: a light touch catches only the peaks of
+the paper, a firm stroke reaches the valleys, and the edge of a mark — where
+the tip presses least — shows more paper than its middle. It needs a paper and
+a Depth above zero, like everything on this option, and it follows the pen
+only when **Pen pressure** is on for the brush. The shipped **Pencil** is a
+fine cold-press grain with this most of the way up; a mouse, which always
+presses fully, draws it at its darkest.
+
 ## How the brush answers the pen
 
 Each thing pen pressure can drive has its own curve, and **the curve sits
@@ -467,7 +477,8 @@ Brushes come in three kinds, and the picker tells them apart:
 - **Textured ◇** — stamps dabs and then finishes the mark: a wet edge or
   granulation pass runs over the whole stroke when the pen lifts. Drawing
   stays light; the finish is a beat at pen-lift, longer on a big stroke.
-  Pencil and the paper-grain brushes live here.
+  Pencil and the paper-grain brushes live here — a pencil's tooth is a paper
+  texture that pressure fills in, so it pays what a textured brush pays.
 - **Expressive ◈** — reads the canvas back, simulates a medium, or blends the
   layers underneath. The mark behaves like a material instead of like paint
   being placed. Slower, particularly on a large canvas.

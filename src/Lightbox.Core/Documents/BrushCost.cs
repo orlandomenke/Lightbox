@@ -86,9 +86,17 @@ public static class BrushCostOf
         || brush.SampleSource != SampleSource.ThisLayer
         || brush.Mixing is not null
             ? BrushCost.Expressive
-        : brush.WetEdge > 0 || brush.Granulation > 0
+        : brush.WetEdge > 0 || brush.Granulation > 0 || HasPaper(brush)
             ? BrushCost.Textured
             : BrushCost.Fast;
+
+    /// <summary>
+    /// A paper texture that bites. The same full-stroke pass at pen-lift as
+    /// granulation, and it was missing from the tier until the pencil became
+    /// one (2026-10-09): a brush with a paper and a depth wore no badge.
+    /// </summary>
+    private static bool HasPaper(BrushSettings brush) =>
+        brush.TextureDepth > 0 && (brush.TextureSurface is not null || brush.TextureId is not null);
 
     /// <summary>
     /// The reason, for a tooltip — or null when there is nothing to say.
@@ -107,6 +115,7 @@ public static class BrushCostOf
         if (brush.SampleSource != SampleSource.ThisLayer) reasons.Add("blends the layers underneath");
         if (brush.WetEdge > 0) reasons.Add("darkens the edges at pen-lift (wet edge)");
         if (brush.Granulation > 0) reasons.Add("settles pigment into the grain at pen-lift");
+        if (HasPaper(brush)) reasons.Add(brush.TexturePressure > 0 ? "catches graphite on the paper's tooth at pen-lift" : "presses the paper's texture in at pen-lift");
         return reasons.Count == 0 ? null : string.Join(", ", reasons);
     }
 
