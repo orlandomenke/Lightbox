@@ -57,6 +57,10 @@ public sealed class FrameConverter : JsonConverter<Frame>
 
         var frame = new Frame();
         string? id = null;
+        // Checked after the loop, so a repeated key is read last-wins as every
+        // other field is (and as JsonDocument read it before).
+        var kindSeen = false;
+        string? kind = null;
         while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
         {
             if (reader.TokenType != JsonTokenType.PropertyName) throw new JsonException("Expected a property name.");
@@ -67,9 +71,8 @@ public sealed class FrameConverter : JsonConverter<Frame>
                 // Absent is correct for anything this build wrote; present must
                 // still be one of the two it used to write.
                 case "kind":
-                    var kind = reader.GetString();
-                    if (kind is null || !KnownKinds.Contains(kind))
-                        throw new JsonException($"Unknown frame kind \"{kind}\".");
+                    kindSeen = true;
+                    kind = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
                     break;
                 case "id":
                     id = reader.GetString();
@@ -82,7 +85,7 @@ public sealed class FrameConverter : JsonConverter<Frame>
                 // Without this, every pre-merge document would round-trip back
                 // out with the key it was supposed to lose.
                 case "pngBase64":
-                    if (reader.GetString() is { Length: > 0 } baseline) frame.PngBase64 = baseline;
+                    frame.PngBase64 = reader.GetString() is { Length: > 0 } baseline ? baseline : null;
                     break;
                 case "strokes":
                     frame.Strokes = JsonSerializer.Deserialize<List<Stroke>>(ref reader, options) ?? [];
@@ -124,11 +127,19 @@ public sealed class FrameConverter : JsonConverter<Frame>
                         }
                     }
                     break;
+                // TrySkip, never Skip: a saved document is gzip, read as a
+                // stream, so this reader is not the final block and Skip throws
+                // even though the serializer has buffered the whole frame (the
+                // sensitivity review, 2026-10-09).
                 default:
-                    reader.Skip();
+                    if (!reader.TrySkip()) throw new JsonException("A frame ends part way through a value.");
                     break;
             }
         }
+        // Absent is correct for anything this build wrote; present must still be
+        // one of the two it used to write.
+        if (kindSeen && (kind is null || !KnownKinds.Contains(kind)))
+            throw new JsonException($"Unknown frame kind \"{kind}\".");
         frame.Id = id ?? Ids.NewId("f");
         return frame;
     }

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Lightbox.Core.Documents;
 using Lightbox.Core.Serialization;
 using Xunit;
@@ -94,5 +95,87 @@ public class FrameReadCostTests(ITestOutputHelper output)
         Assert.Equal("f1", frame.Id);
         Assert.Single(frame.Strokes);
         Assert.Equal("#102030", frame.Strokes[0].Color);
+    }
+
+    /// <summary>
+    /// The same, through a saved file. A saved document is gzip, which the
+    /// serializer reads as a stream, so the converter's reader is not the final
+    /// block and <c>Utf8JsonReader.Skip</c> throws there while working on a
+    /// string. Found by the sensitivity review: a large file with a key from a
+    /// later build would have been refused (2026-10-09).
+    /// </summary>
+    [Fact]
+    public void AKeyThisBuildDoesNotKnowIsSkippedInASavedFile()
+    {
+        using var written = JsonDocument.Parse(DocumentOf(drawings: 60, strokes: 5, points: 100));
+        var json = Encoding.UTF8.GetString(WithUnknownFrameKeys(written.RootElement));
+        var path = Path.Combine(Path.GetTempPath(), $"lightbox-unknown-{Guid.NewGuid():N}.lightbox.json");
+        try
+        {
+            // Gzip, as DocJson.Save writes it, with the keys a later build would have added.
+            using (var file = File.Create(path))
+            using (var gzip = new System.IO.Compression.GZipStream(file, System.IO.Compression.CompressionLevel.Fastest))
+            {
+                gzip.Write(Encoding.UTF8.GetBytes(json));
+            }
+            Assert.True(new FileInfo(path).Length > 16 * 1024, "too small to be read as a stream");
+
+            var doc = DocJson.Load(path);
+            Assert.Equal(60, doc.Scene.Layers[0].Cels.Count);
+            Assert.All(doc.Scene.Layers[0].Cels, c => Assert.Equal(5, c.Frame!.Strokes.Count));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>Every frame given a string and an object key nobody has defined, before its strokes.</summary>
+    private static byte[] WithUnknownFrameKeys(JsonElement root)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            Copy(root, writer, inFrame: false);
+        }
+        return stream.ToArray();
+
+        static void Copy(JsonElement e, Utf8JsonWriter w, bool inFrame)
+        {
+            switch (e.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    w.WriteStartObject();
+                    if (inFrame)
+                    {
+                        w.WriteString("future", "text");
+                        w.WritePropertyName("alsoFuture");
+                        w.WriteStartObject();
+                        w.WritePropertyName("nested");
+                        w.WriteStartArray();
+                        w.WriteNumberValue(1);
+                        w.WriteStartObject();
+                        w.WriteBoolean("deeper", true);
+                        w.WriteEndObject();
+                        w.WriteEndArray();
+                        w.WriteEndObject();
+                    }
+                    foreach (var p in e.EnumerateObject())
+                    {
+                        w.WritePropertyName(p.Name);
+                        Copy(p.Value, w, inFrame: p.Name == "frame");
+                    }
+                    w.WriteEndObject();
+                    break;
+                case JsonValueKind.Array:
+                    w.WriteStartArray();
+                    foreach (var item in e.EnumerateArray()) Copy(item, w, inFrame: false);
+                    w.WriteEndArray();
+                    break;
+                default:
+                    e.WriteTo(w);
+                    break;
+            }
+        }
     }
 }
