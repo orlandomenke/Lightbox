@@ -7,7 +7,31 @@ namespace Lightbox.Core.Documents;
 /// </summary>
 public sealed class Doc
 {
-    public int Version { get; set; } = 1;
+    /// <summary>The document format this build writes.</summary>
+    /// <remarks>
+    /// <b>Raise it with any format change an older build cannot keep</b> (Q234):
+    /// a new per-point value on <see cref="StrokePoint"/>, a struct, which
+    /// Q230's kept-keys holder does not reach, or anything outside the record
+    /// types that carry one. Additive fields on a class need no bump — an older
+    /// build keeps them and writes them back. The build that warns is the older
+    /// one, so the number has to move before the change ships, not after.
+    /// <para>
+    /// <b>The day it moves past 1</b>, a file with no <c>"version"</c> key must
+    /// read as 1, not as current: <see cref="Version"/> defaults to this
+    /// constant, which is right for a new document and wrong for an old file
+    /// written before the key existed (none has been; every save writes it).
+    /// </para>
+    /// </remarks>
+    public const int CurrentVersion = 1;
+
+    public int Version { get; set; } = CurrentVersion;
+
+    /// <summary>
+    /// Written by a build newer than this one, which may have put things here
+    /// that a save from this build would drop (Q234). Asked, never written.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsFromANewerBuild => Version > CurrentVersion;
 
     public Scene Scene { get; set; } = new();
 

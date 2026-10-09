@@ -13,6 +13,13 @@ it showed — a posed rig stands in its pose instead of snapping back to the
 start of the timeline. A document saved at the first frame writes nothing
 extra to the file.
 
+**A file from a newer version of Lightbox says so when it opens.** Lightbox keeps
+what a newer version wrote that it does not understand and writes it back on
+save, so nearly everything survives a round trip through an older version. A
+few kinds of data cannot be kept that way, so when a document or project was
+saved by a newer version, the status strip says that saving it here may drop
+what this version cannot read.
+
 The New dialog asks what the document is *for* — Illustration, Animation, Game
 art, Storyboard, Comic, Asset library, or **None**. **None is the default**, and
 it means exactly what it says: a single file, no project structure. The choice

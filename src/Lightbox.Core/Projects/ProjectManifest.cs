@@ -337,6 +337,14 @@ public sealed class ProjectManifest
 
     public int Version { get; set; } = CurrentVersion;
 
+    /// <summary>
+    /// Written by a build newer than this one (Q234): the manifest is rewritten
+    /// on every project save, so what a newer build put in it would be dropped.
+    /// An older manifest is refused (Q36); a newer one opens, with a warning.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsFromANewerBuild => Version > CurrentVersion;
+
     public string Id { get; set; } = Ids.NewId("proj");
 
     public string Name { get; set; } = "Project";
