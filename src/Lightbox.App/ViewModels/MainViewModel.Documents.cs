@@ -187,7 +187,7 @@ public partial class MainViewModel
             Remember(root, RecentKind.Project);
             AiStatus = $"Opened project “{project.Name}”.";
         }
-        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or System.Text.Json.JsonException or UnauthorizedAccessException)
         {
             AiStatus = $"Could not open that project: {ex.Message}";
         }
@@ -529,7 +529,7 @@ public partial class MainViewModel
         {
             OpenDocumentTab(DocJson.Load(item.Path), item.Path);
         }
-        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or System.Text.Json.JsonException or UnauthorizedAccessException)
         {
             AiStatus = $"Could not open {item.Name}: {ex.Message}";
         }

@@ -156,6 +156,20 @@ public static class DocJson
     }
 
     /// <summary>
+    /// How far a document may inflate before the ratio below applies at all: no
+    /// document under this size is ever refused (Q235). Settable so a test can
+    /// make a bomb without allocating a gigabyte on the CI runner.
+    /// </summary>
+    public static long InflationFloorBytes = 256L << 20;
+
+    /// <summary>
+    /// How many times its size on disk a document may inflate past the floor.
+    /// Real documents compress about 5× (the lab's 30-layer document: 25 MB on
+    /// disk, 124 MB of JSON); a gzip bomb compresses a thousandfold (Q235).
+    /// </summary>
+    public const int MaxInflationRatio = 100;
+
+    /// <summary>
     /// A document from a stream that can seek — gzip, as <see cref="Save"/>
     /// writes it, or plain JSON, as older builds and hand edits do.
     /// </summary>
@@ -166,11 +180,53 @@ public static class DocJson
         if (isGzip)
         {
             using var gzip = new GZipStream(file, CompressionMode.Decompress, leaveOpen: true);
-            return JsonSerializer.Deserialize<Doc>(gzip, Options)
+            // Q235: a document that would inflate far past its size on disk is
+            // refused rather than read until memory runs out.
+            var limit = Math.Max(InflationFloorBytes, file.Length * MaxInflationRatio);
+            using var capped = new InflationCap(gzip, limit, file.Length);
+            return JsonSerializer.Deserialize<Doc>(capped, Options)
                 ?? throw new JsonException("Document deserialized to null.");
         }
         using var reader = new StreamReader(file, leaveOpen: true);
         return Deserialize(reader.ReadToEnd());
+    }
+
+    /// <summary>
+    /// A read-only stream that refuses to hand over more than its limit (Q235):
+    /// the decompressed side of a document, counted as the parser reads it.
+    /// </summary>
+    private sealed class InflationCap(Stream inner, long limit, long onDisk) : Stream
+    {
+        private long _read;
+
+        public override int Read(byte[] buffer, int offset, int count) => Count(inner.Read(buffer, offset, count));
+
+        public override int Read(Span<byte> buffer) => Count(inner.Read(buffer));
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            Count(await inner.ReadAsync(buffer, cancellationToken).ConfigureAwait(false));
+
+        private int Count(int read)
+        {
+            _read += read;
+            if (_read > limit)
+            {
+                throw new InvalidDataException(
+                    $"This document would expand past {limit >> 20} MB from {Math.Max(1, onDisk >> 20)} MB on disk, "
+                    + "far more than any drawing this application writes, so it was not opened.");
+            }
+            return read;
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => _read; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     /// <summary>Deep clone via JSON round-trip.</summary>
