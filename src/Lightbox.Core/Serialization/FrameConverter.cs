@@ -72,7 +72,9 @@ public sealed class FrameConverter : JsonConverter<Frame>
                 // still be one of the two it used to write.
                 case "kind":
                     kindSeen = true;
-                    kind = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+                    if (reader.TokenType != JsonTokenType.String)
+                        throw new JsonException($"A frame's kind is text, not {reader.TokenType}.");
+                    kind = reader.GetString();
                     break;
                 case "id":
                     id = reader.GetString();
