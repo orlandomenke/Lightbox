@@ -126,4 +126,103 @@ public class GrownPaperCanvasTests(Xunit.ITestOutputHelper output) : BrushStateI
         output.WriteLine($"pixel at ({-14 + GrewX}, {-5 + GrewY}) where the mark was made: {centre}; first red at {RedCorner(after)}");
         Assert.True(centre.Red > 200 && centre.Green < 80 && centre.Alpha > 200, centre.ToString());
     }
+
+    /// <summary>
+    /// An eraser that rubs ink out on grown paper is kept. The commit asks the
+    /// pixels whether an erasure changed anything (B236) by holding the cached
+    /// drawing across the stamp — and on grown paper the stamp is replaced by
+    /// a rebuild, so the picture it holds never changes and a real erasure
+    /// reads as one that did nothing.
+    /// </summary>
+    [AvaloniaFact]
+    public void AnErasureOnGrownPaperIsKept()
+    {
+        var (vm, shown) = Open();
+        vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame = new Frame();
+        GrowLeftAndUp(vm);
+        vm.SmoothStrokes = false;
+        vm.ColorHex = "#ff0000";
+        vm.BrushSize = 10;
+        vm.BrushHardness = 1;
+        vm.BrushOpacity = 1;
+        vm.BrushFlow = 1;
+        vm.BeginStroke(10, 30, 1);
+        vm.MoveStroke(30, 30, 1);
+        vm.MoveStroke(50, 30, 1);
+        vm.EndStroke();
+        vm.PublishSnapshot();
+        using (var inked = shown()) Assert.NotNull(RedCorner(inked));
+        var frame = (Frame)vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!;
+        Assert.Single(frame.Strokes);
+
+        vm.ActiveTool = ToolId.Eraser;
+        vm.BrushSize = 10;
+        vm.BeginStroke(20, 30, 1);
+        vm.MoveStroke(30, 30, 1);
+        vm.MoveStroke(40, 30, 1);
+        vm.EndStroke();
+        vm.PublishSnapshot();
+
+        frame = (Frame)vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!;
+        using var after = shown();
+        var middle = after.GetPixel(30 + GrewX, 30 + GrewY);
+        output.WriteLine($"strokes after erasing: {frame.Strokes.Count}; pixel in the rubbed middle: {middle}");
+        Assert.Equal(2, frame.Strokes.Count);
+        Assert.Equal(ToolKind.Eraser, frame.Strokes[^1].Tool);
+        Assert.False(middle.Red > 200 && middle.Green < 80, $"the ink is still there: {middle}");
+    }
+
+    /// <summary>
+    /// What a variant wears is drawn in the same place a stored placement is:
+    /// moved with the paper. The overlay is its own render, beside the frame
+    /// cache rather than through it, so it has to be told separately.
+    /// </summary>
+    [AvaloniaFact]
+    public void WhatAVariantWearsMovesWithThePaper()
+    {
+        var symbol = new Symbol
+        {
+            Name = "Badge",
+            Layers = Symbol.Flat("Badge",
+            [
+                new Frame
+                {
+                    Strokes =
+                    [
+                        new Stroke
+                        {
+                            Tool = ToolKind.Fill,
+                            Color = "#ff0000",
+                            Brush = new BrushSettings { Opacity = 1, AntiAlias = false },
+                            Points = [new(0, 0, 1), new(8, 0, 1), new(8, 8, 1), new(0, 8, 1)],
+                        },
+                    ],
+                },
+            ]),
+        };
+        Lightbox.Raster.SymbolRegistry.Register(symbol);
+        var before = AttachmentOverlay.Resolver;
+        try
+        {
+            AttachmentOverlay.Resolver = (_, _) => [new SymbolPlacement { SymbolId = symbol.Id, X = 4, Y = 6 }];
+
+            var still = DocumentFactory.CreateDoc(64, 64, 12).Scene;
+            using var unmoved = AttachmentOverlay.Render(still, 0)!;
+            var at = RedCorner(unmoved);
+            Assert.NotNull(at);
+
+            var grown = DocumentFactory.CreateDoc(64, 64, 12).Scene;
+            CanvasResize.Apply(grown, 64 + GrewX, 64 + GrewY, ResizeAnchor.BottomRight);
+            Assert.Equal((-GrewX, -GrewY), (grown.Left, grown.Top));
+            using var moved = AttachmentOverlay.Render(grown, 0)!;
+
+            output.WriteLine($"worn piece: {at} on plain paper, {RedCorner(moved)} on grown; expected ({at!.Value.X + GrewX}, {at.Value.Y + GrewY})");
+            Assert.Equal((at.Value.X + GrewX, at.Value.Y + GrewY), RedCorner(moved));
+        }
+        finally
+        {
+            AttachmentOverlay.Resolver = before;
+            Lightbox.Raster.SymbolRegistry.Clear();
+        }
+    }
 }

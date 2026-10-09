@@ -783,6 +783,9 @@ public static class SpriteSheetExporter
         Scene scene, FrameBitmapCache cache, int index, HashSet<string> skipLayerIds)
     {
         using var hold = cache.HoldFetches(); // B392
+        // Before anything fetches — an adjustment layer's mask comes out of
+        // this cache too, and can be the first thing asked for.
+        At(cache, scene);
         var passes = new List<RenderPass>();
         for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
         {

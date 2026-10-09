@@ -599,4 +599,30 @@ public class SymbolRenderTests : IDisposable
         }
         return true;
     }
+
+    /// <summary>
+    /// B409: a placement is positioned in stroke coordinates, so paper grown on
+    /// its left and top moves it by exactly what was added — at 1x and at 2x,
+    /// because the origin is in document pixels and the surface is not.
+    /// </summary>
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(2.0)]
+    public void APlacementMovesWithPaperGrownOnItsLeftAndTop(double outputScale)
+    {
+        var sword = Sword(Jittery(10, 10));
+        SymbolRegistry.Register(sword);
+        var frame = Placing(new SymbolPlacement { SymbolId = sword.Id, X = 70, Y = 50 });
+
+        using var plain = FrameRasterizer.Materialize(frame, W, H, outputScale);
+        using var grown = FrameRasterizer.Materialize(
+            frame, W + 24, H + 10, outputScale, origin: new SKPointI(-24, -10));
+
+        var was = Ink(plain)!.Value;
+        var now = Ink(grown)!.Value;
+        var dx = (int)(24 * outputScale);
+        var dy = (int)(10 * outputScale);
+        Assert.Equal(
+            new SKRectI(was.Left + dx, was.Top + dy, was.Right + dx, was.Bottom + dy), now);
+    }
 }

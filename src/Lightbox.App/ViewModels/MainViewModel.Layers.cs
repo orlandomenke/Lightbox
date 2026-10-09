@@ -2062,6 +2062,11 @@ public partial class MainViewModel
         // A document-wide change is pending and has not been refreshed yet: this
         // render predates it. Refused, and the refresh that follows asks again.
         if (_allThumbsDirty) return false;
+        // Rendered for a corner the paper no longer has (B409): the cache keys
+        // by the corner it has now, so this would go in as a picture of the
+        // wrong place. Every change of origin flushes the worker today; this
+        // is what holds if one ever does not.
+        if (made.Origin != new SkiaSharp.SKPointI(Scene.Left, Scene.Top)) return false;
         _thumbs.Put(id, ThumbnailRenderer.Render(made.Bitmap));
         // The rows that show this drawing take their picture now, from the
         // render in hand — a walk of the rows, not of every cell. Whether or not

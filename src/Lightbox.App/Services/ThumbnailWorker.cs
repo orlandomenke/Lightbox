@@ -44,7 +44,8 @@ public sealed class ThumbnailWorker : IDisposable
     public static Action<Action>? Post { get; set; }
 
     /// <summary>A drawing's thumbnail source, rendered and waiting to be installed.</summary>
-    public sealed record Made(Frame Frame, int Width, int Height, double Scale, int Cel, SKBitmap Bitmap);
+    public sealed record Made(
+        Frame Frame, int Width, int Height, double Scale, int Cel, SKBitmap Bitmap, SKPointI Origin = default);
 
     private sealed record Job(
         Frame Frame, int Width, int Height, double Scale, int Cel, long Generation, SKPointI Origin);
@@ -165,7 +166,7 @@ public sealed class ThumbnailWorker : IDisposable
             _stale();
             return;
         }
-        if (!_install(new Made(job.Frame, job.Width, job.Height, job.Scale, job.Cel, bmp))) bmp.Dispose();
+        if (!_install(new Made(job.Frame, job.Width, job.Height, job.Scale, job.Cel, bmp, job.Origin))) bmp.Dispose();
     }
 
     public void Dispose()

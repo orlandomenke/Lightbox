@@ -355,7 +355,8 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         // Paper of the same size with a different corner is a different
         // picture: grown on the left and cropped on the right by the same
         // amount, the size is unchanged and every pixel has moved.
-        if (Origin is { } origin && origin != default)
+        var origin = Origin;
+        if (origin != default)
         {
             key = string.Create(CultureInfo.InvariantCulture, $"{key}+{origin.X},{origin.Y}");
         }
@@ -404,7 +405,20 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     public SKPointI Origin
     {
         get => OriginSource?.Invoke() ?? _origin;
-        set => _origin = value;
+        set
+        {
+            // A cache that follows a document is not also told. Agreeing with
+            // it is harmless — an export handed the live cache says the same
+            // corner the document does. Disagreeing is a second document being
+            // rendered through the first one's cache, and it is refused here
+            // rather than drawn in the wrong place.
+            if (OriginSource is { } source && source() != value)
+            {
+                throw new InvalidOperationException(
+                    "This cache takes its origin from its owner; it cannot be given another.");
+            }
+            _origin = value;
+        }
     }
 
     private SKPointI _origin;

@@ -3912,7 +3912,10 @@ public partial class MainViewModel
         // posed drawing the render is rebuilt from the record rather than
         // appended to, so there is no before/after pair to measure across; an
         // eraser there is recorded like any other mark.
-        var erasure = IsErasure(stroke) && !_cache.Rig.IsPosed(target)
+        // Nor on paper whose corner has moved (B409), for the same reason:
+        // AppendToFrameRender rebuilds there rather than stamps, so the probe
+        // would read one unchanged picture twice and call a real erasure empty.
+        var erasure = IsErasure(stroke) && !_cache.Rig.IsPosed(target) && !PaperHasMoved
             ? StrokeChangeProbe.Open(stroke, _cache.Get(target, Scene.Width, Scene.Height))
             : null;
 

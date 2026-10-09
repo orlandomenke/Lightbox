@@ -965,11 +965,6 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Commit one stroke's pixels incrementally — onto the cached bitmap, and
-    /// into the cached tiles when playback holds this frame as tiles. Both
-    /// are invariant 6's shape: work proportional to the stroke.
-    /// </summary>
-    /// <summary>
     /// Whether the paper's corner is somewhere other than stroke (0, 0) — the
     /// canvas has been grown or cropped on its left or top (B409).
     /// </summary>
@@ -993,6 +988,11 @@ public partial class MainViewModel
     /// </remarks>
     private bool PaperHasMoved => Scene.Left != 0 || Scene.Top != 0;
 
+    /// <summary>
+    /// Commit one stroke's pixels incrementally — onto the cached bitmap, and
+    /// into the cached tiles when playback holds this frame as tiles. Both
+    /// are invariant 6's shape: work proportional to the stroke.
+    /// </summary>
     private void AppendToFrameRender(Lightbox.Core.Documents.Frame target, Stroke stroke)
     {
         if (PaperHasMoved)
@@ -2222,6 +2222,11 @@ public partial class MainViewModel
     private void TakeWarmedFrames() => _prewarm.Drain(warmed =>
     {
         var want = warmed.Request;
+        // A warm is rendered with no origin, and none is asked for on paper
+        // whose corner has moved. One that arrives there was asked for before
+        // the paper moved (B409): not adopted, since the cache would key it by
+        // the corner the paper has now.
+        if (PaperHasMoved) return false;
         bool taken, held;
         if (want.Want == WarmProduct.Tiles)
         {
