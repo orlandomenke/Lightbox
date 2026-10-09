@@ -223,4 +223,92 @@ public sealed class SelectionMovesPixelsTests(ITestOutputHelper output) : BrushS
         Assert.True(At(vm, merged, 120, 320).Alpha > 200, "the baked pixels did not move");
         Assert.Equal(0, At(vm, merged, 120, 120).Alpha);
     }
+
+    // ---- from the adversarial review ----------------------------------------------
+
+    /// <summary>
+    /// On paper grown on its left and top the baseline is laid out in stroke
+    /// coordinates and the selection on the paper's pixels; the cut has to put
+    /// the two in one space, or it takes the pixels the grown distance away
+    /// from the lasso.
+    /// </summary>
+    [AvaloniaFact]
+    public void OnGrownPaperTheLassoTakesThePixelsUnderIt()
+    {
+        var (vm, layer) = Imported();
+        var baseline = ((Frame)vm.Doc.Scene.Layers[layer].Cels[0].Frame!).PngBase64;
+        var choice = new ResizeDialogViewModel(vm.Doc.Scene, ResizeMode.Canvas) { Anchor = ResizeAnchor.BottomRight };
+        choice.Width = vm.Doc.Scene.Width + 100;
+        choice.Height = vm.Doc.Scene.Height + 50;
+        Assert.True(vm.ApplyResize(choice));
+        Assert.Equal((-100, -50), (vm.Doc.Scene.Left, vm.Doc.Scene.Top));
+        // The pixels stay where they were in stroke coordinates.
+        Assert.Equal(baseline, ((Frame)vm.Doc.Scene.Layers[layer].Cels[0].Frame!).PngBase64);
+        vm.ActiveTool = ToolId.Select;
+        LassoTheLeftSquare(vm);   // in stroke coordinates, round the left square
+
+        Assert.True(vm.BeginTransform(), vm.AiStatus);
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 0, 200);
+
+        output.WriteLine($"grown: old {AtStroke(vm, layer, 120, 120)}, new {AtStroke(vm, layer, 120, 320)}, other {AtStroke(vm, layer, 320, 120)}");
+        Assert.True(IsRed(AtStroke(vm, layer, 120, 320)), "the pixels under the lasso did not arrive");
+        Assert.Equal(0, AtStroke(vm, layer, 120, 120).Alpha);
+        Assert.True(IsRed(AtStroke(vm, layer, 320, 120)), "pixels outside the lasso moved");
+    }
+
+    /// <summary>
+    /// A diagonal lasso edge across solid paint, and a move too small to see:
+    /// the paint along the edge must stay solid. Cutting both halves with an
+    /// antialiased edge and laying one over the other left a translucent line
+    /// there — a quarter of the alpha gone where the edge crossed a pixel half.
+    /// </summary>
+    [AvaloniaFact]
+    public void ACutAcrossSolidPaintLeavesNoSeam()
+    {
+        var (vm, layer) = Imported();
+        // A triangle whose hypotenuse runs diagonally through the left square.
+        vm.ApplySelectionShape([new(80, 80, 1), new(160, 80, 1), new(80, 160, 1)], false, false);
+        Assert.True(vm.BeginTransform(), vm.AiStatus);
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 0.001, 0.001);
+
+        var scene = vm.Doc.Scene;
+        using var after = FrameRasterizer.Materialize((Frame)scene.Layers[layer].Cels[0].Frame!, scene.Width, scene.Height);
+        var faintest = 255;
+        for (var y = 102; y < 138; y++)
+        {
+            for (var x = 102; x < 138; x++) faintest = Math.Min(faintest, after.GetPixel(x, y).Alpha);
+        }
+        output.WriteLine($"faintest pixel inside the square after a near-zero move: {faintest}");
+        Assert.True(faintest > 245, $"a seam along the cut: alpha {faintest}");
+    }
+
+    /// <summary>
+    /// The selection nudged while the transform is open: pixels follow the
+    /// selection the strokes follow — the one on screen at apply — rather
+    /// than a copy taken when Ctrl+T was pressed.
+    /// </summary>
+    [AvaloniaFact]
+    public void PixelsFollowASelectionNudgedDuringTheTransform()
+    {
+        var (vm, layer) = Imported();
+        // Round the right square, then nudged onto the left one.
+        vm.ApplySelectionShape([new(280, 80, 1), new(360, 80, 1), new(360, 160, 1), new(280, 160, 1)], false, false);
+        Assert.True(vm.BeginTransform(), vm.AiStatus);
+        vm.NudgeSelection(-200, 0);
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 0, 200);
+
+        output.WriteLine($"left {At(vm, layer, 120, 120)}->{At(vm, layer, 120, 320)}, right {At(vm, layer, 320, 120)}->{At(vm, layer, 320, 320)}");
+        Assert.True(IsRed(At(vm, layer, 120, 320)), "the pixels under the nudged selection did not move");
+        Assert.True(IsRed(At(vm, layer, 320, 120)), "the pixels under the old selection moved");
+    }
+
+    /// <summary>The layer's pixels at a stroke coordinate, wherever the paper's corner is.</summary>
+    private static SKColor AtStroke(MainViewModel vm, int layer, int x, int y)
+    {
+        var scene = vm.Doc.Scene;
+        using var bmp = FrameRasterizer.Materialize(
+            (Frame)scene.Layers[layer].Cels[0].Frame!, scene.Width, scene.Height,
+            origin: new SKPointI(scene.Left, scene.Top));
+        return bmp.GetPixel(x - scene.Left, y - scene.Top);
+    }
 }

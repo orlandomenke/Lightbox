@@ -1170,19 +1170,17 @@ public partial class MainViewModel
             var (moving, rest) = PreviewSplit(painted, filter);
             SKBitmap stay;
             SKBitmap? movingPixels = null;
-            if (painted.PngBase64 is { Length: > 0 } && _pixelRegion is not null
-                && BaselineHalf(painted, inside: false) is { } stayingPixels)
+            if (painted.PngBase64 is { Length: > 0 } && BaselineHalves(painted) is var (stayingPixels, travellingPixels))
             {
                 // B433: the selection cuts the baseline as the commit will —
                 // the half outside it stays under the strokes that stay, the
-                // half inside it travels under the strokes that move.
-                stay = stayingPixels;
+                // half inside it travels under the strokes that move. Drawn
+                // into paper-sized surfaces through the paper's corner, as the
+                // whole baseline is below.
+                stay = OnThePaper(stayingPixels);
                 foreach (var s in rest) FrameRasterizer.Append(stay, s);
-                movingPixels = BaselineHalf(painted, inside: true);
-                if (movingPixels is not null)
-                {
-                    foreach (var s in moving) FrameRasterizer.Append(movingPixels, s);
-                }
+                movingPixels = OnThePaper(travellingPixels);
+                foreach (var s in moving) FrameRasterizer.Append(movingPixels, s);
             }
             else if (painted.PngBase64 is { Length: > 0 })
             {
@@ -1658,7 +1656,7 @@ public partial class MainViewModel
                     }
                     // B433: under a selection, the baseline's part inside it
                     // moves by the same resample, and the rest stays put.
-                    else if (filter is not null && _pixelRegion is not null
+                    else if (filter is not null && _pixelsFollowSelection
                              && frame is Frame { PngBase64.Length: > 0 } cut
                              && (baselineResample is not null || !baselineMatrix.IsIdentity))
                     {
