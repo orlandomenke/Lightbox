@@ -206,8 +206,52 @@ public static class FolderTree
     /// file cannot do are decided there once, and a sheet that ordered its rows
     /// by a different rule would disagree with the docker beside it.
     /// </remarks>
-    public static List<StackRow> SheetRows(Scene scene) =>
-        Rows(scene, f => f.SheetCollapsed == true).Where(r => !r.Hidden).ToList();
+    /// <param name="active">
+    /// The layer being drawn on. With <see cref="Scene.SheetPinnedOnly"/> on it
+    /// keeps its row whether or not it is pinned — a sheet that hid the layer a
+    /// mark is about to land on would be showing timing for everything but it.
+    /// </param>
+    public static List<StackRow> SheetRows(Scene scene, Layer? active = null)
+    {
+        var rows = Rows(scene, f => f.SheetCollapsed == true).Where(r => !r.Hidden).ToList();
+        if (scene.SheetPinnedOnly != true) return rows;
+        // The switch with nothing pinned shows everything. It is how the
+        // feature is met for the first time — switch on, sheet empty — and an
+        // empty sheet reads as a lost document, not as a filter.
+        if (!scene.Layers.Any(l => l.SheetPinned == true) && !scene.LayerGroups.Any(g => g.SheetPinned == true))
+        {
+            return rows;
+        }
+
+        var find = Indexed(scene);
+        var refs = ReferenceEqualityComparer.Instance;
+        var folders = new HashSet<LayerGroup>(refs);
+        var layers = new HashSet<Layer>(refs);
+        foreach (var layer in scene.Layers)
+        {
+            var path = FoldersOf(find, layer);
+            // Pinned itself, the one being drawn on, or inside a pinned folder
+            // at any depth: a pinned folder brings what is in it.
+            if (layer.SheetPinned != true && !ReferenceEquals(layer, active) && !path.Any(f => f.SheetPinned == true)) continue;
+            layers.Add(layer);
+            // The folders a kept row sits in stay, so the tree is still a tree
+            // and can still be folded.
+            foreach (var f in path) folders.Add(f);
+        }
+        foreach (var folder in scene.LayerGroups)
+        {
+            var above = Ancestors(find, folder);
+            if (folder.SheetPinned != true && !above.Any(f => f.SheetPinned == true)) continue;
+            folders.Add(folder);
+            foreach (var f in above) folders.Add(f);
+        }
+        return rows.Where(r => r.Item switch
+        {
+            Layer l => layers.Contains(l),
+            LayerGroup g => folders.Contains(g),
+            _ => false,
+        }).ToList();
+    }
 
     /// <summary>The docker's rows, topmost first.</summary>
     /// <remarks>

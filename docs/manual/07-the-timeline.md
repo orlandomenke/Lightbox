@@ -383,6 +383,22 @@ folding drops any cels inside it from the selection, and a block swept across a
 folded folder leaves its layers out, so nothing you cannot see is ever deleted.
 On the X-sheet a folder and the layers inside it share the folder's colour.
 
+**Pin the rows you are timing, and hide the rest.** Right-click a layer — in
+the Layers docker or on its name in the X-sheet — and choose **Pin to
+timeline**; a folder has the same item on its header's menu and a pin on its
+row in the X-sheet. Once anything is pinned, **Pinned only** appears on the
+Timeline's and the X-sheet's bars. Switch it on and both show just the pinned
+layers and folders, **plus the layer you are drawing on**, which is never
+hidden, and the folders those sit in so the sheet is still a tree you can fold.
+A pinned folder brings everything inside it. Switch it off and every row is
+back; the pins stay for next time.
+
+Pins and the switch are saved with the document and are not undo steps. As with
+folding, a row that leaves the sheet leaves the selection, so nothing out of
+sight is deleted. Both verbs can be given keys in **Edit ▸ Configure ▸
+Shortcuts** — *Show only pinned rows* and *Pin or unpin the active layer* —
+and have none by default.
+
 **Drag a drawing along its row to move it** — no modifier. Hold Ctrl as you
 drop to leave the original where it was and place a copy. This is how timing is
 changed by hand: pick the drawing up and put it on the frame it belongs on.

@@ -12,7 +12,7 @@
     Laid out on the layer row's columns — tile, tile, an 88 wide name, then a
     cell per frame at the sheet's own width — so the strip lines up under the
     ruler with the cels above and below it. The chevron takes the eye's column
-    and the second tile is left empty where a layer has its onion switch.
+    and the pin takes the column where a layer has its onion switch.
   -->
   <Border Classes="layerRow">
     <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}">
@@ -25,7 +25,8 @@
                 IsVisible="{Binding Collapsed}" />
         </Panel>
       </Button>
-      <Border Width="{StaticResource SizeTile}" />
+      <ToggleButton Classes="icon glyph pin" IsChecked="{Binding Pinned}"
+                    ToolTip.Tip="Pin this folder: with Pinned only on, it and everything inside it stay on the Timeline and the X-sheet"><Path /></ToggleButton>
       <TextBlock Width="{StaticResource SizeXsheetName}" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center"
                  TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
       <ItemsControl ItemsSource="{Binding Cells}">

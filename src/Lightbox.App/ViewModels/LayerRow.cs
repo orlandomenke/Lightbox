@@ -39,6 +39,7 @@ public sealed partial class GroupRow : ObservableObject
         Locked = group.Locked;
         LockedByFolder = _owner.IsFolderLockedByFolder(group);
         Collapsed = group.Collapsed;
+        SheetPinned = group.SheetPinned == true;
         Color = _owner.FolderColorOf(group);
         HasOwnColor = group.Color is not null;
         _syncing = false;
@@ -59,6 +60,15 @@ public sealed partial class GroupRow : ObservableObject
 
     /// <summary>The left margin <see cref="Depth"/> asks for.</summary>
     public Avalonia.Thickness Indent => new(Depth * LayerRow.IndentStep, 0, 0, 0);
+
+    /// <summary>Pinned to the Timeline and the X-sheet (Q227). The folder's sheet row sets the same fact.</summary>
+    [ObservableProperty]
+    private bool _sheetPinned;
+
+    partial void OnSheetPinnedChanged(bool value)
+    {
+        if (!_syncing) _owner.SetSheetPinned(Group, value);
+    }
 
     /// <summary>
     /// A folder this one is inside is locked, so this one refuses edits too —
@@ -482,6 +492,7 @@ public sealed partial class LayerRow : ObservableObject
         Locked = layer.Locked;
         AlphaLocked = layer.AlphaLocked;
         OnionEnabled = layer.OnionEnabled;
+        SheetPinned = layer.SheetPinned == true;
         LockedByFolder = _owner.IsLayerLockedByFolder(layer);
         HiddenByFolder = _owner.IsLayerHiddenByFolder(layer);
         _syncing = false;
@@ -529,5 +540,25 @@ public sealed partial class LayerRow : ObservableObject
     partial void OnOnionEnabledChanged(bool value)
     {
         if (!_syncing) _owner.SetLayerOnionEnabled(Layer, value);
+    }
+
+    /// <summary>
+    /// Pinned to the Timeline and the X-sheet (Q227): with Pinned only on, this
+    /// layer keeps its row there whether or not it is the one being drawn on.
+    /// </summary>
+    [ObservableProperty]
+    private bool _sheetPinned;
+
+    partial void OnSheetPinnedChanged(bool value)
+    {
+        if (!_syncing) _owner.SetSheetPinned(Layer, value);
+    }
+
+    /// <summary>Re-read the pin alone, for a change that came from somewhere other than this row.</summary>
+    internal void SyncSheetPin()
+    {
+        _syncing = true;
+        SheetPinned = Layer.SheetPinned == true;
+        _syncing = false;
     }
 }

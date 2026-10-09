@@ -24,6 +24,8 @@
   <StreamGeometry x:Key="IconLockClosed">M0,0 M24,24 M6.5,10.5 H17.5 V19.5 H6.5 Z M9,10.5 V7.5 A3,3 0 0 1 15,7.5 V10.5</StreamGeometry>
   <StreamGeometry x:Key="IconLockOpen">M0,0 M24,24 M6.5,10.5 H17.5 V19.5 H6.5 Z M9,10.5 V7 A3,3 0 0 1 14.8,5.9</StreamGeometry>
   <StreamGeometry x:Key="IconAlphaLock">M0,0 M24,24 M4.5,5.5 H19.5 V18.5 H4.5 Z M12,5.5 V18.5 M4.5,12 H19.5</StreamGeometry>
+  <!-- A push pin: the cap, the body widening to its collar, the needle. -->
+  <StreamGeometry x:Key="IconPin">M0,0 M24,24 M8.5,4.5 H15.5 M9.5,4.5 V10.5 L7,14.5 H17 L14.5,10.5 V4.5 M12,14.5 V20.5</StreamGeometry>
   <StreamGeometry x:Key="IconOnionOn">M0,0 M24,24 M15,12 m-5.5,0 a5.5,5.5 0 1 0 11,0 a5.5,5.5 0 1 0 -11,0 M9,12 m-5.5,0 a5.5,5.5 0 1 0 11,0 a5.5,5.5 0 1 0 -11,0</StreamGeometry>
   <StreamGeometry x:Key="IconOnionOff">M0,0 M24,24 M12,12 m-5.5,0 a5.5,5.5 0 1 0 11,0 a5.5,5.5 0 1 0 -11,0</StreamGeometry>
 

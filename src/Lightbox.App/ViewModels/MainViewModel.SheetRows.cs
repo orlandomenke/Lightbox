@@ -48,7 +48,7 @@ public partial class MainViewModel
         var desired = new List<object>(LayerRows.Count + Scene.LayerGroups.Count);
         var used = new HashSet<string>();
         var repeats = new Dictionary<string, int>();
-        foreach (var line in FolderTree.SheetRows(Scene))
+        foreach (var line in FolderTree.SheetRows(Scene, ActiveSheetLayer))
         {
             switch (line.Item)
             {
@@ -68,7 +68,10 @@ public partial class MainViewModel
                     }
                     folder.Group = group;
                     folder.Name = group.Name;
+                    folder.Syncing = true;
                     folder.Collapsed = group.SheetCollapsed == true;
+                    folder.Pinned = group.SheetPinned == true;
+                    folder.Syncing = false;
                     folder.Depth = line.Depth;
                     folder.Color = FolderTree.ColorOf(Scene, group);
                     SyncFolderCells(folder);
@@ -126,6 +129,76 @@ public partial class MainViewModel
         MarkDocumentEdited();
         RebuildSheetRows();
         DropSelectionOffTheSheet();
+        OnPropertyChanged(nameof(TimelineTracks));
+        RefreshTimelineSelection();
+    }
+
+    // ---- pinning ---------------------------------------------------------------------
+
+    /// <summary>The layer being drawn on, which Pinned only never hides.</summary>
+    private Layer? ActiveSheetLayer =>
+        ActiveLayerIndex >= 0 && ActiveLayerIndex < Scene.Layers.Count ? Scene.Layers[ActiveLayerIndex] : null;
+
+    /// <summary>
+    /// Krita's switch (Q227): the Timeline and the X-sheet show only the
+    /// pinned layers and folders, the layer being drawn on, and the folders
+    /// those sit in. With nothing pinned it does nothing.
+    /// </summary>
+    /// <remarks>
+    /// Read from and written to the scene, so it is saved with the document
+    /// and belongs to it: a document timed with eight pinned rows opens that
+    /// way, and the next one opens however it was left. A view preference, as
+    /// a fold is — not an undo step.
+    /// </remarks>
+    public bool SheetPinnedOnly
+    {
+        get => Scene.SheetPinnedOnly == true;
+        set
+        {
+            if (SheetPinnedOnly == value) return;
+            Scene.SheetPinnedOnly = value ? true : null;
+            AfterSheetFilterChanged();
+        }
+    }
+
+    /// <summary>Whether anything is pinned at all — without it the switch has nothing to show less of.</summary>
+    public bool HasSheetPins =>
+        Scene.Layers.Any(l => l.SheetPinned == true) || Scene.LayerGroups.Any(g => g.SheetPinned == true);
+
+    internal void SetSheetPinned(Layer layer, bool pinned)
+    {
+        if ((layer.SheetPinned == true) == pinned) return;
+        layer.SheetPinned = pinned ? true : null;
+        AfterSheetFilterChanged();
+    }
+
+    internal void SetSheetPinned(LayerGroup group, bool pinned)
+    {
+        if ((group.SheetPinned == true) == pinned) return;
+        group.SheetPinned = pinned ? true : null;
+        AfterSheetFilterChanged();
+    }
+
+    /// <summary>Pin or unpin the layer being drawn on — the shortcut's aim, with no row under a pointer.</summary>
+    public void ToggleActiveLayerSheetPin()
+    {
+        if (ActiveSheetLayer is { } layer) SetSheetPinned(layer, layer.SheetPinned != true);
+    }
+
+    /// <summary>
+    /// Which rows the sheet shows has changed: rebuild them, let go of what
+    /// went out of sight, and tell both surfaces.
+    /// </summary>
+    private void AfterSheetFilterChanged()
+    {
+        MarkDocumentEdited();
+        // Through the layer panel, so the rows of both dockers re-read the
+        // pins they show — a folder's is on its header and on its sheet row.
+        foreach (var row in LayerRows) row.SyncSheetPin();
+        RebuildLayerPanel();
+        DropSelectionOffTheSheet();
+        OnPropertyChanged(nameof(SheetPinnedOnly));
+        OnPropertyChanged(nameof(HasSheetPins));
         OnPropertyChanged(nameof(TimelineTracks));
         RefreshTimelineSelection();
     }

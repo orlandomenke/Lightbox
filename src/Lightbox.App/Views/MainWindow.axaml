@@ -2915,6 +2915,7 @@
                               <MenuItem Header="Same as parent" Click="OnGroupColorClicked" IsVisible="{Binding CanInheritColor}" ToolTip.Tip="Give up this folder's own colour and follow the folder it is inside" />
                             </MenuItem>
                             <MenuItem Header="Collapse / expand" Click="OnGroupMenuCollapse" />
+                            <MenuItem Header="Pin to timeline" ToggleType="CheckBox" IsChecked="{Binding SheetPinned, Mode=TwoWay}" ToolTip.Tip="With Pinned only on, this folder and everything inside it stay on the Timeline and the X-sheet" />
                             <Separator />
                             <MenuItem Header="Copy folder" InputGesture="Ctrl+C" Click="OnGroupMenuCopy" />
                             <MenuItem Header="Paste into folder" InputGesture="Ctrl+V" Click="OnGroupMenuPaste" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasLayerClipboard}" />
@@ -2972,6 +2973,7 @@
                             <MenuItem Header="Copy layer" InputGesture="Ctrl+C" Click="OnLayerMenuCopy" />
                             <MenuItem Header="Paste layer" InputGesture="Ctrl+V" Click="OnLayerMenuPaste" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasLayerClipboard}" />
                             <Separator />
+                            <MenuItem Header="Pin to timeline" ToggleType="CheckBox" IsChecked="{Binding SheetPinned, Mode=TwoWay}" ToolTip.Tip="With Pinned only on, this layer stays on the Timeline and the X-sheet" />
                             <MenuItem Header="Move up" Click="OnLayerMenuMoveUp" />
                             <MenuItem Header="Move down" Click="OnLayerMenuMoveDown" />
                             <MenuItem Header="Merge down" Click="OnLayerMenuMergeDown"
@@ -4072,6 +4074,7 @@
                      other with no way to ask for more than one drawing each
                      way. See OnionBar.axaml. -->
                 <views:OnionBar />
+                <CheckBox Content="Pinned only" IsChecked="{Binding SheetPinnedOnly}" IsVisible="{Binding HasSheetPins}" VerticalAlignment="Center" ToolTip.Tip="Show only the pinned layers and folders, and the layer you are drawing on. Pin a row from its right-click menu." />
                 <!-- The scratch track (Q59). One button until there is one,
                      then the whole row — the same shape as the camera. -->
                 <Button Content="♪ Add audio" Click="OnImportAudio"
@@ -4135,6 +4138,7 @@
                                   MoreLabel="More  &#x25BE;" MenuPlacement="TopEdgeAlignedRight">
               <views:TransportBar />
               <views:OnionBar />
+              <CheckBox Content="Pinned only" IsChecked="{Binding SheetPinnedOnly}" IsVisible="{Binding HasSheetPins}" VerticalAlignment="Center" ToolTip.Tip="Show only the pinned layers and folders, and the layer you are drawing on. Pin a row from its right-click menu." />
               <!-- How many frames fit on screen. Narrow to read the timing of
                    a long scene, wide to read the thumbnails of a short one. -->
               <DockPanel VerticalAlignment="Center" controls:OverflowBar.Flex="True"
@@ -4290,6 +4294,7 @@
                           <Button.ContextMenu><ContextMenu>
                             <MenuItem Header="Copy layer" InputGesture="Ctrl+C" Click="OnLayerMenuCopy" />
                             <MenuItem Header="Paste layer" InputGesture="Ctrl+V" Click="OnLayerMenuPaste" IsEnabled="{Binding $parent[Window].((vm:MainViewModel)DataContext).HasLayerClipboard}" />
+                            <MenuItem Header="Pin to timeline" ToggleType="CheckBox" IsChecked="{Binding SheetPinned, Mode=TwoWay}" ToolTip.Tip="With Pinned only on, this layer stays on the Timeline and the X-sheet" />
                           </ContextMenu></Button.ContextMenu>
                         </Button>
                         <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"

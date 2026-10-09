@@ -467,6 +467,8 @@ public partial class MainViewModel
         // The sheet shows the same tree, folded by its own state. Rebuilt here
         // so that nothing which rebuilds the one can forget the other.
         RebuildSheetRows();
+        OnPropertyChanged(nameof(SheetPinnedOnly));
+        OnPropertyChanged(nameof(HasSheetPins));
     }
 
     /// <summary>
