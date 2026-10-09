@@ -31,7 +31,7 @@ public class WashRunsDryTests(ITestOutputHelper output)
             Medium = new MediumSettings
             {
                 Kind = MediumKind.Watercolour, Wetness = 0.85, Viscosity = 0.1, Drag = 0.25, FlowSteps = 16,
-                Absorbency = 0.35, EdgePull = 0.06, PigmentDensity = 0.5, Granularity = 0.6, Hiding = 0.05,
+                Absorbency = 0.35, EdgePull = 0.45, PigmentDensity = 0.5, Granularity = 0.6, Hiding = 0.05,
                 Paper = PaperKind.ColdPress, PaperScale = 14, PaperInfluence = 0.7, PressureWater = 0.8, Rewetting = 0,
                 PaintLoad = load,
             },
@@ -64,9 +64,10 @@ public class WashRunsDryTests(ITestOutputHelper output)
 
     /// <summary>
     /// A hand's stroke: pressure rising 0.35 → 0.95 along it. At paint load 1
-    /// the wash reads 34 46 55 62 62 — the complaint; at the shipped load the
-    /// depletion and the hand cancel and the end is no heavier than the start
-    /// (30 33 33 32 27 measured, on Q236's reach).
+    /// the wash reads 37 42 46 51 52 — the complaint (34 → 62 before B431's
+    /// edge pull pooled the rim); at the shipped load the depletion and the
+    /// hand cancel and the end is no heavier than the start (28 30 29 28 24
+    /// measured, on Q236's reach).
     /// </summary>
     [Fact]
     public void AWashUnderARisingHandDoesNotGetHeavierAlongTheStroke()
@@ -77,7 +78,8 @@ public class WashRunsDryTests(ITestOutputHelper output)
         var (l, lw) = AlongTheStroke(loaded);
         output.WriteLine($"load 1.0:  {Row(n)}");
         output.WriteLine($"load 0.6:  {Row(l)}   width {string.Join(" ", lw)}");
-        Assert.True(n[4] > n[0] * 1.5, $"the control did not reproduce the complaint: {Row(n)}");
+        // The control: 1.41x at the shipped edge pull, 1.8x without it.
+        Assert.True(n[4] > n[0] * 1.3, $"the control did not reproduce the complaint: {Row(n)}");
         Assert.True(l[4] <= l[0] * 1.15, $"the wash still gets heavier along the stroke: {Row(l)}");
         Assert.True(l[2] > 15, $"the wash ran out before its middle: {Row(l)}");
     }
@@ -85,8 +87,9 @@ public class WashRunsDryTests(ITestOutputHelper output)
     /// <summary>
     /// A level hand: the wash starts full, fades, and narrows as the brush
     /// runs out — "pools more and becomes smaller the longer the stroke".
-    /// Measured 59 51 42 34 22 and widths 56 55 48 43 38 at the shipped load on
-    /// Q236's reach; flat at load 1.
+    /// Measured 48 42 36 30 25 and widths 69 70 65 62 58 at the shipped load on
+    /// Q236's reach (the rim B431 pools keeps the width up: 59 → 22 and 56 → 38
+    /// before it); flat at load 1.
     /// </summary>
     [Fact]
     public void AWashAtALevelHandFadesAndNarrowsAsTheBrushRunsOut()
@@ -96,6 +99,6 @@ public class WashRunsDryTests(ITestOutputHelper output)
         output.WriteLine($"level hand: {Row(a)}   width {string.Join(" ", w)}");
         Assert.True(a[4] < a[0] * 0.6, $"the wash did not run dry: {Row(a)}");
         Assert.True(a[4] > 10, $"the wash vanished before its end: {Row(a)}");
-        Assert.True(w[4] < w[0] * 0.85, $"the mark did not narrow as the brush ran out: {string.Join(" ", w)}");
+        Assert.True(w[4] < w[0] * 0.9, $"the mark did not narrow as the brush ran out: {string.Join(" ", w)}");
     }
 }

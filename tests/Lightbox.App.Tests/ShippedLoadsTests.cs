@@ -2,7 +2,6 @@ using Lightbox.App.Services;
 using Lightbox.Core.Documents;
 using Lightbox.Raster;
 using SkiaSharp;
-using Xunit.Abstractions;
 
 namespace Lightbox.App.Tests;
 
