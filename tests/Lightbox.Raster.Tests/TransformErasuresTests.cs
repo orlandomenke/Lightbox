@@ -209,4 +209,81 @@ public class TransformErasuresTests(ITestOutputHelper output)
 
         Assert.Equal([0, 1], moving);
     }
+
+    /// <summary>
+    /// B432: a region strictly inside a fill reaches it. A fill's points are
+    /// its outline, so a walk along them never enters a region drawn inside the
+    /// colour — and the region plainly holds colour.
+    /// </summary>
+    [Fact]
+    public void ARegionInsideAFillReachesIt()
+    {
+        var fill = new Stroke
+        {
+            Tool = ToolKind.Fill,
+            Color = "#e0b080",
+            Brush = new BrushSettings { Opacity = 1, AntiAlias = false },
+            Points = [new(10, 10, 1), new(90, 10, 1), new(90, 90, 1), new(10, 90, 1)],
+        };
+        const int w = 100, h = 100;
+        var mask = new bool[w * h];
+        for (var y = 40; y < 60; y++) for (var x = 40; x < 60; x++) mask[(y * w) + x] = true;
+
+        var moving = TransformErasures.MovingWithin([fill], mask, w, h);
+        var reading = new TransformErasures.RegionReading([fill], mask, w, h);
+        output.WriteLine($"moving: {moving.Count}; crosses: {reading.Crosses(fill)}");
+        Assert.Single(moving);
+        // Colour inside the region and colour outside it: cut at the edge (Q233).
+        Assert.True(reading.Crosses(fill));
+    }
+
+    /// <summary>
+    /// The half of the rule that keeps the one above honest: a region beside a
+    /// line, close enough that a generous reading would take it, does not reach
+    /// a line whose ink stops short of it.
+    /// </summary>
+    [Fact]
+    public void ARegionClearOfTheInkDoesNotReachIt()
+    {
+        var line = Line(10, 50, 90, 50);   // size 10: ink from y 45 to 55
+        const int w = 100, h = 100;
+        var mask = new bool[w * h];
+        for (var y = 60; y < 80; y++) for (var x = 10; x < 90; x++) mask[(y * w) + x] = true;
+
+        Assert.Empty(TransformErasures.MovingWithin([line], mask, w, h));
+    }
+
+    /// <summary>
+    /// A line whose ink overlaps the region while its centre stays outside it
+    /// is reached, and cut: the overlapping band moves, the rest stays.
+    /// </summary>
+    [Fact]
+    public void ARegionOverlappingALinesInkButNotItsCentreReachesIt()
+    {
+        var line = Line(10, 50, 90, 50);   // ink from y 45 to 55, centre at 50
+        const int w = 100, h = 100;
+        var mask = new bool[w * h];
+        for (var y = 52; y < 80; y++) for (var x = 10; x < 90; x++) mask[(y * w) + x] = true;
+
+        var reading = new TransformErasures.RegionReading([line], mask, w, h);
+        Assert.Single(TransformErasures.MovingWithin([line], mask, w, h));
+        Assert.True(reading.Crosses(line));
+    }
+
+    /// <summary>
+    /// A light pencil line is ink, not fringe: the bar for counting a pixel
+    /// scales with the stroke's opacity, or a 15% line overlapping a region
+    /// beside its centre would never be found.
+    /// </summary>
+    [Fact]
+    public void AFaintLineOverlappingTheRegionIsStillFound()
+    {
+        var line = Line(10, 50, 90, 50);
+        line.Brush.Opacity = 0.15;
+        const int w = 100, h = 100;
+        var mask = new bool[w * h];
+        for (var y = 52; y < 80; y++) for (var x = 10; x < 90; x++) mask[(y * w) + x] = true;
+
+        Assert.Single(TransformErasures.MovingWithin([line], mask, w, h));
+    }
 }
