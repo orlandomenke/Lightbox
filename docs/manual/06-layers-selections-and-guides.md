@@ -971,6 +971,12 @@ exactly where it was. It works with any of the selection shapes, and however
 little of a drawing you take: a marquee over one corner of one line moves that
 corner.
 
+**Pixels move too.** A layer that is pixels rather than strokes — an imported
+image, a PSD layer, or a layer a merge had to flatten — moves the same way: the
+pixels inside the selection go, the rest stay, cut at the selection's edge.
+Ctrl+T, the Move tool and every transform mode (perspective, bands, the cage)
+treat them alike, and a layer holding both pixels and strokes moves both.
+
 **The line is not cut in two to do it**, which is the same answer copying a
 region gives and for the same reason. The record still holds one line, carrying
 your selection as its clip, so nothing about the mark itself changes — a brush
