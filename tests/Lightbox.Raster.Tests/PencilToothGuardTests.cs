@@ -77,7 +77,10 @@ public class PencilToothGuardTests(ITestOutputHelper output)
         Assert.False(BrushEngine.LiveTipWouldDivergeTooFar(brush), "a capped-in-place brush must show its mark live");
         var ungated = Textured(10, gate: null).Brush;
         Assert.False(BrushEngine.NeedsToothCeiling(ungated));
-        Assert.True(BrushEngine.LiveTipWouldDivergeTooFar(ungated), "the ungated paper keeps Q168's route");
+        // Phase 2 of the paint path: an ungated paper is a stencil applied to
+        // the band under the pen, so it too shows its own mark while drawing.
+        Assert.True(BrushEngine.NeedsBandFinish(ungated), "the ungated paper is not finished under the pen");
+        Assert.False(BrushEngine.LiveTipWouldDivergeTooFar(ungated), "a brush finished in place must show its mark live");
     }
 
     private static SKBitmap Copy(SKBitmap src, SKRectI r)

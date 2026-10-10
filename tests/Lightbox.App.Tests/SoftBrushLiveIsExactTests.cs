@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
+using Lightbox.Core.Documents;
 using Lightbox.Raster;
 
 namespace Lightbox.App.Tests;
@@ -95,22 +96,21 @@ public class SoftBrushLiveIsExactTests(ITestOutputHelper output) : BrushStateIso
     /// one, so a zero above cannot be the runner never being reached.
     /// </summary>
     [AvaloniaFact]
-    public void AGranulatedBrushStillQueuesThePass()
+    public void ASimulatedMediumStillQueuesThePass()
     {
         var (vm, passes) = Ready("Pencil");
-        // Granulation until 2026-10-09, a paper texture since — and since B437
-        // the shipped pencil's paper is a ceiling applied in place, with no pass
-        // at all. The control this needs is a brush whose texture IS a pass:
-        // the same paper with its pressure gate off.
-        vm.BrushTexturePressure = 0;
+        // The control is whatever still has a pass. That was granulation until
+        // 2026-10-09, an ungated paper until the paint path's phase 2 moved
+        // grain, paper and wet edge under the pen, and is now a simulated
+        // medium alone — until phase 4 deletes the pass and this test with it.
+        vm.BrushMedium = MediumKind.Watercolour;
         Assert.True(
-            vm.CurrentToolSettingsForTest.TextureSurface is not null
-            && !BrushEngine.NeedsToothCeiling(vm.CurrentToolSettingsForTest),
-            "the control must carry an ungated paper, or it queues no pass by design");
+            vm.CurrentToolSettingsForTest.Medium.Kind != MediumKind.None,
+            "the control must carry a simulated medium, or it queues no pass by design");
 
         Draw(vm);
 
         output.WriteLine($"Pencil queued {passes[0]} live post-process pass(es)");
-        Assert.True(passes[0] > 0, "the granulated brush queued no pass at all");
+        Assert.True(passes[0] > 0, "the simulated medium queued no pass at all");
     }
 }

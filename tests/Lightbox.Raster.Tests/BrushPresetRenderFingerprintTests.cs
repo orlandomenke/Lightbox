@@ -121,10 +121,17 @@ public class BrushPresetRenderFingerprintTests(ITestOutputHelper output)
     // translation-invariant, so every shape moved by a level on a scattering
     // of edge pixels and nowhere else — the dabs under all four are the same
     // dabs, which is why they move together once more.
+    // Re-recorded 2026-10-10, the two with a wet edge: the wet edge is no
+    // longer a blur of the whole mark subtracted from itself after the dabs,
+    // it is the rim of the ceiling, read off the distance to the edge of the
+    // mark's support and laid under the pen (docs/DESIGN-paint-path.md, phase
+    // 2). A new formulation of the same look, so these two move and the two
+    // without a wet edge do not - which is the evidence that grain, now also
+    // laid by the band finish, is the same grain to the byte.
     [InlineData("plain", 0, 0, "9BCFD3D92A8A3F92")]
     [InlineData("granulation", 0.35, 0, "7BC9E543177AD6E5")]
-    [InlineData("wet edge", 0, 0.7, "CF71F2A6317C2C91")]
-    [InlineData("both", 0.35, 0.7, "FD65DC24ACCEA513")]
+    [InlineData("wet edge", 0, 0.7, "B198EB0DF8F929A9")]
+    [InlineData("both", 0.35, 0.7, "CC0C7F32911B08E3")]
     public void AShapeStillRendersWhatItDidBefore(
         string name, double granulation, double wetEdge, string expected)
     {

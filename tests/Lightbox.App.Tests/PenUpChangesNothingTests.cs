@@ -28,6 +28,8 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
     private static readonly HashSet<string> Exact =
     [
         "builtin-ink", "builtin-soft-round", "builtin-airbrush", "builtin-pencil",
+        // Phase 2: wet edge, grain and paper land under the pen for the flats.
+        "builtin-watercolor", "builtin-gouache", "builtin-oil-flat",
     ];
 
     public static IEnumerable<object[]> Shipped() =>
@@ -114,6 +116,18 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
         // And what the artist is left looking at: the frame the commit wrote.
         var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
         var keptGap = Compare(kept, replay);
+        if (keptGap.Differing > 0)
+        {
+            var ka = kept.GetPixelSpan(); var kb = replay.GetPixelSpan(); var n = 0; var at = new List<string>();
+            for (var i = 0; i < ka.Length && n < 8; i += 4)
+            {
+                if (ka[i] == kb[i] && ka[i + 1] == kb[i + 1] && ka[i + 2] == kb[i + 2] && ka[i + 3] == kb[i + 3]) continue;
+                var px = i / 4;
+                at.Add($"({px % kept.Width},{px / kept.Width}) kept {ka[i]},{ka[i + 1]},{ka[i + 2]},{ka[i + 3]} record {kb[i]},{kb[i + 1]},{kb[i + 2]},{kb[i + 3]}");
+                n++;
+            }
+            output.WriteLine($"PENUP   {preset.Name} kept≠record at: {string.Join("; ", at)}");
+        }
         Assert.True(keptGap.Differing == 0,
             $"{preset.Name}: the committed frame is not what its record renders ({keptGap.Differing} pixels, worst {keptGap.Worst}) — invariant 1");
 

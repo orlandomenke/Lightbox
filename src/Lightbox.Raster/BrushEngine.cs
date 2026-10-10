@@ -636,9 +636,20 @@ public static class BrushEngine
         var capCanvas = !needsCap ? null : capPlane.Canvas ?? footprint!.Canvas;
         if (plane is not null)
         {
+            // The window is cleared under a clip and the dabs are then drawn
+            // WITHOUT one. A dab that follows the stroke is an oval under a
+            // rotation, which Skia fills as a path, and its antialiased edge
+            // is not the same arithmetic under a clip as without one - even a
+            // clip the dab lies wholly inside. The live scratch has no clip,
+            // so with one here Oil (flat) replayed a level away from the mark
+            // the pen made on a handful of pixels (PenUpChangesNothingTests).
+            // What a dab spills outside the window is never read: every use
+            // clears its own window first and copies only that window out.
             dabCanvas.Save();
             dabCanvas.ClipRect(dev);
             dabCanvas.Clear(SKColors.Transparent);
+            dabCanvas.Restore();
+            dabCanvas.Save();
             if (capPlane.Bitmap is { } capBuffer)
             {
                 // Everything the cap can read: the stroke's window at the
@@ -653,6 +664,8 @@ public static class BrushEngine
                 capCanvas!.Save();
                 capCanvas.ClipRect(capRect);
                 capCanvas.Clear(SKColors.Black);
+                capCanvas.Restore();
+                capCanvas.Save();
             }
         }
 
@@ -722,10 +735,7 @@ public static class BrushEngine
                     // The live path's own call, on the same two buffers in the
                     // same frame of reference: the cap in place, in document
                     // coordinates.
-                    dabCanvas.Flush();
                     capCanvas.Flush();
-                    CapToFootprintBand(
-                        plane.Ink, capPlane.Bitmap!, dev, new FootprintSpace(ceilingScale, 0, 0), reach);
                 }
                 else
                 {
@@ -733,16 +743,28 @@ public static class BrushEngine
                     using var capPix = footprint.PeekPixels();
                     if (capPix is not null)
                     {
-                        CapToFootprint(scratch, capPix, local, new FootprintSpace(ceilingScale, 0, 0), reach);
+                        CapToFootprint(
+                            scratch, capPix, local, new FootprintSpace(ceilingScale, 0, 0), reach,
+                            RimOf(brush, outputScale * ceilingScale));
                     }
                 }
+            }
+
+            if (plane is not null && NeedsBandFinish(brush))
+            {
+                // The finish, by the live path's own call on the same buffers in
+                // the same frame of reference: the ceiling and its rim, the
+                // grain, the paper — in place, in document coordinates
+                // (docs/DESIGN-paint-path.md, "Every effect is dab-final").
+                dabCanvas.Flush();
+                FinishBand(plane.Ink, needsCap ? capPlane.Bitmap : null, dev, brush, ceilingScale);
             }
 
             // The medium replaces the flat texture effects: wet edge and
             // granulation are the cheap stand-ins for what the simulation
             // actually computes, so running both would double the rim and the
             // grain.
-            if (brush.Medium.Kind == MediumKind.None && !HasTexture(brush) && brush.Granulation > 0)
+            if (plane is null && brush.Medium.Kind == MediumKind.None && !HasTexture(brush) && brush.Granulation > 0)
             {
                 // `rect` is THIS COPY's rectangle and the canvas still carries
                 // the copy's transform, so handing it to a draw call transforms
@@ -778,10 +800,10 @@ public static class BrushEngine
         }
         else
         {
-            if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, outputScale);
-            // A tooth ceiling is applied with the footprint above; the pass is
-            // for the ungated texture, which multiplies once at pen-lift.
-            if (HasTexture(brush) && !NeedsToothCeiling(brush)) ApplyTexture(canvas, brush, rect, local);
+            // The wet edge is the ceiling's rim and a tooth is the ceiling
+            // itself, both applied with the footprint above; an ungated paper
+            // was laid by FinishBand when there was a plane.
+            if (plane is null && HasTexture(brush) && !NeedsToothCeiling(brush)) ApplyTexture(canvas, brush, rect, local);
         }
         ApplyClip(canvas, stroke, local, dev, outputScale, origin);
         ApplyAlphaLock(canvas, stroke, targetPixels, dev);
@@ -934,7 +956,9 @@ public static class BrushEngine
                 if (carried is not null)
                 {
                     var space = footprintSpace ?? FootprintSpace.Document;
-                    CapToFootprint(scratch, carried, local, space, CeilingReachPx(brush, space.Scale));
+                    CapToFootprint(
+                        scratch, carried, local, space, CeilingReachPx(brush, space.Scale),
+                        RimOf(brush, space.Scale));
                 }
             }
             else
@@ -946,7 +970,14 @@ public static class BrushEngine
                     footprint.Canvas.Clear(SKColors.Black);
                     InDocumentSpace(footprint.Canvas, surface, 1.0, origin, () =>
                         StampFootprintPass(footprint.Canvas, stroke));
-                    CapToFootprint(scratch, footprint, local, CeilingReachPx(brush, 1.0));
+                    footprint.Canvas.Flush();
+                    using var rebuilt = footprint.PeekPixels();
+                    if (rebuilt is not null)
+                    {
+                        CapToFootprint(
+                            scratch, rebuilt, local, FootprintSpace.Document, CeilingReachPx(brush, 1.0),
+                            RimOf(brush, 1.0));
+                    }
                 }
             }
         }
@@ -965,7 +996,6 @@ public static class BrushEngine
         }
         else
         {
-            if (brush.WetEdge > 0) ApplyWetEdge(scratch, canvas, brush, local, 1.0);
             if (HasTexture(brush) && !NeedsToothCeiling(brush)) ApplyTexture(canvas, brush, rect, local);
         }
 
@@ -1033,9 +1063,6 @@ public static class BrushEngine
             && brush.Kind == BrushKind.Paint
             && brush.Medium.Kind == MediumKind.None
             && brush.Mixing is null
-            && brush.WetEdge <= 0
-            && brush.Granulation <= 0
-            && (!HasTexture(brush) || NeedsToothCeiling(brush))
             && stroke.ClipId is null
             && !stroke.AlphaLocked
             && stroke.Points.Count > 0
@@ -1841,6 +1868,11 @@ public static class BrushEngine
         && brush.SaturationJitter <= 0
         && brush.BrightnessJitter <= 0
         && brush.Mixing is null
+        // A wet edge is measured from the footprint of the dabs, which a
+        // silhouette never lays; and a grain or a paper is laid by the band
+        // finish, which the silhouette's own route does not pass through.
+        && !(brush.Medium.Kind == MediumKind.None
+             && (brush.WetEdge > 0 || HasGrain(brush) || HasUngatedPaper(brush)))
         && Math.Clamp(brush.Medium.PaintLoad, 0, 1) >= 1;
 
     /// <summary>
@@ -2017,6 +2049,7 @@ public static class BrushEngine
     /// </remarks>
     public static bool NeedsFootprintCap(BrushSettings brush) =>
         NeedsToothCeiling(brush)
+        || NeedsRim(brush)
         || (brush.AntiAlias
             && brush.TipId is null
             && brush.Medium.Kind == MediumKind.None
@@ -2036,6 +2069,72 @@ public static class BrushEngine
     /// the dabs and published late; at 300 px it put the mark on screen 2.9 s
     /// behind the pen.
     /// </summary>
+    /// <summary>
+    /// Does this brush darken its own edge — the wet edge? Then it keeps a
+    /// footprint whatever its tip or hardness, because the rim is measured from
+    /// the edge of everything its dabs reached, and the cap that already runs
+    /// under the pen lays it (<see cref="Rim"/>). It used to be a pass over the
+    /// whole mark, blurred and subtracted from itself, that ran behind the pen
+    /// and again at pen-lift.
+    /// </summary>
+    public static bool NeedsRim(BrushSettings brush) =>
+        brush.Medium.Kind == MediumKind.None && brush.WetEdge > 0 && !NeedsToothCeiling(brush);
+
+    /// <summary>
+    /// Whether a mark of this brush has something laid over its dabs before it
+    /// is the mark: a ceiling or its rim, a flat grain, an ungated paper. All of
+    /// it is a function of the pixel and of the footprint, so all of it is
+    /// applied in place on the band a pointer event changed
+    /// (<see cref="FinishBand"/>) — under the pen, by the same call a replay
+    /// makes. A medium is the one finish that is not, and is not here.
+    /// </summary>
+    public static bool NeedsBandFinish(BrushSettings brush) =>
+        brush.Medium.Kind == MediumKind.None
+        && (NeedsFootprintCap(brush) || HasGrain(brush) || HasUngatedPaper(brush));
+
+    private static bool HasGrain(BrushSettings brush) => !HasTexture(brush) && brush.Granulation > 0;
+
+    private static bool HasUngatedPaper(BrushSettings brush) =>
+        HasTexture(brush) && brush.TextureDepth > 0 && !NeedsToothCeiling(brush);
+
+    /// <summary>
+    /// Finish a band of a mark in place: cap it to its footprint and lay the
+    /// rim, then the grain, then the paper. The one call both the live path and
+    /// a replay make, on document-sized buffers in document coordinates, which
+    /// is what makes the live mark the replay to the byte.
+    /// </summary>
+    /// <param name="mark">The dabs, document-sized, premultiplied; finished in place.</param>
+    /// <param name="footprint">The brush's footprint buffer at <paramref name="ceilingScale"/>, or null when it keeps none.</param>
+    public static void FinishBand(
+        SKBitmap mark, SKBitmap? footprint, SKRectI band, BrushSettings brush, double ceilingScale)
+    {
+        band = SKRectI.Intersect(band, new SKRectI(0, 0, mark.Width, mark.Height));
+        if (band.Width <= 0 || band.Height <= 0) return;
+
+        if (footprint is not null && NeedsFootprintCap(brush))
+        {
+            CapToFootprintBand(
+                mark, footprint, band, new FootprintSpace(ceilingScale, 0, 0),
+                CeilingReachPx(brush, ceilingScale), RimOf(brush, ceilingScale));
+        }
+
+        var grain = brush.Medium.Kind == MediumKind.None && HasGrain(brush);
+        var paper = brush.Medium.Kind == MediumKind.None && HasUngatedPaper(brush);
+        if (!grain && !paper) return;
+
+        using var canvas = new SKCanvas(mark);
+        canvas.ClipRect(band);
+        if (grain) ApplyGranulation(canvas, brush, band);
+        if (paper)
+        {
+            canvas.Translate(band.Left, band.Top);
+            ApplyTexture(
+                canvas, brush, band,
+                new SKImageInfo(band.Width, band.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        }
+        canvas.Flush();
+    }
+
     public static bool NeedsToothCeiling(BrushSettings brush) =>
         brush.Medium.Kind == MediumKind.None
         && HasTexture(brush) && brush.TextureDepth > 0 && (brush.TexturePressure ?? 0) > 0;
@@ -2224,7 +2323,12 @@ public static class BrushEngine
     /// passes (B349, docs/DESIGN-swept-ceiling.md).
     /// </param>
     public static void CapToFootprintBand(
-        SKBitmap mark, SKBitmap footprint, SKRectI band, FootprintSpace space, int reachPx)
+        SKBitmap mark, SKBitmap footprint, SKRectI band, FootprintSpace space, int reachPx) =>
+        CapToFootprintBand(mark, footprint, band, space, reachPx, default);
+
+    /// <inheritdoc cref="CapToFootprintBand(SKBitmap, SKBitmap, SKRectI, FootprintSpace, int)"/>
+    public static void CapToFootprintBand(
+        SKBitmap mark, SKBitmap footprint, SKRectI band, FootprintSpace space, int reachPx, Rim rim)
     {
         band = SKRectI.Intersect(band, new SKRectI(0, 0, mark.Width, mark.Height));
         // Only when the two index the same pixels. A scaled footprint is
@@ -2244,8 +2348,33 @@ public static class BrushEngine
         CapCore(
             markPix.GetPixelSpan<byte>(), markPix.RowBytes, band,
             capPix.GetPixelSpan<byte>(), capPix.RowBytes, capPix.Width, capPix.Height,
-            space, reachPx);
+            space, reachPx, rim);
     }
+
+    /// <summary>
+    /// The wet edge, as the cap applies it: how dark, and how far in from the
+    /// mark's edge, in the footprint buffer's own pixels.
+    /// </summary>
+    /// <param name="Strength">0..1: the most a pixel's colour is darkened, right at the edge.</param>
+    /// <param name="WidthPx">How far inside the edge the darkening reaches. Zero is no rim.</param>
+    public readonly record struct Rim(float Strength, float WidthPx);
+
+    /// <summary>The rim a brush asks for, in a footprint buffer at this scale; default when it asks for none.</summary>
+    public static Rim RimOf(BrushSettings brush, double bufferScale) =>
+        NeedsRim(brush)
+            ? new Rim(
+                (float)(Math.Clamp(brush.WetEdge, 0, 1) * 150.0 / 255.0),
+                (float)Math.Max(0.5, RimWidth(brush) * bufferScale))
+            : default;
+
+    /// <summary>
+    /// The side of a square the cap works through at a time when it has to look
+    /// across a reach. Bounded, so the distance transform under it is over a
+    /// bounded window whatever the band — which is what lets it be exact at
+    /// every pixel instead of coarser on a larger band, and therefore the same
+    /// answer for a band a pointer event changed as for a whole stroke replayed.
+    /// </summary>
+    private const int CapChunk = 384;
 
     /// <summary>
     /// The cap itself: every ink pixel in <paramref name="band"/> held down to
@@ -2254,9 +2383,24 @@ public static class BrushEngine
     private static void CapCore(
         Span<byte> ink, int inkRow, SKRectI band,
         ReadOnlySpan<byte> cap, int capRow, int capW, int capH,
-        FootprintSpace space, int reachPx)
+        FootprintSpace space, int reachPx, Rim rim = default)
     {
+        if (reachPx > 0 && (band.Width > CapChunk || band.Height > CapChunk))
+        {
+            for (var top = band.Top; top < band.Bottom; top += CapChunk)
+            {
+                for (var left = band.Left; left < band.Right; left += CapChunk)
+                {
+                    var tile = new SKRectI(
+                        left, top, Math.Min(band.Right, left + CapChunk), Math.Min(band.Bottom, top + CapChunk));
+                    CapCore(ink, inkRow, tile, cap, capRow, capW, capH, space, reachPx, rim);
+                }
+            }
+            return;
+        }
+
         var direct = space.IsDocument;
+        byte[]? rimWindow = null;
 
         // With a reach, the ceiling over the band's footprint window is built
         // once — shape maximum and distance term together — and read from
@@ -2275,7 +2419,10 @@ public static class BrushEngine
                     (int)Math.Ceiling((band.Bottom * space.Scale) + space.OffsetY) + 1);
             win.Inflate(reachPx, reachPx);
             win = SKRectI.Intersect(win, new SKRectI(0, 0, capW, capH));
-            if (win.Width > 0 && win.Height > 0) window = SweptCeilingOver(cap, capRow, win, reachPx);
+            if (win.Width > 0 && win.Height > 0)
+            {
+                window = SweptCeilingOver(cap, capRow, win, reachPx, rim.WidthPx, out rimWindow);
+            }
         }
 
         for (var y = band.Top; y < band.Bottom; y++)
@@ -2305,13 +2452,30 @@ public static class BrushEngine
                 {
                     ceiling = space.CeilingAt(window, win, x, y);
                 }
-                if (alpha <= ceiling) continue;
+                if (alpha > ceiling)
+                {
+                    var scale = ceiling / (float)alpha;
+                    ink[i] = (byte)(ink[i] * scale);
+                    ink[i + 1] = (byte)(ink[i + 1] * scale);
+                    ink[i + 2] = (byte)(ink[i + 2] * scale);
+                    ink[i + 3] = ceiling;
+                    alpha = ceiling;
+                }
 
-                var scale = ceiling / (float)alpha;
-                ink[i] = (byte)(ink[i] * scale);
-                ink[i + 1] = (byte)(ink[i + 1] * scale);
-                ink[i + 2] = (byte)(ink[i + 2] * scale);
-                ink[i + 3] = ceiling;
+                // The wet edge: pigment pooled where the wash stops. Darker
+                // toward the mark's edge, by how far inside it this pixel sits,
+                // and weighted by how much paint is there at all so the faint
+                // skirt of a soft brush does not turn into a dark halo. Colour
+                // only — this is paint that moved, not more of it.
+                if (rimWindow is null || alpha == 0) continue;
+                var edge = direct
+                    ? rimWindow[((y - win.Top) * win.Width) + (x - win.Left)]
+                    : space.CeilingAt(rimWindow, win, x, y);
+                if (edge == 0) continue;
+                var keep = 1f - (rim.Strength * (edge / 255f) * MathF.Min(1f, alpha * (4f / 255f)));
+                ink[i] = (byte)((ink[i] * keep) + 0.5f);
+                ink[i + 1] = (byte)((ink[i + 1] * keep) + 0.5f);
+                ink[i + 2] = (byte)((ink[i + 2] * keep) + 0.5f);
             }
         }
     }
@@ -2353,15 +2517,36 @@ public static class BrushEngine
     /// of the mask, the same cells for the same dabs.
     /// </para>
     /// </remarks>
-    internal static byte[] SweptCeilingOver(ReadOnlySpan<byte> cap, int capRow, SKRectI win, int reachPx)
+    internal static byte[] SweptCeilingOver(ReadOnlySpan<byte> cap, int capRow, SKRectI win, int reachPx) =>
+        SweptCeilingOver(cap, capRow, win, reachPx, 0f, out _);
+
+    /// <summary>
+    /// The same, and with it the wet edge's rim: for each pixel inside the
+    /// mark, how strongly it counts as edge — full at the edge, none a rim's
+    /// width in. Null when no rim was asked for or the window is too small to
+    /// measure one in.
+    /// </summary>
+    /// <remarks>
+    /// Measured from a quarter of the way up the brush's own falloff rather
+    /// than from the outermost pixel a dab can reach, because that is where the
+    /// eye puts the edge of a soft mark: the pass this replaces found its edge
+    /// by saturating the mark's alpha fourfold, which is the same line.
+    /// </remarks>
+    internal static byte[] SweptCeilingOver(
+        ReadOnlySpan<byte> cap, int capRow, SKRectI win, int reachPx, float rimWidth, out byte[]? rim)
     {
+        rim = null;
         int w = win.Width, h = win.Height;
         var ceiling = new byte[w * h];
 
         // The coarse step: 1 for anything a live band produces, larger only
         // for a whole-canvas commit window.
         var step = 1;
-        while ((long)(w / step) * (h / step) > CoarseEdtAbove) step++;
+        // Always the exact transform. It used to coarsen itself on a window
+        // over CoarseEdtAbove cells, which made the answer depend on how big a
+        // band it was asked about; the cap works through bounded chunks now
+        // (CapChunk), so the window is bounded and a band reads the same
+        // ceiling a whole mark does.
 
         // A step past a quarter of the reach would put the coarse bias past
         // the brush's own falloff, and the term would never bind. That is a
@@ -2410,6 +2595,7 @@ public static class BrushEngine
             // A pixel off for the rasterised edge, and the whole coarse step
             // on top when the field was measured coarsely.
             var bias = step == 1 ? 1f : step * 1.5f;
+            if (rimWidth > 0f) rim = new byte[w * h];
             for (var y = 0; y < h; y++)
             {
                 var row = (win.Top + y) * capRow;
@@ -2420,13 +2606,19 @@ public static class BrushEngine
                     var red = cap[o];
                     var width = cap[o + 2];
                     var term = 0;
-                    if (width > 0)
+                    if (width > 0 || rim is not null)
                     {
                         var d2 = f[(cy * gw) + Math.Min(cw - 1, x / step) + 1];
                         if (d2 > 0f)
                         {
                             var d = (MathF.Sqrt(d2) * step) - bias;
-                            if (d > 0f) term = (int)MathF.Min(255f, (255f * d) / width);
+                            if (width > 0 && d > 0f) term = (int)MathF.Min(255f, (255f * d) / width);
+                            if (rim is not null)
+                            {
+                                var t = Math.Clamp((MathF.Max(d, 0f) - (0.25f * width)) / rimWidth, 0f, 1f);
+                                var eased = t * t * (3f - (2f * t));
+                                rim[(y * w) + x] = (byte)(((1f - eased) * 255f) + 0.5f);
+                            }
                         }
                     }
                     ceiling[(y * w) + x] = (byte)Math.Max(red, term);
@@ -2548,7 +2740,8 @@ public static class BrushEngine
 
     /// <inheritdoc cref="CapToFootprint(SKSurface, SKPixmap, SKImageInfo)"/>
     internal static void CapToFootprint(
-        SKSurface scratch, SKPixmap capPix, SKImageInfo local, FootprintSpace space, int reachPx = 0)
+        SKSurface scratch, SKPixmap capPix, SKImageInfo local, FootprintSpace space, int reachPx = 0,
+        Rim rim = default)
     {
         scratch.Canvas.Flush();
 
@@ -2572,7 +2765,7 @@ public static class BrushEngine
             markPix.GetPixelSpan<byte>(), markPix.RowBytes,
             new SKRectI(0, 0, local.Width, local.Height),
             capPix.GetPixelSpan<byte>(), capPix.RowBytes, capPix.Width, capPix.Height,
-            space, reachPx);
+            space, reachPx, rim);
     }
 
     /// <summary>
@@ -3713,6 +3906,18 @@ public static class BrushEngine
                 // enough for a gate whose grain is the paper's, not the tip's.
                 StampTooth(footprint, pos, radius, HardnessAt(brush, pressure), (float)rotation, (float)roundness, brush, PressFor(brush, pressure));
             }
+            else if (footprint is not null)
+            {
+                // A tip's own picture is its edge: the footprint is its bounding
+                // disc, hard, so the cap leaves the tip alone and the rim has a
+                // support to measure from.
+                footprint.Save();
+                footprint.Translate(pos.X, pos.Y);
+                footprint.RotateDegrees((float)rotation);
+                footprint.Scale(1f, (float)roundness);
+                StampFootprint(footprint, SKPoint.Empty, radius, 1f, brush.AntiAlias);
+                footprint.Restore();
+            }
             return;
         }
 
@@ -4080,6 +4285,14 @@ public static class BrushEngine
         if (NeedsToothCeiling(brush)) return 1.0;
         var edge = (1 - Math.Clamp(brush.Hardness, 0, 1)) * RadiusAt(brush, 1);
         var coarser = (int)Math.Floor(edge / CeilingSamplesAcrossTheEdge);
+        // A wet edge's rim is narrower than the soft edge on most brushes, and
+        // wants six samples across it; a hard brush has no soft edge at all and
+        // the rim alone decides.
+        if (NeedsRim(brush))
+        {
+            var rim = (int)Math.Floor(RimWidth(brush) / 6.0);
+            coarser = edge <= 0 ? rim : Math.Min(coarser, rim);
+        }
         return 1.0 / Math.Clamp(coarser, 1, 8);
     }
 
@@ -4128,79 +4341,6 @@ public static class BrushEngine
         if (satJitter > 0) sat = (float)Math.Clamp(sat * (1 + (Hash01(pos.X, pos.Y, 23) - 0.5) * 2 * satJitter), 0, 100);
         if (valJitter > 0) val = (float)Math.Clamp(val * (1 + (Hash01(pos.X, pos.Y, 24) - 0.5) * 2 * valJitter), 0, 100);
         return SKColor.FromHsv(h, sat, val, color.Alpha);
-    }
-
-    /// <summary>
-    /// Darkened rim where paint pools at the stroke's edge (watercolor look).
-    /// Operates on a stroke-bounded scratch: the rim surface matches the
-    /// scratch's local size, and the result composites back at the scratch's
-    /// document offset.
-    /// </summary>
-    private static void ApplyWetEdge(
-        SKSurface scratch, SKCanvas canvas, BrushSettings brush, SKImageInfo local, double outputScale)
-    {
-        using var img = scratch.Snapshot();
-        // Rim width, in pixels, capped so a huge brush does not imply a huge
-        // band: past a few dozen pixels it stops reading as a wet edge anyway.
-        // The cap is a document width, so the rim keeps the same physical size
-        // when the render scale goes up.
-        var width = (float)(RimWidth(brush) * outputScale);
-        // Written into below, from the mask — nothing is drawn here first. It
-        // used to receive the raw stroke image on creation, a full-region draw
-        // the Clear before the carve then threw away entirely (B177).
-        using var rim = SKSurface.Create(local);
-        if (rim is null) return;
-
-        // Shrink the stroke and subtract it, leaving the outline. Skia's erode
-        // does this exactly but costs O(area x radius) — 10.6 s for a 500 px
-        // brush on a 4K stroke, which is the whole pen-lift stall. Its blur is
-        // a three-pass box filter whose cost barely moves with radius, so blur
-        // and then push the alpha back toward solid: the soft edge contracts
-        // instead of merely fading, which is the same rim ~50x cheaper.
-        // Work from a saturated silhouette rather than the stroke's own alpha.
-        // A stroke laid down at flow 0.7 is translucent everywhere, and any
-        // test that treats "alpha below 1" as "near the edge" then darkens the
-        // whole mark instead of its outline.
-        using var mask = SKSurface.Create(local);
-        if (mask is null) return;
-        for (var i = 0; i < 4; i++) mask.Canvas.DrawImage(img, 0, 0);
-        using var maskImg = mask.Snapshot();
-
-        // Contract the silhouette: blur it, then raise it to the fourth power
-        // so the solid core survives and the feathered skirt collapses. That
-        // is an erode in all but name, and unlike Skia's — which is
-        // O(area x radius) and cost 10.6 s on a 500 px brush at 4K — a blur is
-        // a three-pass box filter whose cost barely moves with radius.
-        using var shrunk = SKSurface.Create(local);
-        if (shrunk is null) return;
-        using (var blur = SKImageFilter.CreateBlur(width * 0.7f, width * 0.7f))
-        using (var soften = new SKPaint { ImageFilter = blur })
-        {
-            shrunk.Canvas.DrawImage(maskImg, 0, 0, soften);
-        }
-        using (var softImg = shrunk.Snapshot())
-        using (var multiply = new SKPaint { BlendMode = SKBlendMode.DstIn })
-        {
-            for (var i = 0; i < 3; i++) shrunk.Canvas.DrawImage(softImg, 0, 0, multiply);
-        }
-
-        // rim = silhouette minus its contracted self, kept inside the stroke.
-        rim.Canvas.Clear(SKColors.Transparent);
-        rim.Canvas.DrawImage(maskImg, 0, 0);
-        using (var contracted = shrunk.Snapshot())
-        using (var carve = new SKPaint { BlendMode = SKBlendMode.DstOut })
-        {
-            rim.Canvas.DrawImage(contracted, 0, 0, carve);
-        }
-        using var rimImg = rim.Snapshot();
-        using var darken = new SKPaint
-        {
-            ColorFilter = SKColorFilter.CreateBlendMode(
-                SKColors.Black.WithAlpha((byte)Math.Round(Math.Clamp(brush.WetEdge, 0, 1) * 150)),
-                SKBlendMode.SrcIn),
-            BlendMode = SKBlendMode.SrcATop, // only darken where the stroke has paint
-        };
-        canvas.DrawImage(rimImg, 0, 0, darken);
     }
 
     /// <summary>
@@ -4273,10 +4413,11 @@ public static class BrushEngine
     /// compare after the pass had landed.
     /// </remarks>
     public static bool LiveTipWouldDivergeTooFar(BrushSettings brush) =>
-        // A tooth ceiling is applied in place per event, so its live mark is
-        // the mark; it is the ungated texture, a pass at pen-lift, that Q168
-        // keeps off the raw tip.
-        brush.Medium.Kind != MediumKind.None || (HasTexture(brush) && !NeedsToothCeiling(brush));
+        // Only a medium still has a pass behind the pen. Every other finish —
+        // the ceiling, its rim, the grain, the paper — is applied in place per
+        // event (FinishBand), so the live mark is the mark and there is no raw
+        // tip to diverge.
+        brush.Medium.Kind != MediumKind.None;
 
     /// <summary>
     /// An imported texture, tiled in <em>document</em> coordinates.

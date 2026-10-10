@@ -13,11 +13,16 @@ public enum BrushCost
     Fast,
 
     /// <summary>
-    /// Stamps dabs and then finishes the mark: a wet edge or granulation pass
-    /// runs over the whole stroke at commit, so drawing stays light and the
-    /// pen-lift pays for the finish.
+    /// Stamps dabs and finishes them as it goes: a wet edge, a grain or a
+    /// paper laid on the band each pointer event touched. More per event than
+    /// a plain brush, and nothing at pen-lift.
     /// </summary>
     /// <remarks>
+    /// <b>The finish moved under the pen on 2026-10-10</b>
+    /// (docs/DESIGN-paint-path.md, phase 2). What follows is why the tier was
+    /// made, and it describes the passes as they were then; the tier stays
+    /// because the finish is still paid for, per event instead of per stroke.
+    /// <para/>
     /// <b>B177 is why this tier exists.</b> The original argument kept texture
     /// off the badge — "per-dab arithmetic on values the engine already has" —
     /// and it was measured wrong: these passes are not per-dab at all, they are
@@ -113,9 +118,9 @@ public static class BrushCostOf
         if (brush.Kind is BrushKind.Smudge or BrushKind.Blur) reasons.Add("reads the canvas back as it goes");
         if (brush.Mixing is not null) reasons.Add("picks up the colour it is laid on");
         if (brush.SampleSource != SampleSource.ThisLayer) reasons.Add("blends the layers underneath");
-        if (brush.WetEdge > 0) reasons.Add("darkens the edges at pen-lift (wet edge)");
-        if (brush.Granulation > 0) reasons.Add("settles pigment into the grain at pen-lift");
-        if (HasPaper(brush)) reasons.Add(brush.TexturePressure > 0 ? "catches graphite on the paper's tooth at pen-lift" : "presses the paper's texture in at pen-lift");
+        if (brush.WetEdge > 0) reasons.Add("darkens its own edge as you draw (wet edge)");
+        if (brush.Granulation > 0) reasons.Add("settles pigment into the grain as you draw");
+        if (HasPaper(brush)) reasons.Add(brush.TexturePressure > 0 ? "catches graphite on the paper's tooth as you draw" : "presses the paper's texture in as you draw");
         return reasons.Count == 0 ? null : string.Join(", ", reasons);
     }
 

@@ -1582,21 +1582,22 @@ public partial class MainViewModel
 
         var brush = stroke.Brush;
         SKBitmap? source;
-        if (BrushEngine.DrawsAsOneSilhouette(brush))
+        if (BrushEngine.NeedsBandFinish(brush))
         {
-            source = _live.Scratch;
-        }
-        else if (BrushEngine.NeedsFootprintCap(brush))
-        {
-            // The cap is applied in place as the pen moves; it has to have seen
-            // every dab, at the document's own scale.
-            if (!CapIsTheWholePass(brush)
-                || _live.CoverageScale != BrushEngine.CeilingScale(brush)
-                || _live.PostStampedDabs != dabs.Count)
+            // The finish is applied in place as the pen moves; it has to have
+            // seen every dab, and a footprint has to be at the scale the record
+            // replays with.
+            if (_live.PostStampedDabs != dabs.Count
+                || (BrushEngine.NeedsFootprintCap(brush)
+                    && (_live.Coverage is null || _live.CoverageScale != BrushEngine.CeilingScale(brush))))
             {
                 return null;
             }
             source = _live.PostScratch;
+        }
+        else if (BrushEngine.DrawsAsOneSilhouette(brush))
+        {
+            source = _live.Scratch;
         }
         else
         {
@@ -1685,13 +1686,11 @@ public partial class MainViewModel
     /// </para>
     /// </remarks>
     private static bool CapIsTheWholePass(BrushSettings brush) =>
-        BrushEngine.NeedsFootprintCap(brush)
-        && brush.Medium.Kind == MediumKind.None
-        && brush.WetEdge <= 0
-        // A tooth ceiling IS the texture, applied by this cap; the ungated
-        // paper is still a pass at pen-lift (B437).
-        && (brush.TextureSurface is null || BrushEngine.NeedsToothCeiling(brush))
-        && brush.Granulation <= 0;
+        // Every finish but a medium's, since the paint path's phase 2: the
+        // ceiling and its rim, the grain and the paper are all applied in
+        // place on the band the event changed (BrushEngine.FinishBand). The
+        // name is from when the ceiling was the only one that was.
+        BrushEngine.NeedsBandFinish(brush);
 
     /// <summary>
     /// Record that this region of the dab scratch has moved, so the next live
@@ -3100,13 +3099,13 @@ public partial class MainViewModel
 
         // For a brush whose only post-process is the ceiling, apply it here and
         // skip the worker entirely (B293).
-        if (carriesFootprint && CapIsTheWholePass(live.Brush) && _live.Scratch is { } inkSource)
+        if (CapIsTheWholePass(live.Brush) && _live.Scratch is { } inkSource)
         {
             var changed = touched;
             if (changed is { } band)
             {
                 _live.EnsurePostScratch(Scene.Width, Scene.Height);
-                if (_live.PostScratch is { } capped && _live.Coverage is { } ceiling)
+                if (_live.PostScratch is { } capped && (!carriesFootprint || _live.Coverage is not null))
                 {
                     // Re-copied from the UNCAPPED scratch rather than capped
                     // again in place: capping is not idempotent across a growing
@@ -3131,13 +3130,26 @@ public partial class MainViewModel
                     // is the swept mark's — flat between passes — and it reads
                     // the support beyond the band straight off the whole-stroke
                     // coverage buffer, which is why no bigger band is needed.
-                    BrushEngine.CapToFootprintBand(
-                        capped, ceiling, band,
-                        new Lightbox.Raster.FootprintSpace(_live.CoverageScale, 0, 0),
-                        BrushEngine.CeilingReachPx(live.Brush, _live.CoverageScale));
+                    //
+                    // And with it everything else that finishes the mark — the
+                    // wet edge's rim, the grain, the paper — by the one call a
+                    // replay makes (docs/DESIGN-paint-path.md, phase 2).
+                    BrushEngine.FinishBand(
+                        capped, carriesFootprint ? _live.Coverage : null, band, live.Brush, _live.CoverageScale);
                     _live.PostUsed = _live.PostUsed is { } prior
                         ? LivePaintSession.UnionRect(prior, band)
                         : band;
+                    // Invariant 6, on the counters the worker pass reported to:
+                    // how much of the mark this event's finish read. The finish
+                    // is now where the grain, the paper and the wet edge are
+                    // paid for, so it is what has to stay a band.
+                    if (_live.PostUsed is { } finished)
+                    {
+                        var finishPixels = (long)band.Width * band.Height;
+                        var finishedPixels = (long)finished.Width * finished.Height;
+                        if (finishPixels > LivePostWorstPixels) LivePostWorstPixels = finishPixels;
+                        if (finishedPixels > LivePostWorstMarkPixels) LivePostWorstMarkPixels = finishedPixels;
+                    }
                     // Above zero is what makes the compositor read PostScratch
                     // instead of the raw dabs (ScenePassBuilder). Points here,
                     // the same unit the worker path records — this line used

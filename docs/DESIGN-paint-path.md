@@ -283,6 +283,57 @@ brushes' per-event cost is at or below the baseline (4.1 → 3.0–3.2 ms at
 300 px) now that their ceiling is coarse. Pen → screen's median did not move,
 as expected: 31–45 ms on both sides, the pacing floor.
 
+## Phase 2 as built: wet edge, grain and paper land under the pen
+
+The three "(flat)" presets — Watercolor (flat), Gouache (flat), Oil (flat) —
+were the brushes whose mark was finished by a pass after the dabs: a wet edge
+darkened from a blur of the whole stroke, grain and ungated paper multiplied
+over it. They now finish in place, on the band each pointer event touched, by
+the same call the replay makes (`BrushEngine.FinishBand`), and their pen-up is
+a promotion like the plain brushes'.
+
+- **One finish, in a fixed order**: the ceiling and the wet edge, then grain,
+  then paper. `NeedsBandFinish` says which brushes take it; a brush with a
+  simulated medium still does not, and still replays (phase 3).
+- **The wet edge is read off the ceiling, not off a blur.** The swept ceiling
+  already computes an exact distance transform of the mark's support, so the
+  rim is a function of how far a pixel is from the edge of the paint
+  (`Rim(Strength, WidthPx)`, measured from a quarter of the falloff in, and
+  weighted by how much paint is there). A distance to the edge of the support
+  is settled as soon as the dabs around it are, which a blur of the stroke
+  never was. **This is a new formulation of the look, not a port of the old
+  one** — the rim sits where it did but is not the same pixels. Rendered side
+  by side with the commit before it — the three flats at their own size and
+  at three times it, rising pressure, a loop crossing itself — the two sheets
+  could not be told apart by eye. The fingerprints for a wet edge of 0.7 did
+  move, and are re-recorded with this as the reason.
+- **The cap is always exact, in chunks.** The coarse step above a size
+  threshold is gone: the ceiling is already kept at the brush's own scale
+  (`CeilingScale`), and the cap works through `CapChunk`-sized pieces of the
+  band, so its cost follows the band and not the stroke.
+- **Grain and paper are stencils in document space**, seeded as they always
+  were, applied to the band after the cap.
+
+One thing stood between this and byte-exactness, and it is worth keeping
+written down because it did not look like its cause:
+
+- **A clip changes how Skia fills a rotated oval — even a clip the oval lies
+  wholly inside.** The replay stamped its dabs into the document plane under a
+  clip to the stroke's window; the live scratch has none. Round dabs and
+  unrotated ovals came out identical; a dab that follows the stroke's heading
+  is an oval under a rotation, filled as a path, and its edge differed by one
+  level on one to seven pixels of a 35,000-pixel stroke. Oil (flat) was the
+  only shipped brush that showed it. The window is now cleared under the clip
+  and drawn into without one. (Ruled out on the way, by measurement: a dab
+  settling at one heading and replaying at another. Settling on the whole dab
+  rather than its position changed no pixel here and moved the blur tool's
+  live fidelity outside its bound, so the rule stays as it was.)
+
+`PenUpChangesNothingTests` holds the result: every Paint preset at four
+size-and-smoothing combinations must commit a frame equal to its record's
+replay (invariant 1), and the seven presets without a simulated medium must
+also be promoted with zero differing pixels.
+
 ## Order
 
 1. **Promote at pen-up**, for the brushes that are already dab-final (ink, soft
