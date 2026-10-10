@@ -200,7 +200,8 @@ canvas publish finished, not when it was displayed.
 
 114 icons on screen, 15 of the 111 that sit alone in a button exactly centred and the
 rest half a pixel off (a 13 or 15 px icon in a 26 px tile); none off the pixel grid, none
-outside its button. The lab's check allows one device pixel, because at another scaling
+outside its button. Since Q241 the two class sizes are even (12 and 16) and 86 of the 111
+are exact; the rest are inline one-offs. The lab's check allows one device pixel, because at another scaling
 the rounding lands elsewhere; `IconPlacementTests` holds 100% to the half pixel. Drawing them is not where the time goes: the whole set strokes in
 under a millisecond.
 

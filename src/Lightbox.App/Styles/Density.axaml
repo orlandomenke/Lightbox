@@ -222,14 +222,18 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <!--
-    The drawn glyph inside a tile. 13 in a 26 square: half the tile, which is
-    the proportion the layer rows' stateful pairs already settled on. Sites
-    with less room (a caption close, a stacked reorder chevron) shrink the
-    Path inline — a one-off is allowed to size itself, the class is not.
+    The drawn glyph inside a tile: 12 in a 26 square, and even on purpose
+    (Q241). An odd glyph in an even tile has its centre on a half pixel, so
+    layout rounding puts it half a pixel to one side — and to either side,
+    depending on where the tile sits, so two identical buttons disagreed by a
+    pixel. It was 13 until the placement census measured that; the stateful
+    pairs (Controls.axaml) went from 15 to 16 for the same reason. Sites with
+    less room (a caption close, a stacked reorder chevron) shrink the Path
+    inline — a one-off is allowed to size itself, the class is not.
   -->
   <Style Selector="Path.icon">
-    <Setter Property="Width" Value="13" />
-    <Setter Property="Height" Value="13" />
+    <Setter Property="Width" Value="{StaticResource SizeIcon12}" />
+    <Setter Property="Height" Value="{StaticResource SizeIcon12}" />
   </Style>
 
   <Style Selector="ToggleButton.icon">

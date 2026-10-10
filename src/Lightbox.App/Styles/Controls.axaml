@@ -420,8 +420,8 @@
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
     <Setter Property="Stretch" Value="Uniform" />
-    <Setter Property="Width" Value="15" />
-    <Setter Property="Height" Value="15" />
+    <Setter Property="Width" Value="{StaticResource SizeIcon16}" />
+    <Setter Property="Height" Value="{StaticResource SizeIcon16}" />
   </Style>
   <!-- Off is dimmer AND a different drawing; either alone is squintable. -->
   <Style Selector="ToggleButton.glyph:not(:checked) Path">
@@ -514,8 +514,8 @@
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
     <Setter Property="Stretch" Value="Uniform" />
-    <Setter Property="Width" Value="15" />
-    <Setter Property="Height" Value="15" />
+    <Setter Property="Width" Value="{StaticResource SizeIcon16}" />
+    <Setter Property="Height" Value="{StaticResource SizeIcon16}" />
   </Style>
   <!--
     The canvas bar (Q203, owner 2026-10-07): only icons are visible. No fill,
@@ -548,8 +548,8 @@
     <Setter Property="StrokeJoin" Value="Round" />
     <Setter Property="Fill" Value="{x:Null}" />
     <Setter Property="Stretch" Value="Uniform" />
-    <Setter Property="Width" Value="15" />
-    <Setter Property="Height" Value="15" />
+    <Setter Property="Width" Value="{StaticResource SizeIcon16}" />
+    <Setter Property="Height" Value="{StaticResource SizeIcon16}" />
   </Style>
 
   <!--
