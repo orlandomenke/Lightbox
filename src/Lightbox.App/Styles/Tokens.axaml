@@ -179,6 +179,13 @@
   <Thickness x:Key="TabPadding">14,6</Thickness>
   <!-- Text and icons inside a list row, from its own edge. -->
   <Thickness x:Key="ItemPadding">8,0</Thickness>
+  <!-- Either side of a transport button's icon: a text button's padding, not a
+       rail tool's 4 — these are pressed while watching playback. -->
+  <Thickness x:Key="TransportPadding">8,0</Thickness>
+  <!-- One width for all eight, the rail tool's: a button has a border and a
+       toggle has none, so sizing to content left Loop two pixels narrow. Even,
+       so an even icon centres in it exactly (Q241). -->
+  <x:Double x:Key="SizeTransportWidth">32</x:Double>
   <!-- Between one docker and the next in a column. -->
   <Thickness x:Key="DockerGap">0,0,0,6</Thickness>
 
