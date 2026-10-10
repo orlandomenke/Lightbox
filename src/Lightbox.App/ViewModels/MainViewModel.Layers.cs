@@ -1131,11 +1131,10 @@ public partial class MainViewModel
     {
         var targets = ToggleTargets(layer, l => l.Locked, locked, alone);
         if (targets.Count == 0) return;
-        _editor.Perform(_ =>
+        PerformMovingNoPixel(_ =>
         {
             foreach (var target in targets) target.Locked = locked;
-        }, label: targets.Count == 1 ? "Set layer locked" : "Set layers locked",
-            frameContentUnchanged: true);
+        }, targets.Count == 1 ? "Set layer locked" : "Set layers locked");
         NotifyLayerGating();
     }
 
@@ -1143,13 +1142,55 @@ public partial class MainViewModel
     {
         var targets = ToggleTargets(layer, l => l.AlphaLocked, locked, alone);
         if (targets.Count == 0) return;
-        _editor.Perform(_ =>
+        PerformMovingNoPixel(_ =>
         {
             foreach (var target in targets) target.AlphaLocked = locked;
-        }, label: targets.Count == 1 ? "Set layer alpha locked" : "Set layers alpha locked",
-            frameContentUnchanged: true);
+        }, targets.Count == 1 ? "Set layer alpha locked" : "Set layers alpha locked");
         NotifyLayerGating();
     }
+
+    /// <summary>
+    /// An undoable edit to what the artist <em>may do</em> to a layer, which
+    /// changes nothing about what the document looks like.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The change listener's document-wide branch begins by declaring every
+    /// pixel stale and ends by publishing the canvas, because an edit that is
+    /// not a stroke can move anything. A lock cannot: it is read when a tool
+    /// asks whether it may touch the layer, never when the layer is drawn. So
+    /// the whole of the listener still runs — rows, menus, panels, the undo
+    /// list — and only the two things that are about pixels are skipped.
+    /// Measured in the running app before this: 117 ms press-to-screen for a
+    /// lock and 81 for a transparency lock, a whole-canvas publish in each.
+    /// </para>
+    /// <para>
+    /// <b>Only the doing, not the undoing.</b> Undo and redo restore a snapshot
+    /// through their own route and publish as they always did: they do not
+    /// know which kind of step they are stepping over, and a missed repaint is
+    /// worse than a spare one.
+    /// </para>
+    /// <para>
+    /// A flag around the call rather than a parameter through the editor,
+    /// because the editor is the document's and knows nothing of canvases; what
+    /// to repaint is this side's business.
+    /// </para>
+    /// </remarks>
+    private void PerformMovingNoPixel(Action<Doc> mutate, string label)
+    {
+        _editMovesNoPixel = true;
+        try
+        {
+            _editor.Perform(mutate, label: label, frameContentUnchanged: true);
+        }
+        finally
+        {
+            _editMovesNoPixel = false;
+        }
+    }
+
+    /// <summary>Set only while <see cref="PerformMovingNoPixel"/> is inside the editor.</summary>
+    private bool _editMovesNoPixel;
 
     /// <summary>
     /// Locking a folder locks every layer inside it — and every picked folder
