@@ -2832,6 +2832,10 @@ test reopens the bug.
   - P1 by reach: it is not an edge case, it is *opening your own work*. Masked for anyone who mostly created documents in-session and kept them open; found the day opening a saved file became the first thing the application asks you to do.
   - The regression test walks the whole route — open, draw, look in the record — because asserting the index alone would stay green if a second gate ever ate the stroke.
 
+- [x] **B439** `P2` `layers` Locking the layer in hand leaves the pointer promising a stroke until the tool or layer changes `evidence: LockingTheActiveLayerTellsThePointerAtOnce`
+  - Found 2026-10-10 by the adversarial review of the lock's publish cost, reading who is told when a lock changes: `NotifyLayerGating` raised the four `ActiveLayer…` properties the menus and the row bind to and not the pointer's, which are computed from the same flags. The cursor kept the brush over a layer that would refuse the press — and kept *Forbidden* after an unlock — until a tool or layer change happened to refresh it.
+  - Fix: `NotifyLayerGating` ends with `RefreshPointerIntent()`, so every route that changes a gate (the row, the Layer menu, the shortcut, undo) tells the pointer too.
+
 - [x] **B419** `P2` `layers` During playback a clipped or folder-shaped layer is drawn uncarved `evidence: TheCarveHoldsForEveryPlayedFrame`
   - **Reported 2026-10-08: "During playback we do not keep the alpha inheritance."** Playback takes `SceneRenderer.ComposeTiled` once the canvas has handed over a viewport. The tile gate keeps a shaped layer from becoming a *tile* pass, but it still arrives in that list as a bitmap pass, and the tiled loop drew it flat. A `Debug.Assert` claimed it could not happen — compiled out of the Release build an artist runs, so the carve dropped silently for the whole of playback, clips and folder shapes alike. The tiled loop now hands a shaped, filtered or styled pass to `DrawOne`, as the culled route has since B309. The test fails on main in Release (shading drawn off the flat) and passes here.
 

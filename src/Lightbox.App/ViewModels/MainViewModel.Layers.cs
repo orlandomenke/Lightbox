@@ -1321,6 +1321,10 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(ActiveLayerAlphaLocked));
         OnPropertyChanged(nameof(ActiveLayerVisible));
         OnPropertyChanged(nameof(ActiveLayerLocked));
+        // The pointer says whether a press will land, from these same flags,
+        // and it is a computed property too: without this a locked layer went
+        // on showing the brush until the tool or the layer changed.
+        RefreshPointerIntent();
     }
 
     /// <summary>A row needs this to dim itself without reaching into the scene.</summary>
