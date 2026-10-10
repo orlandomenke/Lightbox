@@ -2388,10 +2388,52 @@ public static class BrushEngine
         using var capPix = footprint.PeekPixels();
         if (markPix is null || capPix is null) return;
 
-        CapCore(
-            markPix.GetPixelSpan<byte>(), markPix.RowBytes, band,
-            capPix.GetPixelSpan<byte>(), capPix.RowBytes, capPix.Width, capPix.Height,
-            space, reachPx, rim);
+        // A large band is capped in horizontal strips, side by side. The cap of
+        // a pixel is a function of that pixel and of the footprint around it,
+        // so a strip gives the bytes the whole band would (it is the property
+        // the tiles above rest on, and the tests that hold a band to a whole
+        // stroke hold this too) - and this is the largest single cost of a
+        // pointer event on a broad textured brush: 3 to 5 ms at 300 px, which
+        // at 120 events a second left the screen no time to be told.
+        var strips = CapStrips(band, reachPx);
+        if (strips <= 1)
+        {
+            CapCore(
+                markPix.GetPixelSpan<byte>(), markPix.RowBytes, band,
+                capPix.GetPixelSpan<byte>(), capPix.RowBytes, capPix.Width, capPix.Height,
+                space, reachPx, rim);
+            return;
+        }
+
+        var rows = (band.Height + strips - 1) / strips;
+        Parallel.For(0, strips, new ParallelOptions { MaxDegreeOfParallelism = strips }, i =>
+        {
+            var top = band.Top + (i * rows);
+            var strip = new SKRectI(band.Left, top, band.Right, Math.Min(band.Bottom, top + rows));
+            if (strip.Height <= 0) return;
+            // Spans are made here, per strip: one cannot cross into a lambda.
+            // The strips write disjoint rows of the mark and only read the
+            // footprint.
+            CapCore(
+                markPix.GetPixelSpan<byte>(), markPix.RowBytes, strip,
+                capPix.GetPixelSpan<byte>(), capPix.RowBytes, capPix.Width, capPix.Height,
+                space, reachPx, rim);
+        });
+    }
+
+    /// <summary>
+    /// How many strips a band is capped in. One for a small band, where the
+    /// hand-off costs more than it saves; never so many that a strip is thinner
+    /// than the halo it has to carry, and never more than half the cores, so a
+    /// stroke does not take the machine from the render thread.
+    /// </summary>
+    public static int CapStrips(SKRectI band, int reachPx)
+    {
+        const int WorthSplitting = 48_000;
+        if ((long)band.Width * band.Height < WorthSplitting) return 1;
+        var byHalo = band.Height / Math.Max(32, reachPx * 2);
+        var byCores = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
+        return Math.Clamp(Math.Min(byHalo, byCores), 1, 4);
     }
 
     /// <summary>
@@ -2423,7 +2465,7 @@ public static class BrushEngine
     /// The cap itself: every ink pixel in <paramref name="band"/> held down to
     /// its ceiling, read either index-for-index or through the scaled lookup.
     /// </summary>
-    private static void CapCore(
+    public static void CapCore(
         Span<byte> ink, int inkRow, SKRectI band,
         ReadOnlySpan<byte> cap, int capRow, int capW, int capH,
         FootprintSpace space, int reachPx, Rim rim = default)

@@ -377,6 +377,63 @@ size-and-smoothing combinations must commit a frame equal to its record's
 replay (invariant 1), on a rising sine and on strokes that meet themselves, and the seven presets without a simulated medium must
 also be promoted with zero differing pixels.
 
+### What the lab said about phase 2
+
+Same lab, same frozen baseline, seven brushes at 60, 150 and 300 px and at 900
+and 3000 px/s. Two runs: the first as phase 2 was committed, the second after
+the fixes it prompted. Median ms, the range across the six combinations.
+
+| | Watercolor (flat) | Gouache (flat) | Oil (flat) |
+| --- | --- | --- | --- |
+| pen-up (`stroke.commit`), baseline | 89–359 | 77–303 | 60–241 |
+| pen-up, second run | 11–58 | 10–63 | 9–14 |
+| a pointer event (`stroke.move`), baseline | 0.5–2.1 | 0.4–1.8 | 0.4–1.6 |
+| a pointer event, first run | 3.9–15.9 | 2.1–15.6 | 1.2–5.8 |
+| a pointer event, second run | 1.6–8.6 | 1.2–8.6 | 1.0–4.5 |
+| longest stall in a stroke, baseline | 78–354 | 72–311 | 59–250 |
+| longest stall, first run | 456–569 | 409–437 | 59–141 |
+| longest stall, second run | 58–170 | 52–154 | 56–85 |
+| finish behind the pen, in events (`live.behind`, worst), baseline | 44–47 | 45–48 | 2–4 |
+| finish behind the pen, branch | 0 | 0 | 0 |
+
+**What it bought.** The finish is never behind the pen — it was 44 to 48
+pointer events behind on the two wet-edged flats — and pen-up no longer scales
+with the stroke. The four plain brushes kept what phase 1 gave them: pen-up of
+8 to 19 ms, at or near their baseline per event.
+
+**What it cost, and what the first run found.** The finish used to be paid on
+a worker, behind the pen; now it is paid in the pointer event. The first run
+showed that honestly and badly: 10 to 16 ms an event at 300 px against an
+interval of 8.3, and the screen 800 ms behind the pen. Profiled, the event
+was the cap's pixel loop and the grain in equal parts, and four things were
+not work at all — a four-megabyte copy of the grain tile per band, the tile
+itself built by the first event of the first grained stroke (the 400 ms
+stall, at every size), a distance transform reaching a whole radius where a
+falloff is read, and a floor and four clamps per bilinear read. The second
+run is after those.
+
+**What is still wrong after the second run**, and is not hidden by the table:
+
+- **300 px at 3000 px/s is over budget on the two wet-edged flats**: 8.6 ms an
+  event. The screen then trails by 250 to 350 ms at the median. Everything
+  slower or smaller keeps up (32 to 46 ms, the pacing floor). Since then the
+  cap runs in strips side by side (`CapStrips`, a quarter off the event,
+  measured headless and not yet in the lab); the rest of the gap is the
+  grain's draw over the band and the band's own size.
+- **A screen that goes unrefreshed while the UI thread is not stalled.** One
+  frame in a gouache run carried an input 1.4 s old while the pen tip was 54 ms
+  fresh and no stall was recorded: publishes were not going out during a
+  stroke whose events cost about half their interval. That is the pacing
+  layer starving under input, the pen → screen thread's ground; it is recorded
+  here because this branch is what provokes it.
+- **About one stroke in eight on the flats is still rendered again at pen-up**,
+  and the lab could say that it happened but not why. `commit.replayed` now
+  carries the reason into the perf log.
+- **A baked grain mask was tried and withdrawn.** Working the grain's alpha
+  out per texel once, instead of through a colour matrix per pixel, saved
+  0.7 ms an event and moved every grained stroke by a level. Not worth
+  changing existing art for.
+
 ## Order
 
 1. **Promote at pen-up**, for the brushes that are already dab-final (ink, soft

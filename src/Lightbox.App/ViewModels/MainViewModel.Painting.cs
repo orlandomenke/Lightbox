@@ -1577,12 +1577,20 @@ public partial class MainViewModel
     /// </summary>
     private LiveMark? TakeLiveMark(Stroke stroke)
     {
-        if (PaperHasMoved || !BrushEngine.PromotesAtPenUp(stroke)) return null;
+        WhyReplayed = null;
+        LiveMark? No(string why)
+        {
+            WhyReplayed = why;
+            return null;
+        }
+
+        if (!BrushEngine.PromotesAtPenUp(stroke)) return No("not a kind of stroke that is kept");
+        if (PaperHasMoved) return No("the paper moved");
         // A document too large for the replay's plane is replayed in another
         // frame of reference, and the live mark is then not the replay.
-        if (!BrushEngine.ReplaysInDocumentSpace(Scene.Width, Scene.Height)) return null;
-        if (_live.SettledDabChanged) return null;
-        if (_live.Dabs is not { Count: > 0 } dabs) return null;
+        if (!BrushEngine.ReplaysInDocumentSpace(Scene.Width, Scene.Height)) return No("document too large for the plane");
+        if (_live.SettledDabChanged) return No("a settled dab changed");
+        if (_live.Dabs is not { Count: > 0 } dabs) return No("nothing was stamped live");
 
         var brush = stroke.Brush;
         SKBitmap? source;
@@ -1591,11 +1599,14 @@ public partial class MainViewModel
             // The finish is applied in place as the pen moves; it has to have
             // seen every dab, and a footprint has to be at the scale the record
             // replays with.
-            if (_live.PostStampedDabs != dabs.Count
-                || (BrushEngine.NeedsFootprintCap(brush)
-                    && (_live.Coverage is null || _live.CoverageScale != BrushEngine.CeilingScale(brush))))
+            if (_live.PostStampedDabs != dabs.Count)
             {
-                return null;
+                return No($"the finish had seen {_live.PostStampedDabs} of {dabs.Count} dabs");
+            }
+            if (BrushEngine.NeedsFootprintCap(brush)
+                && (_live.Coverage is null || _live.CoverageScale != BrushEngine.CeilingScale(brush)))
+            {
+                return No("the ceiling was kept at another scale");
             }
             source = _live.PostScratch;
         }
@@ -1607,13 +1618,38 @@ public partial class MainViewModel
         {
             source = _live.Scratch;
         }
-        if (source is null) return null;
+        if (source is null) return No("no live buffer");
 
         var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        if (BrushEngine.CommitRegion(stroke, info) is not { } reach) return null;
+        if (BrushEngine.CommitRegion(stroke, info) is not { } reach) return No("the stroke reaches nothing");
         var region = SKRectI.Intersect(reach, new SKRectI(0, 0, source.Width, source.Height));
-        if (region.Width <= 0 || region.Height <= 0) return null;
-        return CopyRegion(source, region) is { } pixels ? new LiveMark(pixels, region, dabs) : null;
+        if (region.Width <= 0 || region.Height <= 0) return No("the stroke is off the paper");
+        return CopyRegion(source, region) is { } pixels ? new LiveMark(pixels, region, dabs) : No("the copy failed");
+    }
+
+    /// <summary>
+    /// Why the last stroke's pen-up rendered the record instead of keeping the
+    /// live mark; null when it was kept. In the perf log as
+    /// <c>commit.replayed</c>, because a stroke that is silently replayed is
+    /// the stall this path exists to remove and the lab only showed that it
+    /// happened, not why.
+    /// </summary>
+    internal string? WhyReplayed { get; private set; }
+
+    /// <summary>Where two walks of the same stroke first disagree, for <see cref="WhyReplayed"/>.</summary>
+    private static string DescribeDifference(IReadOnlyList<BrushEngine.Dab> live, IReadOnlyList<BrushEngine.Dab> record)
+    {
+        var shared = Math.Min(live.Count, record.Count);
+        var at = 0;
+        while (at < shared && live[at].Equals(record[at])) at++;
+        if (at == shared) return $"the record walks to {record.Count} dabs, {live.Count} were drawn";
+        var a = live[at];
+        var b = record[at];
+        var what = a.Pos != b.Pos ? $"moved {Math.Sqrt(Math.Pow(a.Pos.X - b.Pos.X, 2) + Math.Pow(a.Pos.Y - b.Pos.Y, 2)):0.###} px"
+            : !a.Pressure.Equals(b.Pressure) ? "pressure"
+            : !a.Heading.Equals(b.Heading) ? "heading"
+            : "load";
+        return $"dab {at} of {live.Count} drawn / {record.Count} recorded differs: {what}";
     }
 
     /// <summary>
@@ -4145,11 +4181,21 @@ public partial class MainViewModel
         // the dabs that were drawn: smoothing at pen-up, an unposed rig and a
         // selection registered above all change it, and then the replay is the
         // mark. One walk of the stroke, against stamping it.
-        var promote = liveMark is not null
-            && BrushEngine.PromotesAtPenUp(stroke)
-            && liveMark.Dabs.SequenceEqual(BrushEngine.WalkDabs(stroke))
-                ? liveMark
-                : null;
+        LiveMark? promote = null;
+        if (liveMark is not null)
+        {
+            if (!BrushEngine.PromotesAtPenUp(stroke))
+            {
+                WhyReplayed = "the record is no longer a kind that is kept";
+            }
+            else
+            {
+                var recorded = BrushEngine.WalkDabs(stroke);
+                if (liveMark.Dabs.SequenceEqual(recorded)) promote = liveMark;
+                else WhyReplayed = DescribeDifference(liveMark.Dabs, recorded);
+            }
+        }
+        if (promote is null && WhyReplayed is { } why) PerfLog.Mark("commit.replayed", why);
         using (PerfLog.Begin("commit.append")) AppendToFrameRender(target, stroke, promote); // pre-stroke state (record not yet updated)
 
         if (erasure?.ChangedNothing() == true)
