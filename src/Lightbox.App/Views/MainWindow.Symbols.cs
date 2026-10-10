@@ -280,6 +280,16 @@ public partial class MainWindow
     {
         SymbolTiles.AddHandler(
             InputElement.PointerPressedEvent, OnSymbolTilePressed, RoutingStrategies.Tunnel);
+        // B438. The artist's own library needs no project, and the grid was
+        // only ever filled when one arrived or left — so a loose drawing's
+        // Symbols panel stayed empty over a full library. Filled when the
+        // panel's list first loads: after the window is up, so reading the
+        // library and drawing a tile per symbol is not between launch and the
+        // window, and from the view, which is on the UI thread by construction.
+        SymbolTiles.Loaded += (_, _) =>
+        {
+            if (_vm.SymbolBrowser.Rows.Count == 0) _vm.SymbolBrowser.Refresh();
+        };
         // The drag's preview goes when the drag leaves the canvas — and a drag
         // abandoned over it (Escape) leaves it too.
         Canvas.AddHandler(DragDrop.DragLeaveEvent, (_, _) => _symbolGhost?.Hide());

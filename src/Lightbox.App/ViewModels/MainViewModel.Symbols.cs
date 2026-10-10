@@ -1014,6 +1014,14 @@ public sealed partial class MainViewModel
     /// <see cref="AdoptFromLibrary"/>'s own note describes: the routes look
     /// interchangeable from the panel and are not.
     /// </remarks>
+    /// <summary>
+    /// Whether the active layer would take an edit — asked without saying
+    /// anything, for a preview that must not show what cannot happen.
+    /// <see cref="CanEdit"/> is the one that explains a refusal.
+    /// </summary>
+    internal bool ActiveLayerTakesEdits =>
+        ActiveLayer is { } layer && Scene.IsLayerVisible(layer) && Scene.IsLayerEditable(layer);
+
     public Symbol? SymbolToPlace(string symbolId) =>
         SymbolRegistry.Resolve(symbolId)
         ?? (Library.TryGetValue(symbolId, out var global) ? global : null);

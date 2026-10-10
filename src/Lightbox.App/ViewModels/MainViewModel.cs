@@ -385,14 +385,6 @@ public sealed partial class MainViewModel : ObservableObject
     /// paint, fill and AI draw, which is how transform, cel edits and the
     /// external writers ended up unguarded.
     /// </summary>
-    /// <summary>
-    /// Whether the active layer would take an edit — asked without saying
-    /// anything, for a preview that must not show what cannot happen.
-    /// <see cref="CanEdit"/> is the one that explains a refusal.
-    /// </summary>
-    internal bool ActiveLayerTakesEdits =>
-        ActiveLayer is { } layer && Scene.IsLayerVisible(layer) && Scene.IsLayerEditable(layer);
-
     private bool CanEdit(Layer? layer, string verb)
     {
         if (layer is null) return false;

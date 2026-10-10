@@ -3966,7 +3966,7 @@ test reopens the bug.
 - [x] **B438** `P2` `ui` The Symbols panel shows none of the artist's library until a project is opened or closed `evidence: TheLibraryIsOnShowFromLaunchWithNoProject`
   - **Found 2026-10-10 by the lab's `symbol-drag` scenario**, which put a symbol in a run's library and then could not find its tile. The grid was filled only by the relay on `HasProject` — when a project arrived or left — so a loose drawing opened the Symbols panel on *“No symbol matches that.”* over a full library, and there was nothing to drag onto the canvas at all.
   - **This is one of the two things behind the owner's “dragging onto the canvas has never worked”** (the other is that the drag showed nothing on the way — see B374's last note). With no project there was no tile; the drag itself was sound.
-  - Fix: one `SymbolBrowser.Refresh()` when the browser is made. Typing in the search box had always filled the grid, which is why it could look intermittent.
+  - Fix: one `SymbolBrowser.Refresh()` when the panel's list first loads — from the view, after the window is up, so the library read and the tiles are not between launch and the window. Typing in the search box had always filled the grid, which is why it could look intermittent.
 
 - [x] **B421** `P2` `ui` A pen dragged in a docker pans the list instead of dragging `evidence: TouchOnlyScrollGestureRecognizer, TouchOnlyPan, PenDoesNotPanTests, APenDraggedUpAListDoesNotPanIt, AFingerDraggedUpAListStillPansIt, AScrollerMadeAfterStartupIsCoveredToo`
   - **Reported by the owner, 2026-10-09:** *"Pen drag in docker registers as scroll."*

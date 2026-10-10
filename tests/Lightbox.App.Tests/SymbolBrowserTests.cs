@@ -110,13 +110,27 @@ public class SymbolBrowserTests : IDisposable
         var star = new Symbol { Id = "sym-star", Name = "Star" };
         SymbolLibrary.Save(new Dictionary<string, Symbol> { [star.Id] = star });
 
-        var vm = new MainViewModel(null);
-        // Nobody asks: the grid fills itself once the window has had its turn.
+        // The window, because the window is what fills the grid: nobody asks,
+        // and the panel's list loading is the moment.
+        var window = new Lightbox.App.Views.MainWindow { Width = 1400, Height = 900 };
+        window.Show();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-
-        var row = Assert.Single(vm.SymbolBrowser.Rows);
-        Assert.Equal("Star", row.Model.Name);
-        Assert.Null(vm.SymbolBrowser.EmptyMessage);
+        var vm = (MainViewModel)window.DataContext!;
+        // As View > Symbols does. A panel that is not on show has no list to
+        // load, and a library nobody is looking at is not read.
+        vm.Workspace.SetVisible(Lightbox.App.Docking.DockPanelId.Symbols, true);
+        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Symbols);
+        for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        try
+        {
+            var row = Assert.Single(vm.SymbolBrowser.Rows);
+            Assert.Equal("Star", row.Model.Name);
+            Assert.Null(vm.SymbolBrowser.EmptyMessage);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     [AvaloniaFact]
