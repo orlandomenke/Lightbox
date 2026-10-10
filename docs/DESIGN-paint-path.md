@@ -255,6 +255,34 @@ Two costs the lab found in pen-up that were nobody's design:
 - **Thumbnails were rendered inside pen-up**, 15 to 16 ms. They wait for the
   pen to rest (`RefreshThumbnailsWhenThePenRests`), behind pointer input.
 
+### The second comparison: pen-up is under one refresh
+
+Same lab, same frozen baseline, after the changes above. Median ms, the range
+across 60, 150 and 300 px at 900 and 3000 px/s:
+
+| | ink | soft round | airbrush | pencil |
+| --- | --- | --- | --- | --- |
+| pen-up (`stroke.commit`), baseline | 43–106 | 60–221 | 57–210 | 86–442 |
+| pen-up, branch | **10–12** | **9–13** | **9–13** | **9–13** |
+| of which the stroke rendered again | 6–58 → 0 | 24–175 → 0 | 23–163 → 0 | 51–393 → 0 |
+| of which the tile update | 12–21 → 1–2 | 10–21 → 1–2 | 10–21 → 1–2 | 9–21 → 1–2 |
+| longest stall in a stroke, baseline | 0–109 | 74–213 | 56–224 | 109–427 |
+| longest stall, branch | 0 | 0–58 | 0–52 | 0–61 |
+| pen → screen, worst, baseline | 65–143 | 88–265 | 91–231 | 73–309 |
+| pen → screen, worst, branch | 58–66 | 57–68 | 56–74 | 62–216 |
+
+Every stroke was promoted. Pen-up no longer depends on the brush, its size or
+the length of the stroke: what is left is the edit step (6 ms, unchanged), the
+promotion (0.2–1.2 ms), the tiles (1–2 ms) and the publish.
+
+Not everything moved the right way. The **pencil's pointer event** costs more
+at large sizes (3.5 → 6.0 ms median at 300 px and 3000 px/s) — its tooth is
+stamped through an image shader and a colour table where a soft brush stamps a
+gradient — and one variant's worst pen → screen rose (73 → 216 ms). The soft
+brushes' per-event cost is at or below the baseline (4.1 → 3.0–3.2 ms at
+300 px) now that their ceiling is coarse. Pen → screen's median did not move,
+as expected: 31–45 ms on both sides, the pacing floor.
+
 ## Order
 
 1. **Promote at pen-up**, for the brushes that are already dab-final (ink, soft
