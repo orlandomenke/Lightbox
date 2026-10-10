@@ -12,8 +12,8 @@ namespace Lightbox.Raster;
 public sealed class FrameBitmapCache : IDisposable, IPictureStore
 {
     /// <summary>
-    /// Frames are held by total bytes, not by count: 96 cached frames is
-    /// nothing at 960×540 (100 MB) and 3 GB at 4K. Small documents therefore
+    /// Pictures are held by total bytes, not by count: a hundred of them is
+    /// nothing at 960×540 (200 MB) and 3 GB at 4K. Small documents therefore
     /// keep a deep cache while large ones stay within a sane footprint.
     /// </summary>
     public static long ByteBudget { get; set; } = MemoryBudget.FrameCache();
@@ -692,31 +692,50 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     /// </summary>
     private void Evict()
     {
-        // Under MostRecent this is the node just inserted's neighbour rather
-        // than the node itself: evicting what was only this moment put in
-        // would make the cache a no-op on the very frame being shown.
-        LinkedListNode<Entry>? Victim()
-        {
-            if (Eviction == EvictionOrder.LeastRecent)
-            {
-                for (var n = _lru.Last; n is not null; n = n.Previous)
-                {
-                    if (!Protected(n.Value)) return n;
-                }
-                return null;
-            }
-            for (var n = _lru.First?.Next ?? _lru.First; n is not null; n = n.Next)
-            {
-                if (!Protected(n.Value)) return n;
-            }
-            return null;
-        }
-
         while (_lru.Count > MaxFrames && Victim() is { } a) RemoveNode(a);
         while (_lru.Count > MinFrames && CachedBytes > ByteBudget && Victim() is { } b) RemoveNode(b);
         // Still over after honouring the preference: the document is big
         // enough that the preference itself is what does not fit.
         while (_lru.Count > 1 && CachedBytes > ByteBudget && Victim() is { } c) RemoveNode(c);
+    }
+
+    /// <summary>
+    /// Under MostRecent this is the node just inserted's neighbour rather
+    /// than the node itself: evicting what was only this moment put in
+    /// would make the cache a no-op on the very frame being shown.
+    /// </summary>
+    private LinkedListNode<Entry>? Victim()
+    {
+        if (Eviction == EvictionOrder.LeastRecent)
+        {
+            for (var n = _lru.Last; n is not null; n = n.Previous)
+            {
+                if (!Protected(n.Value)) return n;
+            }
+            return null;
+        }
+        for (var n = _lru.First?.Next ?? _lru.First; n is not null; n = n.Next)
+        {
+            if (!Protected(n.Value)) return n;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Evict now, as the arrival of <paramref name="incoming"/> bytes would,
+    /// so that a batch rendered off the UI thread lands in room rather than on
+    /// top of a full cache. The frame on screen stays, as it does for any
+    /// eviction.
+    /// </summary>
+    /// <remarks>
+    /// A batch is sized by the budget, and every render in it is in hand before
+    /// any is taken in. Without this the cache held its old contents and the
+    /// whole batch at once — up to twice the budget, several GB on a 30-layer
+    /// document once the count cap stopped binding (B440; the leak review).
+    /// </remarks>
+    public void MakeRoom(long incoming)
+    {
+        while (_lru.Count > 0 && CachedBytes + incoming > ByteBudget && Victim() is { } v) RemoveNode(v);
     }
 
     private static long BytesOf(SKBitmap bmp) => bmp.Width * (long)bmp.Height * 4;

@@ -71,6 +71,41 @@ public sealed class StillCacheHoldsFramesTests
         }
     }
 
+    /// <summary>
+    /// Room is made before a batch renders, not after it arrives: the batch is
+    /// sized by the budget, so without this the old contents and the whole batch
+    /// were held at once — twice the budget (the leak review). The frame on
+    /// screen stays.
+    /// </summary>
+    [Fact]
+    public void RoomIsMadeBeforeABatchArrivesAndTheFrameOnScreenStays()
+    {
+        var before = FrameBitmapCache.ByteBudget;
+        try
+        {
+            var perStill = (long)W * H * 4;
+            FrameBitmapCache.ByteBudget = perStill * Layers * 4; // room for four frames
+            var cache = new FrameBitmapCache();
+            var frames = Enumerable.Range(0, 4).Select(Drawings).ToList();
+            foreach (var f in frames) Publish(cache, f);
+            Assert.Equal(FrameBitmapCache.ByteBudget, cache.CachedBytes);
+
+            // The last frame is on screen; a batch of two frames' worth is coming.
+            using (cache.Publishing(frames[^1].Select(f => (f, 0)), W, H))
+            {
+                cache.MakeRoom(perStill * Layers * 2);
+
+                Assert.True(cache.CachedBytes + perStill * Layers * 2 <= FrameBitmapCache.ByteBudget,
+                    $"{cache.CachedBytes} held with {perStill * Layers * 2} coming, against {FrameBitmapCache.ByteBudget}");
+                Assert.All(frames[^1], f => Assert.True(cache.Holds(f, W, H, 1.0, 0), $"{f.Id} on screen was evicted"));
+            }
+        }
+        finally
+        {
+            FrameBitmapCache.ByteBudget = before;
+        }
+    }
+
     /// <summary>The budget still binds: past it, the oldest frames go.</summary>
     [Fact]
     public void PastTheBudgetTheOldestGo()

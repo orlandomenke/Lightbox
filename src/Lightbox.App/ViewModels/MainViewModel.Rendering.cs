@@ -2264,6 +2264,9 @@ public partial class MainViewModel
         LargestParallelRender = Math.Max(LargestParallelRender, missing.Count);
         LastParallelBatch = missing.Select(s => (s.Frame.Id, s.Cel)).ToList();
         var rendered = new SKBitmap[missing.Count];
+        // Room first: every render is in hand before any is taken in, and the
+        // cache would otherwise hold its old contents beside the whole batch.
+        _cache.MakeRoom(missing.Count * (long)scene.Width * scene.Height * 4);
         // The cores go to the renders this publish is waiting for, not to guesses.
         using var held = _prewarm.Hold();
         try
@@ -2334,16 +2337,35 @@ public partial class MainViewModel
     /// <summary>Neighbour stills rendered and then refused for room — for tests.</summary>
     internal int NeighboursRefused { get; private set; }
 
+    /// <summary>
+    /// How many stills of <paramref name="perStill"/> bytes a guess may take:
+    /// what the still cache has left and what the overall picture limit has
+    /// left, whichever is less, less one still's worth.
+    /// </summary>
+    /// <remarks>
+    /// The slack is for the smaller pictures other paths put in while the
+    /// guesses render, or the last guess would lose its room. The overall limit
+    /// is the broker's (Q221), which the tile caches share: measured against the
+    /// still cache alone, once its count cap stopped binding (B440), one batch of
+    /// guesses could take the total past the limit by its whole size, and the
+    /// next publish evicted playback tiles to pay for it (the leak review).
+    /// </remarks>
+    internal static int RoomForGuesses(long budget, long cached, long brokered, long total, long perStill)
+    {
+        var bytes = Math.Min(budget - cached, brokered - total);
+        return (int)Math.Max(0, bytes / Math.Max(1L, perStill) - 1);
+    }
+
     private List<WarmRequest> NeighbourStillJobs()
     {
         var scene = Scene;
         var jobs = new List<WarmRequest>();
         var perStill = Math.Max(1L, (long)scene.Width * scene.Height * 4);
-        // Less one still's worth: other paths put smaller pictures in this cache
-        // while the guesses render, and the last guess would lose its room.
-        var room = (int)Math.Max(0, Math.Min(
+        var room = (int)Math.Min(
             FrameBitmapCache.MaxEntries - _cache.CachedFrames - 1,
-            (FrameBitmapCache.ByteBudget - _cache.CachedBytes) / perStill - 1));
+            RoomForGuesses(FrameBitmapCache.ByteBudget, _cache.CachedBytes,
+                Lightbox.Raster.PictureMemory.Brokered, Lightbox.Raster.PictureMemory.Total, perStill));
+        if (room <= 0) return jobs;
         var seen = new HashSet<string>();
         foreach (var offset in (ReadOnlySpan<int>)[1, -1, 2, -2])
         {
