@@ -51,73 +51,21 @@ public class PencilToothGuardTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The live pass over a fixed band, with the press map carried in: four
-    /// times the dabs behind the band must not cost the band more. Minimum of
-    /// repeats, ratio asserted, absolutes printed.
+    /// B437: a gated texture is a ceiling applied in place as the pen moves,
+    /// never a pass. The engine's own predicates say so for the brush under
+    /// test, and the shipped pencil is pinned the same way in the App suite.
     /// </summary>
     [Fact]
-    [Trait("Category", "Performance")]
-    public void TheLivePassOverAGatedBrushIsBoundedByTheBandNotTheStroke()
+    public void AGatedTextureIsACeilingNotAPass()
     {
-        double Pass(int points)
-        {
-            var stroke = Textured(points, gate: 0.8);
-            var info = new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Premul);
-            var dabs = BrushEngine.WalkDabs(stroke);
-
-            using var stamped = new SKBitmap(info);
-            using (var canvas = new SKCanvas(stamped))
-            {
-                BrushEngine.StampDabRange(canvas, stroke, dabs, 0, dabs.Count);
-                canvas.Flush();
-            }
-
-            // Carried by the caller: accumulated once, outside the timed region.
-            using var press = new SKBitmap(new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Opaque));
-            using (var canvas = new SKCanvas(press))
-            {
-                canvas.Clear(SKColors.Black);
-                BrushEngine.AccumulatePress(canvas, stroke, dabs, 0, dabs.Count);
-                canvas.Flush();
-            }
-
-            // The footprint ceiling is carried by the app too (B293); without
-            // it the live pass rebuilds the ceiling from the whole stroke, which
-            // is the fallback this test is not about.
-            using var footprint = new SKBitmap(new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Opaque));
-            using (var canvas = new SKCanvas(footprint))
-            {
-                canvas.Clear(SKColors.Black);
-                BrushEngine.AccumulateFootprint(canvas, stroke, dabs, 0, dabs.Count);
-                canvas.Flush();
-            }
-
-            // The band: the last stretch of the mark, the same size for both.
-            var band = new SKRectI(700, 120, 940, 420);
-            using var dabsCrop = Copy(stamped, band);
-            using var pressCrop = Copy(press, band);
-            using var footprintCrop = Copy(footprint, band);
-
-            var best = double.MaxValue;
-            for (var i = 0; i < 5; i++)
-            {
-                var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
-                using var processed = BrushEngine.PostProcessRegion(
-                    dabsCrop, stroke, band, null, band.Location, default,
-                    footprintCrop, Lightbox.Raster.FootprintSpace.Document,
-                    pressCrop, Lightbox.Raster.FootprintSpace.Document);
-                Assert.NotNull(processed);
-                var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-                best = Math.Min(best, ms);
-            }
-            return best;
-        }
-
-        var shortMs = Pass(600);
-        var longMs = Pass(2400);
-        output.WriteLine($"live pass over a 240x300 band: {shortMs:F2} ms behind 600 points, {longMs:F2} ms behind 2400");
-        Assert.True(longMs < shortMs * 2.0 + 2.0,
-            $"the live pass grew with the stroke: {shortMs:F2} ms at 600 points, {longMs:F2} ms at 2400");
+        var brush = Textured(10, gate: 0.8).Brush;
+        Assert.True(BrushEngine.NeedsToothCeiling(brush), "the gated texture is not a tooth ceiling");
+        Assert.True(BrushEngine.NeedsFootprintCap(brush), "the tooth ceiling does not ride the footprint cap");
+        Assert.Equal(0, BrushEngine.CeilingReachPx(brush, 1.0));
+        Assert.False(BrushEngine.LiveTipWouldDivergeTooFar(brush), "a capped-in-place brush must show its mark live");
+        var ungated = Textured(10, gate: null).Brush;
+        Assert.False(BrushEngine.NeedsToothCeiling(ungated));
+        Assert.True(BrushEngine.LiveTipWouldDivergeTooFar(ungated), "the ungated paper keeps Q168's route");
     }
 
     private static SKBitmap Copy(SKBitmap src, SKRectI r)

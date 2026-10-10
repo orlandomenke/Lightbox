@@ -105,7 +105,7 @@ public class PostStampedUnitsTests(ITestOutputHelper output) : BrushStateIsolate
 
     /// <summary>
     /// The cap-only path (Soft round: ceiling in place, no deferred pass) and
-    /// the worker path (Pencil: a paper texture, a real pass) each write points into
+    /// the worker path (Pencil with its gate off: an ungated paper, a real pass) each write points into
     /// the points field and dabs into the dabs field. This is the assertion the
     /// old single field could not satisfy on both paths at once.
     /// </summary>
@@ -115,12 +115,17 @@ public class PostStampedUnitsTests(ITestOutputHelper output) : BrushStateIsolate
         foreach (var preset in new[] { "Soft round", "Pencil" })
         {
             var vm = Ready(preset);
+            // B437: the shipped pencil's tooth is a ceiling applied in place, so
+            // it is a cap-only brush too; the worker path is the same paper
+            // with its gate off, which is a pass at pen-lift.
+            if (preset == "Pencil") vm.BrushTexturePressure = 0;
             var expectCapOnly = preset == "Soft round";
             Assert.Equal(
                 expectCapOnly,
                 BrushEngine.NeedsFootprintCap(vm.CurrentToolSettingsForTest)
                 && vm.CurrentToolSettingsForTest.Granulation == 0
-                && vm.CurrentToolSettingsForTest.TextureSurface is null);
+                && (vm.CurrentToolSettingsForTest.TextureSurface is null
+                    || BrushEngine.NeedsToothCeiling(vm.CurrentToolSettingsForTest)));
 
             DrawWithoutLifting(vm);
             try

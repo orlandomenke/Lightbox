@@ -280,8 +280,10 @@ becomes something pressure fills in: a light touch catches only the peaks of
 the paper, a firm stroke reaches the valleys, and the edge of a mark — where
 the tip presses least — shows more paper than its middle. It needs a paper and
 a Depth above zero, like everything on this option, and it follows the pen
-only when **Pen pressure** is on for the brush. The shipped **Pencil** is a
-fine cold-press grain with this most of the way up; a mouse, which always
+only when **Pen pressure** is on for the brush. With Tooth above zero the
+paper lands under the pen as you draw and nothing changes at pen-lift; at
+zero the paper is pressed in once when the pen lifts. The shipped **Pencil**
+is a fine cold-press grain with this most of the way up; a mouse, which always
 presses fully, draws it at its darkest.
 
 ## How the brush answers the pen
