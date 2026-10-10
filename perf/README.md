@@ -113,6 +113,8 @@ start a move drag a little off it (`transform-undo` uses `[0.53, 0.53]`).
 | `open-document` | opening the owner-shaped document |
 | `transform-undo` | select all, transform, move, commit, undo — three rounds |
 | `flip-keys` | flipping key to key with 1 and 2 |
+| `pose-drag` | posing the bone rig: swing a wrist twice, undo. **Not runnable yet** — needs the `rigged` fixture and the `pose.*` spans (`docs/DESIGN-puppet-pins.md`, step 1) |
+| `pin-drag` | the same gesture through puppet pins. **Not runnable yet** — pins are designed, not built |
 | `paint-stroke` | four strokes across a blank canvas with the brush in `brush`, swept over `sizes` (60, 150, 300 px) and `speeds` (900 and 3000 px/s of document), size outermost — large brushes and a fast pen are where drawing falls over. A faster variant bounces the same 1.5 s drag across the canvas more times (whole legs, so the speed reached is the nearest the drag allows), keeping the stroke's duration and sample count. `--sizes 60,300` and `--speeds 900,6000` replace the lists, `--hz 240` the event rate, `--brush builtin-ink` is the control (a `--brush id:size` runs that one size), `--fixture blank-4k` puts it on a 4K canvas. Sizes are 1–500; above that the app clamps and the run is refused |
 
 Planned, from the owner's list: first playback, adding a frame, click-to-jump on the
