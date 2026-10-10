@@ -140,8 +140,11 @@ app itself reports it**, over the lab instance's own pipe:
 | `{"do": "click", "target": {"layer": "Color"}, "mods": "ctrl"}` | a layer-docker row, Ctrl or Shift held |
 | `{"do": "click", "target": {"folder": "Character"}}` | a folder header |
 | `{"do": "click", "target": {"menu": "Delete and pull"}}` | an item of the menu the last right-click opened |
+| `{"do": "click", "target": {"tip": "Layer visibility"}}` | a button by its whole tooltip — how an icon button is found |
+| `{"do": "click", "target": {"tip_starts": "Move (V)"}}` | the same, by how the tooltip begins: a tool's tip is its name and key, then a paragraph |
 | `{"do": "expect", "row": ["Ink", "A . B . . . . ."]}` | a layer's row: drawing ids, `.` for an empty cel |
 | `{"do": "expect", "frame_count": 7}` / `"selected": [...]` / `"folder_selected": "..."` / `"status_contains": "..."` | |
+| `{"do": "expect", "icons": "placed"}` | every icon on screen is on whole device pixels, inside its button, and — alone in it — within `"within_px"` (1) of the centre; fewer than `"at_least"` (40) icons is a failure, not a pass |
 
 `"window": "maximised"` and `"panels": ["Xsheet"]` set the stage, whatever a fresh
 workspace shows. A target that is laid out but covered — a row scrolled out of
@@ -171,6 +174,35 @@ Windows Ink echo) still need a real tablet.
 | `xsheet-delete-pull-key` | Shift+Delete over the X-sheet on a hold |
 | `xsheet-delete-pull-block` | a Shift-selected block of holds, Shift+Delete |
 | `layers-multiselect` | Ctrl+click, Shift+click range, folder click, Ctrl+click after a folder |
+| `icon-buttons` | where every icon sits at this display's scaling, before and after its buttons are pressed |
+
+`icon-buttons` is both kinds at once. `check` answers placement: the app counts its own
+icons (`lab_icons`) and reports where each landed in its button — the question a headless
+test can only ask at 100% scaling (`IconPlacementTests` is that half). `run` times the
+buttons whose icon is their state, input to on screen: `tool.switch`, `eye.hide`,
+`eye.show`, `lock.toggle`, `alpha.toggle`, `onion.toggle`.
+
+**The baseline of 2026-10-10** (Release, `owner-shape`, 1920×1080 at 100%, 3 runs of 3
+rounds). `response` is the press sent → the first frame after everything it set off, and
+includes about 33 ms of the lab's own pointer travel (`queued`). "Worst" is the lab's
+usual best-of-runs worst, not the slowest press seen. The `edit` column is the app's own
+`edit:<name>.median_ms` span, and "publish ends" is `first_publish` — when the first
+canvas publish finished, not when it was displayed.
+
+| | response median / worst ms | of which |
+|---|---|---|
+| `tool.switch` | 52 / 95 | no publish; the worst is a first visit, which builds the tool's options |
+| `onion.toggle` | 62 / 69 | one publish, ending at 51 |
+| `alpha.toggle` | 81 / 88 | an `edit` of 34 and a full publish ending at 68 — for a flag that moves no pixel |
+| `lock.toggle` | 117 / 171 | the same: an `edit` of 35, a full publish ending at 69 |
+| `eye.show` | 110 / 171 | publish ends at 98 |
+| `eye.hide` | 166 / 234 | publish ends at 155; `edit:Set layer visible` is 118 across both directions |
+
+114 icons on screen, 15 of the 111 that sit alone in a button exactly centred and the
+rest half a pixel off (a 13 or 15 px icon in a 26 px tile); none off the pixel grid, none
+outside its button. The lab's check allows one device pixel, because at another scaling
+the rounding lands elsewhere; `IconPlacementTests` holds 100% to the half pixel. Drawing them is not where the time goes: the whole set strokes in
+under a millisecond.
 
 ## Results
 

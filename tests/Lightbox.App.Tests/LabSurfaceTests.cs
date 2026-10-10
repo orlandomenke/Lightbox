@@ -17,7 +17,7 @@ public sealed class LabSurfaceTests : BrushStateIsolated
     public void AnOrdinaryInstanceDoesNotAnswerTheLabsQuestions()
     {
         var api = new IpcDocumentApi(new MainViewModel(null));
-        foreach (var op in new[] { "lab_state", "lab_locate", "lab_show_panel" })
+        foreach (var op in new[] { "lab_state", "lab_locate", "lab_show_panel", "lab_icons" })
         {
             var response = api.Handle(new IpcProtocol.Request { Op = op });
             Assert.False(response.Ok);
