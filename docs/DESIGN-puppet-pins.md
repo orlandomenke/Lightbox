@@ -1,10 +1,11 @@
 # Puppet pins — design and plan
 
 *Status: designed 2026-10-10, **not built**. This branch carries the plan, the
-decision record (Q239), the API surface as stubs that throw, and the tests —
-red on purpose. Nothing here has been compiled or run yet: the machine was
-busy with a performance-lab run when it was written, so the first build and
-the first red run are step 0 below.*
+decision record (Q239), the API surface as stubs that throw, and the tests.
+First build and run 2026-10-11 (Release, `Lightbox.Core.Tests`, 51 tests): all
+40 pin tests red with `NotImplementedException`, three lab-wiring tests red
+for the fixtures, spans and shortcut that do not exist yet, and the bone
+baseline four green and two red — see* The bone baseline, measured *below.*
 
 The request (owner, 2026-10-10): After Effects' Puppet tool — a mesh that
 deforms the drawing and can be shown as simple lines, pins that act as joints,
@@ -161,6 +162,31 @@ scaling with stroke count, zero cost on an unbound frame, the jiggle
 overhead, and auto-bind. Its ceilings were written before a first run and are
 labelled so; the first run decides which are guards and which are findings.
 
+### The bone baseline, measured (2026-10-11, owner's machine, Release, minimum of runs)
+
+| Measurement | Result | Ceiling | |
+| --- | --- | --- | --- |
+| `PoseAt` + `Solve`, 30 bones | 0.012 + 0.030 ms | 0.17 ms | green |
+| `Skinning.Deltas`, 30 bones | 0.071 ms | 0.33 ms | green |
+| Posing 100 strokes (7,900 densified points) | **45.9 ms** — 5.8 µs a point | 16.7 ms | **red** |
+| 50 → 200 strokes | 17.6 → 75.5 ms, 4.28× for 4× | under 8× | green — linear |
+| Six sprung bones on that frame | 39.23 → 39.24 ms | under 2× + 1 ms | green |
+| Unbound frame, 100 calls | 0 bytes | 0 | green |
+| Auto-bind, 100 strokes × 30 bones | **62.7 ms** | 50 ms | **red** |
+
+**The two reds are findings, not miscalibrated ceilings.** Posing a drawing's
+geometry costs nearly three refreshes before a single dab is stamped, on a
+path that runs per pointer event in a pose drag. One cause is visible by
+reading: `Skinning.PoseStroke` calls `Deltas(armature, pose)` for every
+stroke — two forward-kinematics solves each, 0.071 ms × 100 strokes ≈ 7 ms of
+the 46 — though the answer is the same for the whole frame. The other ~39 ms
+has not been profiled. Auto-bind matters because a layer following the whole
+skeleton auto-weights every stroke on every posed frame.
+
+This changes step 1: the bone path gets profiled and fixed on its own branch
+before pins are compared against it, or the acceptance line ("within 15% of
+bones") inherits a slow baseline.
+
 **The lab.** Two scenarios that make the *same* wrist gesture, so they are one
 comparison:
 
@@ -217,8 +243,9 @@ between what the right answer scores and what the wrong ones do.
 
 | # | Step | Branch | Cost |
 | --- | --- | --- | --- |
-| 0 | Build this branch; confirm the pin tests are red for the right reason (`NotImplementedException`) and record what `BoneRigPerformanceTests` measures | this one | S |
-| 1 | Bone baseline in the lab: `rigged` fixture in `Lightbox.Bench`, `pose.*` spans, run `pose-drag`. **Spike:** mesh a real frame-by-frame layer drawing by drawing and measure how much the mesh changes | `perf/lab/rig-baseline` | S–M |
+| 0 | Build this branch; confirm the pin tests are red for the right reason and record what `BoneRigPerformanceTests` measures — **done 2026-10-11** | this one | S |
+| 1a | Profile and fix posed-frame geometry (45.9 ms per 100 strokes) and per-frame auto-bind; `BoneRigPerformanceTests` moves there and goes green | `perf/rig/posed-frame-geometry` | M |
+| 1b | Bone baseline in the lab: `rigged` fixture in `Lightbox.Bench`, `pose.*` spans, run `pose-drag`. **Spike:** mesh a real frame-by-frame layer drawing by drawing and measure how much the mesh changes | `perf/lab/rig-baseline` | S–M |
 | 2 | `PinMesh` + `PinSolve` + `PinSkinning` in Core to green; record (`Armature.Pins`), optional-absent, with its tests first; sensitivity review | `feat/puppet-pins-core` | L |
 | 3 | Render path: pins through `PoseFrameForRender`, imported pixels through `PassMesh`, bake, `pin.*` spans, `pinned` fixture, run `pin-drag` against the acceptance line | `feat/puppet-pins-render` | M |
 | 4 | The tool: Pins mode, overlay (outline / full mesh), options, shortcut, undo, manual, workspace defaults | `feat/ui/puppet-pins-tool` | M–L |
