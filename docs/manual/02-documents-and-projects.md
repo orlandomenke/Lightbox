@@ -13,6 +13,13 @@ it showed — a posed rig stands in its pose instead of snapping back to the
 start of the timeline. A document saved at the first frame writes nothing
 extra to the file.
 
+**A file from a newer version of Lightbox says so when it opens.** Lightbox keeps
+what a newer version wrote that it does not understand and writes it back on
+save, so nearly everything survives a round trip through an older version. A
+few kinds of data cannot be kept that way, so when a document or project was
+saved by a newer version, the status strip says that saving it here may drop
+what this version cannot read.
+
 **A document opens without freezing the window.** While the file is read, its
 tab reads *name — opening…*, the canvas is covered with its name and a bar that
 moves, and the menu bar greys out. Keystrokes that would edit are ignored until
