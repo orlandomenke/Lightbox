@@ -191,6 +191,13 @@ public partial class MainViewModel
             }
             OnProjectChanged();
             Remember(root, RecentKind.Project);
+            // A first document that would not read is one file, not the project:
+            // the project opens, and the strip says which document and why (B436).
+            if (project.Manifest.Documents.FirstOrDefault() is { } opening
+                && project.Unreadable.ContainsKey(opening.Id))
+            {
+                AiStatus = $"{AiStatus} {ProjectIo.Unavailable(project, opening)}.";
+            }
         }
         // NotSupported is ProjectIo refusing an earlier alpha's project with a
         // sentence written for the artist (Q36): shown as it is, not thrown past
