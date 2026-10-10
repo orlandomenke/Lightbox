@@ -1,8 +1,8 @@
 {
   "src/Lightbox.App/Styles/AppStyles.axaml": 20,
   "src/Lightbox.App/Styles/ColorPicker.axaml": 45,
-  "src/Lightbox.App/Styles/Controls.axaml": 23,
-  "src/Lightbox.App/Styles/Density.axaml": 36,
+  "src/Lightbox.App/Styles/Controls.axaml": 17,
+  "src/Lightbox.App/Styles/Density.axaml": 34,
   "src/Lightbox.App/Styles/LayerRows.axaml": 3,
   "src/Lightbox.App/Views/BoneOptionsBar.axaml": 6,
   "src/Lightbox.App/Views/BrushEditor.axaml": 7,
