@@ -2,10 +2,10 @@
 
 *Status: designed 2026-10-10, **not built**. This branch carries the plan, the
 decision record (Q239), the API surface as stubs that throw, and the tests.
-First build and run 2026-10-11 (Release, `Lightbox.Core.Tests`, 51 tests): all
-40 pin tests red with `NotImplementedException`, three lab-wiring tests red
-for the fixtures, spans and shortcut that do not exist yet, and the bone
-baseline four green and two red — see* The bone baseline, measured *below.*
+First build and run 2026-10-11 (Release, `Lightbox.Core.Tests`): all 40 pin
+tests red with `NotImplementedException`, and three lab-wiring tests red for
+the fixtures, spans and shortcut that do not exist yet. The bone baseline
+moved to its own branch — see* The bone baseline, measured *below.*
 
 The request (owner, 2026-10-10): After Effects' Puppet tool — a mesh that
 deforms the drawing and can be shown as simple lines, pins that act as joints,
@@ -156,36 +156,28 @@ absolutes printed, nothing rendered):
 | Re-meshing a drawing under 100 ms, vertex cap held at 4K | an unbounded mesh |
 | Posing strokes through pins ≤ 3× posing through a bone | pins being the slow way to rig |
 
-**The bone baseline** (`BoneRigPerformanceTests`) guards what exists: pose
-evaluation and solve for 30 bones, posing a 100-stroke drawing's geometry,
-scaling with stroke count, zero cost on an unbound frame, the jiggle
-overhead, and auto-bind. Its ceilings were written before a first run and are
-labelled so; the first run decides which are guards and which are findings.
+### The bone baseline, measured — and corrected
 
-### The bone baseline, measured (2026-10-11, owner's machine, Release, minimum of runs)
+The first run (2026-10-11) reported 45.9 ms to pose 100 strokes and 62.7 ms to
+auto-bind them. **Both figures were wrong**: the timing helper warmed with one
+call and measured code the runtime had not finished optimising. Measured
+properly the same day (Release, owner's machine, minimum of runs once three
+batches in a row stopped getting faster):
 
-| Measurement | Result | Ceiling | |
-| --- | --- | --- | --- |
-| `PoseAt` + `Solve`, 30 bones | 0.012 + 0.030 ms | 0.17 ms | green |
-| `Skinning.Deltas`, 30 bones | 0.071 ms | 0.33 ms | green |
-| Posing 100 strokes (7,900 densified points) | **45.9 ms** — 5.8 µs a point | 16.7 ms | **red** |
-| 50 → 200 strokes | 17.6 → 75.5 ms, 4.28× for 4× | under 8× | green — linear |
-| Six sprung bones on that frame | 39.23 → 39.24 ms | under 2× + 1 ms | green |
-| Unbound frame, 100 calls | 0 bytes | 0 | green |
-| Auto-bind, 100 strokes × 30 bones | **62.7 ms** | 50 ms | **red** |
+| Measurement | Before B442 | After |
+| --- | --- | --- |
+| Pose 100 auto-bound strokes (7,900 points), 30 bones | about 5 ms | about 5 ms |
+| Pose 200 one-bone strokes: 30-bone rig / 120-bone rig | 7.5 / 36.6 ms | 4.9 / 4.6 ms |
+| Auto-bind 60 strokes: 30 bones / 120 bones | 11 / 502 ms | 5.4 / 21.6 ms |
+| Auto-bind 100 strokes, 30 bones | 18.5 ms | 4.4 ms |
+| `PoseAt` + `Solve` + `Deltas`, 30 bones | about 0.03 ms | unchanged |
 
-**The two reds are findings, not miscalibrated ceilings.** Posing a drawing's
-geometry costs nearly three refreshes before a single dab is stamped, on a
-path that runs per pointer event in a pose drag. One cause is visible by
-reading: `Skinning.PoseStroke` calls `Deltas(armature, pose)` for every
-stroke — two forward-kinematics solves each, 0.071 ms × 100 strokes ≈ 7 ms of
-the 46 — though the answer is the same for the whole frame. The other ~39 ms
-has not been profiled. Auto-bind matters because a layer following the whole
-skeleton auto-weights every stroke on every posed frame.
-
-This changes step 1: the bone path gets profiled and fixed on its own branch
-before pins are compared against it, or the acceptance line ("within 15% of
-bones") inherits a slow baseline.
+So the posing geometry was never three refreshes slow. What the baseline did
+find is two costs that grew with the size of the rig instead of the drawing —
+the skeleton re-solved for every stroke, and a bones-cubed lookup in
+auto-bind — fixed as **B442** on `perf/rig/posed-frame-geometry`, where
+`BoneRigPerformanceTests` now lives. The pin budgets on this branch
+take the corrected warm-up too (`PinSolvePerformanceTests.MinMs`).
 
 **The lab.** Two scenarios that make the *same* wrist gesture, so they are one
 comparison:
@@ -220,11 +212,8 @@ Written on this branch, red until built:
 | `PinSolvePerformanceTests` (7) | the budgets above |
 | `RigLabScenarioTests` (4) | fixtures exist; measured spans are written; both scenarios make the same gesture; the shortcut is registered |
 
-Written on this branch against existing code (expected to run now):
-
-| File | Covers |
-| --- | --- |
-| `BoneRigPerformanceTests` (6) | the bone baseline |
+Moved to `perf/rig/posed-frame-geometry` (B442), where it runs green against
+existing code: `BoneRigPerformanceTests` (8), the bone baseline.
 
 **Not written here, and why:** the record tests (`APinlessRigWritesNoPinsKey`,
 `PinsRoundTrip`, `CloningARigCopiesItsPins`, `APinKeyIsAnOrdinaryPoseKey`) and
@@ -244,7 +233,7 @@ between what the right answer scores and what the wrong ones do.
 | # | Step | Branch | Cost |
 | --- | --- | --- | --- |
 | 0 | Build this branch; confirm the pin tests are red for the right reason and record what `BoneRigPerformanceTests` measures — **done 2026-10-11** | this one | S |
-| 1a | Profile and fix posed-frame geometry (45.9 ms per 100 strokes) and per-frame auto-bind; `BoneRigPerformanceTests` moves there and goes green | `perf/rig/posed-frame-geometry` | M |
+| 1a | The two rig costs the baseline found (B442) — **done 2026-10-11**; `BoneRigPerformanceTests` lives there | `perf/rig/posed-frame-geometry` | S |
 | 1b | Bone baseline in the lab: `rigged` fixture in `Lightbox.Bench`, `pose.*` spans, run `pose-drag`. **Spike:** mesh a real frame-by-frame layer drawing by drawing and measure how much the mesh changes | `perf/lab/rig-baseline` | S–M |
 | 2 | `PinMesh` + `PinSolve` + `PinSkinning` in Core to green; record (`Armature.Pins`), optional-absent, with its tests first; sensitivity review | `feat/puppet-pins-core` | L |
 | 3 | Render path: pins through `PoseFrameForRender`, imported pixels through `PassMesh`, bake, `pin.*` spans, `pinned` fixture, run `pin-drag` against the acceptance line | `feat/puppet-pins-render` | M |

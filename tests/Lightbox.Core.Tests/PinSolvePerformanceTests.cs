@@ -24,9 +24,30 @@ public class PinSolvePerformanceTests(ITestOutputHelper output)
     /// <summary>One screen refresh at 60 Hz.</summary>
     private const double RefreshMs = 1000.0 / 60;
 
+    /// <remarks>
+    /// <b>Warmed until it stops getting faster.</b> The runtime compiles a
+    /// method cheaply at first and properly only once it has been called
+    /// enough and a background thread has caught up. Warming with one call
+    /// measured the cheap compile on the bone rig's baseline and reported a
+    /// posed drawing at nine times its cost (B442). Batches run until three
+    /// in a row fail to beat the best by 5%, or two seconds.
+    /// </remarks>
     private static double MinMs(int runs, Action action)
     {
-        action();   // JIT and first-touch are not the cost
+        var warm = Stopwatch.StartNew();
+        var settled = double.MaxValue;
+        for (var flat = 0; flat < 3 && warm.ElapsedMilliseconds < 2000;)
+        {
+            var batch = double.MaxValue;
+            for (var i = 0; i < 10; i++)
+            {
+                var t = Stopwatch.GetTimestamp();
+                action();
+                batch = Math.Min(batch, Stopwatch.GetElapsedTime(t).TotalMilliseconds);
+            }
+            flat = batch < settled * 0.95 ? 0 : flat + 1;
+            settled = Math.Min(settled, batch);
+        }
         var best = double.MaxValue;
         for (var i = 0; i < runs; i++)
         {
