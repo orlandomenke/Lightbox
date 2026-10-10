@@ -301,6 +301,49 @@ public class CanvasCursorTests(ITestOutputHelper output) : BrushStateIsolated
         Assert.Contains("locked", vm.PointerRefusal!, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Locking the layer in hand tells the pointer, there and then.
+    /// </summary>
+    /// <remarks>
+    /// The test above calls <c>RefreshPointerIntent</c> itself, which is the
+    /// one thing the lock button did not do: the intent is a computed property,
+    /// a binding only re-reads it when told, and the lock told the menus and
+    /// the row and not the canvas. So the pointer went on promising a stroke
+    /// over a layer that would refuse it, until the tool or the layer changed.
+    /// Through the real setters, each way, for each of the three gates.
+    /// </remarks>
+    [AvaloniaFact]
+    public void LockingTheActiveLayerTellsThePointerAtOnce()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.SelectToolCommand.Execute(ToolId.Brush);
+        var layer = vm.PaintLayer();
+        vm.ActiveLayerIndex = vm.Doc.Scene.Layers.IndexOf(layer);
+        var told = new List<string>();
+        vm.PropertyChanged += (_, e) => told.Add(e.PropertyName ?? "");
+
+        void Told(string after)
+        {
+            output.WriteLine($"{after}: {vm.PointerIntent}, told {told.Count(n => n == nameof(MainViewModel.PointerIntent))} time(s)");
+            Assert.Contains(nameof(MainViewModel.PointerIntent), told);
+            Assert.Contains(nameof(MainViewModel.PointerRefusal), told);
+            told.Clear();
+        }
+
+        vm.SetLayerLocked(layer, true);
+        Told("locked");
+        Assert.Equal(CanvasCursorKind.Forbidden, vm.PointerIntent);
+
+        vm.SetLayerLocked(layer, false);
+        Told("unlocked");
+        Assert.Equal(CanvasCursorKind.Paint, vm.PointerIntent);
+
+        vm.SetLayerAlphaLocked(layer, true);
+        Told("transparency locked");
+        vm.SetLayerAlphaLocked(layer, false);
+        Told("transparency unlocked");
+    }
+
     // ---- the two facts that need a place ------------------------------------------------
 
     /// <summary>A rectangular selection, as the marquee would make one.</summary>
