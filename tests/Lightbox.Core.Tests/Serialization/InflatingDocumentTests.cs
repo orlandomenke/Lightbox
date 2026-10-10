@@ -92,13 +92,13 @@ public class InflatingDocumentTests
                 gzip.Write(System.Text.Encoding.ASCII.GetBytes(Convert.ToBase64String(noise)));
                 gzip.Write("\",\"name\":\""u8);
                 var block = Enumerable.Repeat((byte)'a', 1 << 20).ToArray();
-                for (var i = 0; i < 16; i++) gzip.Write(block);
+                for (var i = 0; i < 48; i++) gzip.Write(block); // ~16x the file: past the 8x band
             }
             DocJson.InflationFloorBytes = 1L << 20;
             DocJson.InflationCeilingBytes = 6L << 20;
 
             var refused = Assert.Throws<InvalidDataException>(() => DocJson.Load(path));
-            Assert.Contains("expand", refused.Message);
+            Assert.Contains("this computer", refused.Message);
         }
         finally
         {
@@ -124,11 +124,46 @@ public class InflatingDocumentTests
             DocJson.ParseDocument = _ => throw new OutOfMemoryException("Array dimensions exceeded supported range.");
 
             var refused = Assert.Throws<InvalidDataException>(() => DocJson.Load(path));
-            Assert.Contains("too large", refused.Message);
+            // Said as what happened, not as a claim about the file: a real
+            // document on a busy machine fails this way too (the review).
+            Assert.Contains("ran out of memory", refused.Message);
+            Assert.Contains("unchanged", refused.Message);
+            Assert.IsType<OutOfMemoryException>(refused.InnerException);
         }
         finally
         {
             DocJson.ParseDocument = parse;
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    /// The ceiling never refuses a document that inflates like a real one: a
+    /// pixel-heavy document compresses about 1.3×, so on a modest machine a
+    /// long one could pass the ceiling — and the application wrote it, so it
+    /// must open it (the review). The ceiling only binds past 8× its size on
+    /// disk, which no real document reaches.
+    /// </summary>
+    [Fact]
+    public void ALargeDocumentThatInflatesLikeARealOneIsNeverRefusedByTheCeiling()
+    {
+        var (floor, ceiling) = (DocJson.InflationFloorBytes, DocJson.InflationCeilingBytes);
+        var path = Path.Combine(Path.GetTempPath(), $"lightbox-pixels-{Guid.NewGuid():N}.lightbox.json");
+        try
+        {
+            var noise = new byte[3 << 20];
+            new Random(2).NextBytes(noise);
+            var doc = new Doc();
+            doc.Scene.Name = Convert.ToBase64String(noise); // incompressible, as PNG checkpoints are
+            DocJson.Save(doc, path);
+            DocJson.InflationFloorBytes = 1L << 20;
+            DocJson.InflationCeilingBytes = 1L << 20; // far below the document's 4 MB
+
+            Assert.Equal(doc.Scene.Name, DocJson.Load(path).Scene.Name);
+        }
+        finally
+        {
+            (DocJson.InflationFloorBytes, DocJson.InflationCeilingBytes) = (floor, ceiling);
             File.Delete(path);
         }
     }

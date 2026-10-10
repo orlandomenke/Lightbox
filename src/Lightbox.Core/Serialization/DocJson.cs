@@ -174,15 +174,33 @@ public static class DocJson
     public const int MaxInflationRatio = 20;
 
     /// <summary>
-    /// The most any document may inflate to, whatever its size on disk: a
+    /// A second bound for files that inflate unlike any real document: a
     /// quarter of the memory this process is told it has. The ratio alone grows
     /// with the file, so a bomb padded to tens of MB on disk was allowed
-    /// gigabytes (the sensitivity review of Q235); this keeps a bomb of many
-    /// small tokens from pushing the machine into paging. Settable for tests.
+    /// gigabytes (the sensitivity review of Q235). Settable for tests.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>It binds only past <see cref="RealisticInflation"/> times the file's
+    /// size on disk.</b> Real documents inflate about 5× (pixel-heavy ones
+    /// 1.3×), so no document this application wrote is ever refused by it on
+    /// the machine that wrote it, however long — the review's first note,
+    /// which a plain ceiling failed.
+    /// </para>
+    /// <para>
+    /// <b>What it bounds is JSON bytes, not memory.</b> A bomb of one long
+    /// string fails at the array limit and is caught below (measured); a bomb of
+    /// many small tokens can build an object graph several times its JSON
+    /// before that, which this bounds but was not measured to keep off the
+    /// paging file.
+    /// </para>
+    /// </remarks>
     internal static long InflationCeilingBytes = Math.Max(1L << 30, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 4);
 
     /// <summary>The parse itself — a seam so a test can stand in for an allocation the runtime refuses.</summary>
+    /// <summary>How many times its size on disk any real document inflates, with room: past this, the ceiling applies.</summary>
+    internal const int RealisticInflation = 8;
+
     internal static Func<Stream, Doc> ParseDocument = s => JsonSerializer.Deserialize<Doc>(s, Options)
         ?? throw new JsonException("Document deserialized to null.");
 
@@ -205,10 +223,13 @@ public static class DocJson
         {
             return LoadCapped(file);
         }
-        catch (OutOfMemoryException)
+        catch (OutOfMemoryException e)
         {
+            // Said as what happened: a real document on a busy machine fails
+            // this way too, and must not read as a corrupt file (the review).
             throw new InvalidDataException(
-                "This document is too large to open on this computer — far larger than any drawing this application writes.");
+                "This computer ran out of memory opening this document. The file is unchanged; "
+                + "close other documents or applications and try again.", e);
         }
     }
 
@@ -221,8 +242,9 @@ public static class DocJson
             using var gzip = new GZipStream(file, CompressionMode.Decompress, leaveOpen: true);
             // Q235: a document that would inflate far past its size on disk is
             // refused rather than read until memory runs out.
-            var limit = Math.Min(InflationCeilingBytes, Math.Max(InflationFloorBytes, file.Length * MaxInflationRatio));
-            using var capped = new InflationCap(gzip, limit, file.Length);
+            var byRatio = Math.Max(InflationFloorBytes, file.Length * MaxInflationRatio);
+            var byCeiling = Math.Max(InflationFloorBytes, Math.Max(InflationCeilingBytes, file.Length * RealisticInflation));
+            using var capped = new InflationCap(gzip, Math.Min(byRatio, byCeiling), byCeiling < byRatio, file.Length);
             return ParseDocument(capped);
         }
         using var reader = new StreamReader(file, leaveOpen: true);
@@ -233,7 +255,7 @@ public static class DocJson
     /// A read-only stream that refuses to hand over more than its limit (Q235):
     /// the decompressed side of a document, counted as the parser reads it.
     /// </summary>
-    private sealed class InflationCap(Stream inner, long limit, long onDisk) : Stream
+    private sealed class InflationCap(Stream inner, long limit, bool computerBound, long onDisk) : Stream
     {
         private long _read;
 
@@ -249,9 +271,13 @@ public static class DocJson
             _read += read;
             if (_read > limit)
             {
-                throw new InvalidDataException(
-                    $"This document would expand past {limit >> 20} MB from {Math.Max(1, onDisk >> 20)} MB on disk, "
-                    + "far more than any drawing this application writes, so it was not opened.");
+                throw new InvalidDataException(computerBound
+                    // The ceiling: a limit of this computer, not a claim about the file.
+                    ? $"This document would expand past {limit >> 20} MB from {Math.Max(1, onDisk >> 20)} MB on disk, "
+                      + "more than this computer allows a document to take, so it was not opened. The file is unchanged."
+                    : $"This document would expand past {limit >> 20} MB from {Math.Max(1, onDisk >> 20)} MB on disk, "
+                      + "far more than any drawing this application writes, so it was not opened."
+                );
             }
             return read;
         }
