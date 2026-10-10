@@ -171,6 +171,41 @@ public class IconPlacementTests(ITestOutputHelper output) : BrushStateIsolated
         Assert.True(tooBig.Spill > 6, $"a 40 px icon in a 26 px button spilt only {tooBig.Spill}");
     }
 
+    /// <summary>
+    /// Every icon is drawn at the set's one line weight.
+    /// </summary>
+    /// <remarks>
+    /// The weight is a token (<c>IconStroke</c>, 1.25 since the owner's decision
+    /// of 2026-10-07, down from 1.5), and an icon that sets its own stroke keeps
+    /// whatever the number was the day it was written. The Quick options bar's
+    /// tool icon did exactly that: it stayed at 1.5 beside ninety at 1.25, and
+    /// nothing looked at it because nothing read the weight off the screen.
+    /// </remarks>
+    [AvaloniaFact]
+    public void EveryIconIsDrawnAtTheSetsLineWeight()
+    {
+        var (window, _) = Open(layers: 3);
+        IReadOnlyList<IconPlacement> icons;
+        double weight;
+        try
+        {
+            icons = IconCensus.Take(window);
+            Assert.True(window.TryFindResource("IconStroke", out var token), "the IconStroke token is gone");
+            weight = (double)token!;
+        }
+        finally
+        {
+            window.Close();
+        }
+
+        var heavy = icons.Where(i => Math.Abs(i.Stroke - weight) > 0.001)
+            .Select(i => FormattableString.Invariant($"{i.Name} in {(i.Host.Length > 0 ? i.Host : "no button")}: {i.Stroke}"))
+            .Distinct().ToList();
+        output.WriteLine($"{icons.Count} icons, line weight {weight}; off it: {(heavy.Count == 0 ? "none" : string.Join(", ", heavy))}");
+        Assert.True(icons.Count >= 60, $"only {icons.Count} icons were found");
+        Assert.Empty(heavy);
+    }
+
     // ---- what a window carries -----------------------------------------------------------
 
     /// <summary>

@@ -953,10 +953,9 @@
         with the selection, so a glance at the bar's left edge answers "what
         is in my hand" without looking down at the rail.
       -->
-      <Path DockPanel.Dock="Left" Data="{Binding ActiveToolIcon}" Width="18" Height="18"
-            Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"
-            Stroke="{DynamicResource TextPrimaryBrush}" StrokeThickness="1.5"
-            StrokeLineCap="Round" StrokeJoin="Round"
+      <!-- 18, larger than a button's icon: it labels the bar rather than sitting in a tile. The line is the set's. -->
+      <Path Classes="icon" DockPanel.Dock="Left" Data="{Binding ActiveToolIcon}" Width="18" Height="18"
+            VerticalAlignment="Center" Margin="0,0,8,0"
             ToolTip.Tip="The active tool. Its quick options fill this bar." />
       <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="{StaticResource Space4}"
                   VerticalAlignment="Center" Margin="0,0,10,0">
