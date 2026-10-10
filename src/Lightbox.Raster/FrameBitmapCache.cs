@@ -24,9 +24,17 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     /// </summary>
     private const int MinFrames = 6;
 
-    private const int MaxFrames = 96;
+    /// <summary>
+    /// A count only so that tiny pictures cannot grow the list without end: the
+    /// byte budget is what bounds this cache. It was 96 when an entry was a
+    /// whole frame (M15c); an entry is one drawing on one layer now, so 96 held
+    /// three frames of a 30-layer document against a budget with room for
+    /// sixteen, and flipping re-rendered what it had a moment before (the lab,
+    /// 2026-10-10: 1.2 s a flip).
+    /// </summary>
+    private const int MaxFrames = 4096;
 
-    /// <summary>How many frames the cache holds at most, whatever the byte budget.</summary>
+    /// <summary>How many pictures the cache holds at most, whatever the byte budget.</summary>
     public static int MaxEntries => MaxFrames;
 
     /// <summary>
@@ -642,7 +650,7 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     /// <remarks>
     /// <see cref="InsertWarm"/> never evicts, because a guess must not push out
     /// a frame in use. That is right for a guess and wrong for the stills the
-    /// paused picture is about to draw: once the cache held its 96 frames every
+    /// paused picture is about to draw: once the cache held its count of pictures every
     /// such warm was refused, the idle warm asked for them again on every drain
     /// — 1,009 renders in two minutes on eight cores after one Stop (B408) — and
     /// Stop's tile hold, which waits for them, never ended. These are not a
