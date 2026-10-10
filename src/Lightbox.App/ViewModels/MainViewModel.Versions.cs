@@ -121,6 +121,7 @@ public partial class MainViewModel
             // of the replaced one are not this one's (B67's reasoning).
             tab.State.View = null;
             tab.MarkSaved();
+            WarnIfNewer(doc, tab.Title);
             if (tab == ActiveTab)
             {
                 AttachEditor(tab.Editor);

@@ -176,6 +176,12 @@ public partial class MainViewModel
         {
             var project = ProjectIo.Load(root);
             ProjectDocker.Adopt(project);
+            // Said before the first document opens, so that document's own
+            // newer-build warning (Q234) is the one left on the strip.
+            AiStatus = project.Manifest.IsFromANewerBuild
+                // Q234: the manifest is rewritten on every project save.
+                ? $"“{project.Name}” was saved by a newer Lightbox. Saving it here may drop what this version cannot read."
+                : $"Opened project “{project.Name}”.";
             // Open the first animation so the project is not an empty shell —
             // and so the registries have something to resolve against.
             if (project.Manifest.Documents.FirstOrDefault() is { } first
@@ -186,11 +192,12 @@ public partial class MainViewModel
             OnProjectChanged();
             Remember(root, RecentKind.Project);
             // A first document that would not read is one file, not the project:
-            // the project opens, and the strip says which document and why.
-            var opening = project.Manifest.Documents.FirstOrDefault();
-            AiStatus = opening is not null && project.Unreadable.ContainsKey(opening.Id)
-                ? $"Opened project “{project.Name}”. {ProjectIo.Unavailable(project, opening)}."
-                : $"Opened project “{project.Name}”.";
+            // the project opens, and the strip says which document and why (B436).
+            if (project.Manifest.Documents.FirstOrDefault() is { } opening
+                && project.Unreadable.ContainsKey(opening.Id))
+            {
+                AiStatus = $"{AiStatus} {ProjectIo.Unavailable(project, opening)}.";
+            }
         }
         // NotSupported is ProjectIo refusing an earlier alpha's project with a
         // sentence written for the artist (Q36): shown as it is, not thrown past
@@ -478,6 +485,24 @@ public partial class MainViewModel
         if (filePath is not null) tab.MarkSaved();
         AddTab(tab);
         if (filePath is not null) Remember(filePath, RecentKind.Document);
+    }
+
+    /// <summary>
+    /// Say so when a newer build wrote this (Q234): saving it here may drop what
+    /// this build cannot read — per-point values, which Q230's kept keys do not
+    /// reach — and the artist should know before the save, not after.
+    /// </summary>
+    internal void WarnIfNewer(Doc doc, string title)
+    {
+        if (doc.IsFromANewerBuild)
+        {
+            AiStatus = $"“{title}” was saved by a newer Lightbox. Saving it here may drop what this version cannot read.";
+        }
+        // The other side (Q237): this build's format, last saved by an older one.
+        else if (doc.WasLastSavedByAnOlderBuild)
+        {
+            AiStatus = $"“{title}” was last saved by an older Lightbox, which may have dropped some of what this version wrote.";
+        }
     }
 
     // ---- what you had open last -----------------------------------------------
@@ -832,6 +857,10 @@ public partial class MainViewModel
         // Coming back from empty is the transition the whole UI hangs off, and a
         // property that only ever falls is worse than no property at all.
         if (wasEmpty) OnPropertyChanged(nameof(HasDocument));
+        // Here, where every tab is made — a file, a project's document, a
+        // restored recovery copy — so no route opens a newer file silently
+        // (Q234; the review found the project and recovery routes did).
+        WarnIfNewer(tab.Doc, tab.Title);
     }
 
     /// <summary>

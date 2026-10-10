@@ -129,4 +129,26 @@ public sealed class AutosaveServiceTests : IDisposable
 
         Assert.Equal(2, DocJson.Load(path).Scene.Layers[0].Cels[0].Frame!.Strokes.Count);
     }
+
+    /// <summary>
+    /// In-place autosave never rewrites a file a newer build saved (Q234): it
+    /// would drop what this build cannot read the moment the artist made an
+    /// edit, with no save pressed. The recovery copy still protects the work.
+    /// </summary>
+    [AvaloniaFact]
+    public void InPlaceAutosaveLeavesAFileFromANewerBuildAlone()
+    {
+        var doc = DocWithStrokes(2);
+        doc.Version = Doc.CurrentVersion + 1;
+        var original = PathFor("from-later.lightbox.json");
+        File.WriteAllText(original, "written by a newer build");
+        var service = new AutosaveService(() => doc, TimeSpan.Zero, inPlacePath: () => original,
+            targetPath: PathFor("autosave.lightbox.json")) { InPlace = true };
+
+        service.MarkDirty();
+        service.Flush();
+        Assert.True(service.PendingWrite.Wait(WriteTimeout), "background write never finished");
+
+        Assert.Equal("written by a newer build", File.ReadAllText(original));
+    }
 }
