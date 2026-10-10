@@ -77,6 +77,57 @@ public class LayerLockCostTests(ITestOutputHelper output) : BrushStateIsolated
     }
 
     /// <summary>
+    /// A frame composed after the locks is, byte for byte, the frame that was
+    /// on screen before them — for several layers at once.
+    /// </summary>
+    /// <remarks>
+    /// The test above counts publishes, and a count cannot tell a fresh picture
+    /// from a stale one: it shows the publish was skipped, not that skipping it
+    /// lost nothing. This one asks for the publish the lock no longer makes and
+    /// compares what comes back, so a renderer that one day reads a layer's
+    /// lock fails here rather than on an artist's screen.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheFrameAfterLockingIsTheFrameBefore()
+    {
+        var vm = WithAMark();
+        vm.AddPaintedLayerCommand.Execute(null);
+        vm.BeginStroke(60, 180, 1);
+        vm.MoveStroke(260, 60, 1);
+        vm.EndStroke();
+        Pump();
+        Lightbox.App.Rendering.RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+
+        byte[] Frame()
+        {
+            vm.PublishSnapshot();
+            Pump();
+            Assert.NotNull(latest);
+            using var bitmap = SkiaSharp.SKBitmap.FromImage(latest!.Image);
+            return bitmap.Bytes;
+        }
+
+        var before = Frame();
+        var painted = vm.Doc.Scene.Layers.Where(l => !l.IsBackground).ToList();
+        Assert.Equal(2, painted.Count);
+        vm.SelectLayersById(painted.Select(l => l.Id).ToList());
+
+        var publishes = vm.PublishCount;
+        vm.SetLayerLocked(painted[0], true);
+        vm.SetLayerAlphaLocked(painted[0], true);
+        Pump();
+        Assert.Equal(publishes, vm.PublishCount);
+        Assert.All(painted, l => Assert.True(l.Locked && l.AlphaLocked, $"{l.Name} was not locked with the selection"));
+
+        var after = Frame();
+        var inked = before.Count(b => b != 255);
+        output.WriteLine($"{before.Length} bytes a frame, {inked} of them not paper; identical after the locks: {before.AsSpan().SequenceEqual(after)}");
+        Assert.True(inked > 1000, "the frame compared is blank, so its being unchanged proves nothing");
+        Assert.True(before.AsSpan().SequenceEqual(after), "a frame composed after locking differs from the one before");
+    }
+
+    /// <summary>
     /// The lock is still an undoable document edit, and undoing it still tells
     /// everything that shows it.
     /// </summary>
