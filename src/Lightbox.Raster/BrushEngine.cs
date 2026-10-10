@@ -2473,12 +2473,48 @@ public static class BrushEngine
             }
         }
 
+        // The bilinear read of a window at a fraction of the document's scale,
+        // with everything that depends only on the column worked out once per
+        // band: FootprintSpace.CeilingAt does a floor and four clamps per call,
+        // and a band calls it twice a pixel - ceiling and rim. The arithmetic
+        // is CeilingAt's own, term for term, so the bytes are the same.
+        var sampled = window is not null && !direct;
+        int[]? colA = null, colB = null;
+        double[]? colT = null;
+        var ints = System.Buffers.ArrayPool<int>.Shared;
+        var doubles = System.Buffers.ArrayPool<double>.Shared;
+        if (sampled)
+        {
+            var n = Math.Max(1, band.Width);
+            colA = ints.Rent(n);
+            colB = ints.Rent(n);
+            colT = doubles.Rent(n);
+            for (var x = band.Left; x < band.Right; x++)
+            {
+                var u = ((x + 0.5) * space.Scale) + space.OffsetX - 0.5 - win.Left;
+                var x0 = (int)Math.Floor(u);
+                colA[x - band.Left] = Math.Clamp(x0, 0, win.Width - 1);
+                colB[x - band.Left] = Math.Clamp(x0 + 1, 0, win.Width - 1);
+                colT[x - band.Left] = u - x0;
+            }
+        }
+
         try
         {
         for (var y = band.Top; y < band.Bottom; y++)
         {
             var iRow = y * inkRow;
             var cRow = y * capRow;
+            int rowA = 0, rowB = 0;
+            var ty = 0.0;
+            if (sampled)
+            {
+                var v = ((y + 0.5) * space.Scale) + space.OffsetY - 0.5 - win.Top;
+                var y0 = (int)Math.Floor(v);
+                rowA = Math.Clamp(y0, 0, win.Height - 1) * win.Width;
+                rowB = Math.Clamp(y0 + 1, 0, win.Height - 1) * win.Width;
+                ty = v - y0;
+            }
             for (var x = band.Left; x < band.Right; x++)
             {
                 var i = iRow + x * 4;
@@ -2500,7 +2536,13 @@ public static class BrushEngine
                 }
                 else
                 {
-                    ceiling = space.CeilingAt(window, win, x, y);
+                    int xa = colA![x - band.Left], xb = colB![x - band.Left];
+                    var tx = colT![x - band.Left];
+                    double c00 = window[rowA + xa], c10 = window[rowA + xb];
+                    double c01 = window[rowB + xa], c11 = window[rowB + xb];
+                    var top = c00 + ((c10 - c00) * tx);
+                    var bottom = c01 + ((c11 - c01) * tx);
+                    ceiling = (byte)Math.Clamp(top + ((bottom - top) * ty) + 0.5, 0, 255);
                 }
                 if (alpha > ceiling)
                 {
@@ -2518,9 +2560,21 @@ public static class BrushEngine
                 // skirt of a soft brush does not turn into a dark halo. Colour
                 // only — this is paint that moved, not more of it.
                 if (rimWindow is null || alpha == 0) continue;
-                var edge = direct
-                    ? rimWindow[((y - win.Top) * win.Width) + (x - win.Left)]
-                    : space.CeilingAt(rimWindow, win, x, y);
+                byte edge;
+                if (direct)
+                {
+                    edge = rimWindow[((y - win.Top) * win.Width) + (x - win.Left)];
+                }
+                else
+                {
+                    int xa = colA![x - band.Left], xb = colB![x - band.Left];
+                    var tx = colT![x - band.Left];
+                    double c00 = rimWindow[rowA + xa], c10 = rimWindow[rowA + xb];
+                    double c01 = rimWindow[rowB + xa], c11 = rimWindow[rowB + xb];
+                    var top = c00 + ((c10 - c00) * tx);
+                    var bottom = c01 + ((c11 - c01) * tx);
+                    edge = (byte)Math.Clamp(top + ((bottom - top) * ty) + 0.5, 0, 255);
+                }
                 if (edge == 0) continue;
                 var keep = 1f - (rim.Strength * (edge / 255f) * MathF.Min(1f, alpha * (4f / 255f)));
                 ink[i] = (byte)((ink[i] * keep) + 0.5f);
@@ -2536,6 +2590,9 @@ public static class BrushEngine
             // event, which is the expensive kind of garbage.
             if (window is not null) System.Buffers.ArrayPool<byte>.Shared.Return(window);
             if (rimWindow is not null) System.Buffers.ArrayPool<byte>.Shared.Return(rimWindow);
+            if (colA is not null) ints.Return(colA);
+            if (colB is not null) ints.Return(colB);
+            if (colT is not null) doubles.Return(colT);
         }
     }
 
@@ -4409,9 +4466,16 @@ public static class BrushEngine
         // A tooth ceiling is read as it was laid; the swept ceiling (B349)
         // rebuilds a soft dab's falloff from the support's edge and would fill
         // the tooth in.
+        // As far as the ceiling and the rim read: the distance term saturates
+        // one falloff width inside the edge and the rim is spent a quarter of
+        // one plus its own width in, so a window that sees that far gives the
+        // answer a window of the whole radius gave (which this used to be -
+        // most of a hard-edged brush's distance transform measured distances
+        // nothing reads). Never under four cells, below which the swept
+        // ceiling stands down to the shape maximum.
         NeedsToothCeiling(brush)
             ? 0
-            : (int)Math.Ceiling(RadiusAt(brush, 1) * Math.Max(bufferScale, 0.0001)) + 2;
+            : Math.Max(4, (int)Math.Ceiling(FinishReachPx(brush) * Math.Max(bufferScale, 0.0001)) + 2);
 
     /// <returns>The gradient it installed, for the caller to release; null for a hard dab.</returns>
     private static SKShader? SetRoundPaint(SKPaint paint, SKPoint centre, float radius, float hardness, SKColor color)
@@ -4483,8 +4547,23 @@ public static class BrushEngine
             using var image = surface.Snapshot();
             image.ReadPixels(tile.Info, tile.GetPixels(), tile.RowBytes, 0, 0);
         }
+        // Immutable, so a shader made over it shares its pixels. A shader over
+        // a mutable bitmap copies it - four megabytes, on every band of every
+        // pointer event now that the grain is laid under the pen: 0.9 ms of a
+        // 1.0 ms grain at 60 px was that copy.
+        tile.SetImmutable();
         return _grainTile = tile;
     }
+
+    /// <summary>
+    /// Build the grain tile now. It is three octaves of noise over a megapixel
+    /// and used to be built by the first worker pass that wanted it, off the
+    /// UI thread; with the grain laid under the pen the first pointer event of
+    /// the first grained stroke would pay for it instead - a 400 ms stall in
+    /// the perf lab, at every brush size. Called once at startup, in the
+    /// background.
+    /// </summary>
+    public static void WarmGrain() => GrainTile();
 
     /// <summary>
     /// Photoshop's Texture, which is granulation with the surface, its scale

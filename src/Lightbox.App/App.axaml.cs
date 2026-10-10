@@ -52,6 +52,10 @@ public sealed class App : Application
             Services.ThumbnailWorker.Post = action => splash.Dispatcher.Post(action);
             Services.ThumbnailWorker.PostAtRest = action =>
                 splash.Dispatcher.Post(action, Avalonia.Threading.DispatcherPriority.Background);
+            // The grain tile, built before any stroke wants it: grain is laid
+            // under the pen now, and the first pointer event must not be what
+            // pays for a megapixel of noise (docs/DESIGN-paint-path.md).
+            _ = System.Threading.Tasks.Task.Run(Lightbox.Raster.BrushEngine.WarmGrain);
             splash.Show();
             // Deliberately not desktop.MainWindow — see Startup.HandOffAsync.
 
