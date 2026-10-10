@@ -291,6 +291,10 @@ public partial class MainViewModel
         IsPlaying = false;
         StopAudio();
         PublishSnapshot();
+        // The navigator kept its picture while playing; the frame stopped on is
+        // its picture now. During Stop's tile hold this returns at once, and the
+        // hold's end refreshes it instead.
+        RefreshNavigatorThumb();
     }
 
     private void StartPlayback(int direction)

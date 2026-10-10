@@ -2111,7 +2111,7 @@ public partial class MainViewModel
     /// Update timeline thumbnails lazily: only cells whose keyed frame is new,
     /// changed, or explicitly marked dirty are re-rendered.
     /// </summary>
-    private void RefreshThumbnails()
+    internal void RefreshThumbnails()
     {
         // Inside a publish hold, after the canvas: the lab's A/B of B402 found
         // the held publish waiting behind this, so the picture came ~100 ms
