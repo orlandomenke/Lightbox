@@ -29,8 +29,7 @@ public static class PaperField
     public static float HeightAt(int docX, int docY, PaperKind kind, double scale)
     {
         var tile = GetTile(kind, scale);
-        var t = tile.Size;
-        return tile.Data[Mod(docY, t) * t + Mod(docX, t)];
+        return tile.Data[Mod(docY, tile.Height) * tile.Width + Mod(docX, tile.Width)];
     }
 
     /// <summary>
@@ -50,11 +49,11 @@ public static class PaperField
         }
 
         var tile = GetTile(kind, scale);
-        var t = tile.Size;
+        var t = tile.Width;
         var startX = Mod(originX, t);
         for (var row = 0; row < height; row++)
         {
-            var src = tile.Data.AsSpan(Mod(originY + row, t) * t, t);
+            var src = tile.Data.AsSpan(Mod(originY + row, tile.Height) * t, t);
             var dst = dest.Slice(row * width, width);
             var sx = startX;
             var written = 0;
@@ -74,7 +73,17 @@ public static class PaperField
     /// caller that wants to align something to the sheet — or a test that
     /// wants to look at the wrap — does not have to guess.
     /// </summary>
-    public static int TilePeriod(PaperKind kind, double scale) => GetTile(kind, scale).Size;
+    public static int TilePeriod(PaperKind kind, double scale) => GetTile(kind, scale).Width;
+
+    /// <summary>
+    /// The period down the sheet. The constructed papers are square and this
+    /// is <see cref="TilePeriod"/>; a scanned one keeps the proportions of its
+    /// scan, because squaring it would stretch the grain.
+    /// </summary>
+    public static int TilePeriodY(PaperKind kind, double scale) => GetTile(kind, scale).Height;
+
+    /// <summary>Whether this sheet is a measured surface rather than a constructed one.</summary>
+    public static bool IsScanned(PaperKind kind) => ScanOf(kind) is not null;
 
     private static readonly ConcurrentDictionary<(PaperKind Kind, int ScaleKey), SkiaSharp.SKImage> Images = new();
 
@@ -93,10 +102,18 @@ public static class PaperField
         return Images.GetOrAdd(key, static k =>
         {
             var tile = GetTile(k.Kind, k.ScaleKey * ScaleQuantum);
-            var n = tile.Size;
-            var bmp = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(n, n, SkiaSharp.SKColorType.Gray8, SkiaSharp.SKAlphaType.Opaque));
-            var px = bmp.GetPixelSpan();
-            for (var i = 0; i < n * n; i++) px[i] = (byte)Math.Clamp((int)MathF.Round(tile.Data[i] * 255f), 0, 255);
+            int tw = tile.Width, th = tile.Height;
+            var bmp = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(tw, th, SkiaSharp.SKColorType.Gray8, SkiaSharp.SKAlphaType.Opaque));
+            // Row by row: a Gray8 bitmap's rows are padded to four bytes, so
+            // a width that is not a multiple of four does not pack.
+            for (var y = 0; y < th; y++)
+            {
+                var row = bmp.GetPixelSpan().Slice(y * bmp.RowBytes, tw);
+                for (var x = 0; x < tw; x++)
+                {
+                    row[x] = (byte)Math.Clamp((int)MathF.Round(tile.Data[(y * tw) + x] * 255f), 0, 255);
+                }
+            }
             var image = SkiaSharp.SKImage.FromBitmap(bmp);
             bmp.Dispose();
             return image;
@@ -107,7 +124,8 @@ public static class PaperField
 
     private sealed class Tile
     {
-        public required int Size { get; init; }
+        public required int Width { get; init; }
+        public required int Height { get; init; }
         public required float[] Data { get; init; }
     }
 
@@ -166,8 +184,119 @@ public static class PaperField
         _ => new Surface(1.0, 4, 0.55f, 1.0f),
     };
 
+    // ---- scanned sheets --------------------------------------------------------
+
+    /// <summary>
+    /// The grain size at which a scanned sheet is shown texel for pixel. The
+    /// same number an imported paper uses (<c>BrushEngine.FillFromImage</c>),
+    /// so a scan behaves the same whether it shipped or was imported.
+    /// </summary>
+    private const double ScanNativeScale = 8;
+
+    /// <summary>Longest side a resampled scan may have: four megapixels of float is the bound.</summary>
+    private const int ScanMaxSide = 2048;
+
+    private static string? ScanOf(PaperKind kind) => kind switch
+    {
+        PaperKind.Plain => "plain",
+        PaperKind.Kraft => "kraft",
+        PaperKind.Fibre => "fibre",
+        PaperKind.Linen => "linen",
+        PaperKind.Plaster => "plaster",
+        _ => null,
+    };
+
+    private static readonly ConcurrentDictionary<string, Tile> Scans = new();
+
+    /// <summary>
+    /// A scan as it was embedded: 8-bit grey, white the sheet's peaks, tileable.
+    /// Decoded once per process. A PNG, so the bytes are the same on every
+    /// platform - a JPEG's would depend on the decoder (invariant 2).
+    /// </summary>
+    private static Tile LoadScan(string name) => Scans.GetOrAdd(name, static n =>
+    {
+        var assembly = typeof(PaperField).Assembly;
+        var resource = $"Lightbox.Raster.Media.Papers.{n}.png";
+        using var stream = assembly.GetManifestResourceStream(resource)
+            ?? throw new InvalidOperationException($"The paper '{n}' is not embedded ({resource}).");
+        using var decoded = SkiaSharp.SKBitmap.Decode(stream)
+            ?? throw new InvalidOperationException($"The paper '{n}' could not be decoded.");
+        int w = decoded.Width, h = decoded.Height;
+        var data = new float[w * h];
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++) data[(y * w) + x] = decoded.GetPixel(x, y).Red / 255f;
+        }
+        return new Tile { Width = w, Height = h, Data = data };
+    });
+
+    /// <summary>
+    /// A scanned sheet at a grain size: the scan itself at
+    /// <see cref="ScanNativeScale"/>, magnified above it and reduced below.
+    /// </summary>
+    /// <remarks>
+    /// Resampled with wrap-around on both axes, so the result tiles exactly as
+    /// the scan does. Reduced by averaging the source texels each output pixel
+    /// covers and magnified bilinearly - sums and products of floats in a
+    /// fixed order, nothing a platform's maths library decides.
+    /// </remarks>
+    private static Tile BuildScan(string name, double scale)
+    {
+        var source = LoadScan(name);
+        var factor = Math.Max(scale, MinScale) / ScanNativeScale;
+        factor = Math.Min(factor, (double)ScanMaxSide / Math.Max(source.Width, source.Height));
+        var w = Math.Max(8, (int)Math.Round(source.Width * factor));
+        var h = Math.Max(8, (int)Math.Round(source.Height * factor));
+        if (w == source.Width && h == source.Height) return source;
+
+        var data = new float[w * h];
+        double sx = (double)source.Width / w, sy = (double)source.Height / h;
+        if (sx > 1.0 || sy > 1.0)
+        {
+            // Reducing: the mean of the block of texels under each pixel.
+            for (var y = 0; y < h; y++)
+            {
+                int y0 = (int)Math.Floor(y * sy), y1 = Math.Max(y0 + 1, (int)Math.Floor((y + 1) * sy));
+                for (var x = 0; x < w; x++)
+                {
+                    int x0 = (int)Math.Floor(x * sx), x1 = Math.Max(x0 + 1, (int)Math.Floor((x + 1) * sx));
+                    var sum = 0f;
+                    for (var v = y0; v < y1; v++)
+                    {
+                        var row = Mod(v, source.Height) * source.Width;
+                        for (var u = x0; u < x1; u++) sum += source.Data[row + Mod(u, source.Width)];
+                    }
+                    data[(y * w) + x] = sum / ((y1 - y0) * (x1 - x0));
+                }
+            }
+        }
+        else
+        {
+            for (var y = 0; y < h; y++)
+            {
+                var v = ((y + 0.5) * sy) - 0.5;
+                var vy = (int)Math.Floor(v);
+                var ty = (float)(v - vy);
+                int rowA = Mod(vy, source.Height) * source.Width, rowB = Mod(vy + 1, source.Height) * source.Width;
+                for (var x = 0; x < w; x++)
+                {
+                    var u = ((x + 0.5) * sx) - 0.5;
+                    var ux = (int)Math.Floor(u);
+                    var tx = (float)(u - ux);
+                    int xa = Mod(ux, source.Width), xb = Mod(ux + 1, source.Width);
+                    var top = source.Data[rowA + xa] + ((source.Data[rowA + xb] - source.Data[rowA + xa]) * tx);
+                    var bottom = source.Data[rowB + xa] + ((source.Data[rowB + xb] - source.Data[rowB + xa]) * tx);
+                    data[(y * w) + x] = top + ((bottom - top) * ty);
+                }
+            }
+        }
+        return new Tile { Width = w, Height = h, Data = data };
+    }
+
     private static Tile Build(PaperKind kind, double scale)
     {
+        if (ScanOf(kind) is { } scan) return BuildScan(scan, scale);
+
         var surface = SurfaceOf(kind);
         // Grain finer than two document pixels is below Nyquist — it cannot
         // be represented, only aliased. Clamping here rather than letting the
@@ -195,7 +324,7 @@ public static class PaperField
         {
             data[i] = Math.Clamp(0.5f + surface.Contrast * (data[i] - 0.5f), 0f, 1f);
         }
-        return new Tile { Size = size, Data = data };
+        return new Tile { Width = size, Height = size, Data = data };
     }
 
     /// <summary>
