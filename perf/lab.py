@@ -551,8 +551,11 @@ def check_icons(census: dict, step: dict) -> tuple[bool, str]:
             wrong.append(f"{i['name']} in {i['host'] or 'no button'}: {'; '.join(what)}")
     lone = [i for i in icons if i["alone"]]
     exact = sum(1 for i in lone if max(abs(i["offCentreX"]), abs(i["offCentreY"])) < 0.02)
-    seen = (f"{len(icons)} icons at {census['scale']:g}x, {exact} of {len(lone)} lone icons exactly centred, "
-            f"{census['paths']} paths realized ({census['pathsVisible']} visible), {census['visuals']} visuals")
+    # .get throughout: a build from before a field was added answers without it, and
+    # that is a line in the report, not a traceback.
+    seen = (f"{len(icons)} icons at {census.get('scale', 1):g}x, {exact} of {len(lone)} lone icons exactly centred, "
+            f"{census.get('paths', '?')} paths realized ({census.get('pathsVisible', '?')} visible), "
+            f"{census.get('visuals', '?')} visuals")
     if wrong:
         seen += " | " + " | ".join(wrong[:12]) + (f" | and {len(wrong) - 12} more" if len(wrong) > 12 else "")
     return not wrong, seen
@@ -750,6 +753,13 @@ def do_step(step: dict, place: Placement, pointer: Pointer, log: Log, hwnd: int)
             b = place.at(step["from"][0] + step["by"][0], step["from"][1] + step["by"][1])
         pointer.drag(a, b, ms=float(step.get("ms", 1000)), hz=float(step.get("hz", 120)),
                      legs=max(1, int(step.get("legs", 1))))
+        # A drag's moves are unguarded (a hung app may hold the cursor back, and that
+        # is the stall being measured), so a session that locked mid-run swallowed the
+        # whole gesture and the run still said "ok": two symbol-drag checks failed that
+        # way and read as the change under test.
+        if not input_accepted():
+            raise InputRefused("Windows refused the lab's input during a drag — the session "
+                               "most likely locked; unlock it and run again")
     elif kind == "hover":
         pointer.move(*(step["_screen"] if "_screen" in step else place.at(*step["at"])))
     elif kind == "wait":

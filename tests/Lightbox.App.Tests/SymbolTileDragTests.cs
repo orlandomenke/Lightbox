@@ -334,6 +334,14 @@ public sealed class SymbolTileDragTests(ITestOutputHelper output) : BrushStateIs
         Assert.Equal(landed.Top, shown.Top, 2);
         Assert.Equal(landed.Right, shown.Right, 2);
         Assert.Equal(landed.Bottom, shown.Bottom, 2);
+
+        // The drag over, the picture is let go of — and the next drag gets it back.
+        window.SymbolGhost.Release();
+        Assert.Null(((Avalonia.Controls.Image)window.SymbolGhost.Visual!).Source);
+        canvas.RaiseEvent(At(DragDrop.DragOverEvent, here));
+        Pump();
+        Assert.True(window.SymbolGhost.IsShown, "after one drag ended, the next showed nothing");
+        Assert.NotNull(((Avalonia.Controls.Image)window.SymbolGhost.Visual!).Source);
         window.Close();
     }
 

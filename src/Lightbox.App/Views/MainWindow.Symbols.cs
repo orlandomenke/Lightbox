@@ -332,8 +332,8 @@ public partial class MainWindow
         }
         finally
         {
-            // However the drag ended, wherever it ended.
-            _symbolGhost?.Hide();
+            // However the drag ended, wherever it ended — and its picture with it.
+            _symbolGhost?.Release();
         }
     }
 

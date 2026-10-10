@@ -102,6 +102,26 @@ internal sealed class SymbolDragGhost(Panel host, CanvasControl canvas)
         if (_image is not null) _image.IsVisible = false;
     }
 
+    /// <summary>
+    /// The drag is over: hide, and let go of the picture.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Hide"/> keeps the bitmap, because a drag that leaves the
+    /// canvas usually comes back and encoding it again per crossing would be
+    /// waste. Once the drag has ended nothing will ask for it again, and it can
+    /// be as large as the symbol's ink.
+    /// </remarks>
+    public void Release()
+    {
+        Hide();
+        _shown = null;
+        _nothingToShow = false;
+        if (_image is null) return;
+        var held = _image.Source as IDisposable;
+        _image.Source = null;
+        held?.Dispose();
+    }
+
     private bool Load(Symbol symbol, SKImageInfo info, int celIndex)
     {
         if (SymbolRasterizer.Ghost(symbol, info, celIndex) is not { } ghost) return false;
