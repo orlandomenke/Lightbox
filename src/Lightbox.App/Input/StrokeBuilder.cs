@@ -26,6 +26,37 @@ public sealed class StrokeBuilder
 
     private bool _keepSpeed;
 
+    /// <summary>The points as the pen reported them, before smoothing.</summary>
+    private List<StrokePoint>? _raw;
+
+    /// <summary>
+    /// What turns the pen's points into the line: the stabiliser's smoothing,
+    /// applied as the points arrive rather than when the pen lifts.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The paint path's second rule (docs/DESIGN-paint-path.md): pen-up
+    /// changes nothing, the geometry included. Three smoothing modes used to
+    /// run over the whole stroke at pen-up, so the line the artist drew was
+    /// replaced by a different one as the pen left it, and the live mark,
+    /// being of the unsmoothed points, could not stand for the record.
+    /// </para>
+    /// <para>
+    /// Each is a window over neighbouring points, so a new point changes only
+    /// the last few smoothed ones; the engine already keeps a provisional tail
+    /// it can take back and re-stamp, and <c>IncrementalDensify</c> was written
+    /// for a rewritten tail. The stroke in hand therefore always holds the
+    /// smoothing of every raw point so far, which at pen-up is exactly what the
+    /// pen-up pass used to produce: the committed stroke is unchanged, and it
+    /// is now also the one that was on screen.
+    /// </para>
+    /// <para>
+    /// Returning the list it was given means no smoothing, and the stroke then
+    /// holds the raw list itself.
+    /// </para>
+    /// </remarks>
+    public Func<List<StrokePoint>, List<StrokePoint>>? Smoothing { get; set; }
+
     public bool IsActive => _stroke is not null;
 
     public Stroke? Current => _stroke;
@@ -47,13 +78,14 @@ public sealed class StrokeBuilder
     {
         _keepTilt = alwaysRecordAxes || PenAxisUse.NeedsTilt(brush);
         _keepSpeed = alwaysRecordAxes || PenAxisUse.NeedsSpeed(brush);
+        _raw = [new StrokePoint(x, y, pressure)];
         _stroke = new Stroke
         {
             Tool = tool,
             Color = color,
             SwatchId = swatchId,
             Brush = brush.Clone(),
-            Points = [new StrokePoint(x, y, pressure)],
+            Points = _raw,
         };
     }
 
@@ -79,18 +111,19 @@ public sealed class StrokeBuilder
     /// </remarks>
     public void Add(double x, double y, double pressure, double? tiltX, double? tiltY, double? speed)
     {
-        if (_stroke is null) return;
-        var last = _stroke.Points[^1];
+        if (_stroke is null || _raw is null) return;
+        var last = _raw[^1];
         var dx = x - last.X;
         var dy = y - last.Y;
         if (dx * dx + dy * dy < MinSampleDist * MinSampleDist) return;
-        _stroke.Points.Add(_keepTilt || _keepSpeed
+        _raw.Add(_keepTilt || _keepSpeed
             ? new StrokePoint(
                 x, y, pressure,
                 _keepTilt ? tiltX : null,
                 _keepTilt ? tiltY : null,
                 _keepSpeed ? speed : null)
             : new StrokePoint(x, y, pressure));
+        _stroke.Points = Smoothing?.Invoke(_raw) ?? _raw;
     }
 
     /// <summary>Finish and return the stroke (null if it was never started).</summary>

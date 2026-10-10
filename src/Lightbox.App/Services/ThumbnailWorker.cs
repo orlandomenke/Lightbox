@@ -43,6 +43,13 @@ public sealed class ThumbnailWorker : IDisposable
     /// </summary>
     public static Action<Action>? Post { get; set; }
 
+    /// <summary>
+    /// The same, behind pointer input: work that should wait until the pen is
+    /// resting rather than run in the gap before the next stroke's first
+    /// event. Null wherever <see cref="Post"/> is.
+    /// </summary>
+    public static Action<Action>? PostAtRest { get; set; }
+
     /// <summary>A drawing's thumbnail source, rendered and waiting to be installed.</summary>
     public sealed record Made(
         Frame Frame, int Width, int Height, double Scale, int Cel, SKBitmap Bitmap, SKPointI Origin = default);

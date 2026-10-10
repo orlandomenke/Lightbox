@@ -618,24 +618,43 @@ public static class BrushEngine
         // The footprint the dabs are allowed to reach, accumulated as a maximum
         // beside them. Opaque, because that is what makes Skia's Lighten a real
         // max — see StampFootprint.
-        using var footprint = NeedsFootprintCap(brush)
-            ? SKSurface.Create(new SKImageInfo(dev.Width, dev.Height, SKColorType.Rgba8888, SKAlphaType.Opaque))
+        // The ceiling, at the resolution the brush asks for (CeilingScale) — in
+        // the plane's own buffer of that size when there is a plane, so it is
+        // the live path's buffer to the pixel, and in a stroke-sized one
+        // otherwise.
+        var needsCap = NeedsFootprintCap(brush);
+        var ceilingScale = needsCap ? CeilingScale(brush) : 1.0;
+        var reach = CeilingReachPx(brush, outputScale * ceilingScale);
+        var capPlane = needsCap && plane is not null ? plane.CapAt(ceilingScale) : default;
+        using var footprint = needsCap && plane is null
+            ? SKSurface.Create(new SKImageInfo(
+                Math.Max(1, (int)Math.Ceiling(dev.Width * ceilingScale) + 2),
+                Math.Max(1, (int)Math.Ceiling(dev.Height * ceilingScale) + 2),
+                SKColorType.Rgba8888, SKAlphaType.Opaque))
             : null;
         footprint?.Canvas.Clear(SKColors.Black);
-        var capCanvas = footprint is null ? null : plane?.CapCanvas ?? footprint.Canvas;
+        var capCanvas = !needsCap ? null : capPlane.Canvas ?? footprint!.Canvas;
         if (plane is not null)
         {
             dabCanvas.Save();
             dabCanvas.ClipRect(dev);
             dabCanvas.Clear(SKColors.Transparent);
-            if (footprint is not null)
+            if (capPlane.Bitmap is { } capBuffer)
             {
+                // Everything the cap can read: the stroke's window at the
+                // ceiling's scale, and the reach the swept ceiling looks across.
+                var capRect = SKRectI.Intersect(
+                    new SKRectI(
+                        (int)Math.Floor(dev.Left * ceilingScale) - reach - 2,
+                        (int)Math.Floor(dev.Top * ceilingScale) - reach - 2,
+                        (int)Math.Ceiling(dev.Right * ceilingScale) + reach + 2,
+                        (int)Math.Ceiling(dev.Bottom * ceilingScale) + reach + 2),
+                    new SKRectI(0, 0, capBuffer.Width, capBuffer.Height));
                 capCanvas!.Save();
-                capCanvas.ClipRect(dev);
+                capCanvas.ClipRect(capRect);
                 capCanvas.Clear(SKColors.Black);
             }
         }
-
 
         InDocumentSpace(dabCanvas, dabSpace, outputScale, origin, () =>
         {
@@ -660,7 +679,7 @@ public static class BrushEngine
                 }
             }
 
-            if (footprint is null && plane is not null && DrawsAsOneSilhouette(brush))
+            if (!needsCap && plane is not null && DrawsAsOneSilhouette(brush))
             {
                 // The live path's own two steps, in the same space: coverage as
                 // a running maximum into a document-sized buffer, then that
@@ -684,7 +703,7 @@ public static class BrushEngine
                 CoverageToInk(dabCanvas, plane.Cap, stroke, dev);
                 dabCanvas.RestoreToCount(held);
             }
-            else if (footprint is null)
+            else if (!needsCap)
             {
                 Dabs(null);
             }
@@ -692,18 +711,31 @@ public static class BrushEngine
             {
                 // The footprint has to be laid down in the same space as the
                 // dabs, so it takes the same transform rather than a rebuilt one.
+                capCanvas!.Save();
+                if (ceilingScale != 1.0) capCanvas.Scale((float)ceilingScale);
                 InDocumentSpace(
-                    capCanvas!, dabSpace, outputScale, origin,
+                    capCanvas, dabSpace, outputScale, origin,
                     () => Dabs(capCanvas), symmetry);
+                capCanvas.Restore();
                 if (plane is not null)
                 {
-                    plane.CopyWindow(plane.Ink, dabCanvas, dev, canvas);
-                    plane.CopyWindow(plane.Cap, capCanvas!, dev, footprint.Canvas);
+                    // The live path's own call, on the same two buffers in the
+                    // same frame of reference: the cap in place, in document
+                    // coordinates.
+                    dabCanvas.Flush();
+                    capCanvas.Flush();
+                    CapToFootprintBand(
+                        plane.Ink, capPlane.Bitmap!, dev, new FootprintSpace(ceilingScale, 0, 0), reach);
                 }
-                CapToFootprint(scratch, footprint, local, CeilingReachPx(brush, outputScale));
-                // Back into the plane, so the grain below reads the capped mark
-                // the way it always has.
-                if (plane is not null) plane.CopyBack(scratch, dev);
+                else
+                {
+                    footprint!.Canvas.Flush();
+                    using var capPix = footprint.PeekPixels();
+                    if (capPix is not null)
+                    {
+                        CapToFootprint(scratch, capPix, local, new FootprintSpace(ceilingScale, 0, 0), reach);
+                    }
+                }
             }
 
             // The medium replaces the flat texture effects: wet edge and
@@ -737,7 +769,7 @@ public static class BrushEngine
             // Under no transform: the copy is device pixels to device pixels.
             plane.CopyWindow(plane.Ink, dabCanvas, dev, canvas);
             dabCanvas.Restore();
-            if (footprint is not null) capCanvas!.Restore();
+            if (capPlane.Bitmap is not null) capCanvas!.Restore();
         }
 
         if (brush.Medium.Kind != MediumKind.None)
@@ -1049,8 +1081,7 @@ public static class BrushEngine
         private const int KeptIdle = 2;
         private static readonly System.Collections.Concurrent.ConcurrentBag<DocPlane> Idle = new();
 
-        private SKBitmap? _cap;
-        private SKCanvas? _capCanvas;
+        private readonly Dictionary<(int Width, int Height), (SKBitmap Bitmap, SKCanvas Canvas)> _caps = [];
 
         private DocPlane(int width, int height)
         {
@@ -1061,21 +1092,28 @@ public static class BrushEngine
         public SKBitmap Ink { get; }
         public SKCanvas InkCanvas { get; }
 
-        /// <summary>The ceiling's plane, made the first time a capped brush asks: most brushes have no cap.</summary>
-        public SKBitmap Cap
+        /// <summary>
+        /// The ceiling's buffer at a scale: the size the live path's own
+        /// coverage buffer has at that scale, made the first time a brush asks.
+        /// Most brushes have no cap, and those that do share a handful of
+        /// scales.
+        /// </summary>
+        public (SKBitmap? Bitmap, SKCanvas? Canvas) CapAt(double scale)
         {
-            get
+            var size = FootprintSpace.BufferSize(Ink.Width, Ink.Height, scale);
+            if (!_caps.TryGetValue(size, out var cap))
             {
-                if (_cap is null)
-                {
-                    _cap = new SKBitmap(new SKImageInfo(Ink.Width, Ink.Height, SKColorType.Rgba8888, SKAlphaType.Opaque));
-                    _capCanvas = new SKCanvas(_cap);
-                }
-                return _cap;
+                var bitmap = new SKBitmap(new SKImageInfo(size.Width, size.Height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+                cap = (bitmap, new SKCanvas(bitmap));
+                _caps[size] = cap;
             }
+            return cap;
         }
 
-        public SKCanvas CapCanvas { get { _ = Cap; return _capCanvas!; } }
+        /// <summary>The document-scale buffer: a silhouette's coverage.</summary>
+        public SKBitmap Cap => CapAt(1.0).Bitmap!;
+
+        public SKCanvas CapCanvas => CapAt(1.0).Canvas!;
 
         /// <summary>
         /// A plane for this render, or null when the render is not the
@@ -1154,8 +1192,12 @@ public static class BrushEngine
         {
             InkCanvas.Dispose();
             Ink.Dispose();
-            _capCanvas?.Dispose();
-            _cap?.Dispose();
+            foreach (var (bitmap, canvas) in _caps.Values)
+            {
+                canvas.Dispose();
+                bitmap.Dispose();
+            }
+            _caps.Clear();
         }
     }
 
@@ -4007,6 +4049,40 @@ public static class BrushEngine
     /// caller got before B349 and what the tests that measure the old ceiling
     /// still ask for.
     /// </remarks>
+    /// <summary>How many samples of the ceiling a soft edge is given across its width.</summary>
+    private const double CeilingSamplesAcrossTheEdge = 16;
+
+    /// <summary>
+    /// The resolution a brush's ceiling is kept at, as a fraction of the
+    /// document's: enough for sixteen samples across the brush's soft edge, and
+    /// never finer than the document.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A property of the brush, so that it is the same number while drawing
+    /// and on replay.</b> The live path used to keep the ceiling at whatever
+    /// scale the view was composed at (B189) and the replay at the document's,
+    /// which made the capped mark a different one when the pen lifted; kept at
+    /// the document's in both, a 300 px soft brush paid for a swept ceiling
+    /// over a 600 px window on every pointer event — 3.1 to 7.0 ms an event in
+    /// the perf lab, and pen-to-screen spikes past a second. A soft edge is a
+    /// ramp a hundred pixels wide on that brush; sampled bilinearly, sixteen
+    /// points across it reproduce it, and the swept ceiling's window shrinks by
+    /// the square of the scale.
+    /// </para>
+    /// <para>
+    /// A whole reciprocal, so a document pixel maps to a buffer pixel without
+    /// a rounding rule of its own. A tooth ceiling is grain and stays at 1.
+    /// </para>
+    /// </remarks>
+    public static double CeilingScale(BrushSettings brush)
+    {
+        if (NeedsToothCeiling(brush)) return 1.0;
+        var edge = (1 - Math.Clamp(brush.Hardness, 0, 1)) * RadiusAt(brush, 1);
+        var coarser = (int)Math.Floor(edge / CeilingSamplesAcrossTheEdge);
+        return 1.0 / Math.Clamp(coarser, 1, 8);
+    }
+
     public static int CeilingReachPx(BrushSettings brush, double bufferScale) =>
         // A tooth ceiling is read as it was laid; the swept ceiling (B349)
         // rebuilds a soft dab's falloff from the support's edge and would fill

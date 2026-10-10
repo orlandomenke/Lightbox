@@ -1590,7 +1590,9 @@ public partial class MainViewModel
         {
             // The cap is applied in place as the pen moves; it has to have seen
             // every dab, at the document's own scale.
-            if (!CapIsTheWholePass(brush) || _live.CoverageScale != 1.0 || _live.PostStampedDabs != dabs.Count)
+            if (!CapIsTheWholePass(brush)
+                || _live.CoverageScale != BrushEngine.CeilingScale(brush)
+                || _live.PostStampedDabs != dabs.Count)
             {
                 return null;
             }
@@ -1896,6 +1898,7 @@ public partial class MainViewModel
         if (!IsPlaying && _prewarm.IsBusy) _prewarm.Request([], 1);
         // A stroke draws on the still canvas: no held tiles under it.
         _holdTilesAfterStop = false;
+        _strokeBuilder.Smoothing ??= points => _stabilizer.PostProcess(points);
         _strokeBuilder.Begin(
             IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,
             ColorHex,
@@ -1977,13 +1980,18 @@ public partial class MainViewModel
                 // where a pixel is, and a zoom mid-stroke would move it.
                 // A tooth ceiling is a few pixels of grain and stays at document
                 // scale; the soft brush's ceiling may follow the compose scale.
-                // Document scale, always. A ceiling kept at the compose scale
-                // (B189) is cheaper per dab and is not the ceiling the record
-                // replays with, so the mark changed when the pen lifted; the
-                // live mark has to be the replay to be promoted, and the stamp
-                // it costs is repaid many times by not rendering the stroke
-                // again at pen-up.
-                _live.BeginCoverage(Scene.Width, Scene.Height, 1.0);
+                // The brush's own scale, never the view's. A ceiling kept at the
+                // compose scale (B189) was not the ceiling the record replays
+                // with, so the mark changed when the pen lifted; kept at the
+                // document's it cost a 300 px soft brush twice the event. The
+                // replay uses this same number (BrushEngine.CeilingScale), so
+                // the live mark is the replay and can be promoted. A
+                // silhouette's coverage is the mark itself and stays at 1.
+                _live.BeginCoverage(
+                    Scene.Width, Scene.Height,
+                    BrushEngine.DrawsAsOneSilhouette(CurrentToolSettings)
+                        ? 1.0
+                        : BrushEngine.CeilingScale(CurrentToolSettings));
                 LiveFootprintScaleUsed = _live.CoverageScale;
             }
         }
@@ -4026,7 +4034,9 @@ public partial class MainViewModel
 
         _stabilizer.End();
         LazyBrushCleared?.Invoke();
-        using (PerfLog.Begin("commit.smooth")) stroke.Points = _stabilizer.PostProcess(stroke.Points);
+        // No smoothing here any more: the stroke in hand has held the smoothed
+        // line since its first point (StrokeBuilder.Smoothing), so the line
+        // that is on screen is the line that is committed.
 
         // Remembered for the next Shift+click. The post-processed end, not the
         // raw one, so the next segment starts exactly where this mark stops.
@@ -4151,7 +4161,39 @@ public partial class MainViewModel
             else _publish.InvalidateWholeCanvas();
         }
         PublishSnapshot();
-        RefreshThumbnails();
+        RefreshThumbnailsWhenThePenRests();
+    }
+
+    private bool _thumbsWaitForRest;
+
+    /// <summary>
+    /// The timeline, layer and navigator thumbnails after a stroke — once the
+    /// pen is resting, not inside pen-up.
+    /// </summary>
+    /// <remarks>
+    /// They cost 15 to 16 ms at every pen-up on the baseline (perf lab,
+    /// 2026-10-10), a whole refresh spent on pictures the artist is not looking
+    /// at while the next stroke of a hatch is already starting. Posted behind
+    /// pointer input (ThumbnailWorker.PostAtRest), so the next stroke goes first; if the pen is down
+    /// again when it runs it does nothing, and that stroke's own pen-up asks
+    /// again — the drawing is still marked dirty.
+    /// </remarks>
+    private void RefreshThumbnailsWhenThePenRests()
+    {
+        // No dispatcher to wait on (a headless test, a tool): now, as before.
+        if (Services.ThumbnailWorker.PostAtRest is not { } post)
+        {
+            RefreshThumbnails();
+            return;
+        }
+        if (_thumbsWaitForRest) return;
+        _thumbsWaitForRest = true;
+        post(() =>
+        {
+            _thumbsWaitForRest = false;
+            if (_strokeBuilder.Current is not null) return;
+            RefreshThumbnails();
+        });
     }
 
     /// <summary>

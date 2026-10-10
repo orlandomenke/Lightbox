@@ -215,6 +215,46 @@ Every render fingerprint moved with the frame of reference and was re-recorded
 with the reason beside it: an existing drawing changes by a level on a few
 dozen edge pixels in tens of thousands.
 
+### What the first lab comparison said, and what it changed
+
+The first cut of the above passed every test and was **not a gain on the real
+app**. Measured against the frozen baseline (four brushes, three sizes, two
+speeds):
+
+- **Pen-up was unchanged**, because promotion almost never fired. The tests
+  draw with smoothing off; the app's default smooths the stroke at pen-up
+  (`StrokeStabilizer.PostProcess`), so the committed record was never the
+  line that had been drawn, and the guard rightly fell back to the replay.
+  That was the second rule being broken in the default configuration: the
+  line moved as the pen left it.
+- **Soft brushes got slower while drawing**: 3.1 → 7.0 ms a pointer event at
+  300 px, with pen-to-screen spikes past a second. Keeping the ceiling at
+  document scale so that it would be the replay's meant a swept ceiling over a
+  600 px window on every event.
+
+Both were fixed by making the thing the same in both places rather than by
+picking a side:
+
+- **Smoothing is live.** The stroke in hand holds the smoothing of every raw
+  point so far (`StrokeBuilder.Smoothing`); a new point changes only the last
+  few, which the provisional tail and `IncrementalDensify` were already built
+  for. At pen-up the stroke is what the pen-up pass used to produce, so the
+  committed record is unchanged — it is now also what was on screen.
+- **The ceiling's resolution belongs to the brush** (`BrushEngine.CeilingScale`):
+  sixteen samples across the soft edge, a whole reciprocal of the document's
+  scale, the same number live and on replay. A 300 px soft round keeps its
+  ceiling at a sixth; the swept ceiling's window shrinks by the square.
+
+Two costs the lab found in pen-up that were nobody's design:
+
+- **The tile update copied the whole frame once per tile.** `DrawBitmap` on
+  the frame's own bitmap wraps all of it in an image each time — 8 MB at
+  1080p, a dozen times a stroke: the 12 to 24 ms `append.tiles` cost at every
+  pen-up whatever the brush. It copies from one view of the stroke's region
+  now.
+- **Thumbnails were rendered inside pen-up**, 15 to 16 ms. They wait for the
+  pen to rest (`RefreshThumbnailsWhenThePenRests`), behind pointer input.
+
 ## Order
 
 1. **Promote at pen-up**, for the brushes that are already dab-final (ink, soft

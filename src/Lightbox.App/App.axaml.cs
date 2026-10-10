@@ -50,6 +50,8 @@ public sealed class App : Application
             // worker posts back through this window's dispatcher, captured here on
             // the UI thread, never the ambient static from its own thread (B93).
             Services.ThumbnailWorker.Post = action => splash.Dispatcher.Post(action);
+            Services.ThumbnailWorker.PostAtRest = action =>
+                splash.Dispatcher.Post(action, Avalonia.Threading.DispatcherPriority.Background);
             splash.Show();
             // Deliberately not desktop.MainWindow — see Startup.HandOffAsync.
 

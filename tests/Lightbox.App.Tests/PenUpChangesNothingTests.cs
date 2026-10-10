@@ -31,12 +31,19 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
     ];
 
     public static IEnumerable<object[]> Shipped() =>
-        BuiltInPresets.Create().Where(p => p.Settings.Kind == BrushKind.Paint).SelectMany(p => new[] { new object[] { p.Id, 0 }, new object[] { p.Id, 60 } });
+        BuiltInPresets.Create().Where(p => p.Settings.Kind == BrushKind.Paint).SelectMany(p => new[]
+            {
+                // The stabiliser's default smoothing on, which is how the app draws;
+                // and off, the mode most pixel tests use.
+                new object[] { p.Id, 0, true }, new object[] { p.Id, 60, true }, new object[] { p.Id, 60, false },
+                // And broad, where a soft brush keeps its ceiling at a fraction of the document.
+                new object[] { p.Id, 300, true },
+            });
 
-    private static MainViewModel Vm()
+    private static MainViewModel Vm(bool smooth)
     {
         var vm = VmLayers.PaperVm();
-        vm.SmoothStrokes = false;
+        vm.SmoothStrokes = smooth;
         vm.ColorHex = "#203060";
         // Passes run where they are asked for, so a worker brush's mark is as
         // finished as it will get before the pen lifts.
@@ -63,9 +70,9 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
 
     [AvaloniaTheory]
     [MemberData(nameof(Shipped))]
-    public void TheLiveMarkAtPenUpIsTheReplay(string presetId, int size)
+    public void TheLiveMarkAtPenUpIsTheReplay(string presetId, int size, bool smooth)
     {
-        var vm = Vm();
+        var vm = Vm(smooth);
         var preset = vm.BrushPresetChoices.Single(p => p.Id == presetId);
         vm.ApplyPreset(preset);
         if (size > 0) vm.BrushSize = size;
@@ -120,7 +127,7 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
             : brush.WetEdge > 0 || brush.Granulation > 0 || brush.TextureSurface is not null ? "pass"
             : "dabs";
         output.WriteLine(
-            $"PENUP {preset.Name,-22} size {brush.Size,5:0} {route,-10} {(vm.PromotedStrokes == 1 ? "promoted" : "replayed"),-9} differing {gap.Differing,7} of {gap.Inked,7} inked  worst {gap.Worst,3}  mean {gap.Mean,5:F2}");
+            $"PENUP {preset.Name,-22} size {brush.Size,5:0} {(smooth ? "smooth" : "raw"),-6} {route,-10} {(vm.PromotedStrokes == 1 ? "promoted" : "replayed"),-9} differing {gap.Differing,7} of {gap.Inked,7} inked  worst {gap.Worst,3}  mean {gap.Mean,5:F2}");
 
         if (gap.Differing > 0)
         {
