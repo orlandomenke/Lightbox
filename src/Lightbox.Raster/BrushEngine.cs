@@ -1056,6 +1056,16 @@ public static class BrushEngine
     /// until it is moved under the pen too. <c>PenUpChangesNothingTests</c>
     /// holds every shipped preset on this list to zero differing pixels.
     /// </remarks>
+    /// <summary>
+    /// Whether a document of this size is replayed in document coordinates —
+    /// through the pooled plane, the same arithmetic as drawing live. Above the
+    /// plane's limit a replay stamps into a stroke-sized scratch under a
+    /// translation, which is a level away from the live mark on a scattering of
+    /// pixels, so a live mark there is not the replay and must not be kept.
+    /// </summary>
+    public static bool ReplaysInDocumentSpace(int width, int height) =>
+        width > 0 && height > 0 && (long)width * height <= DocPlane.MaxPixels;
+
     public static bool PromotesAtPenUp(Stroke stroke)
     {
         var brush = stroke.Brush;
@@ -1104,7 +1114,7 @@ public static class BrushEngine
     /// </remarks>
     private sealed class DocPlane : IDisposable
     {
-        private const long MaxPixels = 64L * 1024 * 1024;
+        internal const long MaxPixels = 64L * 1024 * 1024;
         private const int KeptIdle = 2;
         private static readonly System.Collections.Concurrent.ConcurrentBag<DocPlane> Idle = new();
 
@@ -1152,7 +1162,7 @@ public static class BrushEngine
         {
             if (scale != 1.0 || origin.X != 0 || origin.Y != 0) return null;
             if (brush.Mixing is not null) return null;
-            if (info.Width <= 0 || info.Height <= 0 || (long)info.Width * info.Height > MaxPixels) return null;
+            if (!ReplaysInDocumentSpace(info.Width, info.Height)) return null;
             if (dev.Width <= 0 || dev.Height <= 0
                 || dev.Left < 0 || dev.Top < 0 || dev.Right > info.Width || dev.Bottom > info.Height)
             {
@@ -1543,6 +1553,39 @@ public static class BrushEngine
     /// </remarks>
     public static int StableCount(IReadOnlyList<Dab> now, IReadOnlyList<Dab>? before) =>
         StableCount(now, before, 0);
+
+    /// <summary>
+    /// How many leading dabs are the same dab as last time — place, pressure,
+    /// heading and load — and so can be stamped once and kept.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="StableCount(IReadOnlyList{Dab}, IReadOnlyList{Dab})"/> asks
+    /// about position alone, which is the right question for a mark whose dabs
+    /// are discs. A tip that follows the stroke takes its heading from the
+    /// points around it, and with smoothing on a dab keeps its place while it
+    /// turns: settled on position, the live mark kept every such dab at the
+    /// angle it had when it landed and the record replayed it at the one it
+    /// ended with — 7,500 pixels and 28 levels on a zigzag of Oil (flat),
+    /// promoted into the frame
+    /// (PenUpChangesNothingTests.AStrokeThatMeetsItselfIsStillTheReplay).
+    /// </para>
+    /// <para>
+    /// Not folded into the position rule, because the blur tool's draft
+    /// re-stamps what is unsettled without taking it back first and a stricter
+    /// rule there blurs the tail twice (LiveBlurFidelityTests). Equals, so the
+    /// NaN that means "no heading" matches itself.
+    /// </para>
+    /// </remarks>
+    public static int SettledCount(IReadOnlyList<Dab> now, IReadOnlyList<Dab>? before)
+    {
+        if (now.Count == 0) return 0;
+        if (before is null) return 1;
+        var agreed = 0;
+        var shared = Math.Min(now.Count, before.Count);
+        while (agreed < shared && now[agreed].Equals(before[agreed])) agreed++;
+        return Math.Max(1, agreed);
+    }
 
     /// <inheritdoc cref="StableCount(IReadOnlyList{Dab}, IReadOnlyList{Dab})"/>
     /// <param name="tolerance">
@@ -2385,14 +2428,19 @@ public static class BrushEngine
         ReadOnlySpan<byte> cap, int capRow, int capW, int capH,
         FootprintSpace space, int reachPx, Rim rim = default)
     {
-        if (reachPx > 0 && (band.Width > CapChunk || band.Height > CapChunk))
+        // A tile carries a halo of the reach on every side, so a tile much
+        // smaller than the reach is mostly halo: at four reaches a side the
+        // halo is a little over half the work, where a fixed 384 under a
+        // 250 px reach made it eight parts in nine.
+        var chunk = Math.Max(CapChunk, reachPx * 4);
+        if (reachPx > 0 && (band.Width > chunk || band.Height > chunk))
         {
-            for (var top = band.Top; top < band.Bottom; top += CapChunk)
+            for (var top = band.Top; top < band.Bottom; top += chunk)
             {
-                for (var left = band.Left; left < band.Right; left += CapChunk)
+                for (var left = band.Left; left < band.Right; left += chunk)
                 {
                     var tile = new SKRectI(
-                        left, top, Math.Min(band.Right, left + CapChunk), Math.Min(band.Bottom, top + CapChunk));
+                        left, top, Math.Min(band.Right, left + chunk), Math.Min(band.Bottom, top + chunk));
                     CapCore(ink, inkRow, tile, cap, capRow, capW, capH, space, reachPx, rim);
                 }
             }
@@ -2421,10 +2469,12 @@ public static class BrushEngine
             win = SKRectI.Intersect(win, new SKRectI(0, 0, capW, capH));
             if (win.Width > 0 && win.Height > 0)
             {
-                window = SweptCeilingOver(cap, capRow, win, reachPx, rim.WidthPx, out rimWindow);
+                window = SweptCeilingOver(cap, capRow, win, reachPx, rim.WidthPx, out rimWindow, pooled: true);
             }
         }
 
+        try
+        {
         for (var y = band.Top; y < band.Bottom; y++)
         {
             var iRow = y * inkRow;
@@ -2477,6 +2527,15 @@ public static class BrushEngine
                 ink[i + 1] = (byte)((ink[i + 1] * keep) + 0.5f);
                 ink[i + 2] = (byte)((ink[i + 2] * keep) + 0.5f);
             }
+        }
+        }
+        finally
+        {
+            // Rented, because this runs per pointer event and a window of a
+            // large brush is hundreds of kilobytes - the large-object heap, per
+            // event, which is the expensive kind of garbage.
+            if (window is not null) System.Buffers.ArrayPool<byte>.Shared.Return(window);
+            if (rimWindow is not null) System.Buffers.ArrayPool<byte>.Shared.Return(rimWindow);
         }
     }
 
@@ -2532,12 +2591,18 @@ public static class BrushEngine
     /// eye puts the edge of a soft mark: the pass this replaces found its edge
     /// by saturating the mark's alpha fourfold, which is the same line.
     /// </remarks>
+    /// <param name="pooled">
+    /// Rent the two arrays instead of allocating them: they are then at least
+    /// the window's size rather than exactly it, and the caller returns them.
+    /// </param>
     internal static byte[] SweptCeilingOver(
-        ReadOnlySpan<byte> cap, int capRow, SKRectI win, int reachPx, float rimWidth, out byte[]? rim)
+        ReadOnlySpan<byte> cap, int capRow, SKRectI win, int reachPx, float rimWidth, out byte[]? rim,
+        bool pooled = false)
     {
         rim = null;
         int w = win.Width, h = win.Height;
-        var ceiling = new byte[w * h];
+        var bytes = System.Buffers.ArrayPool<byte>.Shared;
+        var ceiling = pooled ? bytes.Rent(w * h) : new byte[w * h];
 
         // The coarse step: 1 for anything a live band produces, larger only
         // for a whole-canvas commit window.
@@ -2595,7 +2660,12 @@ public static class BrushEngine
             // A pixel off for the rasterised edge, and the whole coarse step
             // on top when the field was measured coarsely.
             var bias = step == 1 ? 1f : step * 1.5f;
-            if (rimWidth > 0f) rim = new byte[w * h];
+            if (rimWidth > 0f)
+            {
+                rim = pooled ? bytes.Rent(w * h) : new byte[w * h];
+                // Only cells inside the support are written below.
+                if (pooled) Array.Clear(rim, 0, w * h);
+            }
             for (var y = 0; y < h; y++)
             {
                 var row = (win.Top + y) * capRow;
@@ -3439,6 +3509,45 @@ public static class BrushEngine
     {
         var radiusFactor = brush.TipId is null ? 0.5 : 0.75; // 0.5 × √2, rounded up
         return (float)(brush.Size * (radiusFactor + Math.Max(0, brush.Scatter)) + 4) + BleedReach(brush);
+    }
+
+    /// <summary>
+    /// How far beyond its own disc a dab can change the finished mark, in
+    /// document pixels: zero for a brush with no ceiling.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A ceiling and a wet edge are functions of how far a pixel sits inside
+    /// the edge of everything the stroke has covered. A dab moves that edge
+    /// only within its own disc, but a pixel up to a falloff's width behind the
+    /// edge reads it — so the second leg of a U-turn, laid a hair under one
+    /// brush width from the first, swallows the first leg's facing edge and
+    /// changes pixels its dabs never reach. The live path re-finishes the band
+    /// its new dabs can reach, grown by this (it is not part of a dab's own
+    /// reach: no ink lands there, so no scratch or commit region needs it);
+    /// without it the screen kept a
+    /// rim and a soft edge the record did not have, and pen-up wrote them into
+    /// the frame (PenUpChangesNothingTests.AStrokeThatMeetsItselfIsStillTheReplay,
+    /// found by review: 1,300 pixels and 104 levels on a soft round zigzag).
+    /// </para>
+    /// <para>
+    /// The distance term saturates one falloff width in; the rim is spent a
+    /// quarter of a falloff plus its own width in. A cell of the ceiling's
+    /// buffer each side for its bilinear read, and a pixel for the rasterised
+    /// edge. Where pressure drives hardness the falloff can be the whole
+    /// radius, and is taken as that.
+    /// </para>
+    /// </remarks>
+    public static int FinishReachPx(BrushSettings brush)
+    {
+        if (!NeedsFootprintCap(brush) || NeedsToothCeiling(brush)) return 0;
+        var radius = RadiusAt(brush, 1);
+        var softest = PressureResponse.IsDriven(brush, BrushDynamic.Hardness)
+            ? 1.0
+            : 1 - Math.Clamp(brush.Hardness, 0, 1);
+        var width = softest * radius;
+        var rim = NeedsRim(brush) ? (0.25 * width) + RimWidth(brush) : 0;
+        return (int)Math.Ceiling(Math.Max(width, rim) + (2 / CeilingScale(brush))) + 3;
     }
 
     /// <summary>
@@ -4514,7 +4623,11 @@ public static class BrushEngine
                 rgba[o + 3] = (byte)Math.Round(Math.Clamp(keep, 0, 1) * 255);
             }
 
-            using var image = SKImage.FromBitmap(mask);
+            // A view of the mask, not a copy of it: FromBitmap duplicates a
+            // mutable bitmap, and this runs on the band of every pointer event.
+            using var maskPixels = mask.PeekPixels();
+            using var image = maskPixels is null ? null : SKImage.FromPixels(maskPixels);
+            if (image is null) return;
             using var paint = new SKPaint { BlendMode = SKBlendMode.DstIn };
             canvas.DrawImage(
                 image,
@@ -4558,10 +4671,11 @@ public static class BrushEngine
             0, 0, 0, 0, 0,
             g, 0, 0, 0, 1 - g,
         };
+        using var filter = SKColorFilter.CreateColorMatrix(matrix);
         using var paint = new SKPaint
         {
             Shader = noise,
-            ColorFilter = SKColorFilter.CreateColorMatrix(matrix),
+            ColorFilter = filter,
             BlendMode = SKBlendMode.DstIn,
         };
         canvas.DrawRect(new SKRect(rect.Left, rect.Top, rect.Right, rect.Bottom), paint);

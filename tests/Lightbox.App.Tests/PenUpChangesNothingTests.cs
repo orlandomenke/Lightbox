@@ -167,4 +167,77 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
                 $"{preset.Name} at size {brush.Size:0}: pen-up changes {gap.Differing} pixels (worst {gap.Worst}) — the live mark is not the replay");
         }
     }
+
+    public static IEnumerable<object[]> Overlapping() =>
+        from id in new[] { "builtin-watercolor", "builtin-gouache", "builtin-oil-flat", "builtin-soft-round", "builtin-airbrush", "builtin-pencil" }
+        from shape in new[] { "u-turn", "zigzag", "scribble" }
+        from smooth in new[] { false, true }
+        select new object[] { id, shape, smooth };
+
+    /// <summary>
+    /// A stroke that comes back alongside itself. A ceiling and a wet edge are
+    /// functions of how far a pixel is from the edge of everything the stroke
+    /// has covered, so a later dab can change a pixel it never touches: the
+    /// second leg of a U-turn swallows the first leg's facing edge, and the rim
+    /// that was drawn there must go. The band a pointer event re-finishes has
+    /// to reach that far, or the screen keeps a rim the record does not have —
+    /// and promotion would then write it into the frame (invariant 1).
+    /// </summary>
+    /// <remarks>
+    /// Found by review, not by the suite: the sine the first theory draws never
+    /// meets itself. Legs a hair under one brush width apart are the worst
+    /// case, where the new leg just covers the old edge and the pixels behind
+    /// it lie outside the new dabs' own reach.
+    /// </remarks>
+    [AvaloniaTheory]
+    [MemberData(nameof(Overlapping))]
+    public void AStrokeThatMeetsItselfIsStillTheReplay(string presetId, string shape, bool smooth)
+    {
+        const int Size = 100;
+        var vm = Vm(smooth);
+        var preset = vm.BrushPresetChoices.Single(p => p.Id == presetId);
+        vm.ApplyPreset(preset);
+        vm.BrushSize = Size;
+        var scene = vm.Doc.Scene;
+
+        var points = new List<(double X, double Y)>();
+        switch (shape)
+        {
+            case "u-turn":
+                for (var i = 0; i <= 40; i++) points.Add((200 + i * 12.0, 250));
+                for (var i = 1; i <= 8; i++) points.Add((680 + Math.Sin(i * Math.PI / 8) * 50, 250 + (Size - 1) * i / 8.0));
+                for (var i = 1; i <= 40; i++) points.Add((680 - i * 12.0, 250 + Size - 1));
+                break;
+            case "zigzag":
+                for (var leg = 0; leg < 5; leg++)
+                    for (var i = 0; i <= 20; i++)
+                        points.Add((200 + (leg % 2 == 0 ? i : 20 - i) * 22.0, 180 + leg * Size * 0.75 + i * 1.5));
+                break;
+            default:
+                for (var i = 0; i <= 120; i++)
+                    points.Add((500 + Math.Cos(i * 0.31) * (60 + i * 1.6), 360 + Math.Sin(i * 0.47) * (40 + i * 1.1)));
+                break;
+        }
+
+        vm.BeginStroke(points[0].X, points[0].Y, 0.8);
+        for (var i = 1; i < points.Count; i++)
+        {
+            vm.MoveStroke(points[i].X, points[i].Y, 0.55 + 0.4 * i / points.Count);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        vm.EndStroke();
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        var gap = Compare(kept, replay);
+        output.WriteLine(
+            $"MEETS {preset.Name,-18} {shape,-8} {(smooth ? "smooth" : "raw"),-6} {(vm.PromotedStrokes == 1 ? "promoted" : "replayed"),-9} differing {gap.Differing,7} of {gap.Inked,7} inked  worst {gap.Worst,3}");
+
+        Assert.True(gap.Inked > 5000, $"{preset.Name} drew almost nothing: {gap.Inked} inked pixels");
+        Assert.True(gap.Differing == 0,
+            $"{preset.Name}, {shape}: the committed frame is not what its record renders ({gap.Differing} pixels, worst {gap.Worst}) — invariant 1");
+        Assert.True(vm.PromotedStrokes == 1, $"{preset.Name}, {shape}: an exact brush rendered its stroke a second time at pen-up");
+    }
 }

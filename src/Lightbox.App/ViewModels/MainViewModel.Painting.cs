@@ -1578,6 +1578,10 @@ public partial class MainViewModel
     private LiveMark? TakeLiveMark(Stroke stroke)
     {
         if (PaperHasMoved || !BrushEngine.PromotesAtPenUp(stroke)) return null;
+        // A document too large for the replay's plane is replayed in another
+        // frame of reference, and the live mark is then not the replay.
+        if (!BrushEngine.ReplaysInDocumentSpace(Scene.Width, Scene.Height)) return null;
+        if (_live.SettledDabChanged) return null;
         if (_live.Dabs is not { Count: > 0 } dabs) return null;
 
         var brush = stroke.Brush;
@@ -1998,6 +2002,7 @@ public partial class MainViewModel
         _live.StampedCount = 0;
         _live.DabCount = 0;
         _live.StableDabs = 0;
+        _live.SettledDabChanged = false;
         _live.TailRegion = null;
         _live.Dabs = null;
         _live.EffectDabs = null;
@@ -2392,6 +2397,9 @@ public partial class MainViewModel
             // has to run from the start for its phase, travel and heading to match the
             // commit, and only the drawing is incremental.
             StampLiveDabs(live, info);
+            // The finish can reach past the dabs that caused it; the screen has
+            // to be told about all of it.
+            if (_live.FinishedBand is { } finishedBand) _publish.MarkDirty(finishedBand);
             // Every copy's extent, not just the drawn mark's. ScratchUsed is
             // what the scratch is cleared over when the stroke ends, so a copy
             // missing from it is ink left behind for the next stroke to
@@ -2713,6 +2721,14 @@ public partial class MainViewModel
         // relaxed.
         var settleTolerance = BrushEngine.SettleTolerance(live.Brush);
         var stable = BrushEngine.StableCount(dabs, _live.Dabs, settleTolerance, out var exactStable);
+        if (settleTolerance <= 0)
+        {
+            // With nothing forgiven, settled means the whole dab stopped
+            // changing, not only its place: a tip that follows the stroke turns
+            // where it stands (BrushEngine.SettledCount).
+            stable = Math.Min(stable, BrushEngine.SettledCount(dabs, _live.Dabs));
+            exactStable = stable;
+        }
 
         // **The arm, in the file, while the stroke is happening.** B322 cost a
         // whole round of captures because the tip's arm only appeared in a block
@@ -2913,6 +2929,11 @@ public partial class MainViewModel
         // 2. Everything whose position has stopped moving, permanently.
         var settledAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var settledFrom = _live.StableDabs;
+        // A dab already stamped for good has changed. Its old pixels are in the
+        // scratch and cannot be taken back, so what is on screen is no longer
+        // what the record replays: the stroke still draws, and pen-up renders
+        // the record instead of keeping this mark.
+        if (stable < _live.StableDabs) _live.SettledDabChanged = true;
         // A mixing brush reads the ground as it goes: the scratch so far through
         // a view of its own memory, over the frame's cached bitmap (Q232). The
         // carry is checkpointed after the settled dabs and the tail continues
@@ -3099,11 +3120,22 @@ public partial class MainViewModel
 
         // For a brush whose only post-process is the ceiling, apply it here and
         // skip the worker entirely (B293).
+        _live.FinishedBand = null;
         if (CapIsTheWholePass(live.Brush) && _live.Scratch is { } inkSource)
         {
+            // Grown by how far a ceiling or a rim can be changed by a dab that
+            // does not touch it: the edge a pixel is measured from moves when a
+            // later dab covers it (BrushEngine.FinishReachPx).
             var changed = touched;
-            if (changed is { } band)
+            var finishReach = BrushEngine.FinishReachPx(live.Brush);
+            if (changed is { } grown && finishReach > 0)
             {
+                grown.Inflate(finishReach, finishReach);
+                changed = SKRectI.Intersect(grown, new SKRectI(0, 0, inkSource.Width, inkSource.Height));
+            }
+            if (changed is { Width: > 0, Height: > 0 } band)
+            {
+                _live.FinishedBand = band;
                 _live.EnsurePostScratch(Scene.Width, Scene.Height);
                 if (_live.PostScratch is { } capped && (!carriesFootprint || _live.Coverage is not null))
                 {

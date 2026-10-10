@@ -242,6 +242,15 @@ sealed class LivePaintSession
     internal int StableDabs { get; set; }
 
     /// <summary>
+    /// A dab stamped as settled later changed, so the scratch holds pixels the
+    /// record will not replay. The live mark is then shown but never promoted.
+    /// </summary>
+    internal bool SettledDabChanged { get; set; }
+
+    /// <summary>The band this pointer event's in-place finish rewrote, or null when it finished nothing.</summary>
+    internal SKRectI? FinishedBand { get; set; }
+
+    /// <summary>
     /// The dab walk from the previous pointer event.
     /// </summary>
     /// <remarks>
@@ -626,6 +635,7 @@ sealed class LivePaintSession
         StampedCount = 0;
         DabCount = 0;
         StableDabs = 0;
+        SettledDabChanged = false;
         TailRegion = null;
         Dabs = null;
         EffectDabs = null;

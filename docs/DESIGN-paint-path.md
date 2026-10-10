@@ -329,9 +329,52 @@ written down because it did not look like its cause:
   rather than its position changed no pixel here and moved the blur tool's
   live fidelity outside its bound, so the rule stays as it was.)
 
+### What review found, after the suite was green
+
+The first version of this phase passed every test and was wrong in three ways.
+Each was found by a reviewer arguing from the code, then reproduced as a
+failing test before it was fixed.
+
+- **A stroke that comes back alongside itself.** A ceiling and a wet edge are
+  functions of how far a pixel sits inside the edge of everything the stroke
+  has covered, so a later dab changes pixels it never touches: the second leg
+  of a U-turn swallows the first leg's facing edge. The band a pointer event
+  re-finished reached only as far as its new dabs, so the screen kept a soft
+  edge and a rim the record did not have, and promotion wrote them into the
+  frame — 1,300 pixels and 104 levels on a zigzag of the soft round, which
+  means phase 1 had it too. The finish band is now grown by
+  `BrushEngine.FinishReachPx`: one falloff width for the ceiling, a quarter of
+  one plus the rim's width for a wet edge.
+- **A tip that turns where it stands.** With smoothing on, a dab that follows
+  the stroke keeps its place while its heading changes. The live path settled
+  dabs on position alone, kept each at the angle it landed with, and the
+  record replayed the angle it ended with: 7,500 pixels and 28 levels on a
+  zigzag of Oil (flat). The paint path now settles on the whole dab
+  (`BrushEngine.SettledCount`), and a stroke in which a settled dab changes
+  anyway is drawn but not promoted. The blur tool keeps the position rule,
+  because its draft re-stamps without taking back and a stricter rule there
+  blurs the tail twice.
+- **A document too large for the plane.** Above 64 million pixels a replay has
+  no document plane and stamps under a translation, so a live mark there is
+  not the replay. Promotion is refused there
+  (`BrushEngine.ReplaysInDocumentSpace`); such a document pays the old pen-up.
+
+And two about cost. The cap's tiles each carry a halo of the brush's reach, so
+a fixed 384 px tile under a 250 px reach was eight parts halo in nine; tiles
+are now four reaches a side at least. Its two arrays, hundreds of kilobytes
+for a large brush, were allocated per tile per pointer event and are now
+rented.
+
+**What is still not guarded.** The promotion guard compares dab lists, not
+pixels, so its correctness rests on the tests in `PenUpChangesNothingTests`
+covering the shapes that matter: a rising sine and three self-overlapping
+strokes, six presets, smoothing on and off. An ungated paper texture is
+filled per band per event from the paper's noise rather than from a tile, and
+no shipped preset uses one. Neither has a lab scenario yet.
+
 `PenUpChangesNothingTests` holds the result: every Paint preset at four
 size-and-smoothing combinations must commit a frame equal to its record's
-replay (invariant 1), and the seven presets without a simulated medium must
+replay (invariant 1), on a rising sine and on strokes that meet themselves, and the seven presets without a simulated medium must
 also be promoted with zero differing pixels.
 
 ## Order

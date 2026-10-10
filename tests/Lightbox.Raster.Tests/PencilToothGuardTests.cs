@@ -83,6 +83,41 @@ public class PencilToothGuardTests(ITestOutputHelper output)
         Assert.False(BrushEngine.LiveTipWouldDivergeTooFar(ungated), "a brush finished in place must show its mark live");
     }
 
+    /// <summary>
+    /// A live mark may only be kept where a replay shares its frame of
+    /// reference: above the document plane's limit a replay stamps into a
+    /// stroke-sized scratch under a translation, a level away on a scattering
+    /// of pixels. Asked of the size alone, so it is pinned without rendering a
+    /// document that large on a test runner.
+    /// </summary>
+    [Fact]
+    public void ADocumentTooLargeForThePlaneIsNotReplayedInDocumentSpace()
+    {
+        Assert.True(BrushEngine.ReplaysInDocumentSpace(1920, 1080));
+        Assert.True(BrushEngine.ReplaysInDocumentSpace(8000, 8000));
+        Assert.False(BrushEngine.ReplaysInDocumentSpace(8192, 8193));
+        Assert.False(BrushEngine.ReplaysInDocumentSpace(0, 1080));
+    }
+
+    /// <summary>
+    /// How far a later dab can change a finished pixel it does not touch: a
+    /// falloff's width for the ceiling, further for a wet edge, nothing for a
+    /// brush with no ceiling or a tooth (which is read as it was laid).
+    /// </summary>
+    [Fact]
+    public void TheFinishReachesAsFarAsTheEdgeItReads()
+    {
+        var plain = new BrushSettings { Size = 100, Hardness = 1 };
+        var soft = new BrushSettings { Size = 100, Hardness = 0.2, Flow = 1 };
+        var wet = new BrushSettings { Size = 100, Hardness = 0.9, Flow = 1, WetEdge = 0.6 };
+        Assert.Equal(0, BrushEngine.FinishReachPx(plain));
+        Assert.Equal(0, BrushEngine.FinishReachPx(Textured(100, gate: 0.8).Brush));
+        Assert.True(BrushEngine.NeedsFootprintCap(soft), "the control has no ceiling, so its reach says nothing");
+        Assert.True(BrushEngine.FinishReachPx(soft) >= 40, $"soft: {BrushEngine.FinishReachPx(soft)} px for a 40 px falloff");
+        Assert.True(BrushEngine.FinishReachPx(wet) >= 13, $"wet edge: {BrushEngine.FinishReachPx(wet)} px for a 12 px rim");
+        Assert.True(BrushEngine.FinishReachPx(soft) <= 60 && BrushEngine.FinishReachPx(wet) <= 30, "a reach this generous is paid for on every pointer event");
+    }
+
     private static SKBitmap Copy(SKBitmap src, SKRectI r)
     {
         var bmp = new SKBitmap(new SKImageInfo(r.Width, r.Height, src.ColorType, src.AlphaType));
