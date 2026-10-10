@@ -183,7 +183,10 @@ public sealed class AutosaveService
         try
         {
             snapshot = _docProvider().Clone();
-            inPlacePath = InPlace ? _inPlacePath?.Invoke() : null;
+            // Never over a file a newer build saved (Q234): it would drop what
+            // this build cannot read on the first edit, with no save pressed.
+            // The recovery copy still holds the work.
+            inPlacePath = InPlace && !snapshot.IsFromANewerBuild ? _inPlacePath?.Invoke() : null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

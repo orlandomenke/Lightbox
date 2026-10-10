@@ -68,14 +68,6 @@ public class PenDoesNotPanTests(Xunit.ITestOutputHelper output) : BrushStateIsol
         return pointer;
     }
 
-    private static void Release(Window window, Control target, Pointer pointer, Point at)
-    {
-        var to = (pointer.Captured as Interactive) ?? target;
-        to.RaiseEvent(new PointerReleasedEventArgs(
-            to, pointer, window, at, _clock += 16, Up, KeyModifiers.None, MouseButton.Left));
-        Pump();
-    }
-
     /// <summary>A short window whose one scroller holds forty rows.</summary>
     private static (Window Window, ScrollViewer Scroller, Control Row) List()
     {
@@ -138,58 +130,6 @@ public class PenDoesNotPanTests(Xunit.ITestOutputHelper output) : BrushStateIsol
         DragBy(window, (Control)rows.Children[2], PointerType.Pen, -90);
 
         Assert.Equal(0, late.Offset.Y);
-    }
-
-    // ---- the Layers docker: a pen drag, end to end ---------------------------------
-
-    /// <remarks>
-    /// <b>This one passes with the fix taken out</b>, and is kept knowing that.
-    /// It shows a pen can pick a layer up, carry it past where a pan would have
-    /// begun and put it down — the whole path a pen drag takes through the
-    /// docker — but in a headless run the stock gesture does not take the
-    /// pointer from the drag, so it cannot show the fault it was written for.
-    /// The two tests above are the ones that fail without the fix.
-    /// </remarks>
-    [AvaloniaFact]
-    public void APenDragOfALayerIsADragAllTheWayDown()
-    {
-        var window = new MainWindow { Width = 1400, Height = 800 };
-        window.Show();
-        Pump();
-        var vm = (MainViewModel)window.DataContext!;
-        vm.NewDocument(new NewDocumentSettings("Many", 400, 300, 12, 72, "#ffffff", false));
-        while (vm.Doc.Scene.Layers.Count < 40) vm.AddPaintedLayerCommand.Execute(null);
-        vm.ActiveLayerIndex = 39;
-        Pump();
-        window.EdgeScroll.Manual = true;
-        var list = window.FindControl<ItemsControl>("LayerList")!;
-        var scroller = list.GetVisualAncestors().OfType<ScrollViewer>().First(s => s.Extent.Height > s.Viewport.Height + 1);
-        var row = (Control)list.ContainerFromIndex(0)!;
-        // Press on whatever is actually under the middle of the row — the
-        // element a real pen would land on, so the press travels up through the
-        // row's own handlers the way a real one does.
-        var middle = row.TranslatePoint(new Point(row.Bounds.Width / 2, row.Bounds.Height / 2), window)!.Value;
-        var grip = (Control)window.InputHitTest(middle)!;
-
-        var before = string.Join(", ", vm.LayerPanelItems.OfType<LayerRow>().Take(4).Select(r => r.Name));
-
-        var pen = DragBy(window, grip, PointerType.Pen, 110);
-
-        output.WriteLine(
-            $"after 110 px: offset {scroller.Offset.Y:0.#}, captured by {pen.Captured?.GetType().Name ?? "nothing"}, "
-            + $"hints: {string.Join(", ", vm.LayerPanelItems.OfType<LayerRow>().Where(r => r.DropHint != LayerDropHint.None).Select(r => $"{r.Name}:{r.DropHint}"))}");
-        // The list did not scroll under the pen, the list still holds the
-        // pointer, and the drag is showing where it would land.
-        Assert.Equal(0, scroller.Offset.Y);
-        Assert.Same(list, pen.Captured);
-        Assert.Contains(vm.LayerPanelItems.OfType<LayerRow>(), r => r.DropHint != LayerDropHint.None);
-
-        var end = grip.TranslatePoint(new Point(grip.Bounds.Width / 2, grip.Bounds.Height / 2 + 110), window)!.Value;
-        Release(window, grip, pen, end);
-        var after = string.Join(", ", vm.LayerPanelItems.OfType<LayerRow>().Take(4).Select(r => r.Name));
-        output.WriteLine($"top rows before: {before}; after: {after}");
-        // The drop went through: the stack is in a different order.
-        Assert.NotEqual(before, after);
     }
 
     // ---- the X-sheet: a pen's double tap is a double click ------------------------

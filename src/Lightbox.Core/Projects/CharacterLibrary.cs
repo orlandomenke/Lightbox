@@ -200,6 +200,13 @@ public static class CharacterLibrary
                 };
                 added.Add(mine.Name);
             }
+            else if (Unreadable(target, mine))
+            {
+                // B436: a copy that will not read is kept even under
+                // replaceEdited — "could not be read" is not consent to
+                // overwrite the only copy of whatever those bytes held.
+                keptEdited.Add($"{mine.Name} (could not be read)");
+            }
             else if (!Edited(target, mine) || replaceEdited)
             {
                 // The ref keeps its id and path — everything local that points
@@ -262,6 +269,8 @@ public static class CharacterLibrary
             .Where(d => d.Origin is { } origin
                 && origin.LibraryId == libraryId
                 && offered.Contains(origin.SourceId)
+                // A copy that will not read is kept, not replaced (B436).
+                && !Unreadable(target, d)
                 && Edited(target, d))
             .Select(d => d.Name)
             .ToList();
@@ -272,6 +281,9 @@ public static class CharacterLibrary
     /// hash (a stamp from before hashes existed) reads as edited — when the
     /// answer is unknown, the safe claim is the one that warns.
     /// </summary>
+    private static bool Unreadable(Project target, DocumentRef reference) =>
+        ProjectIo.LoadDocument(target, reference) is null && target.Unreadable.ContainsKey(reference.Id);
+
     private static bool Edited(Project target, DocumentRef reference)
     {
         if (reference.Origin?.Hash is not { } stamped) return true;

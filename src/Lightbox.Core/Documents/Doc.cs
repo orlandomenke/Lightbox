@@ -9,6 +9,60 @@ namespace Lightbox.Core.Documents;
 /// </summary>
 public sealed class Doc
 {
+    /// <summary>The document format this build writes.</summary>
+    /// <remarks>
+    /// <b>Raise it with any format change an older build cannot keep</b> (Q234):
+    /// a new per-point value on <see cref="StrokePoint"/>, a struct, which
+    /// Q230's kept-keys holder does not reach, or anything outside the record
+    /// types that carry one. Additive fields on a class need no bump — an older
+    /// build keeps them and writes them back. The build that warns is the older
+    /// one, so the number has to move before the change ships, not after.
+    /// <para>
+    /// <b>The day it moves past 1</b>, a file with no <c>"version"</c> key must
+    /// read as 1, not as current: <see cref="Version"/> defaults to this
+    /// constant, which is right for a new document and wrong for an old file
+    /// written before the key existed (none has been; every save writes it).
+    /// </para>
+    /// </remarks>
+    public const int CurrentVersion = 1;
+
+    public int Version { get; set; } = CurrentVersion;
+
+    /// <summary>
+    /// Written by a build newer than this one, which may have put things here
+    /// that a save from this build would drop (Q234). Asked, never written.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsFromANewerBuild => Version > CurrentVersion;
+
+    /// <summary>
+    /// The format of the build that last saved this, when that build was older
+    /// than the document (Q237). Written only then: a build saving a document
+    /// newer than it writes names its own format, and a build that writes the
+    /// document's own format writes nothing — so an ordinary file carries no
+    /// key, and the newer build's warning is said once, not on every open.
+    /// </summary>
+    /// <remarks>
+    /// Asymmetric on purpose: what is written is decided by this build, what was
+    /// read is kept for <see cref="WasLastSavedByAnOlderBuild"/>. It has to exist
+    /// in the older build to help the newer one, which is why it is here before
+    /// any format change needs it.
+    /// </remarks>
+    public int? SavedByFormat
+    {
+        get => Version > CurrentVersion ? CurrentVersion : null;
+        set => _savedByFormatOnRead = value;
+    }
+
+    private int? _savedByFormatOnRead;
+
+    /// <summary>
+    /// An older build saved this document over one of this build's format, and
+    /// may have dropped what it could not read (Q237). Asked, never written.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool WasLastSavedByAnOlderBuild => _savedByFormatOnRead is { } older && older < Version;
+
     /// <summary>
     /// Keys a newer build wrote that this one does not know, carried through
     /// untouched so a save here does not drop them (Q230). Null unless a file
@@ -16,8 +70,6 @@ public sealed class Doc
     /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Unknown { get; set; }
-
-    public int Version { get; set; } = 1;
 
     public Scene Scene { get; set; } = new();
 

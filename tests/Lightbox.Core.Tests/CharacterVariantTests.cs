@@ -550,6 +550,34 @@ public sealed class CharacterVariantTests : IDisposable
         Assert.Null(kept.Origin);
     }
 
+    /// <summary>
+    /// B436's review: an imported copy that cannot be read is kept, even under
+    /// replaceEdited. Reading as "edited" would let the replace overwrite the
+    /// only copy of whatever those bytes held, with no artist to see it on the
+    /// agent path; "could not be read" is not consent to replace.
+    /// </summary>
+    [Fact]
+    public void AnUnreadableCopyIsKeptEvenWhenEditedCopiesAreReplaced()
+    {
+        var source = Knight(out _, out _, out _, _library);
+        source.Manifest.Type = ProjectType.AssetLibrary;
+        ProjectIo.Save(source);
+        var target = ProjectIo.Create("Game", _root);
+        var entry = CharacterLibrary.Scan([_library]).Single();
+        var copy = ProjectFolders.DocumentsIn(target.Manifest, CharacterLibrary.Import(entry, target).Folder).Single();
+        ProjectIo.Save(target);
+        target.Loaded.Clear();
+        File.WriteAllText(target.PathOf(copy), "this is not a drawing");
+
+        Assert.Empty(CharacterLibrary.WhatReimportWouldReplace(entry, target));
+        var result = CharacterLibrary.Import(entry, target, replaceEdited: true);
+        ProjectIo.Save(target);
+
+        Assert.Empty(result.Replaced);
+        Assert.Contains(result.KeptEdited, n => n.Contains("could not be read"));
+        Assert.Equal("this is not a drawing", File.ReadAllText(target.PathOf(copy)));
+    }
+
     [Fact]
     public void AnEditedCopyIsKeptAndNamedBeforeItIsReplaced()
     {

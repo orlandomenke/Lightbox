@@ -103,13 +103,25 @@ public partial class MainViewModel
         if (Tabs.FirstOrDefault(t => t.Source?.Id == resourceId) is { } tab)
         {
             var reference = tab.Source!;
-            var doc = DocJson.Load(project.PathOf(reference));
+            Lightbox.Core.Documents.Doc doc;
+            try
+            {
+                doc = DocJson.Load(project.PathOf(reference));
+            }
+            catch (Exception e) when (e is IOException or InvalidDataException or System.Text.Json.JsonException
+                                          or UnauthorizedAccessException or NotSupportedException)
+            {
+                // The revision on disk would not read: the tab keeps what it had.
+                AiStatus = $"“{tab.Title}” could not be reloaded ({e.Message}).";
+                return;
+            }
             tab.Editor = new DocumentEditor(doc) { MaxUndo = tab.Editor.MaxUndo };
             tab.State.LayerIndex = FirstPaintableLayer(doc);
             // A different record in the same slot — the framing and playhead
             // of the replaced one are not this one's (B67's reasoning).
             tab.State.View = null;
             tab.MarkSaved();
+            WarnIfNewer(doc, tab.Title);
             if (tab == ActiveTab)
             {
                 AttachEditor(tab.Editor);
