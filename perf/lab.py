@@ -463,6 +463,8 @@ def locate(pipe: Pipe, target: dict) -> tuple[float, float]:
         q = {"kind": "menu-item", "text": target["menu"]}
     elif "tip" in target:
         q = {"kind": "tip", "text": target["tip"]}
+    elif "tip_starts" in target:
+        q = {"kind": "tip-starts", "text": target["tip_starts"]}
     else:
         raise ValueError(f"unknown target {target}")
     # Something can sit over a target for the first seconds after opening (a panel
@@ -506,6 +508,37 @@ def check_expect(step: dict, state: dict) -> tuple[bool, str]:
         got = state.get("status") or ""
         return step["status_contains"] in got, f"status {got!r}"
     raise ValueError(f"unknown expectation {step}")
+
+
+def check_icons(census: dict, step: dict) -> tuple[bool, str]:
+    """Every icon on screen sits where its button puts it: on whole pixels, inside the
+    button, and — when it is the button's whole content — within `within_px` device
+    pixels of the centre. The census is the app's own (lab_icons), at this display's scale."""
+    within = float(step.get("within_px", 1.0))
+    icons = census["icons"]
+    wrong = []
+    # An empty census has nothing wrong in it either: a count too low to be the
+    # window is a failure, not a pass.
+    least = int(step.get("at_least", 40))
+    if len(icons) < least:
+        wrong.append(f"only {len(icons)} icons found, fewer than the {least} a main window shows")
+    for i in icons:
+        what = []
+        if i["offPixel"] > 0.02:
+            what.append(f"{i['offPixel']:.2f} px off the pixel grid")
+        if i["spill"] > 0.02:
+            what.append(f"spills {i['spill']:.2f} px out of its button")
+        if i["alone"] and max(abs(i["offCentreX"]), abs(i["offCentreY"])) > within + 0.02:
+            what.append(f"off centre by {i['offCentreX']:+.2f},{i['offCentreY']:+.2f} px")
+        if what:
+            wrong.append(f"{i['name']} in {i['host'] or 'no button'}: {'; '.join(what)}")
+    lone = [i for i in icons if i["alone"]]
+    exact = sum(1 for i in lone if max(abs(i["offCentreX"]), abs(i["offCentreY"])) < 0.02)
+    seen = (f"{len(icons)} icons at {census['scale']:g}x, {exact} of {len(lone)} lone icons exactly centred, "
+            f"{census['paths']} paths realized ({census['pathsVisible']} visible), {census['visuals']} visuals")
+    if wrong:
+        seen += " | " + " | ".join(wrong[:12]) + (f" | and {len(wrong) - 12} more" if len(wrong) > 12 else "")
+    return not wrong, seen
 
 
 # ---- one run -------------------------------------------------------------------------
@@ -611,6 +644,13 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
             # replay into whatever state it wakes up in.
             log.settle(quiet=0.0, timeout=120, hwnd=hwnd)
             pointer.guard()
+            if step["do"] == "expect" and "icons" in step:
+                # The placement census: where every icon landed, on this display.
+                census = pipe.ask("lab_icons")
+                passed, seen = check_icons(census, step)
+                checks.append({"expect": {k: v for k, v in step.items() if k != "do"},
+                               "passed": passed, "seen": seen})
+                continue
             if step["do"] == "expect":
                 state = pipe.ask("lab_state")
                 passed, seen = check_expect(step, state)
