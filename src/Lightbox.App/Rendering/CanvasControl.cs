@@ -1931,7 +1931,7 @@ public sealed partial class CanvasControl : Control
     /// direction.
     /// </para>
     /// </remarks>
-    private Matrix ViewMatrix()
+    internal Matrix ViewMatrix()
     {
         var snapshot = _snapshot;
         if (snapshot is null) return Matrix.Identity;

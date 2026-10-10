@@ -140,7 +140,15 @@ without a word, because both answers would give the same symbol.
 
 - **Place** puts the selected symbol in the middle of the current drawing.
 - **Dragging a tile onto the canvas** puts it where you drop it, which is the
-  point of dragging rather than pressing Place.
+  point of dragging rather than pressing Place. While you drag over the canvas
+  the symbol is shown under the pointer where it will land, at the canvas's
+  zoom and rotation — the drawing it will show on this frame, faded so you can
+  see what is under it; what lands is the symbol at its own strength. Over a
+  hidden or locked layer nothing is shown, because nothing would land. Leave
+  the canvas and it goes; nothing is placed until you let go over the drawing.
+- **Your own library is there without a project.** Symbols you have promoted
+  show in the panel for a loose drawing too; placing one copies it into the
+  document.
 - **A symbol with more than one drawing is asked about**, because it can land
   two ways and both are things people mean:
   - **Import every drawing into the timeline** — the drawings become frames of

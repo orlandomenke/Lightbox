@@ -48,6 +48,65 @@ public class SymbolRenderTests : IDisposable
         },
     };
 
+    /// <summary>
+    /// The drag preview is the placement: its box, moved to the drop point, is
+    /// the box the dropped symbol occupies — for a symbol no registry holds yet.
+    /// </summary>
+    [Fact]
+    public void TheGhostOfASymbolIsTheBoxAFreshPlacementOccupies()
+    {
+        var info = new SKImageInfo(160, 120, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var sword = Sword(Jittery(20, 20));
+
+        // Before it is registered: a library symbol is dragged before any
+        // document has adopted it.
+        var ghost = SymbolRasterizer.Ghost(sword, info);
+        Assert.NotNull(ghost);
+        using var bitmap = ghost!.Value.Bitmap;
+
+        SymbolRegistry.Register(sword);
+        var placed = SymbolRasterizer.PlacementBounds(
+            new SymbolPlacement { SymbolId = sword.Id, X = 70, Y = 50 }, info, 0);
+        Assert.NotNull(placed);
+
+        var box = ghost.Value.Box;
+        box.Offset(70, 50);
+        Assert.Equal(placed!.Value, box);
+        Assert.True(box.Width > 20 && box.Height > 10, $"the ghost's box is {box}");
+
+        var inked = 0;
+        for (var y = 0; y < bitmap.Height; y++)
+        {
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                if (bitmap.GetPixel(x, y).Alpha > 0) inked++;
+            }
+        }
+        Assert.True(inked > 100, $"the ghost shows {inked} inked pixels of {bitmap.Width}x{bitmap.Height}");
+    }
+
+    /// <summary>
+    /// A cycling symbol's ghost is the drawing a fresh placement shows at the
+    /// frame it is dropped on — not always the first.
+    /// </summary>
+    [Fact]
+    public void TheGhostOfACycleIsTheDrawingShownAtThatFrame()
+    {
+        var info = new SKImageInfo(160, 120, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var cycle = Cycle(3);
+        SymbolRegistry.Register(cycle);
+
+        for (var cel = 0; cel < 5; cel++)
+        {
+            var ghost = SymbolRasterizer.Ghost(cycle, info, cel);
+            Assert.NotNull(ghost);
+            using var bitmap = ghost!.Value.Bitmap;
+            var placed = SymbolRasterizer.PlacementBounds(
+                new SymbolPlacement { SymbolId = cycle.Id }, info, cel);
+            Assert.Equal(placed!.Value, ghost.Value.Box);
+        }
+    }
+
     private static Symbol Sword(params Stroke[] strokes) => new()
     {
         Name = "Sword",

@@ -94,6 +94,45 @@ public class SymbolBrowserTests : IDisposable
         Assert.False(vm.SymbolBrowser.HasAny);
     }
 
+    /// <summary>
+    /// The artist's own library is on show from launch, with no project open.
+    /// </summary>
+    /// <remarks>
+    /// The grid was only ever filled when a project arrived or left, so an
+    /// artist with a library and a loose drawing opened the Symbols panel on
+    /// "No symbol matches that." — and there was no tile to drag onto the
+    /// canvas at all. Found by the lab's symbol-drag scenario, which could not
+    /// find the tile it had put in the library.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheLibraryIsOnShowFromLaunchWithNoProject()
+    {
+        var star = new Symbol { Id = "sym-star", Name = "Star" };
+        SymbolLibrary.Save(new Dictionary<string, Symbol> { [star.Id] = star });
+
+        // The window, because the window is what fills the grid: nobody asks,
+        // and the panel's list loading is the moment.
+        var window = new Lightbox.App.Views.MainWindow { Width = 1400, Height = 900 };
+        window.Show();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var vm = (MainViewModel)window.DataContext!;
+        // As View > Symbols does. A panel that is not on show has no list to
+        // load, and a library nobody is looking at is not read.
+        vm.Workspace.SetVisible(Lightbox.App.Docking.DockPanelId.Symbols, true);
+        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Symbols);
+        for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        try
+        {
+            var row = Assert.Single(vm.SymbolBrowser.Rows);
+            Assert.Equal("Star", row.Model.Name);
+            Assert.Null(vm.SymbolBrowser.EmptyMessage);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     [AvaloniaFact]
     public void TheSymbolsPanelIsInTheCatalogueAndCanBeToggled()
     {
