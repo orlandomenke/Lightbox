@@ -290,6 +290,14 @@ public partial class MainViewModel
         // Open project: the docker's own callback only fires when the docker
         // edits the project, and adopting one is not an edit.
         InitialiseSymbolBrowser();
+        // Once: the artist's own library needs no project, and the relay below
+        // only fires when one arrives or leaves — so without this a loose
+        // drawing's Symbols panel stayed empty with a full library (B438).
+        // Posted rather than done here, because it reads a file and draws a
+        // tile per symbol, and none of that should stand between launch and
+        // the window.
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () => SymbolBrowser.Refresh(), Avalonia.Threading.DispatcherPriority.Background);
         ProjectDocker.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is not nameof(ProjectViewModel.HasProject)) return;

@@ -1,0 +1,41 @@
+{
+  "name": "symbol-drag",
+  "about": "B374, in the running app: take the Star tile in the Symbols panel and drop it on the middle of the canvas. The symbol is shown under the pointer on the way (the app logs symbol.ghost when it appears), and the drop places it. Headless Avalonia has no drag source, so no test could ever show the drop arriving.",
+  "fixture": "sheet",
+  "library": "symbols",
+  "window": "maximised",
+  "panels": [
+    "Symbols"
+  ],
+  "steps": [
+    {
+      "do": "expect",
+      "placements": 0
+    },
+    {
+      "do": "drag",
+      "from_target": {
+        "symbol": "Star"
+      },
+      "to": [
+        0.5,
+        0.5
+      ],
+      "ms": 2500,
+      "hz": 60,
+      "after_ms": 600
+    },
+    {
+      "do": "settle",
+      "quiet_s": 0.5
+    },
+    {
+      "do": "expect",
+      "logged": "symbol.ghost"
+    },
+    {
+      "do": "expect",
+      "placements": 1
+    }
+  ]
+}

@@ -183,6 +183,31 @@ public static class Fixture
         return doc;
     }
 
+    /// <summary>One single-drawing symbol named Star: a five-stroke asterisk.</summary>
+    public static Dictionary<string, Symbol> SymbolLibrary()
+    {
+        var frame = new Frame { Id = "star-1" };
+        for (var i = 0; i < 5; i++)
+        {
+            var a = i * Math.PI / 5;
+            frame.Strokes.Add(new Stroke
+            {
+                Tool = ToolKind.Brush, Color = "#1a1a1a",
+                Points =
+                [
+                    new StrokePoint((float)(60 - 50 * Math.Cos(a)), (float)(60 - 50 * Math.Sin(a)), 1),
+                    new StrokePoint((float)(60 + 50 * Math.Cos(a)), (float)(60 + 50 * Math.Sin(a)), 1),
+                ],
+                Brush = new BrushSettings { Size = 6, Hardness = 1, Opacity = 1, Flow = 1, Spacing = 0.15 },
+            });
+        }
+        var layer = new Layer { Id = "star-layer", Name = "Star" };
+        layer.Cels.Add(new Cel { Frame = frame });
+        var symbol = new Symbol { Id = "sym-lab-star", Name = "Star" };
+        symbol.Layers.Add(layer);
+        return new Dictionary<string, Symbol> { [symbol.Id] = symbol };
+    }
+
     /// <summary>
     /// <c>fixture --out path [--preset owner] [--width W --height H --layers N
     /// --drawings N --strokes N --points N --frames N --step N --seed N]</c>
@@ -201,6 +226,15 @@ public static class Fixture
         {
             Console.Error.WriteLine("fixture: --out <path.lightbox.json> is required");
             return 2;
+        }
+        if (Arg("--preset") == "symbols")
+        {
+            // Not a document: an artist's symbol library, for the lab to put in
+            // a run's throwaway profile so the Symbols panel has a tile to drag.
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output))!);
+            File.WriteAllText(output, System.Text.Json.JsonSerializer.Serialize(SymbolLibrary(), DocJson.Options));
+            Console.WriteLine($"fixture: symbols -> {output}");
+            return 0;
         }
         if (Arg("--preset") == "sheet")
         {

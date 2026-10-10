@@ -221,6 +221,160 @@ public sealed class SymbolTileDragTests(ITestOutputHelper output) : BrushStateIs
         Assert.NotNull(Peek(window, "_tileSymbolId"));
     }
 
+    /// <summary>
+    /// While a symbol is dragged over the canvas it is shown under the pointer,
+    /// where it will land; it goes when the drag leaves and when it drops.
+    /// </summary>
+    /// <remarks>
+    /// The drag itself worked from B374 on and showed nothing, which the owner
+    /// read — reasonably — as still broken. The assertion that matters is the
+    /// middle one: the box the ghost was drawn at is the box the placement the
+    /// drop made occupies. A preview that is merely near the drop is a second
+    /// opinion about where things go.
+    /// </remarks>
+    [AvaloniaFact]
+    public void DraggingASymbolOverTheCanvasShowsItWhereItWillLand()
+    {
+        var window = new MainWindow { Width = 1400, Height = 900 };
+        window.Show();
+        Pump();
+        var vm = (MainViewModel)window.DataContext!;
+
+        var project = ProjectIo.Create("Knight", _root);
+        var sword = Prop("sword");
+        sword.PivotX = 12;
+        sword.PivotY = 3;
+        project.Symbols[sword.Id] = sword;
+        vm.ProjectDocker.Project = project;
+        vm.RefreshProjectResources();
+        vm.SymbolBrowser.Refresh();
+        Pump();
+        vm.ActiveLayerIndex = vm.Doc.Scene.Layers.Count - 1;
+
+        var canvas = (Lightbox.App.Rendering.CanvasControl)window.GetVisualDescendants()
+            .OfType<Control>().First(c => c.Name == "Canvas");
+        // Not the view a fresh window opens on: the rulers push the canvas in
+        // from its host's corner and the view is turned, so a ghost placed in
+        // the wrong space, or by anything but the canvas's own matrix, misses.
+        vm.Workspace.RulersVisible = true;
+        Pump();
+        canvas.RotateBy(25);
+        Pump();
+        Assert.True(canvas.Margin.Left > 0, "the rulers did not move the canvas, so this is not testing them");
+        var transfer = new DataTransfer();
+        transfer.Add(DataTransferItem.Create(
+            DataFormat.CreateInProcessFormat<string>("lightbox-symbol"), sword.Id));
+        DragEventArgs At(Avalonia.Interactivity.RoutedEvent<DragEventArgs> what, Point p) =>
+            new(what, transfer, canvas, p, KeyModifiers.None);
+
+        Assert.False(window.SymbolGhost.IsShown);
+
+        // Over the canvas: shown.
+        var here = new Point(300, 220);
+        canvas.RaiseEvent(At(DragDrop.DragOverEvent, here));
+        Pump();
+        Assert.True(window.SymbolGhost.IsShown, "nothing is shown while the symbol is dragged over the canvas");
+        var first = window.SymbolGhost.DocBox!.Value;
+
+        // It follows the pointer.
+        var there = new Point(420, 300);
+        canvas.RaiseEvent(At(DragDrop.DragOverEvent, there));
+        Pump();
+        var shown = window.SymbolGhost.DocBox!.Value;
+        Assert.NotEqual(first, shown);
+
+        // And it is on screen where the canvas says that document box is. In two
+        // steps, because Avalonia's TranslatePoint composes a rotated or scaled
+        // element with its ancestors' offsets in the wrong order (measured here:
+        // off by the ruler thickness times one-minus-the-scale, and exact with
+        // the rulers off) — so the offset is asked of the untransformed layer,
+        // and the transform is read directly.
+        var visual = window.SymbolGhost.Visual!;
+        var layer = (Control)visual.Parent!;
+        var layerInCanvas = layer.TranslatePoint(default, canvas)!.Value;
+        Assert.Equal(0, layerInCanvas.X, 2);
+        Assert.Equal(0, layerInCanvas.Y, 2);
+        Assert.Equal(default, visual.Bounds.TopLeft);
+        var onScreen = default(Point).Transform(visual.RenderTransform!.Value);
+        var (wantX, wantY) = canvas.DocToView(shown.Left, shown.Top);
+        var far = new Point(shown.Width, shown.Height).Transform(visual.RenderTransform!.Value);
+        var (farX, farY) = canvas.DocToView(shown.Right, shown.Bottom);
+        output.WriteLine(FormattableString.Invariant(
+            $"ghost box {shown}, corners on screen {onScreen.X:0.##},{onScreen.Y:0.##} and {far.X:0.##},{far.Y:0.##}; canvas maps them to {wantX:0.##},{wantY:0.##} and {farX:0.##},{farY:0.##}"));
+        Assert.Equal(wantX, onScreen.X, 1);
+        Assert.Equal(wantY, onScreen.Y, 1);
+        Assert.Equal(farX, far.X, 1);
+        Assert.Equal(farY, far.Y, 1);
+        Assert.Equal(shown.Width, visual.Bounds.Width, 2);
+        Assert.Equal(shown.Height, visual.Bounds.Height, 2);
+
+        // Leaving takes it away; coming back brings it back.
+        canvas.RaiseEvent(At(DragDrop.DragLeaveEvent, there));
+        Pump();
+        Assert.False(window.SymbolGhost.IsShown, "the ghost stayed after the drag left the canvas");
+        canvas.RaiseEvent(At(DragDrop.DragOverEvent, there));
+        Pump();
+        Assert.True(window.SymbolGhost.IsShown);
+
+        // Dropped: the ghost goes, and the placement is where the ghost was.
+        canvas.RaiseEvent(At(DragDrop.DropEvent, there));
+        Pump();
+        Assert.False(window.SymbolGhost.IsShown, "the ghost stayed after the drop");
+
+        var scene = vm.Doc.Scene;
+        var placement = scene.Layers.SelectMany(l => l.Cels).Select(c => c.Frame).OfType<Frame>()
+            .SelectMany(f => f.Placements ?? []).Single();
+        var landed = Lightbox.Raster.SymbolRasterizer.PlacementBounds(placement, InfoOf(vm), vm.CurrentFrameIndex)!.Value;
+        output.WriteLine($"ghost {shown} -> placement {landed}");
+        // The pivot is what was under the pointer — not the picture's corner.
+        var (underX, underY) = canvas.ViewToDoc(there);
+        Assert.Equal(underX, placement.X, 2);
+        Assert.Equal(underY, placement.Y, 2);
+        Assert.Equal(landed.Left, shown.Left, 2);
+        Assert.Equal(landed.Top, shown.Top, 2);
+        Assert.Equal(landed.Right, shown.Right, 2);
+        Assert.Equal(landed.Bottom, shown.Bottom, 2);
+        window.Close();
+    }
+
+    private static SkiaSharp.SKImageInfo InfoOf(MainViewModel vm) => new(
+        vm.Doc.Scene.Width, vm.Doc.Scene.Height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Premul);
+
+    /// <summary>
+    /// A symbol with nothing drawn in it is found out once per drag, not once
+    /// per pointer move.
+    /// </summary>
+    /// <remarks>
+    /// Finding out costs a render of the whole scene, and nothing cached the
+    /// answer "no ink": the first version asked again on every drag-over, for
+    /// as long as the drag lasted. Counted by the rasterizer's cache, which a
+    /// second render of the same symbol would not grow either — so the guard is
+    /// the ghost's own memory of the miss, read through what it reports.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ASymbolWithNoInkIsDecidedOncePerDrag()
+    {
+        var window = new MainWindow { Width = 1400, Height = 900 };
+        window.Show();
+        Pump();
+        var vm = (MainViewModel)window.DataContext!;
+        var blank = new Symbol { Name = "blank", Layers = Symbol.Flat("blank", [new Frame()]) };
+        var info = InfoOf(vm);
+
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        Assert.False(window.SymbolGhost.Show(blank, info, 0, 10, 10));
+        var first = timer.Elapsed.TotalMilliseconds;
+        timer.Restart();
+        for (var i = 0; i < 200; i++) Assert.False(window.SymbolGhost.Show(blank, info, 0, 10 + i, 10));
+        var each = timer.Elapsed.TotalMilliseconds / 200;
+        output.WriteLine(FormattableString.Invariant($"first ask {first:0.00} ms, each of 200 more {each:0.0000} ms"));
+
+        Assert.False(window.SymbolGhost.IsShown);
+        Assert.Equal(true, Peek(window.SymbolGhost, "_nothingToShow"));
+        Assert.StartsWith(blank.Id, Peek(window.SymbolGhost, "_shown") as string);
+        window.Close();
+    }
+
     private static int PlacementCount(MainViewModel vm) =>
         vm.Doc.Scene.Layers
             .SelectMany(l => l.Cels)

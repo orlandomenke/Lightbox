@@ -90,6 +90,19 @@ def fixture_path(preset: str) -> Path:
     return CACHE / "fixtures" / f"{preset}.lightbox.json"
 
 
+def ensure_library(rebuild: bool = False) -> Path:
+    """A symbol library holding one symbol, Star — what a run's throwaway profile is given
+    when a scenario asks for `"library": "symbols"`, so the Symbols panel has a tile."""
+    out = CACHE / "fixtures" / "symbols.json"
+    if out.exists() and not rebuild:
+        return out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    print("generating the symbol library ...")
+    subprocess.run(["dotnet", "run", "--project", str(REPO / "tools" / "Lightbox.Bench"), "-c", "Release",
+                    "--", "fixture", "--out", str(out), "--preset", "symbols"], check=True)
+    return out
+
+
 def ensure_fixture(preset: str, rebuild: bool = False) -> Path:
     if preset not in PRESETS:
         sys.exit(f"unknown fixture preset {preset!r}; known: {', '.join(PRESETS)}")
@@ -463,6 +476,8 @@ def locate(pipe: Pipe, target: dict) -> tuple[float, float]:
         q = {"kind": "menu-item", "text": target["menu"]}
     elif "tip" in target:
         q = {"kind": "tip", "text": target["tip"]}
+    elif "symbol" in target:
+        q = {"kind": "symbol-tile", "name": target["symbol"]}
     elif "tip_starts" in target:
         q = {"kind": "tip-starts", "text": target["tip_starts"]}
     else:
@@ -504,6 +519,8 @@ def check_expect(step: dict, state: dict) -> tuple[bool, str]:
     if "folder_selected" in step:
         got = [f["name"] for f in state["folders"] if f["selected"]]
         return step["folder_selected"] in got, f"folders selected {got}"
+    if "placements" in step:
+        return state["placements"] == step["placements"], f"placements {state['placements']}"
     if "status_contains" in step:
         got = state.get("status") or ""
         return step["status_contains"] in got, f"status {got!r}"
@@ -595,6 +612,9 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
         # The owner's default is onion off; a fresh profile has it on.
         (out / "profile").mkdir(parents=True, exist_ok=True)
         (out / "profile" / "settings.json").write_text('{"Onion": {"Enabled": false}}', encoding="utf-8")
+    if scenario.get("library") == "symbols":
+        (out / "profile").mkdir(parents=True, exist_ok=True)
+        (out / "profile" / "symbols.json").write_bytes(ensure_library().read_bytes())
     env["LIGHTBOX_PERF_LOG"] = str(log.path.resolve())
     brush = brush_of(scenario)
     # Set for this run or cleared: a shell that exports LIGHTBOX_BRUSH must not put a
@@ -651,6 +671,14 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
                 checks.append({"expect": {k: v for k, v in step.items() if k != "do"},
                                "passed": passed, "seen": seen})
                 continue
+            if step["do"] == "expect" and "logged" in step:
+                # Something the app says it did, in its own log: a preview that
+                # was on screen only while a drag was in the air.
+                log.poll()
+                times = sum(1 for l in log.lines if l["ev"] == step["logged"])
+                checks.append({"expect": {"logged": step["logged"]}, "passed": times > 0,
+                               "seen": f"{step['logged']} logged {times} time(s)"})
+                continue
             if step["do"] == "expect":
                 state = pipe.ask("lab_state")
                 passed, seen = check_expect(step, state)
@@ -665,6 +693,8 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
             if step["do"] == "phase":
                 marks.append({"phase": step["name"], "qpc": qpc()})
                 continue
+            if step["do"] == "drag" and "from_target" in step:
+                step = {**step, "_screen": locate(pipe, step["from_target"])}
             if step["do"] == "click" and "target" in step:
                 step = {**step, "_screen": locate(pipe, step["target"])}
             elif step["do"] == "hover" and "target" in step:
@@ -712,8 +742,12 @@ def do_step(step: dict, place: Placement, pointer: Pointer, log: Log, hwnd: int)
         where = step["_screen"] if "_screen" in step else place.at(*step["at"])
         pointer.click(*where, button=step.get("button", "left"), mods=step.get("mods", ""))
     elif kind == "drag":
-        a = place.at(*step["from"])
-        b = place.at(step["from"][0] + step["by"][0], step["from"][1] + step["by"][1])
+        if "_screen" in step:
+            # From a named thing to a point of the document: a tile onto the canvas.
+            a, b = step["_screen"], place.at(*step["to"])
+        else:
+            a = place.at(*step["from"])
+            b = place.at(step["from"][0] + step["by"][0], step["from"][1] + step["by"][1])
         pointer.drag(a, b, ms=float(step.get("ms", 1000)), hz=float(step.get("hz", 120)),
                      legs=max(1, int(step.get("legs", 1))))
     elif kind == "hover":
