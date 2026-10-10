@@ -236,7 +236,6 @@ which is a weak test and still far better than none.
 
 ### canvas
 
-- [ ] **B440** `P2` `canvas` Flipping on a many-layer document re-renders drawings it held a moment before: the still cache stops at 96 pictures, about three frames of 30 layers `evidence: StillCacheHoldsFramesTests`
 - [ ] **B255** `P1` `canvas` Hovering a menu with a pen tablet freezes the app for up to 6 seconds `evidence: manual`
   - **Measured, 2026-08-17, second `InputTrace` run on the reporter's Huion machine** — 56.7 s, 15,268 events, and this bug is the reason the stall watch was added to the instrument at all. The reporter had said the application "froze for a little while"; the first trace could not tell a freeze from a pointer resting over a menu, and the heartbeat that settled it found **22 UI-thread stalls, worst 6,103 ms**.
   - **The cause is not a correlation, it is an identity.** Every stall over three seconds is preceded by ~100 popup opens per second; the rate in windows away from any stall is **0.0/s**:
@@ -2182,6 +2181,8 @@ test reopens the bug.
   - The comment above `BeginMove` had already written down why not to do this — *"Re-implementing translation next to it would be a second way for the drawing to move, and the two would drift"* — and `_placementDrag`'s own remark says a placement move is an edit to two numbers. Both were describing the path that already worked.
   - Fix: `_placementDrag` carries a set instead of one id, so a group is the same operation on more of them — same anchor, same axis lock, one `PerformDelta` step for the whole drag. A selection makes the grab modal inside `BeginPlacementMove`, which is the side that knows what is selected, so `CanvasControl` went back to reporting absolute document coordinates like every other move. The parallel path is deleted. Cost: S
   - P1 because the feature did not work and the damage it did could not be taken back.
+
+- [x] **B440** `P2` `canvas` Flipping on a many-layer document re-renders drawings it held a moment before: the still cache stops at 96 pictures, about three frames of 30 layers `evidence: StillCacheHoldsFramesTests`
 
 - [x] **B425** `P2` `canvas` The idle warm loops forever when the frame on screen outgrows the still budget `evidence: AFrameLargerThanTheStillBudgetDoesNotLoopTheIdleWarm`
   - Found 2026-10-09 while testing the neighbour warm. When a frame's stills need more than the still cache's byte budget, the idle warm takes each one in as wanted, which evicts another of the same frame; the next drain asks for that one, and so on. With a paper and a drawing against room for one, it was 635 renders in 10 s and never settled. A 30-layer 4K frame with onion ghosts (about 3 GB) outgrows the budget the same way, so on a large document the machine never went idle. Fixed by the frame on screen never being evicted (this branch): the second render finds the first still held. It holds because the idle warm runs at the end of a publish, so the stills it takes in belong to the frame that publish just held.
