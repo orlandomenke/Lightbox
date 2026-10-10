@@ -35,7 +35,7 @@
   "src/Lightbox.App/Views/TextFormatBar.axaml": 1,
   "src/Lightbox.App/Views/TextOptionsBar.axaml": 3,
   "src/Lightbox.App/Views/TextOptionsPanel.axaml": 2,
-  "src/Lightbox.App/Views/TransportBar.axaml": 3,
+  "src/Lightbox.App/Views/TransportBar.axaml": 2,
   "src/Lightbox.App/Views/UpdateFromTemplateWindow.axaml": 3,
   "src/Lightbox.App/Views/VersionHistoryWindow.axaml": 7,
   "src/Lightbox.App/Views/VideoExportWindow.axaml": 4

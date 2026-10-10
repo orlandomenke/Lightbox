@@ -449,6 +449,20 @@
     <Setter Property="VerticalAlignment" Value="Top" />
   </Style>
 
+  <!--
+    The transport: tool height, at a text button's width (owner, 2026-10-10).
+    These carried no role, so they were 24 high and Loop — a toggle with a
+    padding of its own — was 25 wide beside seven at 31. The Tool role's own
+    padding would have made all eight about 22 wide, which is the wrong trade
+    for something pressed while the eye is on the playback.
+  -->
+  <Style Selector=":is(Button).transport">
+    <Setter Property="Height" Value="{StaticResource SizeTool}" />
+    <Setter Property="MinHeight" Value="{StaticResource SizeTool}" />
+    <Setter Property="Padding" Value="{StaticResource TransportPadding}" />
+    <Setter Property="MinWidth" Value="{StaticResource SizeTransportWidth}" />
+  </Style>
+
   <Style Selector="ToggleButton.tool">
     <Setter Property="Height" Value="{StaticResource SizeTool}" />
     <Setter Property="MinHeight" Value="{StaticResource SizeTool}" />

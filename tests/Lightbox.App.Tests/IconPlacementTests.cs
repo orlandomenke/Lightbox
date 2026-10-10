@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Lightbox.App.Rendering;
 using Lightbox.App.ViewModels;
 using Lightbox.App.Views;
@@ -169,6 +170,47 @@ public class IconPlacementTests(ITestOutputHelper output) : BrushStateIsolated
         Assert.Equal(3, pushed.OffCentreX, 2);
         Assert.Equal(0.5, halfPixel.OffPixel, 2);
         Assert.True(tooBig.Spill > 6, $"a 40 px icon in a 26 px button spilt only {tooBig.Spill}");
+    }
+
+    /// <summary>
+    /// The transport's buttons are one size: the tool height, and all as wide
+    /// as each other, Loop included.
+    /// </summary>
+    /// <remarks>
+    /// They carried no role at all, so they were whatever a bare button is —
+    /// 24 high where the design's table says a transport button is tool height
+    /// — and Loop, a toggle with a padding of its own, was 25 wide beside seven
+    /// at 31. The owner's call (2026-10-10): tool height, and keep the width,
+    /// because these are pressed while watching playback rather than the
+    /// pointer. That is wider than the Tool role's own padding gives, and
+    /// DESIGN.md says so.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheTransportsButtonsAreOneSize()
+    {
+        var (window, _) = Open(layers: 2);
+        List<(string Tip, double W, double H)> buttons;
+        double tool;
+        try
+        {
+            var bar = window.GetVisualDescendants().OfType<TransportBar>().First(b => b.IsEffectivelyVisible);
+            buttons = bar.GetVisualDescendants().OfType<Button>()
+                .Where(b => b.IsEffectivelyVisible && b.GetVisualDescendants().OfType<ShapePath>().Any(p => p.Classes.Contains("icon")))
+                .Select(b => ((ToolTip.GetTip(b) as string ?? "?").Split(' ', '(')[0], b.Bounds.Width, b.Bounds.Height))
+                .ToList();
+            Assert.True(window.TryFindResource("SizeTool", out var token));
+            tool = (double)token!;
+        }
+        finally
+        {
+            window.Close();
+        }
+
+        output.WriteLine(string.Join(", ", buttons.Select(b => FormattableString.Invariant($"{b.Tip} {b.W:0.#}x{b.H:0.#}"))));
+        Assert.Equal(8, buttons.Count);
+        Assert.All(buttons, b => Assert.Equal(tool, b.H, 1));
+        Assert.Single(buttons.Select(b => Math.Round(b.W, 1)).Distinct());
+        Assert.True(buttons[0].W >= 30, $"the transport's buttons are {buttons[0].W} wide: the target got smaller");
     }
 
     // ---- what a window carries -----------------------------------------------------------
