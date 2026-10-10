@@ -1,10 +1,9 @@
 # The paint path: one mark, made once, under the pen
 
-*Design note, 2026-10-10. A direction, not yet a record of what was built — each
-phase below lands with its own measurements and this note is corrected as they
-arrive. The numbers are the perf lab's (`perf/lab.py`, `paint-stroke`), taken on
-`main` at `8b95af98` with the machine under load, so the absolutes are
-indicative and the shapes are not.*
+*Design note, 2026-10-10. A direction, and a record of the phases as they
+land — each with its own measurements. The numbers are the perf lab's
+(`perf/lab.py`, `paint-stroke`), from the frozen baseline: `main` at `70d8a644`,
+1080p, three runs on a quiet machine.*
 
 ## The rule
 
@@ -29,23 +28,30 @@ Stated as something a test can hold:
 
 ## What breaks it today
 
-Five things, in the order an artist meets them. Lab, 1080p, ms:
+Five things, in the order an artist meets them. Lab, 300 px brush, 900 to
+3000 px/s, ms:
 
-| | ink 300 px | watercolour 300 px | pencil 300 px | oil 300 px |
-| --- | --- | --- | --- | --- |
-| pen → screen, median | 41–42 | 43 | 42 – **2900** | 40–41 |
-| pen → screen, worst | 141–223 | 242–283 | 462–2925 | 142–241 |
-| live pass, median | — | **78–93** | 9–13 | 25–26 |
-| texture lands this many points late, worst | — | 24–37 | 0–17 | 13–15 |
-| pen-up re-raster (`append.raster`) | **58–160** | 113–181 | 305–1008 | 61–140 |
-| pen-up, whole (`stroke.commit`) | **202–276** | 220–265 | 421–1123 | 123–207 |
+| | ink | soft round | pencil | watercolour | gouache | oil |
+| --- | --- | --- | --- | --- | --- | --- |
+| pen → screen, median | 32–40 | 42–45 | 39–43 | 34–42 | 31–40 | 39–41 |
+| pen → screen, worst | 67–124 | 128–240 | 223–490 | 136–174 | 64–134 | 61–64 |
+| live pass, median | — | — | 4 | **47–52** | 25–28 | 21–23 |
+| finish lands this many points late, worst | — | — | 6–8 | 15–20 | 12–14 | 12–13 |
+| pen-up re-raster (`append.raster`) | **24–63** | 62–170 | 146–400 | 67–107 | 45–84 | 54–117 |
+| pen-up, whole (`stroke.commit`) | **77–114** | 113–218 | 197–454 | 133–166 | 106–140 | 107–171 |
+
+Under load the same build is several times worse and the pencil collapses
+altogether (pen → screen 2.9 s at 300 px, B437); a quiet machine is the kind
+case.
 
 **1. Pen-up renders the stroke a second time.** `EndStroke` calls
 `AppendToFrameRender`, which runs `FrameRasterizer.Append` — the whole stroke,
 stamped again from its record into the frame's bitmap, on the UI thread. The
 live scratch already holds those pixels. This is the stall at the end of every
-stroke on **every** brush, ink included: 58–160 ms at 300 px, a second for the
-pencil, and it grows with the brush and the length of the stroke.
+stroke on **every** brush, ink included: 24–63 ms at 300 px, up to 400 for the
+pencil, and it grows with the brush and the length of the stroke. The rest of
+pen-up — about 45 ms that does not vary — is the undo snapshot, the tiles, the
+edit and its thumbnails.
 
 **2. Pen-up moves the line.** `EndStroke` runs the stabiliser's `PostProcess`
 over the points: three of its modes (Laplacian, moving average,
@@ -54,7 +60,7 @@ Savitzky–Golay) re-shape the whole stroke after the pen has left it.
 **3. Textured and simulated brushes are finished by a pass that runs behind the
 pen.** Wet edge, granulation, an ungated paper texture and every medium are
 whole-mark operations (`PostProcessRegion`) queued on a worker, single-flight.
-The artist sees the raw dabs, then the finish, 24–37 points later on a
+The artist sees the raw dabs, then the finish, 15–20 points later on a
 watercolour — the pop-in.
 
 **4. The raw tip is a different mark from the finished one**, which is why two
@@ -68,9 +74,8 @@ function of the dabs laid so far that later dabs leave alone: flow moves
 pigment that was already on screen. It cannot satisfy rule 1 at any speed —
 this is a property of what it computes, not of how fast.
 
-And one that is not the brush's: **pen → screen sits at 40–43 ms median on every
-brush**, ink included — two and a half refreshes of a 60 Hz display, with the
-newest point 33 ms from the glass. That is publish pacing and compose, the
+And one that is not the brush's: **pen → screen sits at 31–45 ms median on every
+brush**, ink included — two to two and a half refreshes of a 60 Hz display. That is publish pacing and compose, the
 ground the compositing work covers (`docs/DESIGN-gpu-compositing.md`), and it is
 the floor under everything here.
 
@@ -131,9 +136,9 @@ the ground, a paper, and an edge. Each of those is on the list above.
 
 What is given up is what only a solver does: pigment that travels after it is
 laid, pooling that depends on the whole wet region, a bloom where two wet
-strokes meet. Whether the lattice stays in the codebase at all is a decision
-recorded with this note's pull request (Q-number to follow); what is settled is
-that it leaves the path between the pen and the screen.
+strokes meet. The owner took that knowingly (**Q240**, 2026-10-10): the lattice
+leaves the codebase, not only the path between the pen and the screen, and
+strokes already saved with a simulated medium re-render with the recipes.
 
 ## How it is built and judged
 
@@ -146,18 +151,69 @@ still. Steps still run the lab; they are judged at the end.
 
 What "flawless" means as numbers the lab reports, for **every** shipped brush:
 
-| | target | today, worst brush |
+| | target | baseline, worst brush |
 | --- | --- | --- |
 | deferred passes during a stroke (`live.pass` count) | 0 | one per ~3 events |
 | pixels changed by pen-up | 0 | every textured or simulated mark |
-| pen-up (`stroke.commit`), 300 px | under one refresh, 16 ms | 1123 ms |
-| pointer event on the UI thread (`stroke.move`), worst, 300 px | under half a refresh, 8 ms | 255 ms |
-| longest stall during a stroke | under two refreshes, 33 ms | 1150 ms |
-| pen → screen, median | 25 ms — needs the pacing work | 2900 ms; 40 for ink |
+| pen-up (`stroke.commit`), 300 px | under one refresh, 16 ms | 454 ms |
+| pointer event on the UI thread (`stroke.move`), worst, 300 px | under half a refresh, 8 ms | 22 ms |
+| longest stall during a stroke | under two refreshes, 33 ms | 445 ms |
+| pen → screen, median | 25 ms — needs the pacing work | 45 ms |
 
 In the suite, where a lab cannot run: a byte-exact live-against-replay test
 for every shipped preset; a test that the frame after `EndStroke` is the frame
 before it; and a guard that no shipped preset queues a worker pass.
+
+## Phase 1 as built: live is the replay, and pen-up promotes it
+
+`PenUpChangesNothingTests` measures, for every shipped preset at two sizes,
+the live mark at pen-up against a fresh render of the stroke's record. Before
+any change every plain brush was already within a level on a few dozen pixels
+— close, and not the same, and the reasons turned out to be three:
+
+- **The replay stamped in a different frame of reference.** `StampPaint`
+  drew its dabs into a stroke-sized scratch under a translation; the live path
+  draws them into a document-sized one under an identity matrix. Skia's
+  gradient arithmetic is not translation-invariant, so the same dab came out a
+  level different on a scattering of edge pixels. Stamped in document
+  coordinates the replay equalled the live mark exactly, which is the fix: a
+  document-scale render now stamps its dabs through a pooled document-sized
+  plane (`DocPlane`) and copies the stroke's window out. **Document
+  coordinates are the canonical frame.** A render that is not in them — a
+  grown paper's surface, a tile, another output scale — agrees to a level on
+  rare edge pixels and exactly elsewhere, and `DocumentOriginTests` says so
+  rather than demanding bytes.
+- **Ink's silhouette was two different sums.** Live accumulated coverage into
+  a buffer and turned it to ink; the replay did it inside a layer at the
+  layer's offset and through a different blit. The replay now takes the live
+  path's own two steps in the plane.
+- **A dab's coverage radius depended on where the call began.** The edge
+  shader was reused while the radius was within a hundredth of a pixel of the
+  last one *built*; live calls once per pointer event, the replay once per
+  stroke. It is snapped per dab now. This was most of a fine ink line: 1,618
+  of 3,971 pixels.
+
+One thing looked like a cause and was not: the quarter-pixel settle tolerance
+(B189). Removing it changed nothing, as `TheStrictSettleRuleIsOneEventLateTests`
+had already measured, and it is still there.
+
+With those, ink, soft round, airbrush and the pencil are the replay to the
+byte, and `EndStroke` **promotes** them: the stroke's region of the live mark
+is copied out before the live state is cleared and laid onto the frame with
+the stroke's opacity and blend (`BrushEngine.PromoteMark`), where
+`FrameRasterizer.Append` stamped the record again. The guard is narrow on
+purpose — `PromotesAtPenUp` lists what is proved (dabs, a silhouette, a
+ceiling; no symmetry copies, selection or alpha lock yet), the live dab list
+must equal a fresh walk of the committed record (which is what catches pen-up
+smoothing and an unposed rig), and a soft brush's ceiling is now always kept
+at document scale so that it is the ceiling the record replays with. Anything
+else keeps the replay. The test holds the promoted presets to zero differing
+pixels, asserts they were in fact promoted, and asserts for **every** preset
+that the committed frame is what its record renders.
+
+Every render fingerprint moved with the frame of reference and was re-recorded
+with the reason beside it: an existing drawing changes by a level on a few
+dozen edge pixels in tens of thousands.
 
 ## Order
 
@@ -168,8 +224,8 @@ before it; and a guard that no shipped preset queues a worker pass.
    paper, wet edge. The worker pass loses its non-medium callers.
 3. **The media recipes**, with the sheets to judge them by eye: oil first (the
    hairs are written), then watercolour, gouache, ink wash.
-4. **Delete** the worker pass, the raw tip, Q168's two routes and — per the
-   decision — the lattice's place on the paint path.
+4. **Delete** the worker pass, the raw tip, Q168's two routes and the lattice
+   (Q240).
 5. **Causal smoothing.**
 
 The pen → screen floor runs beside this, not inside it.

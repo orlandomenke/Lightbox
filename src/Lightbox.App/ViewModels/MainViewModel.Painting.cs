@@ -1555,6 +1555,71 @@ public partial class MainViewModel
     /// </remarks>
     internal int LiveDabCountForTest => _live.Dabs?.Count ?? 0;
 
+    /// <summary>How many strokes this session committed by promoting the live mark rather than replaying the record.</summary>
+    internal int PromotedStrokes { get; private set; }
+
+    /// <summary>
+    /// The live mark, held across the moment the live state is cleared: a copy
+    /// of the stroke's region of the scratch, and the dabs it was stamped from.
+    /// </summary>
+    private sealed class LiveMark(SKBitmap pixels, SKRectI region, List<BrushEngine.Dab> dabs) : IDisposable
+    {
+        public SKBitmap Pixels { get; } = pixels;
+        public SKRectI Region { get; } = region;
+        public List<BrushEngine.Dab> Dabs { get; } = dabs;
+        public void Dispose() => Pixels.Dispose();
+    }
+
+    /// <summary>
+    /// Copy out the stroke's region of the live mark if it is complete and is
+    /// the kind of mark a replay reproduces exactly; null otherwise, and the
+    /// commit stamps the record as it always has.
+    /// </summary>
+    private LiveMark? TakeLiveMark(Stroke stroke)
+    {
+        if (PaperHasMoved || !BrushEngine.PromotesAtPenUp(stroke)) return null;
+        if (_live.Dabs is not { Count: > 0 } dabs) return null;
+
+        var brush = stroke.Brush;
+        SKBitmap? source;
+        if (BrushEngine.DrawsAsOneSilhouette(brush))
+        {
+            source = _live.Scratch;
+        }
+        else if (BrushEngine.NeedsFootprintCap(brush))
+        {
+            // The cap is applied in place as the pen moves; it has to have seen
+            // every dab, at the document's own scale.
+            if (!CapIsTheWholePass(brush) || _live.CoverageScale != 1.0 || _live.PostStampedDabs != dabs.Count)
+            {
+                return null;
+            }
+            source = _live.PostScratch;
+        }
+        else
+        {
+            source = _live.Scratch;
+        }
+        if (source is null) return null;
+
+        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        if (BrushEngine.CommitRegion(stroke, info) is not { } reach) return null;
+        var region = SKRectI.Intersect(reach, new SKRectI(0, 0, source.Width, source.Height));
+        if (region.Width <= 0 || region.Height <= 0) return null;
+        return CopyRegion(source, region) is { } pixels ? new LiveMark(pixels, region, dabs) : null;
+    }
+
+    /// <summary>
+    /// The pixels the live path holds for the stroke in hand — the finished
+    /// mark when a cap or pass has produced one, the raw dabs otherwise —
+    /// before opacity, blend, clip and alpha lock. What pen-up would promote
+    /// (docs/DESIGN-paint-path.md); null between strokes.
+    /// </summary>
+    internal SKBitmap? LiveMarkSource =>
+        _strokeBuilder.Current is null
+            ? null
+            : _live.PostStampedPoints > 0 && _live.PostScratch is { } finished ? finished : _live.Scratch;
+
     /// <summary>The points the live stroke holds right now. Tests only.</summary>
     internal int LivePointCountForTest => _strokeBuilder.Current?.Points.Count ?? 0;
 
@@ -1912,11 +1977,13 @@ public partial class MainViewModel
                 // where a pixel is, and a zoom mid-stroke would move it.
                 // A tooth ceiling is a few pixels of grain and stays at document
                 // scale; the soft brush's ceiling may follow the compose scale.
-                _live.BeginCoverage(
-                    Scene.Width, Scene.Height,
-                    BrushEngine.NeedsFootprintCap(CurrentToolSettings) && !BrushEngine.NeedsToothCeiling(CurrentToolSettings)
-                        ? Rendering.LiveFootprintScale.For(ComposeScale)
-                        : 1.0);
+                // Document scale, always. A ceiling kept at the compose scale
+                // (B189) is cheaper per dab and is not the ceiling the record
+                // replays with, so the mark changed when the pen lifted; the
+                // live mark has to be the replay to be promoted, and the stamp
+                // it costs is repaid many times by not rendering the stroke
+                // again at pen-up.
+                _live.BeginCoverage(Scene.Width, Scene.Height, 1.0);
                 LiveFootprintScaleUsed = _live.CoverageScale;
             }
         }
@@ -3947,6 +4014,9 @@ public partial class MainViewModel
         using var perf = PerfLog.Begin("stroke.commit");
         NoteStrokeEnded(_strokeBuilder.Current?.Points.Count ?? 0, _live.StableDabs);
         var stroke = _strokeBuilder.End();
+        // Before the live state is cleared: the pixels the artist is looking at,
+        // if they are the ones a replay of this record would make.
+        using var liveMark = stroke is null ? null : TakeLiveMark(stroke);
         // The commit's parts, for the lab: which of them a pen-up is paying for
         // (B424). Each is a static read when the log is off, like the whole.
         using (PerfLog.Begin("commit.clear")) _live.ClearEffectState();
@@ -4017,7 +4087,16 @@ public partial class MainViewModel
             ? StrokeChangeProbe.Open(stroke, _cache.Get(target, Scene.Width, Scene.Height))
             : null;
 
-        using (PerfLog.Begin("commit.append")) AppendToFrameRender(target, stroke); // pre-stroke state (record not yet updated)
+        // The live mark stands for this record only if the record still walks to
+        // the dabs that were drawn: smoothing at pen-up, an unposed rig and a
+        // selection registered above all change it, and then the replay is the
+        // mark. One walk of the stroke, against stamping it.
+        var promote = liveMark is not null
+            && BrushEngine.PromotesAtPenUp(stroke)
+            && liveMark.Dabs.SequenceEqual(BrushEngine.WalkDabs(stroke))
+                ? liveMark
+                : null;
+        using (PerfLog.Begin("commit.append")) AppendToFrameRender(target, stroke, promote); // pre-stroke state (record not yet updated)
 
         if (erasure?.ChangedNothing() == true)
         {

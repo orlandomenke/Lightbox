@@ -590,10 +590,28 @@ public static class BrushEngine
         // what keeps the composite at the bottom unchanged.
         var dev = DeviceRect(ToSurface(rect, origin), outputScale);
         var local = new SKImageInfo(dev.Width, dev.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+
+        // One mark, made once (docs/DESIGN-paint-path.md). The live path stamps
+        // its dabs into a document-sized scratch under an identity matrix; this
+        // used to stamp them into a stroke-sized one under a translation, and
+        // Skia's gradient arithmetic is not translation-invariant — the two
+        // marks differed by a level on a few dozen pixels, which is what kept
+        // "live equals replay" a tolerance instead of a fact. When the render
+        // is the document's own (scale 1, no origin), the dabs go into a pooled
+        // document-sized plane through its own canvas, in document coordinates,
+        // exactly as live, and the stroke's window of it is copied into the
+        // scratch — a copy of whole pixels, which is exact.
+        using var plane = DocPlane.Rent(info, dev, outputScale, origin, brush);
         using var scratch = SKSurface.Create(local);
         if (scratch is null) throw new InvalidOperationException("Could not create scratch surface.");
         var canvas = scratch.Canvas;
         canvas.Clear(SKColors.Transparent);
+        // Where the dabs are drawn: the plane in document space, or the scratch
+        // under the old translation when there is no plane to use. A plane's
+        // canvas carries no offset, and is clipped to the window in device
+        // space so a symmetry matrix cannot move the clip.
+        var dabCanvas = plane?.InkCanvas ?? canvas;
+        var dabSpace = plane is null ? dev : new SKRectI(0, 0, dev.Width, dev.Height);
 
         // Everything below works in DEVICE pixels on a scratch whose origin is
         // dev.Left/dev.Top; the passes that need document coordinates say so.
@@ -604,9 +622,22 @@ public static class BrushEngine
             ? SKSurface.Create(new SKImageInfo(dev.Width, dev.Height, SKColorType.Rgba8888, SKAlphaType.Opaque))
             : null;
         footprint?.Canvas.Clear(SKColors.Black);
+        var capCanvas = footprint is null ? null : plane?.CapCanvas ?? footprint.Canvas;
+        if (plane is not null)
+        {
+            dabCanvas.Save();
+            dabCanvas.ClipRect(dev);
+            dabCanvas.Clear(SKColors.Transparent);
+            if (footprint is not null)
+            {
+                capCanvas!.Save();
+                capCanvas.ClipRect(dev);
+                capCanvas.Clear(SKColors.Black);
+            }
+        }
 
 
-        InDocumentSpace(canvas, dev, outputScale, origin, () =>
+        InDocumentSpace(dabCanvas, dabSpace, outputScale, origin, () =>
         {
             // The dabs, mixed or plain. The drawn mark (no symmetry matrix)
             // samples the ground and records what each dab deposited; a copy
@@ -625,11 +656,35 @@ public static class BrushEngine
                 }
                 else
                 {
-                    StampDabRange(canvas, stroke, WalkDabs(stroke), 0, int.MaxValue, fp, false, deposits);
+                    StampDabRange(dabCanvas, stroke, WalkDabs(stroke), 0, int.MaxValue, fp, false, deposits);
                 }
             }
 
-            if (footprint is null)
+            if (footprint is null && plane is not null && DrawsAsOneSilhouette(brush))
+            {
+                // The live path's own two steps, in the same space: coverage as
+                // a running maximum into a document-sized buffer, then that
+                // buffer turned to ink. StampSilhouette's layer does the same
+                // sum at a layer's offset and through a different blit, and the
+                // two marks disagreed by a level along every edge — most of a
+                // fine ink line. A silhouette brush has no footprint, so the
+                // ceiling's plane is free to be the coverage.
+                var cover = plane.CapCanvas;
+                var all = WalkDabs(stroke);
+                cover.Save();
+                cover.ClipRect(dev);
+                cover.Clear(SKColors.Black);
+                InDocumentSpace(
+                    cover, dabSpace, outputScale, origin,
+                    () => AccumulateCoverage(cover, brush, all, 0, all.Count), symmetry);
+                cover.Restore();
+                cover.Flush();
+                var held = dabCanvas.Save();
+                dabCanvas.ResetMatrix();
+                CoverageToInk(dabCanvas, plane.Cap, stroke, dev);
+                dabCanvas.RestoreToCount(held);
+            }
+            else if (footprint is null)
             {
                 Dabs(null);
             }
@@ -638,9 +693,17 @@ public static class BrushEngine
                 // The footprint has to be laid down in the same space as the
                 // dabs, so it takes the same transform rather than a rebuilt one.
                 InDocumentSpace(
-                    footprint.Canvas, dev, outputScale, origin,
-                    () => Dabs(footprint.Canvas), symmetry);
+                    capCanvas!, dabSpace, outputScale, origin,
+                    () => Dabs(capCanvas), symmetry);
+                if (plane is not null)
+                {
+                    plane.CopyWindow(plane.Ink, dabCanvas, dev, canvas);
+                    plane.CopyWindow(plane.Cap, capCanvas!, dev, footprint.Canvas);
+                }
                 CapToFootprint(scratch, footprint, local, CeilingReachPx(brush, outputScale));
+                // Back into the plane, so the grain below reads the capped mark
+                // the way it always has.
+                if (plane is not null) plane.CopyBack(scratch, dev);
             }
 
             // The medium replaces the flat texture effects: wet edge and
@@ -666,9 +729,16 @@ public static class BrushEngine
                 var grainRect = symmetry is null
                     ? rect
                     : SegmentBounds(stroke, info, margin, origin) ?? rect;
-                ApplyGranulation(canvas, brush, grainRect, symmetry);
+                ApplyGranulation(dabCanvas, brush, grainRect, symmetry);
             }
         }, symmetry);
+        if (plane is not null)
+        {
+            // Under no transform: the copy is device pixels to device pixels.
+            plane.CopyWindow(plane.Ink, dabCanvas, dev, canvas);
+            dabCanvas.Restore();
+            if (footprint is not null) capCanvas!.Restore();
+        }
 
         if (brush.Medium.Kind != MediumKind.None)
         {
@@ -909,6 +979,186 @@ public static class BrushEngine
     /// — <em>scale the surface, never the geometry</em> — generalises to
     /// reflection unchanged, and this is the line that does it.
     /// </param>
+    /// <summary>
+    /// Whether the mark the live path holds for this stroke is, by
+    /// construction, the mark replaying its record produces — so pen-up may
+    /// promote those pixels instead of stamping the stroke a second time
+    /// (docs/DESIGN-paint-path.md, "One mark, made once").
+    /// </summary>
+    /// <remarks>
+    /// The list is what has been proved byte-exact, not what might be: dabs, a
+    /// silhouette, a ceiling (the soft edge, the pencil's tooth). Everything a
+    /// deferred pass still finishes — a medium, a wet edge, a flat grain, an
+    /// ungated paper — and everything laid by more than the drawn mark
+    /// (symmetry copies, a selection's mask, an alpha lock) keeps the replay
+    /// until it is moved under the pen too. <c>PenUpChangesNothingTests</c>
+    /// holds every shipped preset on this list to zero differing pixels.
+    /// </remarks>
+    public static bool PromotesAtPenUp(Stroke stroke)
+    {
+        var brush = stroke.Brush;
+        return stroke.Tool == ToolKind.Brush
+            && brush.Kind == BrushKind.Paint
+            && brush.Medium.Kind == MediumKind.None
+            && brush.Mixing is null
+            && brush.WetEdge <= 0
+            && brush.Granulation <= 0
+            && (!HasTexture(brush) || NeedsToothCeiling(brush))
+            && stroke.ClipId is null
+            && !stroke.AlphaLocked
+            && stroke.Points.Count > 0
+            && SymmetryCopies(stroke).Length <= 1;
+    }
+
+    /// <summary>
+    /// Lay a live mark onto its layer: the same last draw <see cref="StampPaint"/>
+    /// makes with its scratch, at the stroke's opacity and blend. The only way
+    /// pixels reach a layer without <see cref="StampStroke"/>, and only for a
+    /// stroke <see cref="PromotesAtPenUp"/> says is the replay to the byte —
+    /// invariant 1 is kept by that equality, not waived.
+    /// </summary>
+    public static void PromoteMark(SKCanvas target, SKBitmap mark, SKRectI region, Stroke stroke)
+    {
+        using var pixels = mark.PeekPixels();
+        using var image = pixels is null ? null : SKImage.FromPixels(pixels);
+        if (image is null) return;
+        using var paint = new SKPaint
+        {
+            Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(stroke.Brush.Opacity, 0, 1) * 255)),
+            BlendMode = BlendModes.ForStroke(stroke),
+        };
+        target.DrawImage(image, region.Left, region.Top, paint);
+    }
+
+    /// <summary>
+    /// A document-sized pair of planes — the ink and its ceiling — that a
+    /// document-scale render stamps its dabs into in document coordinates, so
+    /// the replay of a stroke is the same arithmetic as drawing it live.
+    /// </summary>
+    /// <remarks>
+    /// Pooled rather than per thread: a parallel warm renders on as many
+    /// threads as the pool gives it, and a plane each for ever would be a
+    /// document of memory per thread. Two idle pairs are kept; a render that
+    /// finds none makes one, because whether a mark is exact must never depend
+    /// on whether a buffer happened to be free. Nothing is cleared on return:
+    /// every use clears its own window before it draws and draws clipped to it.
+    /// </remarks>
+    private sealed class DocPlane : IDisposable
+    {
+        private const long MaxPixels = 64L * 1024 * 1024;
+        private const int KeptIdle = 2;
+        private static readonly System.Collections.Concurrent.ConcurrentBag<DocPlane> Idle = new();
+
+        private SKBitmap? _cap;
+        private SKCanvas? _capCanvas;
+
+        private DocPlane(int width, int height)
+        {
+            Ink = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+            InkCanvas = new SKCanvas(Ink);
+        }
+
+        public SKBitmap Ink { get; }
+        public SKCanvas InkCanvas { get; }
+
+        /// <summary>The ceiling's plane, made the first time a capped brush asks: most brushes have no cap.</summary>
+        public SKBitmap Cap
+        {
+            get
+            {
+                if (_cap is null)
+                {
+                    _cap = new SKBitmap(new SKImageInfo(Ink.Width, Ink.Height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+                    _capCanvas = new SKCanvas(_cap);
+                }
+                return _cap;
+            }
+        }
+
+        public SKCanvas CapCanvas { get { _ = Cap; return _capCanvas!; } }
+
+        /// <summary>
+        /// A plane for this render, or null when the render is not the
+        /// document's own — another scale, a tile's origin — or the brush reads
+        /// its ground through the scratch (colour mixing, until that route is
+        /// moved too).
+        /// </summary>
+        public static DocPlane? Rent(SKImageInfo info, SKRectI dev, double scale, SKPointI origin, BrushSettings brush)
+        {
+            if (scale != 1.0 || origin.X != 0 || origin.Y != 0) return null;
+            if (brush.Mixing is not null) return null;
+            if (info.Width <= 0 || info.Height <= 0 || (long)info.Width * info.Height > MaxPixels) return null;
+            if (dev.Width <= 0 || dev.Height <= 0
+                || dev.Left < 0 || dev.Top < 0 || dev.Right > info.Width || dev.Bottom > info.Height)
+            {
+                return null;
+            }
+
+            DocPlane? other = null;
+            while (Idle.TryTake(out var plane))
+            {
+                if (plane.Ink.Width == info.Width && plane.Ink.Height == info.Height)
+                {
+                    if (other is not null) Idle.Add(other);
+                    return plane;
+                }
+                // A plane of another document's size: keep one aside, drop the rest.
+                if (other is null) other = plane; else plane.Free();
+            }
+            other?.Free();
+            return new DocPlane(info.Width, info.Height);
+        }
+
+        /// <summary>
+        /// Copy the stroke's window of a plane onto a stroke-sized canvas,
+        /// pixel for pixel. A view of the plane's own memory, not a copy of the
+        /// document: wrapping the whole bitmap would duplicate it.
+        /// </summary>
+        public void CopyWindow(SKBitmap plane, SKCanvas planeCanvas, SKRectI dev, SKCanvas into)
+        {
+            planeCanvas.Flush();
+            using var window = new SKBitmap();
+            if (!plane.ExtractSubset(window, dev)) return;
+            using var pixels = window.PeekPixels();
+            using var view = pixels is null ? null : SKImage.FromPixels(pixels);
+            if (view is null) return;
+            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+            var saved = into.Save();
+            into.ResetMatrix();
+            into.DrawImage(view, 0, 0, src);
+            into.RestoreToCount(saved);
+            into.Flush();
+        }
+
+        /// <summary>The scratch's pixels back into the ink plane's window, for a pass that goes on drawing there.</summary>
+        public void CopyBack(SKSurface scratch, SKRectI dev)
+        {
+            scratch.Canvas.Flush();
+            using var pixels = scratch.PeekPixels();
+            using var view = pixels is null ? null : SKImage.FromPixels(pixels);
+            if (view is null) return;
+            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+            var saved = InkCanvas.Save();
+            InkCanvas.ResetMatrix();
+            InkCanvas.DrawImage(view, dev.Left, dev.Top, src);
+            InkCanvas.RestoreToCount(saved);
+            InkCanvas.Flush();
+        }
+
+        public void Dispose()
+        {
+            if (Idle.Count < KeptIdle) Idle.Add(this); else Free();
+        }
+
+        private void Free()
+        {
+            InkCanvas.Dispose();
+            Ink.Dispose();
+            _capCanvas?.Dispose();
+            _cap?.Dispose();
+        }
+    }
+
     private static void InDocumentSpace(
         SKCanvas canvas, SKRectI dev, double scale, SKPointI origin, Action draw,
         SKMatrix? symmetry = null)
@@ -2456,10 +2706,17 @@ public static class BrushEngine
             var radius = (float)RadiusAt(brush, dabs[i].Pressure);
             if (radius <= 0) continue;
 
-            // A hundredth of a pixel is far below what the rasteriser can show,
-            // so a pressure ramp rebuilds the shader a handful of times down a
-            // stroke rather than once a dab.
-            if (float.IsNaN(builtFor) || Math.Abs(radius - builtFor) > 0.01f)
+            // Snapped to a sixty-fourth of a pixel, far below what the
+            // rasteriser can show, so a pressure ramp rebuilds the shader a
+            // handful of times down a stroke rather than once a dab — and
+            // snapped rather than compared with the last radius built, because
+            // that made a dab's drawn radius depend on where the call began.
+            // The live path calls this once per pointer event and the replay
+            // once per stroke; "within a hundredth of whatever was built last"
+            // gave the two different radii for the same dab, a level or three
+            // on most pixels of a fine ink line.
+            radius = MathF.Max(MathF.Round(radius * 64f) / 64f, 1f / 64f);
+            if (radius != builtFor)
             {
                 paint.Shader?.Dispose();
                 outer = radius + 2f * ramp;

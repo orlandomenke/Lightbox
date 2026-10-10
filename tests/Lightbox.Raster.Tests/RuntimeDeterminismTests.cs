@@ -184,11 +184,26 @@ public class RuntimeDeterminismTests(ITestOutputHelper output)
     /// both capped, <c>hard-aa</c> is hardness 1 and has no falloff to cap, and
     /// it came back byte-identical.
     /// </para>
+    /// <para>
+    /// <b>All three were re-recorded on 2026-10-10</b>, for the paint path's
+    /// first rule (<c>docs/DESIGN-paint-path.md</c>): a document-scale render
+    /// stamps its dabs in document coordinates through a pooled plane, so that
+    /// replaying a stroke is the same arithmetic as drawing it live. Skia's
+    /// gradient arithmetic is not translation-invariant, so each mark moved by
+    /// a level on a scattering of edge pixels (3 to 35 of ~42,000 inked, worst
+    /// 1, on the shipped soft brushes) and nowhere else. <c>hard-aa</c> moved
+    /// with the others this time: a hard brush's silhouette now takes the live
+    /// path's own two steps (coverage as a running maximum, then ink), and its
+    /// coverage radius is snapped per dab rather than reused within a
+    /// hundredth of the last one built, which had made a dab's radius depend
+    /// on where the call began. The cross-runtime claim this file exists for
+    /// is untouched: the fingerprint is still a pure function of the record.
+    /// </para>
     /// </remarks>
     private const string Baseline = """
-        jitter=15176A73D634A7AFC7C6D56A22B514F919AA7B6AFD76B717E3E88E3DD7183E11
-        soft=34CD1D9656C67F76E742B54E996184B7E1DD2A3D36A2BDB544809541E2B95A30
-        hard-aa=5C38D5CF0C9D9ADEA4F1C17F571792433222CC8ED3DD09B59DCDA24FABAB7F9F
+        jitter=37EEB29FE5567F0268666B22369286C7FFDD2D29A4DDF606EEEE70B28669BC7C
+        soft=FB6A54488BE86B1731030DFA033AD876A7F4AB29F56279D2E28C3A8E51A0F16F
+        hard-aa=6D4643F3867BBF5984081EA5BA1648DD60B8BE0EB977A0878F8A5693352AD813
         """;
 
     /// <summary>Everything stochastic on at once — the only scenario that reaches

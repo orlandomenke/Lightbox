@@ -114,10 +114,17 @@ public class BrushPresetRenderFingerprintTests(ITestOutputHelper output)
     // coverage the 2026-08-24 entry did — and, by the note's argument, never
     // lowers a pixel: SweptCeilingTests counts the pixels that went down and
     // finds none.
-    [InlineData("plain", 0, 0, "21724733AC182E55")]
-    [InlineData("granulation", 0.35, 0, "AE467679339148C5")]
-    [InlineData("wet edge", 0, 0.7, "D7590BD1759815F2")]
-    [InlineData("both", 0.35, 0.7, "1B613354D6026991")]
+    // Re-recorded 2026-10-10, all four together: a document-scale render now
+    // stamps its dabs in document coordinates through a pooled plane, so that
+    // replaying a stroke is the same arithmetic as drawing it live
+    // (docs/DESIGN-paint-path.md). Skia's gradient arithmetic is not
+    // translation-invariant, so every shape moved by a level on a scattering
+    // of edge pixels and nowhere else — the dabs under all four are the same
+    // dabs, which is why they move together once more.
+    [InlineData("plain", 0, 0, "9BCFD3D92A8A3F92")]
+    [InlineData("granulation", 0.35, 0, "7BC9E543177AD6E5")]
+    [InlineData("wet edge", 0, 0.7, "CF71F2A6317C2C91")]
+    [InlineData("both", 0.35, 0.7, "FD65DC24ACCEA513")]
     public void AShapeStillRendersWhatItDidBefore(
         string name, double granulation, double wetEdge, string expected)
     {

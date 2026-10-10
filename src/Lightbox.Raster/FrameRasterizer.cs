@@ -53,6 +53,20 @@ public static class FrameRasterizer
                 Math.Max(1, (int)Math.Ceiling(info.Height * outputScale)));
 
     /// <summary>Stamp one more stroke onto an existing layer bitmap in place.</summary>
+    /// <summary>
+    /// Commit a stroke by laying the mark the live path already holds, instead
+    /// of stamping it again. The caller has established that the mark is the
+    /// replay (<see cref="BrushEngine.PromotesAtPenUp"/> and an identical dab
+    /// list); this is <see cref="Append"/> with the stamping already done.
+    /// </summary>
+    public static void Promote(SKBitmap layer, SKBitmap mark, SKRectI region, Stroke stroke)
+    {
+        using var canvas = new SKCanvas(layer);
+        BrushEngine.PromoteMark(canvas, mark, region, stroke);
+        canvas.Flush();
+        BitmapVersion.Bump(layer);
+    }
+
     public static void Append(SKBitmap layer, Stroke stroke)
     {
         var info = new SKImageInfo(layer.Width, layer.Height, SKColorType.Rgba8888, SKAlphaType.Premul);

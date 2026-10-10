@@ -148,6 +148,7 @@ public class DocumentOriginTests(ITestOutputHelper output)
         var firstAt = (X: -1, Y: -1);
         SKColor firstFlush = default, firstGrown = default;
         var inked = 0;
+        var moved = 0;
 
         for (var y = 0; y < H; y++)
         {
@@ -157,6 +158,7 @@ public class DocumentOriginTests(ITestOutputHelper output)
                 var b = grown.GetPixel(x + PadX, y + PadY);
                 if (a.Alpha > 0) inked++;
                 if (a == b) continue;
+                if (!WithinALevel(a, b)) moved++;
                 if (differing == 0)
                 {
                     firstAt = (x, y);
@@ -176,7 +178,28 @@ public class DocumentOriginTests(ITestOutputHelper output)
         // A fixture that painted nothing would pass the comparison and prove
         // nothing, which is the failure mode a bare `differing == 0` invites.
         Assert.True(inked > 200, $"{what}: fixture painted almost nothing ({inked} px)");
-        Assert.Equal(0, differing);
+        // Not byte for byte since the paint path's first rule
+        // (docs/DESIGN-paint-path.md): a document-scale render stamps its dabs
+        // in document coordinates, so that replaying a stroke is the same
+        // arithmetic as drawing it, and a grown paper's surface is not in
+        // document coordinates. Skia's gradient arithmetic is not
+        // translation-invariant, so the two frames of reference agree to a
+        // level on a scattering of edge pixels and exactly everywhere else.
+        // What this test is for — ink that MOVED, grain that slid, jitter that
+        // re-rolled — is tens of levels over most of the mark, and none of it
+        // is allowed.
+        Assert.True(moved == 0, $"{what}: {moved} pixels differ by more than a level — the mark moved");
+        Assert.True(differing <= inked / 50, $"{what}: {differing} of {inked} inked pixels differ, too many for rounding");
+    }
+
+    /// <summary>One level of premultiplied colour and of alpha: what a change of float rounding can do, and no more.</summary>
+    private static bool WithinALevel(SKColor a, SKColor b)
+    {
+        static double Pre(byte c, byte alpha) => c * alpha / 255.0;
+        return Math.Abs(a.Alpha - b.Alpha) <= 1
+            && Math.Abs(Pre(a.Red, a.Alpha) - Pre(b.Red, b.Alpha)) <= 1.5
+            && Math.Abs(Pre(a.Green, a.Alpha) - Pre(b.Green, b.Alpha)) <= 1.5
+            && Math.Abs(Pre(a.Blue, a.Alpha) - Pre(b.Blue, b.Alpha)) <= 1.5;
     }
 
     // ---- the canvas-transform path ------------------------------------------------------

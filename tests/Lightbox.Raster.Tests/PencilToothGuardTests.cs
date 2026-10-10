@@ -39,7 +39,19 @@ public class PencilToothGuardTests(ITestOutputHelper output)
     /// BrushEngine.cs stashed), so this is the render every saved textured
     /// stroke without a <c>texturePressure</c> key had and must keep.
     /// </summary>
-    private const string UngatedFingerprint = "E9BD4D831D658EE2808A23A85975EBF137E3563123AC51F5F7FD52EA04BB3507";
+    // First recorded on the engine before the gate existed (E9BD4D83…), and
+    // re-recorded 2026-10-10 for the paint path's first rule
+    // (docs/DESIGN-paint-path.md): a document-scale render now stamps its dabs
+    // in document coordinates through a pooled plane, where it stamped them
+    // into a stroke-sized scratch under a translation, so that replaying a
+    // stroke is the same arithmetic as drawing it and pen-up need not render
+    // the stroke a second time. Skia's gradient arithmetic is not
+    // translation-invariant, so the same mark comes out a level different on
+    // a scattering of edge pixels — measured at 3 to 35 of ~42,000 inked
+    // pixels, worst 1 level, on the shipped soft brushes — and identical
+    // everywhere else. An existing drawing therefore moves by an amount no eye
+    // can find; what it buys is that live and replay are now the same bytes.
+    private const string UngatedFingerprint = "4561D665D52BD7E6E217F2835292941A58646AA7BA5131919981FD7D2EA8E3F6";
 
     [Fact]
     public void AnUngatedTextureRendersExactlyAsItDidBeforeTheGateExisted()
