@@ -149,6 +149,8 @@
   <x:Double x:Key="SizeIcon11">11</x:Double>
   <x:Double x:Key="SizeIcon12">12</x:Double>
   <x:Double x:Key="SizeIcon16">16</x:Double>
+  <!-- The Quick options bar's tool icon: a label for the bar, not a glyph in a tile. -->
+  <x:Double x:Key="SizeIcon18">18</x:Double>
 
   <!-- ===== Radii, by role ===== -->
   <!-- The Tight corner set (Q203): controls and fields 4, containers and
