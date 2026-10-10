@@ -87,4 +87,21 @@ public sealed class NewerFileWarningTests : BrushStateIsolated
             Directory.Delete(root, recursive: true);
         }
     }
+
+    /// <summary>
+    /// The other side (Q237): this build's own format, last saved by an older
+    /// build, which may have dropped what it could not read.
+    /// </summary>
+    [AvaloniaFact]
+    public void ADocumentLastSavedByAnOlderBuildSaysSoWhenItOpens()
+    {
+        var vm = VmLayers.PaperVm();
+        var doc = Lightbox.Core.Serialization.DocJson.Deserialize(
+            $$"""{ "version": {{Doc.CurrentVersion}}, "savedByFormat": {{Doc.CurrentVersion - 1}}, "scene": { "layers": [{ "name": "Ink" }] } }""");
+
+        vm.OpenDocumentTab(doc, Path.Combine(Path.GetTempPath(), "Round trip.lightbox.json"));
+
+        Assert.Contains("older", vm.AiStatus);
+        Assert.Contains("Round trip", vm.AiStatus);
+    }
 }

@@ -18,7 +18,8 @@ what a newer version wrote that it does not understand and writes it back on
 save, so nearly everything survives a round trip through an older version. A
 few kinds of data cannot be kept that way, so when a document or project was
 saved by a newer version, the status strip says that saving it here may drop
-what this version cannot read.
+what this version cannot read. The other way round, a document last saved by an
+older version says so the next time a newer one opens it, once.
 
 **A document opens without freezing the window.** While the file is read, its
 tab reads *name — opening…*, the canvas is covered with its name and a bar that
