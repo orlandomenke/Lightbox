@@ -6,4 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- The inflation limits (Q235) are test knobs, not API: a test lowers them to
+         make a bomb without allocating gigabytes on the CI runner. -->
+    <InternalsVisibleTo Include="Lightbox.Core.Tests" />
+  </ItemGroup>
+
 </Project>

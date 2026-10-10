@@ -67,6 +67,72 @@ public class InflatingDocumentTests
         }
     }
 
+    /// <summary>
+    /// The residual the sensitivity review named: the ratio grows with the file,
+    /// so a bomb large on disk — tens of MB of noise ahead of the letters — was
+    /// allowed gigabytes, and the parser ran out of memory on one string first
+    /// (probed: a 162 MB file, "Array dimensions exceeded" after 1.8 s at a
+    /// 2.4 GB peak, caught by no open path). So the ratio is also bounded by a
+    /// ceiling. Scaled down here: noise makes the ratio allow tens of MB, the
+    /// ceiling stops it at 2.
+    /// </summary>
+    [Fact]
+    public void ABombLargeOnDiskStopsAtTheCeiling()
+    {
+        var (floor, ceiling) = (DocJson.InflationFloorBytes, DocJson.InflationCeilingBytes);
+        var path = Path.Combine(Path.GetTempPath(), $"lightbox-bigbomb-{Guid.NewGuid():N}.lightbox.json");
+        try
+        {
+            using (var file = File.Create(path))
+            using (var gzip = new GZipStream(file, CompressionLevel.Fastest))
+            {
+                gzip.Write("{\"version\":1,\"scene\":{\"id\":\""u8);
+                var noise = new byte[3 << 20];
+                new Random(1).NextBytes(noise);
+                gzip.Write(System.Text.Encoding.ASCII.GetBytes(Convert.ToBase64String(noise)));
+                gzip.Write("\",\"name\":\""u8);
+                var block = Enumerable.Repeat((byte)'a', 1 << 20).ToArray();
+                for (var i = 0; i < 16; i++) gzip.Write(block);
+            }
+            DocJson.InflationFloorBytes = 1L << 20;
+            DocJson.InflationCeilingBytes = 6L << 20;
+
+            var refused = Assert.Throws<InvalidDataException>(() => DocJson.Load(path));
+            Assert.Contains("expand", refused.Message);
+        }
+        finally
+        {
+            (DocJson.InflationFloorBytes, DocJson.InflationCeilingBytes) = (floor, ceiling);
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    /// And a refused allocation while reading — one string too long for any
+    /// array — is the same plain refusal, not an exception no open path
+    /// catches. Recoverable: the allocation that failed is the one that was
+    /// never made.
+    /// </summary>
+    [Fact]
+    public void ARefusedAllocationWhileReadingIsARefusal()
+    {
+        var parse = DocJson.ParseDocument;
+        var path = Path.Combine(Path.GetTempPath(), $"lightbox-oom-{Guid.NewGuid():N}.lightbox.json");
+        try
+        {
+            DocJson.Save(new Doc(), path);
+            DocJson.ParseDocument = _ => throw new OutOfMemoryException("Array dimensions exceeded supported range.");
+
+            var refused = Assert.Throws<InvalidDataException>(() => DocJson.Load(path));
+            Assert.Contains("too large", refused.Message);
+        }
+        finally
+        {
+            DocJson.ParseDocument = parse;
+            File.Delete(path);
+        }
+    }
+
     /// <summary>A real document still opens: the cap is far from anything the app writes.</summary>
     [Fact]
     public void AnOrdinaryDocumentStillOpens()

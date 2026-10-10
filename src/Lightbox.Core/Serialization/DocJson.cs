@@ -160,7 +160,7 @@ public static class DocJson
     /// document under this size is ever refused (Q235). Settable so a test can
     /// make a bomb without allocating a gigabyte on the CI runner.
     /// </summary>
-    public static long InflationFloorBytes = 256L << 20;
+    internal static long InflationFloorBytes = 256L << 20;
 
     /// <summary>
     /// How many times its size on disk a document may inflate past the floor.
@@ -174,10 +174,45 @@ public static class DocJson
     public const int MaxInflationRatio = 20;
 
     /// <summary>
+    /// The most any document may inflate to, whatever its size on disk: a
+    /// quarter of the memory this process is told it has. The ratio alone grows
+    /// with the file, so a bomb padded to tens of MB on disk was allowed
+    /// gigabytes (the sensitivity review of Q235); this keeps a bomb of many
+    /// small tokens from pushing the machine into paging. Settable for tests.
+    /// </summary>
+    internal static long InflationCeilingBytes = Math.Max(1L << 30, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 4);
+
+    /// <summary>The parse itself — a seam so a test can stand in for an allocation the runtime refuses.</summary>
+    internal static Func<Stream, Doc> ParseDocument = s => JsonSerializer.Deserialize<Doc>(s, Options)
+        ?? throw new JsonException("Document deserialized to null.");
+
+    /// <summary>
     /// A document from a stream that can seek — gzip, as <see cref="Save"/>
     /// writes it, or plain JSON, as older builds and hand edits do.
     /// </summary>
+    /// <remarks>
+    /// <b>A refused allocation is a refusal, not a crash</b> (Q235's residual).
+    /// One string too long for any array — a bomb's single token — fails with
+    /// <see cref="OutOfMemoryException"/> before any byte count is reached
+    /// (probed: a 162 MB file, after 1.8 s at a 2.4 GB peak), and no open path
+    /// catches that. The allocation that failed is the one that was never made,
+    /// so the process is whole; it is reported as the plain refusal every open
+    /// path already shows.
+    /// </remarks>
     public static Doc Load(Stream file)
+    {
+        try
+        {
+            return LoadCapped(file);
+        }
+        catch (OutOfMemoryException)
+        {
+            throw new InvalidDataException(
+                "This document is too large to open on this computer — far larger than any drawing this application writes.");
+        }
+    }
+
+    private static Doc LoadCapped(Stream file)
     {
         var isGzip = file.ReadByte() == 0x1f && file.ReadByte() == 0x8b;
         file.Position = 0;
@@ -186,10 +221,9 @@ public static class DocJson
             using var gzip = new GZipStream(file, CompressionMode.Decompress, leaveOpen: true);
             // Q235: a document that would inflate far past its size on disk is
             // refused rather than read until memory runs out.
-            var limit = Math.Max(InflationFloorBytes, file.Length * MaxInflationRatio);
+            var limit = Math.Min(InflationCeilingBytes, Math.Max(InflationFloorBytes, file.Length * MaxInflationRatio));
             using var capped = new InflationCap(gzip, limit, file.Length);
-            return JsonSerializer.Deserialize<Doc>(capped, Options)
-                ?? throw new JsonException("Document deserialized to null.");
+            return ParseDocument(capped);
         }
         using var reader = new StreamReader(file, leaveOpen: true);
         return Deserialize(reader.ReadToEnd());
