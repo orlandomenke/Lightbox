@@ -1,3 +1,4 @@
+using Avalonia.VisualTree;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Avalonia;
@@ -66,11 +67,13 @@ public class IconPlacementTests(ITestOutputHelper output) : BrushStateIsolated
     /// the centre.
     /// </summary>
     /// <remarks>
-    /// Half a pixel and not zero, on purpose and with the reason printed: the
-    /// tile is 26 and the icons in it are 13 and 15, so the exact centre is a
-    /// half pixel and layout rounding has to pick a side. That keeps the line
-    /// crisp, and it is why the test prints how many icons are <em>exactly</em>
-    /// centred — the number an even icon size or an odd tile would raise.
+    /// <b>Exactly, for the two sizes the styles give</b> — 12 for an icon, 16
+    /// for a stateful pair (Q241). They were 13 and 15, whose centre in a 26
+    /// tile is a half pixel, so layout rounding picked a side: 96 of 111 icons
+    /// sat half a pixel off, and the same icon in the same tile landed on
+    /// either side depending on where the tile was. The inline one-offs (a 9 px
+    /// caption close, the stacked reorder chevrons in their 11 px halves) are
+    /// still allowed their half pixel, and are printed so the list is in view.
     /// <para>
     /// <b>What this cannot see, said here so nobody reads more into a pass.</b>
     /// An icon that rounding left half a pixel one way and somebody then moved
@@ -113,12 +116,12 @@ public class IconPlacementTests(ITestOutputHelper output) : BrushStateIsolated
         Assert.True(exact >= ExactlyCentred, $"{exact} icons are exactly centred, under the {ExactlyCentred} that were");
         Assert.Empty(icons.Where(i => i.OffPixel > 0.01).Select(i => $"{i.Name} in {i.Host}: {i.OffPixel:0.##} px off the grid"));
         Assert.Empty(icons.Where(i => i.Spill > 0.01).Select(i => $"{i.Name} in {i.Host}: spills {i.Spill:0.##} px"));
-        Assert.Empty(lone.Where(i => Math.Abs(i.OffCentreX) > 0.51 || Math.Abs(i.OffCentreY) > 0.51)
+        Assert.Empty(lone.Where(i => (i.Width is 12 or 16 ? 0.01 : 0.51) < Math.Max(Math.Abs(i.OffCentreX), Math.Abs(i.OffCentreY)))
             .Select(i => $"{i.Name} in {i.Host}: off centre by {i.OffCentreX:0.##},{i.OffCentreY:0.##}"));
     }
 
-    /// <summary>The tool rail's fifteen, on 2026-10-10: a 12 px icon in a 32 by 26 button.</summary>
-    private const int ExactlyCentred = 15;
+    /// <summary>Every icon at a class size, on 2026-10-10; the 25 left over are inline one-offs.</summary>
+    private const int ExactlyCentred = 86;
 
     /// <summary>
     /// The census reports an icon that is pushed off centre, off the pixel grid
@@ -169,6 +172,82 @@ public class IconPlacementTests(ITestOutputHelper output) : BrushStateIsolated
         Assert.Equal(3, pushed.OffCentreX, 2);
         Assert.Equal(0.5, halfPixel.OffPixel, 2);
         Assert.True(tooBig.Spill > 6, $"a 40 px icon in a 26 px button spilt only {tooBig.Spill}");
+    }
+
+    /// <summary>
+    /// The transport's buttons are one size: the tool height, and all as wide
+    /// as each other, Loop included.
+    /// </summary>
+    /// <remarks>
+    /// They carried no role at all, so they were whatever a bare button is —
+    /// 24 high where the design's table says a transport button is tool height
+    /// — and Loop, a toggle with a padding of its own, was 25 wide beside seven
+    /// at 31. The owner's call (2026-10-10): tool height, and keep the width,
+    /// because these are pressed while watching playback rather than the
+    /// pointer. That is wider than the Tool role's own padding gives, and
+    /// DESIGN.md says so.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheTransportsButtonsAreOneSize()
+    {
+        var (window, _) = Open(layers: 2);
+        List<(string Tip, double W, double H)> buttons;
+        double tool;
+        try
+        {
+            var bar = window.GetVisualDescendants().OfType<TransportBar>().First(b => b.IsEffectivelyVisible);
+            buttons = bar.GetVisualDescendants().OfType<Button>()
+                .Where(b => b.IsEffectivelyVisible && b.GetVisualDescendants().OfType<ShapePath>().Any(p => p.Classes.Contains("icon")))
+                .Select(b => ((ToolTip.GetTip(b) as string ?? "?").Split(' ', '(')[0], b.Bounds.Width, b.Bounds.Height))
+                .ToList();
+            Assert.True(window.TryFindResource("SizeTool", out var token));
+            tool = (double)token!;
+        }
+        finally
+        {
+            window.Close();
+        }
+
+        output.WriteLine(string.Join(", ", buttons.Select(b => FormattableString.Invariant($"{b.Tip} {b.W:0.#}x{b.H:0.#}"))));
+        Assert.Equal(8, buttons.Count);
+        Assert.All(buttons, b => Assert.Equal(tool, b.H, 1));
+        Assert.Single(buttons.Select(b => Math.Round(b.W, 1)).Distinct());
+        Assert.True(buttons[0].W >= 30, $"the transport's buttons are {buttons[0].W} wide: the target got smaller");
+    }
+
+    /// <summary>
+    /// Every icon is drawn at the set's one line weight.
+    /// </summary>
+    /// <remarks>
+    /// The weight is a token (<c>IconStroke</c>, 1.25 since the owner's decision
+    /// of 2026-10-07, down from 1.5), and an icon that sets its own stroke keeps
+    /// whatever the number was the day it was written. The Quick options bar's
+    /// tool icon did exactly that: it stayed at 1.5 beside ninety at 1.25, and
+    /// nothing looked at it because nothing read the weight off the screen.
+    /// </remarks>
+    [AvaloniaFact]
+    public void EveryIconIsDrawnAtTheSetsLineWeight()
+    {
+        var (window, _) = Open(layers: 3);
+        IReadOnlyList<IconPlacement> icons;
+        double weight;
+        try
+        {
+            icons = IconCensus.Take(window);
+            Assert.True(window.TryFindResource("IconStroke", out var token), "the IconStroke token is gone");
+            weight = (double)token!;
+        }
+        finally
+        {
+            window.Close();
+        }
+
+        var heavy = icons.Where(i => Math.Abs(i.Stroke - weight) > 0.001)
+            .Select(i => FormattableString.Invariant($"{i.Name} in {(i.Host.Length > 0 ? i.Host : "no button")}: {i.Stroke}"))
+            .Distinct().ToList();
+        output.WriteLine($"{icons.Count} icons, line weight {weight}; off it: {(heavy.Count == 0 ? "none" : string.Join(", ", heavy))}");
+        Assert.True(icons.Count >= 60, $"only {icons.Count} icons were found");
+        Assert.Empty(heavy);
     }
 
     // ---- what a window carries -----------------------------------------------------------
