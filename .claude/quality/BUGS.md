@@ -2184,6 +2184,8 @@ test reopens the bug.
   - Fix: `_placementDrag` carries a set instead of one id, so a group is the same operation on more of them — same anchor, same axis lock, one `PerformDelta` step for the whole drag. A selection makes the grab modal inside `BeginPlacementMove`, which is the side that knows what is selected, so `CanvasControl` went back to reporting absolute document coordinates like every other move. The parallel path is deleted. Cost: S
   - P1 because the feature did not work and the damage it did could not be taken back.
 
+- [x] **B444** `P2` `canvas` A flip back to a frame already seen re-composes every layer on the UI thread, ~320 ms on 30 layers: the composite cache is gated to playback `evidence: AFlipBackShowsTheFramesPictureWithoutComposingItAgain`
+
 - [x] **B442** `P2` `canvas` Posing a rigged drawing re-solves the skeleton for every stroke, and auto-bind looks up joint zones in bones-cubed time `evidence: TheSkeletonIsSolvedOncePerFrameNotOncePerStroke, AutoBindGrowsWithTheBonesNotWithTheirCube, SharingTheFramesDeltasChangesNoBitOfAPosedStroke, AJointWeightedLayerPosesAsItDid, BoneRigPerformanceTests`
   - **Found 2026-10-11 writing the bone rig's first performance baseline**, ahead of the puppet-pin work (Q239) that is to be measured against it. Until then the rig's only budget was the jiggle walk's.
   - **Measured before touching anything** (`BoneRigPerformanceTests`, Release, minimum of runs after the code had finished compiling). 200 strokes each bound whole to one bone: **7.5 ms** to pose on a 30-bone rig and **36.6 ms** on a 120-bone one — 4.9x for a drawing that uses one bone either way. Auto-binding 60 strokes: **11 ms** against 30 bones and **502 ms** against 120 — 45x for 4x the bones.
@@ -2192,7 +2194,6 @@ test reopens the bug.
   - **After:** the one-bone drawing costs 4.9 ms on 30 bones and 4.6 ms on 120 (0.95x). Auto-bind is 5.4 ms and 21.6 ms (4.0x for 4x the bones), and auto-binding 100 strokes against 30 bones went from 18.5 ms to 4.4 ms — which a layer following the whole skeleton pays on every posed frame.
   - **A number that was wrong on the way, kept here so it is not quoted again.** The first run of the baseline reported 45.9 ms to pose 100 strokes and 62.7 ms to auto-bind them. The timing helper warmed with a single call and measured code the runtime had not finished optimising; the real figures were about 5 ms and 18.5 ms. The helper now warms until three batches in a row stop getting faster. The posing path was never three refreshes slow; the two costs above are real and are what the ratio tests hold.
   - Not in this fix: the per-point cost itself (about 650 ns a densified point, most of it densifying with weights — an array per point), and the two `ArmatureOps.Solve` calls a whole-skeleton stroke still makes inside `AutoWeights`. Both are linear in the drawing and sit under a refresh at 100 strokes; they belong to a measurement on a painted character in the performance lab rather than to a guess here.
-
 
 - [x] **B440** `P2` `canvas` Flipping on a many-layer document re-renders drawings it held a moment before: the still cache stops at 96 pictures, about three frames of 30 layers `evidence: StillCacheHoldsFramesTests`
 
