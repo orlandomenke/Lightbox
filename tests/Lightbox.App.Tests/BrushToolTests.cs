@@ -86,11 +86,11 @@ public class BrushPresetTests : BrushStateIsolated
     [AvaloniaFact]
     public void EachSimulatedMedium_ReachesTheStrokeRecord_WithItsOwnPhysics()
     {
-        // Three presets that must differ by physics, not just by colour. If two
-        // of them ever collapse onto the same numbers, the distinction the
-        // artist picked between them has quietly stopped existing. Four until
-        // 2026-10-11: Watercolor is a recipe now (Q244), and the other three
-        // follow it out of the simulation one sheet at a time.
+        // The presets still simulated must differ by physics, not just by
+        // colour. If two of them ever collapse onto the same numbers, the
+        // distinction the artist picked between them has quietly stopped
+        // existing. Four until 2026-10-11: Watercolor (Q244) and Oil (Q246) are
+        // recipes now, and the last two follow them one sheet at a time.
         var vm = new MainViewModel(null) { SmoothStrokes = false };
         var seen = new List<(MediumKind Kind, double Wetness, double Viscosity, double Hiding)>();
         // The brush store is shared across tests, and a medium brush now
@@ -98,7 +98,7 @@ public class BrushPresetTests : BrushStateIsolated
         // changes what later tests paint with.
         var restore = vm.SelectedBrushPreset;
 
-        foreach (var name in new[] { "Gouache", "Oil", "Ink wash" })
+        foreach (var name in new[] { "Gouache", "Ink wash" })
         {
             vm.SelectedBrushPreset = vm.BrushPresetChoices.First(p => p.Name == name);
             vm.BeginStroke(10, 10, 0.7);
@@ -110,17 +110,16 @@ public class BrushPresetTests : BrushStateIsolated
             seen.Add((brush.Medium.Kind, brush.Medium.Wetness, brush.Medium.Viscosity, brush.Medium.Hiding));
         }
 
-        Assert.Equal(3, seen.Select(m => m.Kind).Distinct().Count());
-        Assert.Equal(3, seen.Distinct().Count());
+        Assert.Equal(2, seen.Select(m => m.Kind).Distinct().Count());
+        Assert.Equal(2, seen.Distinct().Count());
 
-        // And the physics must be the right way round: ink is the wettest and
-        // least hiding of those still simulated, oil the most viscous and most
-        // hiding.
+        // And the physics must be the right way round: ink is the wetter and
+        // less hiding, gouache the more viscous and more hiding.
         var water = seen.Single(m => m.Kind == MediumKind.Ink);
-        var oil = seen.Single(m => m.Kind == MediumKind.Oil);
-        Assert.True(water.Wetness > oil.Wetness, "ink should be wetter than oil");
-        Assert.True(oil.Viscosity > water.Viscosity, "oil should be more viscous than ink");
-        Assert.True(oil.Hiding > water.Hiding, "oil should hide more than ink");
+        var body = seen.Single(m => m.Kind == MediumKind.Gouache);
+        Assert.True(water.Wetness > body.Wetness, "ink should be wetter than gouache");
+        Assert.True(body.Viscosity > water.Viscosity, "gouache should be more viscous than ink");
+        Assert.True(body.Hiding > water.Hiding, "gouache should hide more than ink");
 
         vm.SelectedBrushPreset = restore;
     }

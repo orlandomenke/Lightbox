@@ -4190,7 +4190,7 @@ public static class BrushEngine
             {
                 // The tip's bounding disc, under the tip's own transform: close
                 // enough for a gate whose grain is the paper's, not the tip's.
-                StampTooth(footprint, pos, radius, HardnessAt(brush, pressure), (float)rotation, (float)roundness, brush, PressFor(brush, pressure));
+                StampTooth(footprint, pos, radius, HardnessAt(brush, pressure), (float)rotation, (float)roundness, brush, ToothPress(brush, pressure, load));
             }
             else if (footprint is not null)
             {
@@ -4240,7 +4240,7 @@ public static class BrushEngine
             {
                 if (NeedsToothCeiling(brush))
                 {
-                    StampTooth(footprint, pos, radius, hardness, (float)rotation, (float)roundness, brush, PressFor(brush, pressure));
+                    StampTooth(footprint, pos, radius, hardness, (float)rotation, (float)roundness, brush, ToothPress(brush, pressure, load));
                 }
                 else
                 {
@@ -4263,7 +4263,7 @@ public static class BrushEngine
         }
         if (footprint is not null)
         {
-            if (NeedsToothCeiling(brush)) StampTooth(footprint, pos, radius, hardness, 0f, 1f, brush, PressFor(brush, pressure));
+            if (NeedsToothCeiling(brush)) StampTooth(footprint, pos, radius, hardness, 0f, 1f, brush, ToothPress(brush, pressure, load));
             else StampFootprint(footprint, pos, radius, hardness, brush.AntiAlias);
         }
     }
@@ -4275,6 +4275,27 @@ public static class BrushEngine
     /// </summary>
     private static double PressFor(BrushSettings brush, double pressure) =>
         brush.PressureEnabled ? pressure : 1.0;
+
+    /// <summary>
+    /// How hard the paint is pressed into the sheet at this dab: the pen's
+    /// pressure, and for a brush whose paint has body
+    /// (<see cref="BrushSettings.TextureFill"/>) also how much paint is left
+    /// on it - a brush running dry skims however hard it is pressed, which is
+    /// the ragged, canvas-showing end of a real stroke - scaled so that the
+    /// brush's fill pressure is full.
+    /// </summary>
+    private static double ToothPress(BrushSettings brush, double pressure, double load)
+    {
+        var press = PressFor(brush, pressure);
+        if (brush.TextureFill is not { } fill) return press;
+        // Not clamped to one: a loaded brush pressed past its fill point has
+        // pressure to spare, and that is what keeps its thinner hairs on the
+        // surface until the paint runs down.
+        return Math.Clamp(press * load / Math.Max(0.05, fill), 0, MaxToothPress);
+    }
+
+    /// <summary>The most pressure-to-spare a brush is credited with; past this every hair is down.</summary>
+    private const double MaxToothPress = 4;
 
     /// <summary>
     /// Record this dab's tooth: the paper's keep value at this dab's pressure,
@@ -4320,7 +4341,15 @@ public static class BrushEngine
         using var paper = SKShader.CreateImage(tile, SKShaderTileMode.Repeat, SKShaderTileMode.Repeat, toPaper);
         using var gated = paper.WithColorFilter(table);
         var falloff = TwoStopRadial(SKPoint.Empty, radius, new SKColor(255, 255, 255), new SKColor(0, 0, 0), hardness);
-        using var tooth = SKShader.CreateCompose(falloff, gated, SKBlendMode.Modulate);
+        // A brush with hairs presses each of them into the sheet by its own
+        // amount, so the paper is gated hair by hair (HairContact); one
+        // without is gated by the one table for this pressure.
+        using var haired = HairContact(brush, pressure) is { } contact
+            ? SKShader.CreateCompose(
+                    paper.WithColorFilter(PaperForHairs), contact, SKBlendMode.Plus)
+                .WithColorFilter(HairGate())
+            : null;
+        using var tooth = SKShader.CreateCompose(falloff, haired ?? gated, SKBlendMode.Modulate);
 
         var paint = DabPaint(ref t_toothPaint, brush.AntiAlias);
         paint.BlendMode = SKBlendMode.Lighten;
@@ -4331,6 +4360,139 @@ public static class BrushEngine
         footprint.Restore();
         paint.Shader = null;
         falloff.Dispose();
+    }
+
+    /// <summary>Document pixels one hair is wide.</summary>
+    private const float HairWidthPx = 3f;
+
+    /// <summary>Never more hairs than this across a brush, whatever its size.</summary>
+    private const int MaxHairs = 64;
+
+    /// <summary>
+    /// The paper's height and a hair's contact are added in one byte before the
+    /// gate reads them, each scaled by this so the sum cannot pass one.
+    /// </summary>
+    private const float HairSumScale = 2.5f;
+
+    [ThreadStatic] private static SKShader?[]? t_hairShaders;
+    [ThreadStatic] private static (double Size, double Drag, double Depth, double Gate, bool Fills) t_hairKey;
+    [ThreadStatic] private static SKColorFilter? t_hairGate;
+
+    /// <summary>The paper's height scaled into the lower part of the byte, leaving room for a hair's contact to be added.</summary>
+    private static readonly SKColorFilter PaperForHairs = SKColorFilter.CreateColorMatrix(
+    [
+        1f / HairSumScale, 0, 0, 0, 0,
+        0, 1f / HairSumScale, 0, 0, 0,
+        0, 0, 1f / HairSumScale, 0, 0,
+        0, 0, 0, 1, 0,
+    ]);
+
+    /// <summary>
+    /// How hard each of the brush's hairs is pressed into the sheet at this
+    /// dab, as stripes across the dab, or null for a brush with no hairs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A hair is a contact, not a shade.</b> The first version made each
+    /// hair a level - a thin hair let 60% of the paint through - and the mark
+    /// came out as a ribbon with faint stripes in it, while the dry end of the
+    /// stroke broke up into the weave's own dots. What a brush leaves when it
+    /// lifts or empties is streaks: its thin hairs stop reaching the surface
+    /// while the thick ones still lay paint. So each hair gets its own share
+    /// of the dab's pressure, and the paper is gated by that - where a hair is
+    /// barely down the sheet shows through along its whole length, and where
+    /// it is down the valleys fill.
+    /// </para>
+    /// <para>
+    /// The hairs are the brush's: a weight per hair hashed from its index
+    /// (invariant 2), laid out across the brush at its full size so a dab made
+    /// narrower by pressure shows the middle ones and does not shuffle them,
+    /// and in the dab's own frame so every dab on a run lays hair seven on the
+    /// same pixels. That is what survives the dozen dabs that overlap every
+    /// pixel, and what a textured tip cannot do (docs/DESIGN-oil-hairs.md).
+    /// </para>
+    /// <para>
+    /// The value is <c>(1 - threshold) / HairSumScale</c> for the hair, so that
+    /// added to the scaled paper height one fixed table (<see cref="HairGate"/>)
+    /// is the gate for every hair and every pressure. One gradient per pressure
+    /// step, kept per thread, rebuilt when the brush changes.
+    /// </para>
+    /// </remarks>
+    private static SKShader? HairContact(BrushSettings brush, double pressure)
+    {
+        var drag = Math.Clamp(brush.Bristles ?? 0, 0, 1);
+        if (drag <= 0) return null;
+        var size = Math.Max(1, brush.Size);
+        var depth = Math.Clamp(brush.TextureDepth, 0, 1);
+        var gate = Math.Clamp(brush.TexturePressure ?? 0, 0, 1);
+        var fills = brush.TextureFill is not null;
+        var key = (size, drag, depth, gate, fills);
+        if (t_hairShaders is null || t_hairKey != key)
+        {
+            if (t_hairShaders is not null) foreach (var old in t_hairShaders) old?.Dispose();
+            t_hairShaders = new SKShader?[HairPressSteps + 1];
+            t_hairKey = key;
+        }
+        var step = (int)Math.Round(Math.Clamp(pressure, 0, MaxToothPress) / MaxToothPress * HairPressSteps);
+        if (t_hairShaders[step] is { } cached) return cached;
+
+        var press = (float)(step * MaxToothPress / HairPressSteps);
+        var radius = (float)(size * 0.5);
+        var count = Math.Clamp((int)MathF.Round(radius * 2f / HairWidthPx), 4, MaxHairs);
+        var colors = new SKColor[count * 2];
+        var positions = new float[count * 2];
+        for (var i = 0; i < count; i++)
+        {
+            // An even spread from the thinnest hair to the fullest. Skewed
+            // toward full - mostly hairs that are down, a few that lift early -
+            // was the first try, and the streaks only showed at the strongest
+            // setting; chosen from a sheet (Q246).
+            var weight = (float)Hash01(i * 7.31f, 13.7f, 200u);
+            var share = 1f - ((float)drag * (1f - weight));
+            var down = MathF.Pow(Math.Clamp(press * share, 0f, 1f), ToothPressureGamma);
+            var threshold = fills
+                ? (float)depth + ((-ToothSoftness - (float)depth) * down)
+                : (float)depth * (1f - ((float)gate * down));
+            var v = (byte)Math.Clamp((int)MathF.Round((1f - threshold) / HairSumScale * 255f), 0, 255);
+            var colour = new SKColor(v, v, v);
+            colors[i * 2] = colour;
+            colors[(i * 2) + 1] = colour;
+            positions[i * 2] = i / (float)count;
+            positions[(i * 2) + 1] = (i + 1) / (float)count;
+        }
+        var shader = SKShader.CreateLinearGradient(
+            new SKPoint(0, -radius), new SKPoint(0, radius), colors, positions, SKShaderTileMode.Clamp);
+        t_hairShaders[step] = shader;
+        return shader;
+    }
+
+    /// <summary>How finely a hair brush's pressure is stepped: one cached gradient each.</summary>
+    private const int HairPressSteps = 256;
+
+    /// <summary>
+    /// The gate for a hair brush: the sum of the scaled paper height and the
+    /// hair's contact, turned into what the paper keeps there. The same curve
+    /// as <see cref="ToothTable"/>, read off the sum instead of off the height.
+    /// </summary>
+    private static SKColorFilter HairGate()
+    {
+        if (t_hairGate is { } made) return made;
+        var r = new byte[256];
+        var g = new byte[256];
+        var b = new byte[256];
+        var a = new byte[256];
+        for (var i = 0; i < 256; i++)
+        {
+            // sum = (height + 1 - threshold) / scale, so height - threshold is:
+            var over = ((i / 255f) * HairSumScale) - 1f;
+            var e = Math.Clamp((over + ToothSoftness) / (2f * ToothSoftness), 0f, 1f);
+            var keep = e * e * (3f - (2f * e));
+            r[i] = (byte)Math.Round(keep * 255f);
+            g[i] = 255;
+            b[i] = 0;
+            a[i] = 255;
+        }
+        return t_hairGate = SKColorFilter.CreateTable(a, r, g, b);
     }
 
     /// <summary>The paper as an image in document pixels, one texel per pixel at the brush's grain size.</summary>
@@ -4392,6 +4554,9 @@ public static class BrushEngine
     {
         var depth = Math.Clamp(brush.TextureDepth, 0, 1);
         var gate = Math.Clamp(brush.TexturePressure ?? 0, 0, 1);
+        // A brush that fills is a different curve: keyed apart from any gate.
+        var fills = brush.TextureFill is not null;
+        if (fills) gate = -1;
         if (t_toothTables is null || t_toothTableDepth != depth || t_toothTableGate != gate)
         {
             if (t_toothTables is not null) foreach (var f in t_toothTables) f?.Dispose();
@@ -4403,7 +4568,12 @@ public static class BrushEngine
         if (t_toothTables[pressByte] is { } cached) return cached;
 
         var press = MathF.Pow(pressByte / 255f, ToothPressureGamma);
-        var threshold = (float)depth * (1f - (float)gate * press);
+        // With a fill pressure the threshold runs all the way down past the
+        // deepest valley, so a full press keeps every height whole; without
+        // one it stops where the gate leaves it and the valleys stay lighter.
+        var threshold = fills
+            ? (float)depth + ((-ToothSoftness - (float)depth) * press)
+            : (float)depth * (1f - (float)gate * press);
         var r = new byte[256];
         var g = new byte[256];
         var b = new byte[256];

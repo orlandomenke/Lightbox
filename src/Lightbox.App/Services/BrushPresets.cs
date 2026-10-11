@@ -306,38 +306,30 @@ public static class BuiltInPresets
         {
             Id = "builtin-oil",
             Name = "Oil",
+            // Thick paint on canvas, without the simulation it used to run (Q240,
+            // Q246): pressure pushes it into the weave until the mark is solid,
+            // and the canvas shows only where the touch is light or the brush is
+            // running dry - as streaks, because each hair lifts on its own. The
+            // owner's verdict on the first try, which held the paint to the
+            // weave at every pressure: "it looks like a stamp, or that it only
+            // skims the paper surface instead of flowing into the crevices with
+            // pressure." Chosen from sheets beside the simulated brush.
             Settings = new BrushSettings
             {
                 Size = 34, Hardness = 0.6, Opacity = 1, Flow = 0.9, Spacing = 0.06,
-                // B36 — DESIGN-fluid-media.md names this pairing as the
-                // cheapest directional-drag answer in the engine, and B23 says
-                // it is what an artist wanting dragged bristles actually needs.
                 TipId = "tip-builtin-bristle",
                 AngleFollowsDirection = true, SizeJitter = 0.08, RotationJitter = 0.04,
+                // The tip's hairs: uneven enough that the thin ones lift early.
+                Bristles = 0.8,
+                // Linen, pressed into: a tooth that a press of a third fills.
+                TextureSurface = PaperKind.Linen, TextureScale = 6, TextureDepth = 0.9,
+                TexturePressure = 1, TextureFill = 0.35,
                 // Q232: oil drags what is already there a long way and keeps
-                // half of its own paint — the dragged-bristle look is the tip,
-                // the dragged colour is this.
+                // half of its own paint.
                 Mixing = new ColourMixing { Amount = 0.7, Length = 0.25, Reach = 0.9 },
-                Medium = new MediumSettings
-                {
-                    Kind = MediumKind.Oil,
-                    // Thick, slow, and it drags what is already there. Running
-                    // out of paint mid-stroke is the point, not a defect.
-                    Wetness = 0.2, Viscosity = 0.9, Drag = 0.85, FlowSteps = 4,
-                    Absorbency = 0.9, EdgePull = 0.02,
-                    PigmentDensity = 1, Granularity = 0.1, Hiding = 0.95,
-                    Paper = PaperKind.Canvas, PaperScale = 8, PaperInfluence = 0.6,
-                    // Q236: 0.55 is the load whose reach is what 0.6 had before
-                    // (seven diameters), so the scrape still runs out where it did.
-                    Body = 0.8, Relief = 0.6, PaintLoad = 0.55,
-                    // No BristleDrag or Pickup: the engine reads neither, so setting
-                    // them wrote two keys on every oil stroke promising behaviour that
-                    // does not exist. The dragged-bristle *look* comes from the tip
-                    // above instead. B23.
-                    // Barely engages the canvas under a light touch, drags it
-                    // thoroughly under a firm one.
-                    PressureWater = 0.05, PressureMix = 0.9, Rewetting = 0, // Q232: see Watercolor
-                },
+                // No medium is simulated. What is kept of it is the paint on
+                // the brush, which runs out along the stroke (B434).
+                Medium = new MediumSettings { PaintLoad = 0.55 },
             },
         },
         new()

@@ -290,6 +290,13 @@ Two things worth knowing:
 **Depth** is how hard it bites. Depth starts at zero, so importing a paper
 opens it for you — a texture you cannot see looks like a broken import.
 
+**Fills at** is for paint with body. It is the pressure at which the paint
+covers the surface completely: press that hard or harder and the mark is
+solid; press less, or let the brush run out of paint, and the surface shows
+through. At zero it is off and the tooth never quite fills, which is how
+graphite behaves and paint does not. It needs **Tooth** above zero. The shipped
+**Oil** fills at about a third of full pressure.
+
 **Tooth** is what makes a pencil a pencil. At zero the bite is the same
 however hard you press, the way a texture overlay is. Turn it up and the bite
 becomes something pressure fills in: a light touch catches only the peaks of
@@ -340,17 +347,22 @@ same curves, when it does.
 
 ## Physical media
 
-**Watercolor is no longer simulated.** It is a wash built from parts that are
+**Watercolor and Oil are no longer simulated.** Oil is thick paint on linen:
+pressure pushes it into the weave until the mark is solid, and the canvas
+shows only where your touch is light or the brush is running dry — as streaks,
+because the tip has hairs and each lifts on its own.
+
+**Watercolor** It is a wash built from parts that are
 finished under the pen: a crisp-edged, thin layer of paint, a **wet edge** that
 gathers its pigment at the rim and thins the middle, the scanned **Fibre**
 sheet, colour picked up from what it is laid over, and paint that runs out
 along the stroke. What you see while drawing is what is kept when you lift.
-Gouache, oil and ink wash are being rebuilt the same way; until then the
+Gouache and ink wash are being rebuilt the same way; until then the
 rest of this section describes them, and the Medium option, as they are.
 
-*Planned:* gouache, oil and ink wash without the simulation.
+*Planned:* gouache and ink wash without the simulation.
 
-Gouache, oil and ink are simulated, not imitated with a texture:
+Gouache and ink are simulated, not imitated with a texture:
 wetness, viscosity, absorbency, edge pull, pigment density, granulation, paper
 grain. The simulation is **deterministic** — the same stroke always produces
 the same mark, on reload, after undo, and when the inbetweener replays it.
@@ -502,6 +514,26 @@ Two things worth knowing:
 - **A scan whose mark runs off the crop is refused, not fixed.** A tip like
   that stamps a faint box down every stroke. Re-crop with clear paper all the
   way round.
+
+### Bristles
+
+A tip can have hairs. **Bristles**, on the **Tip** option, is how unevenly they
+carry paint. At zero the tip is one even pad. Turn it up and each hair gets its
+own share of your pressure: a loaded brush pressed home is still solid, but as
+you lift, or as the brush runs out of paint, the thin hairs stop reaching the
+surface first and the mark opens into streaks along the stroke.
+
+- **The hairs are the brush's own.** Hair seven is thin on every stroke that
+  brush makes, the way it is on a real one, and a stroke replays with the same
+  hairs.
+- **They need a surface to press into**: a paper on the **Texture** option with
+  **Tooth** above zero. Without one there is nothing for a hair to lift off.
+- **They run with the stroke**, so tick **Angle follows stroke direction**.
+
+Any brush can have them. The shipped **Oil** does.
+
+*Planned:* tips whose hairs you can shape — how many, how wide, which are
+thin — and hairs that splay and drag as you press and pull the brush.
 
 ## Fast brushes, textured ones, and expressive ones
 
