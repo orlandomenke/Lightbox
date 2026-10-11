@@ -247,6 +247,9 @@ sealed class LivePaintSession
     /// </summary>
     internal bool SettledDabChanged { get; set; }
 
+    /// <summary>What changed, the first time, for the perf log.</summary>
+    internal string? WhySettledDabChanged { get; set; }
+
     /// <summary>The band this pointer event's in-place finish rewrote, or null when it finished nothing.</summary>
     internal SKRectI? FinishedBand { get; set; }
 
@@ -270,6 +273,12 @@ sealed class LivePaintSession
     /// strokes so the common case allocates nothing.
     /// </remarks>
     internal Lightbox.Core.Geometry.IncrementalDensify Densify { get; } = new();
+
+    /// <summary>
+    /// The same cache for the stroke without its newest few points, which is
+    /// walked beside the whole one to find the dabs that are final.
+    /// </summary>
+    internal Lightbox.Core.Geometry.IncrementalDensify HorizonDensify { get; } = new();
 
     /// <summary>The effect draft's own dab bookkeeping, mirroring <see cref="Dabs"/>.</summary>
     /// <remarks>

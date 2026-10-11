@@ -1555,6 +1555,56 @@ public static class BrushEngine
         StableCount(now, before, 0);
 
     /// <summary>
+    /// How many of the newest points a dab can still be changed by, beyond the
+    /// smoothing's own reach: the curve through the points looks two ahead of
+    /// the span it fills, and one more is kept in hand.
+    /// </summary>
+    public const int SettleHorizonPoints = 3;
+
+    /// <summary>
+    /// How many leading dabs are final: the same dabs whether or not the last
+    /// few points of the stroke exist, and so beyond the reach of any point
+    /// still to come.
+    /// </summary>
+    /// <param name="now">The stroke so far, walked.</param>
+    /// <param name="walkWithout">The same stroke walked without its last <c>n</c> points.</param>
+    /// <param name="smoothingHorizon">How many points back a new sample can move a smoothed point.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Structure, not observation.</b> The rules before this asked whether
+    /// two consecutive walks agreed on a dab (<see cref="StableCount(IReadOnlyList{Dab}, IReadOnlyList{Dab})"/>,
+    /// <see cref="SettledCount"/>). On an even, straight, steady run they
+    /// agree about everything — including the dabs at the tip, which the next
+    /// sample is still free to move. Those were stamped for good, the first
+    /// bend or change of pressure moved them, and the mark on screen stopped
+    /// being the record's: one stroke in eight on the flats in the perf lab,
+    /// each rendered again at pen-up (SettledDabsStaySettledTests).
+    /// </para>
+    /// <para>
+    /// A dab is walked from the points around it and from nothing further
+    /// ahead than the horizon. So a dab that comes out the same with the last
+    /// horizon's worth of points removed cannot depend on them — nor on any
+    /// that arrive later, which are further away still. The comparison is
+    /// between two walks of the stroke as it is now, so it cannot be fooled by
+    /// a stretch where nothing happens to be changing.
+    /// </para>
+    /// </remarks>
+    public static int SettledPrefix(
+        IReadOnlyList<Dab> now, Func<int, IReadOnlyList<Dab>> walkWithout, int smoothingHorizon)
+    {
+        if (now.Count == 0) return 0;
+        var without = walkWithout(SettleHorizonPoints + Math.Max(0, smoothingHorizon));
+        var agreed = 0;
+        var shared = Math.Min(now.Count, without.Count);
+        while (agreed < shared && now[agreed].Equals(without[agreed])) agreed++;
+        // The truncated walk ends on a dab of its own - its last point - which
+        // the full walk also has when the spacing happens to land there; it is
+        // an end, not a settled dab, until a later truncation walks past it.
+        if (agreed == without.Count && agreed > 0) agreed--;
+        return agreed;
+    }
+
+    /// <summary>
     /// How many leading dabs are the same dab as last time — place, pressure,
     /// heading and load — and so can be stamped once and kept.
     /// </summary>

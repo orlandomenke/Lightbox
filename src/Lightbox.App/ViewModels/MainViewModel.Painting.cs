@@ -1589,7 +1589,7 @@ public partial class MainViewModel
         // A document too large for the replay's plane is replayed in another
         // frame of reference, and the live mark is then not the replay.
         if (!BrushEngine.ReplaysInDocumentSpace(Scene.Width, Scene.Height)) return No("document too large for the plane");
-        if (_live.SettledDabChanged) return No("a settled dab changed");
+        if (_live.SettledDabChanged) return No($"a settled dab changed ({_live.WhySettledDabChanged})");
         if (_live.Dabs is not { Count: > 0 } dabs) return No("nothing was stamped live");
 
         var brush = stroke.Brush;
@@ -2756,6 +2756,7 @@ public partial class MainViewModel
         // brush where that is not true, which is B45's rule kept rather than
         // relaxed.
         var settleTolerance = BrushEngine.SettleTolerance(live.Brush);
+        var dabsBefore = _live.Dabs;
         var stable = BrushEngine.StableCount(dabs, _live.Dabs, settleTolerance, out var exactStable);
         if (settleTolerance <= 0)
         {
@@ -2765,6 +2766,41 @@ public partial class MainViewModel
             stable = Math.Min(stable, BrushEngine.SettledCount(dabs, _live.Dabs));
             exactStable = stable;
         }
+
+        // And never past what is final by construction: the dabs that come out
+        // the same with the newest few points taken away, which no point still
+        // to come can reach (BrushEngine.SettledPrefix). Agreeing with the last
+        // walk is not that - the perf lab had a dab three from the tip stamped
+        // for good and then changed, and the stroke rendered again at pen-up.
+        // One more walk of the stroke an event, on its own curve cache.
+        //
+        // Only for a stroke whose live mark can be kept. A mirrored or wrapped
+        // stroke is rendered from its record at pen-up whatever happens here,
+        // and its copies are drawn from the settled dabs alone - holding those
+        // back by the horizon would trail every reflection four points behind
+        // the pen for nothing (SymmetryLiveRegionTests).
+        var points = live.Points;
+        if (BrushEngine.PromotesAtPenUp(live))
+        stable = Math.Min(stable, BrushEngine.SettledPrefix(
+            dabs,
+            drop =>
+            {
+                var keep = points.Count - drop;
+                if (keep <= 0) return [];
+                return BrushEngine.WalkDabs(
+                    new Stroke
+                    {
+                        Tool = live.Tool,
+                        Brush = live.Brush,
+                        Points = points.GetRange(0, keep),
+                        RestPoints = live.RestPoints is { } rest && rest.Count == points.Count
+                            ? rest.GetRange(0, keep)
+                            : null,
+                    },
+                    _live.HorizonDensify);
+            },
+            _stabilizer.SmoothingHorizon));
+        exactStable = Math.Min(exactStable, stable);
 
         // **The arm, in the file, while the stroke is happening.** B322 cost a
         // whole round of captures because the tip's arm only appeared in a block
@@ -2969,7 +3005,14 @@ public partial class MainViewModel
         // scratch and cannot be taken back, so what is on screen is no longer
         // what the record replays: the stroke still draws, and pen-up renders
         // the record instead of keeping this mark.
-        if (stable < _live.StableDabs) _live.SettledDabChanged = true;
+        if (stable < _live.StableDabs && !_live.SettledDabChanged)
+        {
+            _live.SettledDabChanged = true;
+            _live.WhySettledDabChanged = dabsBefore is null
+                ? "no earlier walk"
+                : $"{_live.StableDabs - stable} back from {_live.StableDabs} of {dabs.Count} at {live.Points.Count} points, "
+                    + $"tolerance {settleTolerance:0.##}: {DescribeDifference(dabsBefore, dabs)}";
+        }
         // A mixing brush reads the ground as it goes: the scratch so far through
         // a view of its own memory, over the frame's cached bitmap (Q232). The
         // carry is checkpointed after the settled dabs and the tail continues

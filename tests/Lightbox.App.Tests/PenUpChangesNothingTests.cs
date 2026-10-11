@@ -240,4 +240,80 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
             $"{preset.Name}, {shape}: the committed frame is not what its record renders ({gap.Differing} pixels, worst {gap.Worst}) — invariant 1");
         Assert.True(vm.PromotedStrokes == 1, $"{preset.Name}, {shape}: an exact brush rendered its stroke a second time at pen-up");
     }
+
+    public static IEnumerable<object[]> DeadStraight() =>
+        from id in new[] { "builtin-watercolor", "builtin-gouache", "builtin-oil-flat", "builtin-soft-round", "builtin-pencil", "builtin-ink" }
+        from size in new[] { 60, 150 }
+        from smooth in new[] { true, false }
+        select new object[] { id, size, smooth };
+
+    /// <summary>
+    /// A stroke with dead-straight, evenly paced, constant-pressure runs — what
+    /// a ruler, a steady hand or a mouse draws — broken by a change of pressure
+    /// and a turn, with several samples to an event.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The perf lab found this and the suite did not: about one stroke in
+    /// eight on the flats was rendered again at pen-up, every one reporting
+    /// that a dab already stamped for good had changed. The live path judged a
+    /// dab settled when two consecutive walks of the stroke agreed on it. On a
+    /// straight even run they agree about <em>everything</em>, including the
+    /// dabs at the very tip that the next point is still free to move — so the
+    /// tip was stamped as final, and the first bend or change of pressure
+    /// moved it. Every other stroke in this file curves and ramps its pressure
+    /// from the first point, which is why none of them saw it.
+    /// </para>
+    /// <para>
+    /// Settled is now a matter of structure: a dab is final when the points it
+    /// was walked from can no longer change, whatever two walks happen to say.
+    /// </para>
+    /// </remarks>
+    [AvaloniaTheory]
+    [MemberData(nameof(DeadStraight))]
+    public void AStrokeWithDeadStraightRunsIsKept(string presetId, int size, bool smooth)
+    {
+        var vm = Vm(smooth);
+        var preset = vm.BrushPresetChoices.Single(p => p.Id == presetId);
+        vm.ApplyPreset(preset);
+        vm.BrushSize = size;
+        var scene = vm.Doc.Scene;
+
+        // Straight right at constant pressure; a harder press; straight on; a
+        // right-angle turn down; straight; back the way it came.
+        var samples = new List<MainViewModel.PointerSample>();
+        double x = 200, y = 200;
+        void Run(int n, double dx, double dy, double pressure)
+        {
+            for (var i = 0; i < n; i++) { x += dx; y += dy; samples.Add(new MainViewModel.PointerSample(x, y, pressure)); }
+        }
+        Run(40, 8, 0, 0.6);
+        Run(30, 8, 0, 0.9);
+        Run(25, 0, 8, 0.9);
+        Run(30, -8, 0, 0.5);
+        Run(20, -8, 0, 1.0);
+
+        vm.BeginStroke(200, 200, 0.6);
+        var batch = new[] { 1, 3, 2, 4, 1, 2 };
+        for (int i = 0, b = 0; i < samples.Count; b++)
+        {
+            var take = Math.Min(batch[b % batch.Length], samples.Count - i);
+            vm.MoveStrokeBatch(samples.GetRange(i, take));
+            i += take;
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        vm.EndStroke();
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        var gap = Compare(kept, replay);
+        output.WriteLine(
+            $"STRAIGHT {preset.Name,-18} {size,4} {(smooth ? "smooth" : "raw"),-6} {(vm.PromotedStrokes == 1 ? "kept" : "REPLAYED: " + vm.WhyReplayed)}  differing {gap.Differing}");
+
+        Assert.True(gap.Differing == 0,
+            $"{preset.Name}: the committed frame is not what its record renders ({gap.Differing} pixels, worst {gap.Worst}) — invariant 1");
+        Assert.True(vm.PromotedStrokes == 1, $"{preset.Name} at {size}: rendered again at pen-up — {vm.WhyReplayed}");
+    }
 }
