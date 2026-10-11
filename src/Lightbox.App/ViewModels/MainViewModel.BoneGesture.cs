@@ -73,7 +73,11 @@ public sealed partial class MainViewModel
         {
             // Posing an empty spot means nothing and writes nothing — the
             // same refusal the release makes.
-            if (id is not null) PreviewPoseDrag(id, grab, x0, y0, x, y);
+            if (id is null) return;
+            // What one pointer event of a pose drag costs the UI thread: the
+            // solve, the chrome, and measuring where the drawing went.
+            using var perf = Services.PerfLog.Begin("pose.drag");
+            PreviewPoseDrag(id, grab, x0, y0, x, y);
             return;
         }
 
@@ -129,6 +133,7 @@ public sealed partial class MainViewModel
         }
         else if (posing)
         {
+            using var perf = Services.PerfLog.Begin("pose.commit");
             PoseDrag(id, grab, x0, y0, x1, y1);
         }
         else if (extruding && grab is BoneGrab.Tip)
@@ -299,6 +304,9 @@ public sealed partial class MainViewModel
     /// </summary>
     private SKRectI? PosedReach(List<Frame> frames, IReadOnlyDictionary<string, BonePose> pose)
     {
+        // Its own span inside pose.drag: finding the region poses every
+        // drawing once more than rendering it does.
+        using var perf = Services.PerfLog.Begin("pose.reach");
         float minX = float.MaxValue, minY = float.MaxValue;
         float maxX = float.MinValue, maxY = float.MinValue;
         var any = false;

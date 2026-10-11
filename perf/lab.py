@@ -74,6 +74,11 @@ PRESETS = {
     "blank-1080p": ["--layers", "1", "--drawings", "1", "--strokes", "0", "--frames", "1"],
     "blank-4k": ["--width", "3840", "--height", "2160",
                  "--layers", "1", "--drawings", "1", "--strokes", "0", "--frames", "1"],
+    # An arm on a two-bone rig over two unrigged layers, for pose-drag: shoulder, elbow
+    # and wrist at 35%, 50% and 65% of the width along the middle. 60 lines is an inked
+    # limb; 300 is nearer a painted one.
+    "rigged": ["--preset", "rigged"],
+    "rigged-heavy": ["--preset", "rigged", "--strokes", "300"],
 }
 
 
