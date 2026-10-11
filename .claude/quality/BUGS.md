@@ -868,7 +868,6 @@ which is a weak test and still far better than none.
 
 ### ui
 
-- [ ] **B445** `P2` `ui` Every flip to a frame not seen before holds the UI thread 160-190 ms on a 30-layer document: the navigator composes the whole page to make a 256-pixel picture `evidence: ThePictureIsComposedAtItsOwnSize`
 - [ ] **B254** `P2` `ui` Hover flyouts ignore the pen and collapse as soon as they open on a Huion tablet `evidence: manual`
   - Reported 2026-08-17, same machine and same pen as **B126**: hover-opened flyouts are "not responsive to the pen and often times collapse as soon as they open". Mouse: fine.
   - **Almost certainly B126 seen from a second place, and that is the useful thing about it.** B126's working hypothesis is that something in the hover path alternates state — the cursor flips between the canvas's `None` and the default arrow. The same two candidate mechanisms would produce *this* symptom too: enter/leave churn would light-dismiss a fresh popup, and a second (driver-emulated mouse) device alternating with the pen stream would put pointer events *outside* the flyout the instant it opens. A cause that explains both symptoms and the mouse being clean on the same machine is a much narrower target than either bug alone — which is exactly the test B126's first wrong cause failed.
@@ -3982,6 +3981,8 @@ test reopens the bug.
   - Cause: `CanvasHost` was still on `Grid.Column="2"` after the docking rework renumbered the work area's columns to seven. Column 2 is the *left dock strip's* cell — `Auto`, and empty by default — so it sized itself to the zoom bar floating on top of the canvas and the canvas got no width. Column 4 (`*`, `MinWidth=240`) held the space open and empty, which is why it read as a dead renderer rather than a missing control.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
+
+- [x] **B445** `P2` `ui` Every flip to a frame not seen before holds the UI thread 160-190 ms on a 30-layer document: the navigator composes the whole page to make a 256-pixel picture `evidence: ThePictureIsComposedAtItsOwnSize`
 
 - [x] **B438** `P2` `ui` The Symbols panel shows none of the artist's library until a project is opened or closed `evidence: TheLibraryIsOnShowFromLaunchWithNoProject`
   - **Found 2026-10-10 by the lab's `symbol-drag` scenario**, which put a symbol in a run's library and then could not find its tile. The grid was filled only by the relay on `HasProject` — when a project arrived or left — so a loose drawing opened the Symbols panel on *“No symbol matches that.”* over a full library, and there was nothing to drag onto the canvas at all.
