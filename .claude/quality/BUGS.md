@@ -236,7 +236,6 @@ which is a weak test and still far better than none.
 
 ### canvas
 
-- [ ] **B443** `P2` `canvas` A forward flip on a held layer renders its drawings while the artist waits: the idle warm prepares the frames either side, not the next key `evidence: AtIdleTheNextAndPreviousKeysAreReadyForAFlip`
 - [ ] **B255** `P1` `canvas` Hovering a menu with a pen tablet freezes the app for up to 6 seconds `evidence: manual`
   - **Measured, 2026-08-17, second `InputTrace` run on the reporter's Huion machine** — 56.7 s, 15,268 events, and this bug is the reason the stall watch was added to the instrument at all. The reporter had said the application "froze for a little while"; the first trace could not tell a freeze from a pointer resting over a menu, and the heartbeat that settled it found **22 UI-thread stalls, worst 6,103 ms**.
   - **The cause is not a correlation, it is an identity.** Every stall over three seconds is preceded by ~100 popup opens per second; the rate in windows away from any stall is **0.0/s**:
@@ -2186,6 +2185,8 @@ test reopens the bug.
   - P1 because the feature did not work and the damage it did could not be taken back.
 
 - [x] **B444** `P2` `canvas` A flip back to a frame already seen re-composes every layer on the UI thread, ~320 ms on 30 layers: the composite cache is gated to playback `evidence: AFlipBackShowsTheFramesPictureWithoutComposingItAgain`
+
+- [x] **B443** `P2` `canvas` A forward flip on a held layer renders its drawings while the artist waits: the idle warm prepares the frames either side, not the next key `evidence: AtIdleTheNextAndPreviousKeysAreReadyForAFlip`
 
 - [x] **B442** `P2` `canvas` Posing a rigged drawing re-solves the skeleton for every stroke, and auto-bind looks up joint zones in bones-cubed time `evidence: TheSkeletonIsSolvedOncePerFrameNotOncePerStroke, AutoBindGrowsWithTheBonesNotWithTheirCube, SharingTheFramesDeltasChangesNoBitOfAPosedStroke, AJointWeightedLayerPosesAsItDid, BoneRigPerformanceTests`
   - **Found 2026-10-11 writing the bone rig's first performance baseline**, ahead of the puppet-pin work (Q239) that is to be measured against it. Until then the rig's only budget was the jiggle walk's.
