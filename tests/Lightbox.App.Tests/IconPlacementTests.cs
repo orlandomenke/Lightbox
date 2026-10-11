@@ -66,11 +66,13 @@ public class IconPlacementTests(ITestOutputHelper output) : BrushStateIsolated
     /// the centre.
     /// </summary>
     /// <remarks>
-    /// Half a pixel and not zero, on purpose and with the reason printed: the
-    /// tile is 26 and the icons in it are 13 and 15, so the exact centre is a
-    /// half pixel and layout rounding has to pick a side. That keeps the line
-    /// crisp, and it is why the test prints how many icons are <em>exactly</em>
-    /// centred — the number an even icon size or an odd tile would raise.
+    /// <b>Exactly, for the two sizes the styles give</b> — 12 for an icon, 16
+    /// for a stateful pair (Q241). They were 13 and 15, whose centre in a 26
+    /// tile is a half pixel, so layout rounding picked a side: 96 of 111 icons
+    /// sat half a pixel off, and the same icon in the same tile landed on
+    /// either side depending on where the tile was. The inline one-offs (a 9 px
+    /// caption close, the stacked reorder chevrons in their 11 px halves) are
+    /// still allowed their half pixel, and are printed so the list is in view.
     /// <para>
     /// <b>What this cannot see, said here so nobody reads more into a pass.</b>
     /// An icon that rounding left half a pixel one way and somebody then moved
@@ -113,12 +115,12 @@ public class IconPlacementTests(ITestOutputHelper output) : BrushStateIsolated
         Assert.True(exact >= ExactlyCentred, $"{exact} icons are exactly centred, under the {ExactlyCentred} that were");
         Assert.Empty(icons.Where(i => i.OffPixel > 0.01).Select(i => $"{i.Name} in {i.Host}: {i.OffPixel:0.##} px off the grid"));
         Assert.Empty(icons.Where(i => i.Spill > 0.01).Select(i => $"{i.Name} in {i.Host}: spills {i.Spill:0.##} px"));
-        Assert.Empty(lone.Where(i => Math.Abs(i.OffCentreX) > 0.51 || Math.Abs(i.OffCentreY) > 0.51)
+        Assert.Empty(lone.Where(i => (i.Width is 12 or 16 ? 0.01 : 0.51) < Math.Max(Math.Abs(i.OffCentreX), Math.Abs(i.OffCentreY)))
             .Select(i => $"{i.Name} in {i.Host}: off centre by {i.OffCentreX:0.##},{i.OffCentreY:0.##}"));
     }
 
-    /// <summary>The tool rail's fifteen, on 2026-10-10: a 12 px icon in a 32 by 26 button.</summary>
-    private const int ExactlyCentred = 15;
+    /// <summary>Every icon at a class size, on 2026-10-10; the 25 left over are inline one-offs.</summary>
+    private const int ExactlyCentred = 86;
 
     /// <summary>
     /// The census reports an icon that is pushed off centre, off the pixel grid
