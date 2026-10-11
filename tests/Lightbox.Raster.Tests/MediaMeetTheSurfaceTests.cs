@@ -117,6 +117,22 @@ public class MediaMeetTheSurfaceTests(ITestOutputHelper output)
         Assert.True(start > 0.95, $"the stroke starts thin ({start:P0}) - the brush was loaded");
         Assert.True(end < start - 0.2, $"the end ({end:P0}) is as covered as the start ({start:P0}): the brush never ran dry on the sheet");
         Assert.True(endLoaded > 0.98, $"a brush that does not run out thinned anyway ({endLoaded:P0})");
+
+        // And it is the sheet showing, not only the paint getting thinner: the
+        // same brush with no sheet under it, part of the way along, where its
+        // dabs still cover. A tooth that ignored how much paint is left would
+        // be as covered there as this control is (adversary: the two asserts
+        // above pass on plain thinning alone).
+        var noSheet = Paint(load: 0.5);
+        noSheet.TextureSurface = null;
+        using var smooth = Draw(noSheet, 0.6);
+        // Measured in 50 px steps when this was written: on the sheet 76, 64,
+        // 53% from x 450; with no sheet 96, 96, 96%.
+        var midway = Coverage(drying, 480, 580);
+        var midwaySmooth = Coverage(smooth, 480, 580);
+        output.WriteLine($"part of the way along: {midway:P0} covered on the sheet, {midwaySmooth:P0} with no sheet");
+        Assert.True(midwaySmooth > 0.9, $"the control has thinned too by here ({midwaySmooth:P0}): move the window");
+        Assert.True(midway < midwaySmooth - 0.2, $"the sheet does not show as the brush empties: {midway:P0} against {midwaySmooth:P0} with no sheet");
     }
 
     /// <summary>
@@ -165,6 +181,56 @@ public class MediaMeetTheSurfaceTests(ITestOutputHelper output)
         // And they are the brush's own: the same hairs on a second render.
         using var again = Draw(Paint(load: 0.5, bristles: 0.8, sheet: PaperKind.Fibre), 0.6);
         Assert.True(bristled.GetPixelSpan().SequenceEqual(again.GetPixelSpan()), "the hairs moved between two renders of one stroke");
+    }
+
+    /// <summary>
+    /// The hairs run with the stroke whichever way it goes, on a plain round
+    /// tip that is never turned: down a vertical stroke the streaks are
+    /// vertical. And they are streaks - the mark is far more jagged across the
+    /// stroke than along it - not speckle, which would be the same both ways.
+    /// </summary>
+    /// <remarks>
+    /// Review found the first version laid a round tip's hairs level whichever
+    /// way the stroke ran: the round dab is never rotated, and the hairs were
+    /// in the dab's frame. A horizontal stroke cannot see that, which is all
+    /// the test above draws.
+    /// </remarks>
+    [Fact]
+    public void HairsRunWithTheStrokeOnARoundTip()
+    {
+        const int W = 300, H = 900;
+        var brush = Paint(load: 0.5, bristles: 0.8, sheet: PaperKind.Fibre);
+        brush.AngleFollowsDirection = false;
+        var points = new List<StrokePoint>();
+        for (var y = 50; y <= 850; y += 10) points.Add(new StrokePoint(150, y, 0.6));
+        using var bitmap = FrameRasterizer.Rasterize(
+            [new Stroke { Tool = ToolKind.Brush, Color = "#102040", Brush = brush, Points = points }], W, H, 1.0);
+        var px = bitmap.GetPixelSpan();
+
+        // A patch where the brush is thin: its mean alpha by column (across
+        // the stroke) and by row (along it), and how jagged each profile is.
+        const int x0 = 132, x1 = 168, y0 = 620, y1 = 800;
+        var columns = new double[x1 - x0];
+        var rows = new double[y1 - y0];
+        for (var y = y0; y < y1; y++)
+        {
+            for (var x = x0; x < x1; x++)
+            {
+                var a = px[(((y * W) + x) * 4) + 3];
+                columns[x - x0] += a / (double)(y1 - y0);
+                rows[y - y0] += a / (double)(x1 - x0);
+            }
+        }
+        static double Jag(double[] v)
+        {
+            var sum = 0.0;
+            for (var i = 3; i < v.Length - 3; i++) sum += Math.Abs(v[i] - ((v[i - 3] + v[i + 3]) / 2));
+            return sum / (v.Length - 6);
+        }
+        var across = Jag(columns);
+        var along = Jag(rows);
+        output.WriteLine($"vertical stroke, round tip: jaggedness {across:0.0} across the stroke, {along:0.0} along it");
+        Assert.True(across > along * 2, $"no streaks down a vertical stroke: {across:0.0} across against {along:0.0} along");
     }
 
     /// <summary>A loaded bristle brush pressed home is still solid: the hairs are for when it lifts or empties.</summary>

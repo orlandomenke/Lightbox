@@ -2787,16 +2787,22 @@ public partial class MainViewModel
             {
                 var keep = points.Count - drop;
                 if (keep <= 0) return [];
+                // Into a list the session keeps, not a new one an event: a long
+                // stroke's points are past the large-object threshold, and a
+                // fresh copy of them per pointer event is the expensive kind of
+                // garbage (leak-hunter).
+                var shorter = _live.HorizonPoints;
+                shorter.Clear();
+                for (var i = 0; i < keep; i++) shorter.Add(points[i]);
+                List<StrokePoint>? shorterRest = null;
+                if (live.RestPoints is { } rest && rest.Count == points.Count)
+                {
+                    shorterRest = _live.HorizonRestPoints;
+                    shorterRest.Clear();
+                    for (var i = 0; i < keep; i++) shorterRest.Add(rest[i]);
+                }
                 return BrushEngine.WalkDabs(
-                    new Stroke
-                    {
-                        Tool = live.Tool,
-                        Brush = live.Brush,
-                        Points = points.GetRange(0, keep),
-                        RestPoints = live.RestPoints is { } rest && rest.Count == points.Count
-                            ? rest.GetRange(0, keep)
-                            : null,
-                    },
+                    new Stroke { Tool = live.Tool, Brush = live.Brush, Points = shorter, RestPoints = shorterRest },
                     _live.HorizonDensify);
             },
             _stabilizer.SmoothingHorizon));
@@ -4230,6 +4236,15 @@ public partial class MainViewModel
             if (!BrushEngine.PromotesAtPenUp(stroke))
             {
                 WhyReplayed = "the record is no longer a kind that is kept";
+            }
+            else if (stroke.Brush.Mixing is not null && target.HasPlacements)
+            {
+                // A mixing brush reads the frame under it, and while drawing
+                // that frame has its placed symbols in it; a replay from the
+                // record stamps the placements after the strokes, so the same
+                // dab reads a different ground (adversary). Until the two
+                // agree, such a stroke is replayed.
+                WhyReplayed = "a mixing brush on a frame with placed symbols";
             }
             else
             {

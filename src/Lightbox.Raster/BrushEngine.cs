@@ -1432,7 +1432,7 @@ public static class BrushEngine
                 travelled += step;
                 // A stationary dab keeps the last heading; recomputing from a
                 // zero-length step would snap the tip to zero degrees.
-                if (brush.AngleFollowsDirection && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
+                if (CarriesAHeading(brush) && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
             }
             dabs.Add(new Dab(pos, pressure, heading, LoadAt(travelled, brush)) { Fidelity = fidelity });
             previous = pos;
@@ -1463,6 +1463,14 @@ public static class BrushEngine
     /// than hashing from it.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Whether a brush's dabs record which way the stroke is running: a tip
+    /// that turns with it, or a tip with hairs - which run with the stroke
+    /// whatever the tip itself does, round and unturned included.
+    /// </summary>
+    private static bool CarriesAHeading(BrushSettings brush) =>
+        brush.AngleFollowsDirection || (brush.Bristles ?? 0) > 0;
+
     private static List<Dab> WalkPosedDabs(Stroke stroke, List<StrokePoint> rest)
     {
         var brush = stroke.Brush;
@@ -1478,7 +1486,7 @@ public static class BrushEngine
                 float dx = pos.X - from.X, dy = pos.Y - from.Y;
                 var step = Math.Sqrt(dx * dx + dy * dy);
                 travelled += step;
-                if (brush.AngleFollowsDirection && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
+                if (CarriesAHeading(brush) && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
             }
             dabs.Add(new Dab(pos, pressure, heading, LoadAt(travelled, brush))
             {
@@ -4203,7 +4211,7 @@ public static class BrushEngine
             {
                 // The tip's bounding disc, under the tip's own transform: close
                 // enough for a gate whose grain is the paper's, not the tip's.
-                StampTooth(footprint, pos, radius, HardnessAt(brush, pressure), (float)rotation, (float)roundness, brush, ToothPress(brush, pressure, load));
+                StampTooth(footprint, pos, radius, HardnessAt(brush, pressure), (float)rotation, (float)roundness, brush, ToothPress(brush, pressure, load), directionDeg);
             }
             else if (footprint is not null)
             {
@@ -4253,7 +4261,7 @@ public static class BrushEngine
             {
                 if (NeedsToothCeiling(brush))
                 {
-                    StampTooth(footprint, pos, radius, hardness, (float)rotation, (float)roundness, brush, ToothPress(brush, pressure, load));
+                    StampTooth(footprint, pos, radius, hardness, (float)rotation, (float)roundness, brush, ToothPress(brush, pressure, load), directionDeg);
                 }
                 else
                 {
@@ -4276,7 +4284,7 @@ public static class BrushEngine
         }
         if (footprint is not null)
         {
-            if (NeedsToothCeiling(brush)) StampTooth(footprint, pos, radius, hardness, 0f, 1f, brush, ToothPress(brush, pressure, load));
+            if (NeedsToothCeiling(brush)) StampTooth(footprint, pos, radius, hardness, 0f, 1f, brush, ToothPress(brush, pressure, load), directionDeg);
             else StampFootprint(footprint, pos, radius, hardness, brush.AntiAlias);
         }
     }
@@ -4338,7 +4346,7 @@ public static class BrushEngine
     /// </remarks>
     private static void StampTooth(
         SKCanvas footprint, SKPoint pos, float radius, float hardness, float rotation, float roundness,
-        BrushSettings brush, double pressure)
+        BrushSettings brush, double pressure, double headingDeg = double.NaN)
     {
         var tile = ToothTile(brush);
         if (tile is null) return;
@@ -4357,11 +4365,34 @@ public static class BrushEngine
         // A brush with hairs presses each of them into the sheet by its own
         // amount, so the paper is gated hair by hair (HairContact); one
         // without is gated by the one table for this pressure.
-        using var haired = HairContact(brush, pressure) is { } contact
-            ? SKShader.CreateCompose(
-                    paper.WithColorFilter(PaperForHairs), contact, SKBlendMode.Plus)
-                .WithColorFilter(HairGate())
-            : null;
+        //
+        // Each step named and disposed: the two in the middle were temporaries
+        // in one expression, and so two native shaders leaked per dab of every
+        // bristle brush until a finalizer got to them (leak-hunter).
+        var contact = HairContact(brush, pressure);
+        // The hairs run with the stroke, not with the tip: the dab is drawn
+        // under the tip's own rotation and squash, so the stripes are turned
+        // back out of that and into the stroke's heading. Without this a round
+        // tip, which is never turned, kept its hairs level whichever way the
+        // stroke ran, and a tip with a little rotation jitter shook them from
+        // dab to dab - and overlapping dabs laid at different angles fill
+        // each other's streaks in (adversary). Until the stroke has a
+        // direction - its first dab - they sit as the tip does.
+        //
+        // Never asked for with nothing to turn: Skia answers an identity
+        // local matrix with the shader itself, and disposing that answer
+        // destroyed the cached gradient under every later dab - an access
+        // violation in the next call, found by the suite the first time a
+        // round, level stroke was drawn with hairs.
+        var turn = contact is null || double.IsNaN(headingDeg)
+            ? SKMatrix.Identity
+            : SKMatrix.CreateScale(1f, 1f / Math.Max(0.05f, roundness))
+                .PreConcat(SKMatrix.CreateRotationDegrees((float)headingDeg - rotation));
+        var made = contact is null || turn.IsIdentity ? null : contact.WithLocalMatrix(turn);
+        using var turned = ReferenceEquals(made, contact) ? null : made;
+        using var hairPaper = contact is null ? null : paper.WithColorFilter(PaperForHairs);
+        using var hairSum = contact is null ? null : SKShader.CreateCompose(hairPaper!, turned ?? contact, SKBlendMode.Plus);
+        using var haired = hairSum?.WithColorFilter(HairGate());
         using var tooth = SKShader.CreateCompose(falloff, haired ?? gated, SKBlendMode.Modulate);
 
         var paint = DabPaint(ref t_toothPaint, brush.AntiAlias);

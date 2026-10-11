@@ -280,6 +280,12 @@ sealed class LivePaintSession
     /// </summary>
     internal Lightbox.Core.Geometry.IncrementalDensify HorizonDensify { get; } = new();
 
+    /// <summary>The stroke's points without its newest few, refilled each event rather than allocated.</summary>
+    internal List<Lightbox.Core.Documents.StrokePoint> HorizonPoints { get; } = [];
+
+    /// <summary>The same for a posed stroke's rest points.</summary>
+    internal List<Lightbox.Core.Documents.StrokePoint> HorizonRestPoints { get; } = [];
+
     /// <summary>The effect draft's own dab bookkeeping, mirroring <see cref="Dabs"/>.</summary>
     /// <remarks>
     /// Separate because the two paths are exclusive — a stroke is either an effect or paint — and
