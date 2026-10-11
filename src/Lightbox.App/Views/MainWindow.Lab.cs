@@ -126,11 +126,14 @@ public partial class MainWindow
         return null;
     }
 
-    /// <summary>The lab's two questions; null for anything else.</summary>
+    /// <summary>The lab's questions; null for anything else.</summary>
     internal IpcProtocol.Response? AnswerLab(IpcProtocol.Request request) => request.Op switch
     {
         "lab_state" => IpcProtocol.Response.Success(LabState()),
         "lab_locate" => LabLocate(request.Payload),
+        // Every icon on screen and where it landed in its button, at this
+        // display's scaling — the placement question no headless run can ask.
+        "lab_icons" => IpcProtocol.Response.Success(LabIcons()),
         // Setup, the one thing here that changes anything: put a panel on screen,
         // as the View menu would, so a scenario does not depend on which panels
         // a fresh profile's workspace happens to show (Q209: setup through the
@@ -158,6 +161,9 @@ public partial class MainWindow
         return new
         {
             frameCount = scene.FrameCount,
+            // Every placed symbol in the scene, wherever it is on the sheet: what
+            // a tile dragged onto the canvas has to add one to.
+            placements = scene.Layers.Sum(l => l.Cels.Sum(c => c.Frame?.Placements?.Count ?? 0)),
             currentFrame = _vm.CurrentFrameIndex,
             active = _vm.ActiveLayerIndex >= 0 && _vm.ActiveLayerIndex < scene.Layers.Count
                 ? scene.Layers[_vm.ActiveLayerIndex].Name : null,
@@ -181,6 +187,19 @@ public partial class MainWindow
         };
     }
 
+    private object LabIcons()
+    {
+        var (realized, visible) = Rendering.IconCensus.CountPaths(this);
+        return new
+        {
+            scale = RenderScaling,
+            visuals = this.GetVisualDescendants().Count(),
+            paths = realized,
+            pathsVisible = visible,
+            icons = Rendering.IconCensus.Take(this, RenderScaling),
+        };
+    }
+
     private IpcProtocol.Response LabLocate(JsonElement? payload)
     {
         if (payload is not { } p || !p.TryGetProperty("kind", out var kindEl))
@@ -192,6 +211,24 @@ public partial class MainWindow
             p.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
         int Int(string name) =>
             p.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var i) ? i : -1;
+
+        // A beginning that two different tooltips share names neither button:
+        // "Lock the layer" began both the layer's lock and the options bar's
+        // transparency lock, and the first icon-buttons run timed the wrong one
+        // under the right name. Rows that repeat one tooltip are still one answer.
+        if (kindEl.GetString() == "tip-starts" && Str("text") is { Length: > 0 } begins)
+        {
+            var tips = this.GetVisualDescendants().OfType<Button>()
+                .Where(b => b.IsEffectivelyVisible)
+                .Select(b => ToolTip.GetTip(b) as string)
+                .Where(t => t is not null && t.StartsWith(begins, StringComparison.Ordinal))
+                .Distinct().ToList();
+            if (tips.Count > 1)
+            {
+                return IpcProtocol.Response.Fail(
+                    $"\"{begins}\" begins {tips.Count} different tooltips: {string.Join(" | ", tips.Select(t => t!.Length > 48 ? t[..48] + "…" : t))}");
+            }
+        }
 
         Control? found = kindEl.GetString() switch
         {
@@ -208,6 +245,10 @@ public partial class MainWindow
             // centre is the row and not one of its small buttons.
             "layer-row" => LayerList.GetVisualDescendants().OfType<ContentPresenter>().FirstOrDefault(c =>
                 c.DataContext is LayerRow row && row.Layer.Name == Str("layer")),
+            // A tile of the Symbols panel, by the symbol's name — its item
+            // container, where a hand would take hold of it.
+            "symbol-tile" => SymbolTiles.GetVisualDescendants().OfType<ListBoxItem>().FirstOrDefault(c =>
+                c.DataContext is SymbolRow s && s.Model.Name == Str("name")),
             "folder-row" => LayerList.GetVisualDescendants().OfType<ContentPresenter>().FirstOrDefault(c =>
                 c.DataContext is GroupRow g && g.Group.Name == Str("folder")),
             // An item of the menu a right-click last opened, by its text — the
@@ -218,6 +259,14 @@ public partial class MainWindow
             // bar's ＋ has no shortcut, so a scenario has to click it.
             "tip" => this.GetVisualDescendants().OfType<Button>().FirstOrDefault(b =>
                 b.IsEffectivelyVisible && ToolTip.GetTip(b) as string == Str("text")),
+            // The same, by how the tooltip begins: a tool's tip is its name and
+            // key followed by a paragraph, and a scenario should not have to
+            // carry the paragraph to click the tool.
+            "tip-starts" => Str("text") is { Length: > 0 } start
+                ? this.GetVisualDescendants().OfType<Button>().FirstOrDefault(b =>
+                    b.IsEffectivelyVisible && ToolTip.GetTip(b) is string tip
+                    && tip.StartsWith(start, StringComparison.Ordinal))
+                : null,
             _ => null,
         };
         if (found is null || !found.IsEffectivelyVisible || found.Bounds.Width <= 0)

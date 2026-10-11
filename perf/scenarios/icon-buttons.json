@@ -1,0 +1,202 @@
+{
+  "name": "icon-buttons",
+  "about": "What the icons cost and where they sit, on the real window at the real display scaling. Counts every icon and checks its placement (on whole pixels, inside its button, centred), then presses the buttons whose icon is their state: five tool switches, a hover sweep along the rail, the first layer's eye off and on, its lock, its transparency lock, and the onion toggle. Each press is timed input to on screen.",
+  "fixture": "owner-shape",
+  "window": "maximised",
+  "panels": [
+    "Layers"
+  ],
+  "repeat": 3,
+  "steps": [
+    {
+      "do": "expect",
+      "icons": "placed"
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip_starts": "Eraser (E)"
+      },
+      "measure": "tool.switch",
+      "after_ms": 350
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip_starts": "Fill (F)"
+      },
+      "measure": "tool.switch",
+      "after_ms": 350
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip_starts": "Move (V)"
+      },
+      "measure": "tool.switch",
+      "after_ms": 350
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip_starts": "Arrow (A)"
+      },
+      "measure": "tool.switch",
+      "after_ms": 350
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip_starts": "Brush (B)"
+      },
+      "measure": "tool.switch",
+      "after_ms": 350
+    },
+    {
+      "do": "hover",
+      "target": {
+        "tip_starts": "Brush (B)"
+      },
+      "after_ms": 60
+    },
+    {
+      "do": "hover",
+      "target": {
+        "tip_starts": "Eraser (E)"
+      },
+      "after_ms": 60
+    },
+    {
+      "do": "hover",
+      "target": {
+        "tip_starts": "Fill (F)"
+      },
+      "after_ms": 60
+    },
+    {
+      "do": "hover",
+      "target": {
+        "tip_starts": "Color picker"
+      },
+      "after_ms": 60
+    },
+    {
+      "do": "hover",
+      "target": {
+        "tip_starts": "Gradient (G)"
+      },
+      "after_ms": 60
+    },
+    {
+      "do": "hover",
+      "target": {
+        "tip_starts": "Shape (U"
+      },
+      "after_ms": 60
+    },
+    {
+      "do": "hover",
+      "target": {
+        "tip_starts": "Move (V)"
+      },
+      "after_ms": 60
+    },
+    {
+      "do": "hover",
+      "target": {
+        "tip_starts": "Crop (C)"
+      },
+      "after_ms": 60
+    },
+    {
+      "do": "hover",
+      "target": {
+        "tip_starts": "Arrow (A)"
+      },
+      "after_ms": 60
+    },
+    {
+      "do": "hover",
+      "target": {
+        "tip_starts": "Pen (P)"
+      },
+      "after_ms": 60
+    },
+    {
+      "do": "settle",
+      "quiet_s": 0.5
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip": "Layer visibility"
+      },
+      "measure": "eye.hide",
+      "after_ms": 350
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip": "Layer visibility"
+      },
+      "measure": "eye.show",
+      "after_ms": 350
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip_starts": "Lock the layer —"
+      },
+      "measure": "lock.toggle",
+      "after_ms": 350
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip_starts": "Lock the layer —"
+      },
+      "measure": "lock.toggle",
+      "after_ms": 350
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip_starts": "Lock transparency"
+      },
+      "measure": "alpha.toggle",
+      "after_ms": 350
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip_starts": "Lock transparency"
+      },
+      "measure": "alpha.toggle",
+      "after_ms": 350
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip": "Onion skin on the active layer"
+      },
+      "measure": "onion.toggle",
+      "after_ms": 350
+    },
+    {
+      "do": "click",
+      "target": {
+        "tip": "Onion skin on the active layer"
+      },
+      "measure": "onion.toggle",
+      "after_ms": 350
+    },
+    {
+      "do": "settle",
+      "quiet_s": 0.5
+    },
+    {
+      "do": "expect",
+      "icons": "placed"
+    }
+  ]
+}
