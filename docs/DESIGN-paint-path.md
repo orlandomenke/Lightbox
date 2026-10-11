@@ -469,8 +469,29 @@ The horizon is now one point, the least the property test accepts — it
 accepts it because the comparison is itself the test of dependence. Profiled
 on and off in the same run, headless, on the lab's stroke shape: the tail is
 about 60% longer than under the old rule instead of two to three times, and
-an event costs 0.5 to 1.4 ms more at a fast pen. That has not been back to
-the lab. If one point is ever too few, the live mark is drawn and not kept,
+an event costs 0.5 to 1.4 ms more at a fast pen.
+
+**The fifth run, on the one-point horizon.** All 192 strokes were kept, on
+the three flats and the soft round, and pen-up was 12 to 22 ms (gouache at
+300 px: 30 to 44). Per event, median ms, baseline to branch:
+
+| | 60 px | 150 px | 300 px |
+| --- | --- | --- | --- |
+| Watercolor (flat), 900 / 3000 px/s | 0.7→2.1 / 1.2→4.3 | 0.6→2.9 / 1.4→4.6 | 1.0→6.8 / 2.3→9.0 |
+| Gouache (flat) | 0.5→1.9 / 1.1→3.5 | 0.5→3.4 / 1.4→5.7 | 1.3→17.4 / 3.3→19.4 |
+| Oil (flat) | 0.8→3.5 / 1.6→5.2 | 0.6→3.1 / 1.2→4.2 | 0.9→3.8 / 2.1→4.6 |
+| Soft round | 0.6→1.7 / 1.5→3.1 | 1.7→1.6 / 2.7→2.7 | 3.3→3.2 / 4.7→4.3 |
+
+At 60 and 150 px every brush keeps the screen at the pacing floor (36 to
+45 ms pen to screen at the median). **300 px is not solved.** Watercolor
+(flat) keeps up at 900 px/s and trails by half a second at 3000; Gouache
+(flat) at 300 px costs 17 to 19 ms an event, twice the interval between
+events, and the screen runs more than a second behind at either speed. Its
+baseline was also half again slower in this run than in the others, so the
+machine was not quiet, but no reading of the numbers makes 17 ms acceptable.
+Gouache differs from watercolour in keeping its ceiling at a finer scale (a
+harder edge), which is where to look first. This is the open item phase 2
+leaves. If one point is ever too few, the live mark is drawn and not kept,
 so the price is a stall at pen-up and never a wrong pixel.
 
 ## Order
