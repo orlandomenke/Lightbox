@@ -26,4 +26,9 @@
     <ProjectReference Include="..\..\src\Lightbox.Core\Lightbox.Core.csproj" />
   </ItemGroup>
 
+  <!-- Documents written by older builds, opened by this one (PinRecordTests). -->
+  <ItemGroup>
+    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

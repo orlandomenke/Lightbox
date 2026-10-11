@@ -138,6 +138,79 @@ public static class Fixture
     }
 
     /// <summary>
+    /// A character's arm on a rig, for the lab's pose-drag scenario: two
+    /// bones along the middle of a 1080p document — shoulder at 35% of the
+    /// width, elbow at 50%, wrist at 65% — and a layer of pen lines over them
+    /// that follows the whole skeleton with joint weighting, which is what
+    /// the Bone tool's own binding makes. Under it, two layers of the usual
+    /// generated drawings that are not rigged, so the drag composites over
+    /// something.
+    /// </summary>
+    /// <param name="strokes">
+    /// Lines on the arm. Sixty is an inked limb; three hundred is nearer a
+    /// painted one, and is what tells posing apart from re-stamping.
+    /// </param>
+    public static Doc Rigged(int strokes = 60, int seed = 7)
+    {
+        var doc = Build(Shape.OwnerShape with { Layers = 2, Drawings = 2, Frames = 24 });
+        var scene = doc.Scene;
+        var (w, h) = ((double)scene.Width, (double)scene.Height);
+        var (shoulder, mid, reach) = (w * 0.35, h * 0.5, w * 0.15);
+
+        doc.Armature = new Armature
+        {
+            Id = "rig-arm",
+            Name = "Arm",
+            Bones =
+            [
+                new Bone { Id = "bone-upper", Name = "Upper arm", X = shoulder, Y = mid, Length = reach },
+                new Bone { Id = "bone-fore", Name = "Forearm", ParentId = "bone-upper", Connected = true, Length = reach },
+            ],
+        };
+
+        var rng = new Random(seed);
+        var arm = new Frame { Id = "drawing-arm" };
+        for (var k = 0; k < strokes; k++)
+        {
+            // Each line runs some stretch of the arm, a little off its axis,
+            // wandering like a contour: most cross the elbow, so most bend.
+            var from = shoulder + reach * rng.NextDouble();
+            var length = reach * (0.5 + rng.NextDouble());
+            var offset = (rng.NextDouble() - 0.5) * h * 0.12;
+            var phase = rng.NextDouble() * Math.Tau;
+            var points = new List<StrokePoint>(80);
+            for (var p = 0; p < 80; p++)
+            {
+                var t = p / 79.0;
+                var x = Math.Min(from + length * t, shoulder + reach * 2);
+                points.Add(new StrokePoint(
+                    x, mid + offset + Math.Sin(phase + t * 9) * 6, 0.35 + 0.6 * Math.Sin(Math.PI * t)));
+            }
+            arm.Strokes.Add(new Stroke
+            {
+                Tool = ToolKind.Brush,
+                Color = k % 5 == 0 ? "#8a3a3a" : "#1a1a1a",
+                Points = points,
+                Brush = new BrushSettings
+                {
+                    Size = 4 + rng.Next(0, 10), Hardness = 0.8, Opacity = 1, Flow = 1, Spacing = 0.15,
+                },
+            });
+        }
+
+        var layer = new Layer
+        {
+            Id = "layer-arm",
+            Name = "Arm",
+            BoneId = "",            // the whole skeleton
+            JointWeights = true,    // bound the way a new bind is (Q217)
+        };
+        for (var f = 0; f < scene.FrameCount; f++) layer.Cels.Add(new Cel { Frame = f == 0 ? arm : null });
+        scene.Layers.Add(layer);
+        return doc;
+    }
+
+    /// <summary>
     /// A small, named sheet for behaviour checks rather than timing: the shapes of
     /// the owner's X-sheet and layer-docker reports, with names a scenario can
     /// point at. Ink <c>A · · B · · · ·</c> (a hold between drawings, empties
@@ -209,6 +282,7 @@ public static class Fixture
     }
 
     /// <summary>
+    /// <c>fixture --out path --preset rigged [--strokes N]</c>, or
     /// <c>fixture --out path [--preset owner] [--width W --height H --layers N
     /// --drawings N --strokes N --points N --frames N --step N --seed N]</c>
     /// </summary>
@@ -242,6 +316,14 @@ public static class Fixture
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output))!);
             DocJson.Save(sheet, output);
             Console.WriteLine($"fixture: sheet -> {output}");
+            return 0;
+        }
+        if (Arg("--preset") == "rigged")
+        {
+            var count = Int("--strokes", 60);
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output))!);
+            DocJson.Save(Rigged(count), output);
+            Console.WriteLine($"fixture: rigged, {count} strokes on a two-bone arm -> {output}");
             return 0;
         }
         var b = Shape.OwnerShape;

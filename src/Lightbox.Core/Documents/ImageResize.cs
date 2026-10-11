@@ -192,6 +192,22 @@ public static class ImageResize
                 bone.Length *= mark;
             }
 
+        // Pins are places on the drawing, on every rig that has any. A starch
+        // pin's reach and the mesh's spacing are distances on the drawing, so
+        // they follow the marks — the same pin stiffens the same patch, and
+        // the mesh keeps the same cells over the same lines.
+        foreach (var rig in doc.Rigs)
+        {
+            if (rig.Pins is { } pins)
+                foreach (var pin in pins)
+                {
+                    pin.X *= sx;
+                    pin.Y *= sy;
+                    if (pin.Extent is { } extent) pin.Extent = extent * mark;
+                }
+            if (rig.PinCell is { } cell) rig.PinCell = cell * mark;
+        }
+
         if (scene.PoseTrack is { } poses)
             foreach (var key in poses.Keys)
                 foreach (var pose in key.Bones.Values)
