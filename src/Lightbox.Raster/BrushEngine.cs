@@ -2488,20 +2488,49 @@ public static class BrushEngine
             return;
         }
 
-        var rows = (band.Height + strips - 1) / strips;
-        Parallel.For(0, strips, new ParallelOptions { MaxDegreeOfParallelism = strips }, i =>
+        // One window for all of them. Each strip used to build its own, halo
+        // and all, and the distance transform under it is the dearest thing
+        // here: on a 300 px wash four strips measured 244,000 cells an event
+        // where one window over the band is 170,000 - the strips made the
+        // slowest part slower. Built once on this thread, read by every strip.
+        var chunk = Math.Max(CapChunk, reachPx * 4);
+        CapWindow? shared = null;
+        if (reachPx > 0 && band.Width <= chunk && band.Height <= chunk)
         {
-            var top = band.Top + (i * rows);
-            var strip = new SKRectI(band.Left, top, band.Right, Math.Min(band.Bottom, top + rows));
-            if (strip.Height <= 0) return;
-            // Spans are made here, per strip: one cannot cross into a lambda.
-            // The strips write disjoint rows of the mark and only read the
-            // footprint.
-            CapCore(
-                markPix.GetPixelSpan<byte>(), markPix.RowBytes, strip,
-                capPix.GetPixelSpan<byte>(), capPix.RowBytes, capPix.Width, capPix.Height,
-                space, reachPx, rim);
-        });
+            var win = CapWindowOf(band, space, reachPx, capPix.Width, capPix.Height);
+            if (win.Width > 0 && win.Height > 0)
+            {
+                var ceiling = SweptCeilingOver(
+                    capPix.GetPixelSpan<byte>(), capPix.RowBytes, win, reachPx, rim.WidthPx, out var rimWindow, pooled: true);
+                shared = new CapWindow(win, ceiling, rimWindow);
+            }
+        }
+
+        try
+        {
+            var rows = (band.Height + strips - 1) / strips;
+            Parallel.For(0, strips, new ParallelOptions { MaxDegreeOfParallelism = strips }, i =>
+            {
+                var top = band.Top + (i * rows);
+                var strip = new SKRectI(band.Left, top, band.Right, Math.Min(band.Bottom, top + rows));
+                if (strip.Height <= 0) return;
+                // Spans are made here, per strip: one cannot cross into a lambda.
+                // The strips write disjoint rows of the mark and only read the
+                // footprint and the shared window.
+                CapCore(
+                    markPix.GetPixelSpan<byte>(), markPix.RowBytes, strip,
+                    capPix.GetPixelSpan<byte>(), capPix.RowBytes, capPix.Width, capPix.Height,
+                    space, reachPx, rim, shared);
+            });
+        }
+        finally
+        {
+            if (shared is not null)
+            {
+                System.Buffers.ArrayPool<byte>.Shared.Return(shared.Ceiling);
+                if (shared.Rim is not null) System.Buffers.ArrayPool<byte>.Shared.Return(shared.Rim);
+            }
+        }
     }
 
     /// <summary>
@@ -2514,9 +2543,9 @@ public static class BrushEngine
     {
         const int WorthSplitting = 48_000;
         if ((long)band.Width * band.Height < WorthSplitting) return 1;
-        var byHalo = band.Height / Math.Max(32, reachPx * 2);
+        var byRows = band.Height / 32;
         var byCores = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
-        return Math.Clamp(Math.Min(byHalo, byCores), 1, 4);
+        return Math.Clamp(Math.Min(byRows, byCores), 1, 4);
     }
 
     /// <summary>
@@ -2560,14 +2589,37 @@ public static class BrushEngine
     public static void CapCore(
         Span<byte> ink, int inkRow, SKRectI band,
         ReadOnlySpan<byte> cap, int capRow, int capW, int capH,
-        FootprintSpace space, int reachPx, Rim rim = default)
+        FootprintSpace space, int reachPx, Rim rim = default) =>
+        CapCore(ink, inkRow, band, cap, capRow, capW, capH, space, reachPx, rim, null);
+
+    /// <summary>The ceiling and rim over one window of the footprint, built once and read by several strips.</summary>
+    private sealed record CapWindow(SKRectI Win, byte[] Ceiling, byte[]? Rim);
+
+    /// <summary>The window of the footprint buffer the cap of a band reads: the band there, and the reach around it.</summary>
+    private static SKRectI CapWindowOf(SKRectI band, FootprintSpace space, int reachPx, int capW, int capH)
+    {
+        var win = space.IsDocument
+            ? band
+            : new SKRectI(
+                (int)Math.Floor((band.Left * space.Scale) + space.OffsetX) - 1,
+                (int)Math.Floor((band.Top * space.Scale) + space.OffsetY) - 1,
+                (int)Math.Ceiling((band.Right * space.Scale) + space.OffsetX) + 1,
+                (int)Math.Ceiling((band.Bottom * space.Scale) + space.OffsetY) + 1);
+        win.Inflate(reachPx, reachPx);
+        return SKRectI.Intersect(win, new SKRectI(0, 0, capW, capH));
+    }
+
+    private static void CapCore(
+        Span<byte> ink, int inkRow, SKRectI band,
+        ReadOnlySpan<byte> cap, int capRow, int capW, int capH,
+        FootprintSpace space, int reachPx, Rim rim, CapWindow? shared)
     {
         // A tile carries a halo of the reach on every side, so a tile much
         // smaller than the reach is mostly halo: at four reaches a side the
         // halo is a little over half the work, where a fixed 384 under a
         // 250 px reach made it eight parts in nine.
         var chunk = Math.Max(CapChunk, reachPx * 4);
-        if (reachPx > 0 && (band.Width > chunk || band.Height > chunk))
+        if (shared is null && reachPx > 0 && (band.Width > chunk || band.Height > chunk))
         {
             for (var top = band.Top; top < band.Bottom; top += chunk)
             {
@@ -2590,17 +2642,15 @@ public static class BrushEngine
         // buffer, exactly as before B349.
         byte[]? window = null;
         var win = default(SKRectI);
-        if (reachPx > 0)
+        if (shared is not null)
         {
-            win = direct
-                ? band
-                : new SKRectI(
-                    (int)Math.Floor((band.Left * space.Scale) + space.OffsetX) - 1,
-                    (int)Math.Floor((band.Top * space.Scale) + space.OffsetY) - 1,
-                    (int)Math.Ceiling((band.Right * space.Scale) + space.OffsetX) + 1,
-                    (int)Math.Ceiling((band.Bottom * space.Scale) + space.OffsetY) + 1);
-            win.Inflate(reachPx, reachPx);
-            win = SKRectI.Intersect(win, new SKRectI(0, 0, capW, capH));
+            win = shared.Win;
+            window = shared.Ceiling;
+            rimWindow = shared.Rim;
+        }
+        else if (reachPx > 0)
+        {
+            win = CapWindowOf(band, space, reachPx, capW, capH);
             if (win.Width > 0 && win.Height > 0)
             {
                 window = SweptCeilingOver(cap, capRow, win, reachPx, rim.WidthPx, out rimWindow, pooled: true);
@@ -2729,8 +2779,9 @@ public static class BrushEngine
             // Rented, because this runs per pointer event and a window of a
             // large brush is hundreds of kilobytes - the large-object heap, per
             // event, which is the expensive kind of garbage.
-            if (window is not null) System.Buffers.ArrayPool<byte>.Shared.Return(window);
-            if (rimWindow is not null) System.Buffers.ArrayPool<byte>.Shared.Return(rimWindow);
+            // A shared window is its builder's to return, once every strip is done.
+            if (shared is null && window is not null) System.Buffers.ArrayPool<byte>.Shared.Return(window);
+            if (shared is null && rimWindow is not null) System.Buffers.ArrayPool<byte>.Shared.Return(rimWindow);
             if (colA is not null) ints.Return(colA);
             if (colB is not null) ints.Return(colB);
             if (colT is not null) doubles.Return(colT);
@@ -2927,6 +2978,24 @@ public static class BrushEngine
                 var row = y * w;
                 for (var x = 0; x < w; x++) t[(x * h) + y] = f[row + x];
             }
+            // Every column, then every row, is its own one-dimensional problem,
+            // so a large grid is worked through side by side: the same sums in
+            // the same order within each line, and so the same floats. This is
+            // the dearest single thing a pointer event does on a broad brush
+            // with a ceiling at the document's scale - 170,000 cells and 3 ms
+            // an event on a 300 px wash, one thread.
+            if ((long)w * h >= ParallelEdtAbove)
+            {
+                Lines(t, w, h);
+                for (var x = 0; x < w; x++)
+                {
+                    var col = x * h;
+                    for (var y = 0; y < h; y++) f[(y * w) + x] = t[col + y];
+                }
+                Lines(f, h, w);
+                return;
+            }
+
             for (var x = 0; x < w; x++)
             {
                 var col = x * h;
@@ -2952,6 +3021,30 @@ public static class BrushEngine
             pool.Return(z);
             vPool.Return(v);
         }
+    }
+
+    /// <summary>Cells above which the distance transform's lines are worked through in parallel.</summary>
+    private const long ParallelEdtAbove = 40_000;
+
+    /// <summary>
+    /// The one-dimensional pass over <paramref name="count"/> lines of
+    /// <paramref name="length"/> cells laid end to end in <paramref name="data"/>,
+    /// in parallel. Each worker has its own scratch; lines do not overlap.
+    /// </summary>
+    private static void Lines(float[] data, int count, int length)
+    {
+        var workers = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
+        Parallel.For(
+            0, count, new ParallelOptions { MaxDegreeOfParallelism = workers },
+            () => (Out: new float[length], V: new int[length], Z: new float[length + 1]),
+            (line, _, scratch) =>
+            {
+                var at = line * length;
+                LowerEnvelope(data.AsSpan(at, length), length, scratch.Out, scratch.V, scratch.Z);
+                scratch.Out.AsSpan(0, length).CopyTo(data.AsSpan(at, length));
+                return scratch;
+            },
+            _ => { });
     }
 
     /// <summary>Felzenszwalb and Huttenlocher's one-dimensional squared-distance pass.</summary>

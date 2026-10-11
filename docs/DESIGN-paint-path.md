@@ -580,6 +580,43 @@ that is composed, rather than stamped and taken back each event; the cost of
 one large dab; and whether the finish of a band can run off the UI thread and
 still land before the frame it belongs to.
 
+### Large brushes: the finish is done when the mark is looked at
+
+The first answer to that lab run, and it is a change of shape rather than a
+faster loop. Profiled at 300 px on the lab's stroke, a Watercolor event was
+mostly its finish (the distance transform under the rim, at the document's
+scale, 170,000 cells) and an Oil event was mostly footprint dabs - 1.6 ms
+each, and three of every four of them were the unsettled tail, stamped on
+every event and taken back on the next.
+
+Both are now done **when the mark is looked at** - a frame being composed, a
+worker pass about to read the dabs, the pen lifting - and not on the pointer
+event (`PrepareLiveMark`: `StampLiveTail`, then `FinishLiveMark`). An event
+stamps its newly settled dabs and notes what it touched. A pen reports about
+twice as often as a screen refreshes, so two or more events usually share
+one finish; consecutive bands of a broad brush are nearly the same pixels,
+so their union costs little more than one; and when the app is behind, the
+events that queue share a finish instead of each making the queue longer -
+which is the loop that put the screen a second and a half behind.
+
+Per event at 300 px and 25 px a step, headless with no frame composed
+between events, so this is what is left *on the event*: Oil 9.5 → 2.2 ms,
+Watercolor 7.0 → 0.7, the simulated Gouache 5.6 → 0.6, the soft round
+2.4 → 0.4. The finish is still paid, per frame; what that comes to in the
+application is the lab's to say and has not been measured.
+
+Nothing about the pixels changes, and three things hold it to that: the band
+is copied afresh from the raw dabs at each finish, so finishing a union once
+is what finishing each band in turn came to; `LiveFinishIsPerLookTests` draws
+one stroke looked at once after thirty events and again looked at after each,
+and gets the same bytes; and every pen-up test is unchanged.
+
+Beside it: the cap's strips share one window (each used to build its own,
+halo and all, which made the dearest part dearer), and the distance
+transform's lines run side by side. A coarser ceiling was measured and not
+taken - eight samples across a soft edge instead of sixteen moved a quarter to
+a third of a soft brush's pixels by two or three levels, up to forty-six.
+
 **Not done in phase 3:** gouache and ink wash; a tooth and a wet edge on one
 brush (so Watercolor does not yet answer pressure against the paper as Oil
 does); the rework brushes (Q245); wetting the page; shaping and moving a tip's
