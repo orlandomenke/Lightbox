@@ -628,12 +628,12 @@ and gets the same bytes; and every pen-up test is unchanged.
 Every brush at every size and speed now holds the pacing floor - 34 to 43 ms
 pen to screen at the median - including the 300 px fast-pen cases that were a
 second and a half behind, and a pointer event costs less than it does on the
-baseline for all but the Oil. That closes the open item phase 2 left and the
+baseline, or the same, for all but the Oil. That closes the open item phase 2 left and the
 one phase 3 opened.
 
 What the table does not show, and is still open: the **longest stall in a
 stroke** is 91 to 141 ms on the two brushes that mix colour (Oil, Watercolor)
-against 58 to 74 on the others. A mixing brush copies the whole frame at
+against 52 to 74 on the others. A mixing brush copies the whole frame at
 pen-down to have a ground to read (`_live.MixBeneath`), which predates this
 work and is paid once per stroke; at 4K it is thirty megabytes. It wants a
 copy of what the stroke can reach, made as it reaches it.
