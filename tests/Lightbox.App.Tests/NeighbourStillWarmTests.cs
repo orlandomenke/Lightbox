@@ -157,6 +157,25 @@ public sealed class NeighbourStillWarmTests : BrushStateIsolated
         Assert.All(drawings, f => Assert.True(vm.TileFrames.Holds(f.Id), $"{f.Id}'s playback tiles were not prepared again"));
     }
 
+    /// <summary>
+    /// The room for guesses is what the still cache has left <em>and</em> what
+    /// the overall picture limit has left, less a still of slack. Measured
+    /// against the cache alone, once its count cap stopped binding (B440), one
+    /// idle batch could take the broker past its limit by the batch's size, and
+    /// the next publish evicted the playback tiles to pay for guesses (the leak
+    /// review, 2026-10-10).
+    /// </summary>
+    [Theory]
+    [InlineData(100, 10, 1000, 990, 1, 9)]      // the overall limit is nearer: 10 left, less the slack
+    [InlineData(100, 95, 1000, 0, 1, 4)]        // the cache is nearer
+    [InlineData(100, 10, 1000, 1200, 1, 0)]     // already over the overall limit: nothing
+    [InlineData(100, 10, 1000, 0, 30, 2)]       // in stills, not bytes
+    public void TheRoomForNeighboursIsTheLesserOfTheCacheAndTheOverallLimit(
+        long budget, long cached, long brokered, long total, long perStill, int room)
+    {
+        Assert.Equal(room, MainViewModel.RoomForGuesses(budget, cached, brokered, total, perStill));
+    }
+
     [AvaloniaFact]
     public void WithTheSwitchOffTheNeighboursAreNotPrepared()
     {
