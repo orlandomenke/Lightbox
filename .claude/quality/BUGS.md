@@ -3984,6 +3984,8 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B445** `P2` `ui` Every flip to a frame not seen before holds the UI thread 160-190 ms on a 30-layer document: the navigator composes the whole page to make a 256-pixel picture `evidence: ThePictureIsComposedAtItsOwnSize`
+
 - [x] **B438** `P2` `ui` The Symbols panel shows none of the artist's library until a project is opened or closed `evidence: TheLibraryIsOnShowFromLaunchWithNoProject`
   - **Found 2026-10-10 by the lab's `symbol-drag` scenario**, which put a symbol in a run's library and then could not find its tile. The grid was filled only by the relay on `HasProject` — when a project arrived or left — so a loose drawing opened the Symbols panel on *“No symbol matches that.”* over a full library, and there was nothing to drag onto the canvas at all.
   - **This is one of the two things behind the owner's “dragging onto the canvas has never worked”** (the other is that the drag showed nothing on the way — see B374's last note). With no project there was no tile; the drag itself was sound.

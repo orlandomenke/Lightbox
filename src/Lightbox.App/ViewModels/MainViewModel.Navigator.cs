@@ -249,13 +249,20 @@ public partial class MainViewModel
         }
         if (EffectPasses.SceneStackPass(scene, CurrentFrameIndex) is { } grade) passes.Add(grade);
 
-        using var image = SceneRenderer.Compose(
-            scene.Width, scene.Height, passes, SceneRenderer.BackgroundOf(scene));
-        using var bitmap = SKBitmap.FromImage(image);
+        // At the picture's own size, not the document's: composing every layer
+        // over the whole page and then shrinking it was 159-188 ms on the UI
+        // thread after every flip on the lab's 30-layer document (2026-10-11).
+        // The surface is scaled, never the geometry (invariant 7).
         var scale = NavigatorLongEdge / (double)Math.Max(1, Math.Max(scene.Width, scene.Height));
-        return ThumbnailRenderer.RenderChecker(
-            bitmap,
-            Math.Max(1, (int)Math.Round(scene.Width * scale)),
-            Math.Max(1, (int)Math.Round(scene.Height * scale)));
+        var width = Math.Max(1, (int)Math.Round(scene.Width * scale));
+        var height = Math.Max(1, (int)Math.Round(scene.Height * scale));
+        LastNavigatorCompose = new SKSizeI(width, height);
+        using var image = SceneRenderer.Compose(
+            width, height, passes, SceneRenderer.BackgroundOf(scene), scale: scale);
+        using var bitmap = SKBitmap.FromImage(image);
+        return ThumbnailRenderer.RenderChecker(bitmap, width, height);
     }
+
+    /// <summary>The surface the navigator's picture was last composed on — for tests.</summary>
+    internal SKSizeI? LastNavigatorCompose { get; private set; }
 }
