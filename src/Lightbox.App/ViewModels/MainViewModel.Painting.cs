@@ -1855,6 +1855,8 @@ public partial class MainViewModel
         // An idle warm stops queueing and drops to one worker, which finishes
         // the render in hand: the cores are the stroke's now (phase 2b). Its
         // finished work is kept; the commit's flush decides what is still good.
+        // Buffering for play ends too: the stroke changes what would play.
+        CancelBuffering();
         if (!IsPlaying && _prewarm.IsBusy) _prewarm.Request([], 1);
         // A stroke draws on the still canvas: no held tiles under it.
         _holdTilesAfterStop = false;
