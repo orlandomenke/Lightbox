@@ -2186,6 +2186,8 @@ test reopens the bug.
 
 - [x] **B444** `P2` `canvas` A flip back to a frame already seen re-composes every layer on the UI thread, ~320 ms on 30 layers: the composite cache is gated to playback `evidence: AFlipBackShowsTheFramesPictureWithoutComposingItAgain`
 
+- [x] **B443** `P2` `canvas` A forward flip on a held layer renders its drawings while the artist waits: the idle warm prepares the frames either side, not the next key `evidence: AtIdleTheNextAndPreviousKeysAreReadyForAFlip`
+
 - [x] **B442** `P2` `canvas` Posing a rigged drawing re-solves the skeleton for every stroke, and auto-bind looks up joint zones in bones-cubed time `evidence: TheSkeletonIsSolvedOncePerFrameNotOncePerStroke, AutoBindGrowsWithTheBonesNotWithTheirCube, SharingTheFramesDeltasChangesNoBitOfAPosedStroke, AJointWeightedLayerPosesAsItDid, BoneRigPerformanceTests`
   - **Found 2026-10-11 writing the bone rig's first performance baseline**, ahead of the puppet-pin work (Q239) that is to be measured against it. Until then the rig's only budget was the jiggle walk's.
   - **Measured before touching anything** (`BoneRigPerformanceTests`, Release, minimum of runs after the code had finished compiling). 200 strokes each bound whole to one bone: **7.5 ms** to pose on a 30-bone rig and **36.6 ms** on a 120-bone one — 4.9x for a drawing that uses one bone either way. Auto-binding 60 strokes: **11 ms** against 30 bones and **502 ms** against 120 — 45x for 4x the bones.
