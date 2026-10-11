@@ -1749,6 +1749,8 @@ test reopens the bug.
 
 ### canvas
 
+- [x] **B441** `P1` `canvas` The first Play of a many-layer document freezes for 2.5 s: the navigator rebuilds the frame from full-size drawings playback does not have `evidence: NavigatorDuringPlaybackTests`
+
 - [x] **B408** `P1` `canvas` The idle warm re-renders the stopped frame's stills forever once the still cache is full, and Stop's tile hold never ends `evidence: StopOnTilesTests, AFullStillCacheNeitherLoopsTheWarmNorStrandsTheHold, AStillCacheTooSmallForTheFrameDoesNotHold, WantedInsertTests, AWantedFrameGoesInAndTheCacheStaysWithinItsCap`
   - **Found by the lab's `memory-session` run, 2026-10-08:** after one Stop on the owner-shaped document, the prewarmer rendered **1,009 times in two minutes**: 24 drawings (the stopped frame's and its onion ghosts), about 42 times each, on eight cores. The process reached 2.8 GB private. No swap publish ever came.
   - **Cause, in this session's own work (#609, #614):** the still cache holds at most 96 frames, and `InsertWarm` never evicts, by design, so that a guess never displaces a frame in use. Once it was full, every warm of the paused picture's stills was refused. The idle drain (#609) re-asked for them on every drain, and only the playback-range part was gated by the refusal flag. Phase 3's hold (#614) waits for those stills, so it never ended: a tiled still stayed on screen and the Navigator froze.
