@@ -288,6 +288,15 @@ public partial class MainViewModel
     {
         if (!IsPlaying) return;
         _clock.Stop();
+        // How well the clock kept time over this play, for the lab: a frame
+        // assembled less often than the clock ticks is not a drop on a scene
+        // shot on 2s, so cadence is read from the clock, not from publishes.
+        if (PerfLog.On)
+        {
+            var pacing = _clock.Stats;
+            PerfLog.Mark("play.pacing", string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"ticks={pacing.Ticks} late={pacing.LateTicks} dropped={pacing.DroppedFrames} resyncs={pacing.Resyncs} meanLateMs={pacing.MeanLatenessMs:0.0} worstLateMs={pacing.WorstLatenessMs:0.0}"));
+        }
         IsPlaying = false;
         StopAudio();
         PublishSnapshot();
