@@ -541,6 +541,45 @@ can read — and the price is that the mark drawn live has to be shown to be the
 mark a replay makes. That proof, brush family by brush family, is what this
 note has been.
 
+### What the lab said about the two recipes
+
+Oil and Watercolor as they ship now, against the frozen baseline where both
+are still simulated; 60, 150 and 300 px at 900 and 3000 px/s, median ms.
+
+| | Oil | Watercolor |
+| --- | --- | --- |
+| pen-up (`stroke.commit`), baseline | 63–181 | 69–178 |
+| pen-up, branch | **11–20** | **12–15** |
+| strokes kept at pen-up | 48 of 48 | 48 of 48 |
+| finish behind the pen, events, baseline | 7–14 | 9–20 |
+| finish behind the pen, branch | 0 | 0 |
+| a pointer event at 60 px, 900 / 3000 px/s | 0.4→1.4 / 0.8→3.5 | 0.3→1.4 / 0.7→2.4 |
+| a pointer event at 150 px | 0.5→3.1 / 1.2→6.6 | 0.4→3.2 / 0.8→4.5 |
+| a pointer event at 300 px | 0.8→6.3 / 1.7→**25.0** | 0.7→8.1 / 1.2→**11.8** |
+| pen → screen at 300 px | 40→46 / 41→**1532** | 41→**126** / 43→**1412** |
+
+**What it bought:** the mark under the pen is the finished mark, and pen-up
+is one refresh instead of four to eleven. At 60 and 150 px both brushes hold
+the pacing floor (34 to 45 ms pen to screen).
+
+**What it did not:** at 300 px a fast pen leaves the screen a second and a half
+behind on both, and Watercolor trails at the slower speed as well. It is the
+same shape as phase 2's open item and for the same reason: everything the
+simulation used to compute on a worker, behind the pen, is now paid in the
+pointer event, and at 300 px one dab is seventy thousand pixels through a
+ceiling, a rim or a hair-gated sheet. Oil is the worst because its dabs are the
+dearest (an image shader, two colour filters and two composes each, plus the
+ground it reads to mix) and the unsettled tail stamps each of them again every
+event.
+
+**This is the next piece of work, ahead of more recipes.** The rule this
+note answers to is "no stalls, no delays", and a recipe that falls a second
+behind at a size artists use is not done. Where to look, in order of what the
+numbers suggest: the tail - stamping its dabs once into a layer of their own
+that is composed, rather than stamped and taken back each event; the cost of
+one large dab; and whether the finish of a band can run off the UI thread and
+still land before the frame it belongs to.
+
 **Not done in phase 3:** gouache and ink wash; a tooth and a wet edge on one
 brush (so Watercolor does not yet answer pressure against the paper as Oil
 does); the rework brushes (Q245); wetting the page; shaping and moving a tip's
