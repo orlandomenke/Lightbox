@@ -1,8 +1,9 @@
 # Puppet pins — design and plan
 
 *Status: designed 2026-10-10; **the geometry is built** (2026-10-11) —
-`PinMesh`, `PinSolve` and `PinSkinning` in Core, with their tests green. Nothing
-an artist can reach yet: no record, no render path, no tool. Decisions are in
+`PinMesh`, `PinSolve` and `PinSkinning` in Core — **and so is the record**:
+`Armature.Pins`, read for the solve by `PinOps`. All tests green. Nothing an
+artist can reach yet: no render path, no tool. Decisions are in
 Q239. The bone rig's baseline and the lab's `pose-drag` scenario landed
 separately (B442, and the lab branch); what they found is under* Performance.*
 
@@ -130,13 +131,35 @@ not an extra.
 
 | Key | Shape | Absent when |
 | --- | --- | --- |
-| `Armature.Pins?` | id, name, rest x/y, kind, starch extent, optional parent bone | the rig has no pins |
-| `Armature.PinCell?` | mesh cell size | default |
-| `PoseKey.Bones[pinId]` | the existing `BonePose` — x/y offset from rest | the pin is at rest on that key |
+| `Armature.Pins?` | a list of `Pin`: id, name, rest x/y | the rig has no pins |
+| `Pin.Kind?`, `Pin.Extent?` | `starch` and its reach | an ordinary position pin |
+| `Pin.ParentId?` | the bone the pin rides | it rides none |
+| `Armature.PinCell?` | mesh cell size | the default cell |
+| `PoseKey.Bones[pinId]` | the existing `BonePose` — x/y offset from rest, in its bone's frame if it has one | the pin is at rest on that key |
+
+**As built (2026-10-11).** An ordinary pin writes four keys — id, name, x, y —
+and a rig without pins writes none. `PinOps.HandlesOf` and `PinOps.TargetsAt`
+read the record for the solve; an unposed puppet's targets are its rest
+positions to the last bit. Pins are copied with the rig (and so with every
+undo snapshot), rescaled with the image on every rig in the document, and
+scaled and moved when a rig set is fitted to another drawing. Keys a newer
+build writes on a pin survive a save here (Q230).
+
+**What the record does not do yet, on purpose:**
+
+- A rig of pins and no bones round-trips, but most of the application asks
+  "is there a rig?" as "are there bones?" (`Doc.HasArmature`, the render
+  funnel, some twenty guards in the view model). Those change with the render
+  path and the tool, where there is something to see when they do.
+- Rig export (own JSON, Godot, DragonBones) ignores pins. A mesh deformer has
+  no place in a bone format; the baked frames carry what pins did.
+- Fitting a rig set measures the bones' bounds; a set of pins alone is placed
+  as it stands.
 
 Pin poses reuse the pose track's keys, which is what makes easing, `Hold`,
 stepping on 2s, the timeline rows and key editing work for pins without new
-code. A pin with a parent bone rides it, so pins and bones mix on one figure.
+code. A pin with a parent bone rides it, so pins and bones mix on one figure, and
+its own key is in that bone's frame the way a child bone's is.
 A layer follows pins the way it follows the whole skeleton today (`Layer.BoneId`).
 
 ### Where it shows up
@@ -252,11 +275,12 @@ On this branch, green:
 Elsewhere: `BoneRigPerformanceTests` (8) on main with B442;
 `PoseDragPerfLogTests` and `RigLabScenarioTests` on the lab branch.
 
-**Not written yet, and why:** the record tests (`APinlessRigWritesNoPinsKey`,
-`PinsRoundTrip`, `CloningARigCopiesItsPins`, `APinKeyIsAnOrdinaryPoseKey`) and
-the App tests (tool mode, overlay, undo, bake, MCP). They need `Armature.Pins`
-to exist to compile, and `Armature.cs` is a sensitive record file. They are
-the first commit of the record step — red first, there.
+`PinRecordTests` (17) covers the record: absent unless used, the round trip,
+a pin-only rig, newer keys kept, cloning, pin keys as pose keys, a pin riding
+a bone, non-finite keys, the hand-off to the solve, image resize, rig fitting.
+
+**Not written yet:** the App tests (tool mode, overlay, undo, bake, MCP),
+which arrive with the things they test.
 
 **Where the limits sit.** Two of the geometric tests carry their wrong answer
 with them: a blend of the pins' displacements by straight-line distance, with
@@ -279,8 +303,8 @@ fixed and tested.
 | 1a | The two rig costs the baseline found (B442) — **done 2026-10-11**; `BoneRigPerformanceTests` lives there | `perf/rig/posed-frame-geometry` | S |
 | 1b | Bone baseline in the lab: `rigged` fixture in `Lightbox.Bench`, `pose.*` spans, run `pose-drag`. **Spike:** mesh a real frame-by-frame layer drawing by drawing and measure how much the mesh changes | `perf/lab/rig-baseline` | S–M |
 | 2a | `PinMesh` + `PinSolve` + `PinSkinning` in Core to green — **done 2026-10-11** | `feat/puppet-pins` | L |
-| 2b | The record: `Armature.Pins`, optional-absent, its tests first; pins solved to a posed frame beside bones; sensitivity review | `feat/puppet-pins-record` | M |
-| 3 | Render path: pins through `PoseFrameForRender`, imported pixels through `PassMesh`, bake, `pin.*` spans, `pinned` fixture, run `pin-drag` against the acceptance line | `feat/puppet-pins-render` | M |
+| 2b | The record: `Armature.Pins`, optional-absent, tests first, carried through clone, resize and rig fitting — **done 2026-10-11** | `feat/puppet-pins-record` | M |
+| 3 | Render path: a layer follows pins; a rig of pins alone counts as a rig; pins through `PoseFrameForRender`, imported pixels through `PassMesh`, bake, `pin.*` spans, `pinned` fixture, run `pin-drag` against the acceptance line | `feat/puppet-pins-render` | M |
 | 4 | The tool: Pins mode, overlay (outline / full mesh), options, shortcut, undo, manual, workspace defaults | `feat/ui/puppet-pins-tool` | M–L |
 | 5 | MCP surface and rig export for pins | separate | S–M |
 | 6 | Phase 2: squash and stretch, arc, fluidity — each its own question and branch | separate | L |

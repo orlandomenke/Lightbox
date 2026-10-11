@@ -112,6 +112,14 @@ public static class ArmatureFit
             bone.X *= factor;
             bone.Y *= factor;
         }
+        if (armature.Pins is { } pins)
+            foreach (var pin in pins)
+            {
+                pin.X *= factor;
+                pin.Y *= factor;
+                if (pin.Extent is { } extent) pin.Extent = extent * factor;
+            }
+        if (armature.PinCell is { } cell) armature.PinCell = cell * factor;
     }
 
     /// <summary>
@@ -128,6 +136,14 @@ public static class ArmatureFit
             bone.X += dx;
             bone.Y += dy;
         }
+        // Every pin, parented or not: a pin's place is on the paper, where a
+        // child bone's is inside its parent.
+        if (armature.Pins is { } pins)
+            foreach (var pin in pins)
+            {
+                pin.X += dx;
+                pin.Y += dy;
+            }
     }
 
     /// <summary>

@@ -210,6 +210,23 @@ public sealed class Armature
     /// <summary>The constraints, or null. Resolved in list order, last of all.</summary>
     public List<BoneConstraint>? Constraints { get; set; }
 
+    /// <summary>
+    /// Puppet pins, or null on a rig that has none (Q239) — handles beside
+    /// the bones, posed through the same keys. Null rather than empty for the
+    /// reason <see cref="Chains"/> is: a rig that never pins writes no key.
+    /// </summary>
+    public List<Pin>? Pins { get; set; }
+
+    /// <summary>
+    /// The spacing of the mesh the pins deform, in document units, or null
+    /// for <see cref="Geometry.PinMesh.DefaultCell"/>. The mesh itself is
+    /// never stored: it is rebuilt from the drawing and this number.
+    /// </summary>
+    public double? PinCell { get; set; }
+
+    /// <summary>The pin with this id, or null.</summary>
+    public Pin? PinById(string id) => Pins?.FirstOrDefault(p => p.Id == id);
+
     /// <summary>The bone with this id, or null.</summary>
     public Bone? BoneById(string id) => Bones.FirstOrDefault(b => b.Id == id);
 
@@ -221,6 +238,7 @@ public sealed class Armature
         copy.Chains = Chains?.Select(c => c.Clone()).ToList();
         copy.Splines = Splines?.Select(s => s.Clone()).ToList();
         copy.Constraints = Constraints?.Select(c => c.Clone()).ToList();
+        copy.Pins = Pins?.Select(p => p.Clone()).ToList();
         return copy;
     }
 }
