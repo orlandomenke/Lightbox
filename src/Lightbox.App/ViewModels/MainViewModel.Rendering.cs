@@ -2367,10 +2367,16 @@ public partial class MainViewModel
                 Lightbox.Raster.PictureMemory.Brokered, Lightbox.Raster.PictureMemory.Total, perStill));
         if (room <= 0) return jobs;
         var seen = new HashSet<string>();
-        foreach (var offset in (ReadOnlySpan<int>)[1, -1, 2, -2])
+        // Where "flip to next key" and "flip to previous key" land first: a
+        // drawing held for a few frames puts them past the frames either side,
+        // and on the lab's large document every forward flip then rendered its
+        // thirty drawings while the artist waited (2026-10-11). Then the
+        // frames either side, for a step or a scrub.
+        var current = CurrentFrameIndex;
+        int[] candidates = [KeyIndexFrom(current, 1), KeyIndexFrom(current, -1), current + 1, current - 1, current + 2, current - 2];
+        foreach (var index in candidates.Distinct())
         {
-            var index = CurrentFrameIndex + offset;
-            if (index < 0 || index >= scene.FrameCount) continue;
+            if (index < 0 || index >= scene.FrameCount || index == current) continue;
             foreach (var layer in scene.Layers)
             {
                 if (!scene.IsLayerVisible(layer)) continue;

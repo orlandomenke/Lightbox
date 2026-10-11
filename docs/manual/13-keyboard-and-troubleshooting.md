@@ -149,9 +149,10 @@ background while you are not drawing or playing**: after you open a document,
 and again a moment after each change, it works through the playback range in the
 order it will play, starting from the playhead. By the time you press play the
 drawings are usually ready, and the first loop runs at full speed instead of
-painting each frame as it reaches it. It also paints the drawings either side of the
-one you are on, so stepping to the next or previous drawing shows it at
-once rather than painting it first.
+painting each frame as it reaches it. It also paints the drawings that **flip to
+next key** and **flip to previous key** (2 and 1) land on, and the frames either
+side of the one you are on, so flipping or stepping shows the drawing at once
+rather than painting it first.
 
 It gets out of the way on its own: it stops the moment you start a stroke or press
 play, and picks up again when you pause. On a large document on a machine with

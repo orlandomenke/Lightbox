@@ -236,6 +236,7 @@ which is a weak test and still far better than none.
 
 ### canvas
 
+- [ ] **B443** `P2` `canvas` A forward flip on a held layer renders its drawings while the artist waits: the idle warm prepares the frames either side, not the next key `evidence: AtIdleTheNextAndPreviousKeysAreReadyForAFlip`
 - [ ] **B255** `P1` `canvas` Hovering a menu with a pen tablet freezes the app for up to 6 seconds `evidence: manual`
   - **Measured, 2026-08-17, second `InputTrace` run on the reporter's Huion machine** — 56.7 s, 15,268 events, and this bug is the reason the stall watch was added to the instrument at all. The reporter had said the application "froze for a little while"; the first trace could not tell a freeze from a pointer resting over a menu, and the heartbeat that settled it found **22 UI-thread stalls, worst 6,103 ms**.
   - **The cause is not a correlation, it is an identity.** Every stall over three seconds is preceded by ~100 popup opens per second; the rate in windows away from any stall is **0.0/s**:
