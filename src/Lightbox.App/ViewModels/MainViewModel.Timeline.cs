@@ -355,29 +355,30 @@ public partial class MainViewModel
     [RelayCommand]
     private void PreviousKeyframe()
     {
-        var layer = ActiveLayer;
-        for (var i = Math.Min(CurrentFrameIndex, Scene.FrameCount) - 1; i >= 0; i--)
-        {
-            if (ExposureSheet.FrameAtExactIndex(layer, i) is not null)
-            {
-                CurrentFrameIndex = i;
-                return;
-            }
-        }
+        if (KeyIndexFrom(CurrentFrameIndex, -1) is var i and >= 0) CurrentFrameIndex = i;
     }
 
     [RelayCommand]
     private void NextKeyframe()
     {
+        if (KeyIndexFrom(CurrentFrameIndex, 1) is var i and >= 0) CurrentFrameIndex = i;
+    }
+
+    /// <summary>
+    /// The frame "flip to next key" (<paramref name="direction"/> 1) or "flip
+    /// to previous key" (-1) lands on from <paramref name="from"/>: the next
+    /// key on the active layer that way, or -1 where there is none. The idle
+    /// warm asks the same question, so the flip finds its drawings ready.
+    /// </summary>
+    internal int KeyIndexFrom(int from, int direction)
+    {
         var layer = ActiveLayer;
-        for (var i = CurrentFrameIndex + 1; i < Scene.FrameCount; i++)
+        var i = direction > 0 ? from + 1 : Math.Min(from, Scene.FrameCount) - 1;
+        for (; i >= 0 && i < Scene.FrameCount; i += direction > 0 ? 1 : -1)
         {
-            if (ExposureSheet.FrameAtExactIndex(layer, i) is not null)
-            {
-                CurrentFrameIndex = i;
-                return;
-            }
+            if (ExposureSheet.FrameAtExactIndex(layer, i) is not null) return i;
         }
+        return -1;
     }
 
     /// <summary>

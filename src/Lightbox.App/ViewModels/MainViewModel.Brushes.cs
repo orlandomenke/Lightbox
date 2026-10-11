@@ -158,10 +158,18 @@ public partial class MainViewModel
         // instead, expensive brushes ghosting to centrelines — Q81 decision 5,
         // through the same funnel that keeps live and baked bit-identical.
         _cache.PoseResolver = (frame, cel) =>
-            Skinning.PoseFrameForRender(
+        {
+            // Timed only for a drawing the rig moves: every miss comes
+            // through here, and a span each would bury the rigged drawings
+            // under the rest of the document.
+            using var perf = Services.PerfLog.On && _cache.Rig.IsPosed(frame)
+                ? Services.PerfLog.Begin("pose.frame", frame.Id)
+                : default;
+            return Skinning.PoseFrameForRender(
                 _editor.Doc, frame, cel, _cache.Rig,
                 cel == CurrentFrameIndex ? _bonePreviewPose : null,
                 ghostOverBudget: _bonePreviewPose is not null && cel == CurrentFrameIndex);
+        };
         // B30: a cache miss on a painting replays every stroke — 10.7 ms each,
         // 106 seconds at ten thousand — so a drawing big enough to have a
         // checkpoint starts from it instead. Reads `_editor` at call time, like

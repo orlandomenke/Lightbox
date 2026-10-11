@@ -110,6 +110,106 @@ public sealed class NeighbourStillWarmTests : BrushStateIsolated
     }
 
     /// <summary>
+    /// The drawings "flip to next key" and "flip to previous key" land on are
+    /// ready too, wherever they are. A drawing held for several frames put the
+    /// next key past the frames either side, so on the lab's large document
+    /// every forward flip rendered its thirty drawings while the artist waited,
+    /// 1.3-1.9 s a flip (2026-10-11).
+    /// </summary>
+    /// <summary>One layer keyed every six frames — at 0, 6, 12 … — and held between.</summary>
+    private static MainViewModel KeyedVm(int keys = 3)
+    {
+        var count = (keys - 1) * 6 + 1;
+        var vm = VmLayers.PaperVm();
+        vm.WarmPlaybackAtIdle = true;
+        vm.Onion.Enabled = false;
+        vm.SmoothStrokes = false;
+        vm.BrushSize = 12;
+        vm.SetViewport(SKRectI.Create(0, 0, 960, 540));
+        for (var i = 0; i < count; i++)
+        {
+            if (i > 0) vm.AddFrameCommand.Execute(null);
+            vm.BeginStroke(100 + i * 10, 100, 1);
+            vm.MoveStroke(300 - i * 10, 200, 1);
+            vm.EndStroke();
+        }
+        var layer = vm.Doc.Scene.Layers.Single(l => !l.IsBackground);
+        for (var i = 0; i < count; i++)
+        {
+            if (i % 6 != 0) layer.Cels[i].Frame = null;
+        }
+        return vm;
+    }
+
+    /// <summary>
+    /// With onion skin on, the frame a flip lands on draws the keys either side
+    /// of it as ghosts, and those are ready too. The warm prepared the next key's
+    /// own drawing and not its ghosts, so on the lab's large document every
+    /// forward flip rendered the following key's thirty drawings while the
+    /// artist waited — 1.1-1.6 s of a 1.4-1.9 s flip — and the warm then found
+    /// nothing to do, because the flip had just done it (2026-10-11).
+    /// </summary>
+    [AvaloniaFact]
+    public void WithOnionOnAFlipFindsItsGhostsReady()
+    {
+        var vm = KeyedVm(keys: 4);
+        vm.Onion.Enabled = true;
+        vm.CurrentFrameIndex = 6;
+        vm.FrameCache.Clear();
+        vm.PublishSnapshot();
+        Settle(vm);
+
+        var batch = vm.LastParallelBatch;
+        var misses = vm.FrameCache.Misses;
+        vm.NextKeyframeCommand.Execute(null);
+        vm.PublishSnapshot();
+
+        Assert.Equal(12, vm.CurrentFrameIndex);
+        Assert.True(ReferenceEquals(batch, vm.LastParallelBatch),
+            "the flip rendered its frame's drawings: " + string.Join(", ", vm.LastParallelBatch));
+        Assert.True(misses == vm.FrameCache.Misses,
+            "the flip rendered on the UI thread: " + string.Join(" | ", vm.FrameCache.RecentMisses));
+    }
+
+    [AvaloniaFact]
+    public void AtIdleTheNextAndPreviousKeysAreReadyForAFlip()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.WarmPlaybackAtIdle = true;
+        vm.Onion.Enabled = false;
+        vm.SmoothStrokes = false;
+        vm.BrushSize = 12;
+        vm.SetViewport(SKRectI.Create(0, 0, 960, 540));
+        for (var i = 0; i < 13; i++)
+        {
+            if (i > 0) vm.AddFrameCommand.Execute(null);
+            vm.BeginStroke(100 + i * 20, 100, 1);
+            vm.MoveStroke(300 - i * 20, 200, 1);
+            vm.EndStroke();
+        }
+        // Keys at 0, 6 and 12; each held for the five frames after it.
+        var layer = vm.Doc.Scene.Layers.Single(l => !l.IsBackground);
+        for (var i = 0; i < 13; i++)
+        {
+            if (i % 6 != 0) layer.Cels[i].Frame = null;
+        }
+        vm.CurrentFrameIndex = 6;
+        vm.FrameCache.Clear();
+        vm.PublishSnapshot();
+        Settle(vm);
+
+        Assert.True(Held(vm, 12), "the next key was not prepared");
+        Assert.True(Held(vm, 0), "the previous key was not prepared");
+
+        var misses = vm.FrameCache.Misses;
+        vm.NextKeyframeCommand.Execute(null);
+        vm.PublishSnapshot();
+        Assert.Equal(12, vm.CurrentFrameIndex);
+        Assert.True(misses == vm.FrameCache.Misses,
+            "the flip to the next key rendered on the UI thread: " + string.Join(" | ", vm.FrameCache.RecentMisses));
+    }
+
+    /// <summary>
     /// Only as many as there is room for, nearest first: a guess the cache will
     /// refuse is a render thrown away, every idle (the leak review; B408's shape).
     /// </summary>

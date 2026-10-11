@@ -85,6 +85,10 @@ public sealed class FillPreviewCostTests(ITestOutputHelper output) : BrushStateI
     public void MovingIntoANewRegionDoesNotStall()
     {
         var vm = Ruled(24);
+        // The yardstick is composing the page, and republishing one paused page
+        // is what the revisit cache answers (B444) — 0.1 ms on CI, which would
+        // make any trace look like a stall.
+        vm.ReuseRevisits = false;
         vm.PublishSnapshot();
         // Warm: the first trace of a session pays for the composite's caches.
         vm.UpdatePointerContext(Cell(1, 1).X, Cell(1, 1).Y, KeyModifiers.None);
