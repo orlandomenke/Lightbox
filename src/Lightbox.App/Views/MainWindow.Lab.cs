@@ -161,6 +161,9 @@ public partial class MainWindow
         return new
         {
             frameCount = scene.FrameCount,
+            // Every placed symbol in the scene, wherever it is on the sheet: what
+            // a tile dragged onto the canvas has to add one to.
+            placements = scene.Layers.Sum(l => l.Cels.Sum(c => c.Frame?.Placements?.Count ?? 0)),
             currentFrame = _vm.CurrentFrameIndex,
             active = _vm.ActiveLayerIndex >= 0 && _vm.ActiveLayerIndex < scene.Layers.Count
                 ? scene.Layers[_vm.ActiveLayerIndex].Name : null,
@@ -242,6 +245,10 @@ public partial class MainWindow
             // centre is the row and not one of its small buttons.
             "layer-row" => LayerList.GetVisualDescendants().OfType<ContentPresenter>().FirstOrDefault(c =>
                 c.DataContext is LayerRow row && row.Layer.Name == Str("layer")),
+            // A tile of the Symbols panel, by the symbol's name — its item
+            // container, where a hand would take hold of it.
+            "symbol-tile" => SymbolTiles.GetVisualDescendants().OfType<ListBoxItem>().FirstOrDefault(c =>
+                c.DataContext is SymbolRow s && s.Model.Name == Str("name")),
             "folder-row" => LayerList.GetVisualDescendants().OfType<ContentPresenter>().FirstOrDefault(c =>
                 c.DataContext is GroupRow g && g.Group.Name == Str("folder")),
             // An item of the menu a right-click last opened, by its text — the

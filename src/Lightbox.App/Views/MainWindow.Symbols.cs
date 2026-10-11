@@ -276,9 +276,29 @@ public partial class MainWindow
     /// which is why the gesture's other half was never the problem.
     /// </para>
     /// </remarks>
-    private void InitialiseSymbolTiles() =>
+    private void InitialiseSymbolTiles()
+    {
         SymbolTiles.AddHandler(
             InputElement.PointerPressedEvent, OnSymbolTilePressed, RoutingStrategies.Tunnel);
+        // B438. The artist's own library needs no project, and the grid was
+        // only ever filled when one arrived or left — so a loose drawing's
+        // Symbols panel stayed empty over a full library. Filled when the
+        // panel's list first loads: after the window is up, so reading the
+        // library and drawing a tile per symbol is not between launch and the
+        // window, and from the view, which is on the UI thread by construction.
+        SymbolTiles.Loaded += (_, _) =>
+        {
+            if (_vm.SymbolBrowser.Rows.Count == 0) _vm.SymbolBrowser.Refresh();
+        };
+        // The drag's preview goes when the drag leaves the canvas — and a drag
+        // abandoned over it (Escape) leaves it too.
+        Canvas.AddHandler(DragDrop.DragLeaveEvent, (_, _) => _symbolGhost?.Hide());
+    }
+
+    /// <summary>The picture under the pointer while a symbol tile is dragged over the canvas.</summary>
+    internal SymbolDragGhost SymbolGhost => _symbolGhost ??= new SymbolDragGhost(CanvasHost, Canvas);
+
+    private SymbolDragGhost? _symbolGhost;
 
     private void OnSymbolTilePressed(object? sender, PointerPressedEventArgs e)
     {
@@ -310,6 +330,11 @@ public partial class MainWindow
         {
             Rendering.CanvasControl.LogDiag("symbol-drag", ex);
         }
+        finally
+        {
+            // However the drag ended, wherever it ended — and its picture with it.
+            _symbolGhost?.Release();
+        }
     }
 
     private void OnSymbolTileReleased(object? sender, PointerReleasedEventArgs e) => EndTileGesture();
@@ -328,9 +353,25 @@ public partial class MainWindow
 
     private void OnCanvasSymbolDragOver(object? sender, DragEventArgs e)
     {
-        if (DraggedSymbolOf(e) is null) return;
+        if (DraggedSymbolOf(e) is not { } id) return;
         e.DragEffects = DragDropEffects.Copy;
         e.Handled = true;
+        // What will land, where it will land: the same symbol the drop resolves
+        // and the same document point the drop reads. And nothing where nothing
+        // can land — a hidden or locked layer refuses the drop and says why.
+        if (!_vm.ActiveLayerTakesEdits || _vm.SymbolToPlace(id) is not { } symbol)
+        {
+            _symbolGhost?.Hide();
+            return;
+        }
+        var (x, y) = Canvas.ViewToDoc(e.GetPosition(Canvas));
+        var scene = _vm.Doc.Scene;
+        var info = new SkiaSharp.SKImageInfo(
+            scene.Width, scene.Height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Premul);
+        if (SymbolGhost.Show(symbol, info, _vm.CurrentFrameIndex, x, y))
+        {
+            Services.PerfLog.Mark("symbol.ghost", symbol.Name);
+        }
     }
 
     private async void OnCanvasSymbolDrop(object? sender, DragEventArgs e)
@@ -338,6 +379,7 @@ public partial class MainWindow
         if (DraggedSymbolOf(e) is not { } id) return;
         var (x, y) = Canvas.ViewToDoc(e.GetPosition(Canvas));
         e.Handled = true;
+        _symbolGhost?.Hide();
         // Where the pointer is, not the middle of the canvas: the whole point
         // of dragging rather than pressing Place is choosing the spot. Read
         // before the await, because the drag event is gone after it.

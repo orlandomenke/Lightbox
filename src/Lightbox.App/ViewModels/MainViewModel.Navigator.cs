@@ -131,6 +131,14 @@ public partial class MainViewModel
         // is refreshed when the hold ends.
         if (_holdTilesAfterStop) return;
 
+        // Nor while playing: playback draws tiles, so the frame's stills are not
+        // there, and composing them here rendered every drawing of the frame on
+        // the UI thread — a 2.5 s freeze on every first Play of a 30-layer
+        // document, when the thumbnails made on opening arrived mid-play (the
+        // lab, 2026-10-10). The navigator does not follow the animation; it
+        // keeps the picture it had and catches up when playback stops (Pause).
+        if (IsPlaying) return;
+
         var scene = Scene;
         var exposed = new List<(Layer Layer, Frame Frame)>();
         foreach (var layer in scene.Layers)
