@@ -1842,12 +1842,35 @@ public partial class MainViewModel
             // The ring, over the whole document or over a window onto it (B291).
             // `plan.Origin` is zero for the whole-document case, so that route is
             // byte-for-byte what it always was.
+            // A paused whole-page publish of a frame already seen draws the
+            // picture it made then (the lab, 2026-10-11: ~320 ms a flip back on
+            // 30 layers). Keyed by exactly what the compositor reads — see
+            // RevisitKey — and only for plain layers with nothing live.
+            var revisit = ReuseRevisits && !IsPlaying && dirty is null && cameraView is null
+                && live.BrushStroke is null && live.Shape is null && live.Gradient is null && live.Composite is null
+                && RevisitKey.CanKey(passes)
+                    ? new RevisitKey([.. passes], background, renderScale, plan.Origin,
+                        new SKSizeI(info.Width, info.Height), _publish.RenderEpoch, _editor.Revision)
+                    : null;
+            var seen = revisit is null ? null : _revisits.Find(revisit);
             image = _composeRing.Publish(info, dirty, (surface, clip) =>
             {
                 usedClip = clip;
+                if (seen is not null && clip is null)
+                {
+                    RevisitHits++;
+                    var canvas = surface.Canvas;
+                    canvas.Save();
+                    canvas.ResetMatrix();
+                    using var copy = new SKPaint { BlendMode = SKBlendMode.Src };
+                    canvas.DrawImage(seen, 0, 0, copy);
+                    canvas.Restore();
+                    return;
+                }
                 SceneRenderer.ComposeInto(
                     surface, passes, background, clip, renderScale, cameraView, plan.Origin);
             }, renderScale, cameraView, plan.Origin);
+            if (revisit is not null && seen is null && usedClip is null) _revisits.Store(revisit, image);
         }
         sw.Stop();
         BuildComposeMs += sw.Elapsed.TotalMilliseconds;

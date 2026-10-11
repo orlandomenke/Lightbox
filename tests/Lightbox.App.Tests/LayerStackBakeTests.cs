@@ -359,6 +359,9 @@ public sealed class LayerStackBakeTests(ITestOutputHelper output) : BrushStateIs
         {
             var vm = VmLayers.PaperVm();
             vm.StackBake.Enabled = foldEnabled;
+            // The same frame published twelve times: the revisit cache would
+            // answer both sides, and this times the fold.
+            vm.ReuseRevisits = false;
             vm.SmoothStrokes = false;
             for (var i = 0; i < 14; i++) vm.AddPaintedLayerCommand.Execute(null);
             for (var i = 1; i <= 15; i++)

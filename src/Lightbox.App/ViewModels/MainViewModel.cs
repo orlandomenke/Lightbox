@@ -207,6 +207,19 @@ public sealed partial class MainViewModel : ObservableObject
     private DocumentEditor _editor;
     private readonly ComposeRing _composeRing = new();
 
+    /// <summary>Finished pictures of paused frames, for a flip back (see <see cref="RevisitCache"/>).</summary>
+    private readonly RevisitCache _revisits = new();
+
+    /// <summary>Paused publishes that drew a frame's earlier picture instead of composing it — for tests.</summary>
+    internal int RevisitHits { get; private set; }
+
+    /// <summary>
+    /// Whether a paused revisit may draw its earlier picture — on, and off only
+    /// for a test that times compositing itself and must not be answered by
+    /// the cache instead.
+    /// </summary>
+    internal bool ReuseRevisits { get; set; } = true;
+
     /// <summary>
     /// Baked below-active/above-active layer stacks, so a repaint while
     /// drawing blends three passes instead of one per layer — and, since the
