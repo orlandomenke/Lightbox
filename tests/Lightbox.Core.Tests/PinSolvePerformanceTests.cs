@@ -162,13 +162,23 @@ public class PinSolvePerformanceTests(ITestOutputHelper output)
         var (mesh, pins, targets) = Largest();
         var solve = PinSolve.Prepare(mesh, pins);
         var deformed = new (double X, double Y)[solve.VertexCount];
-        solve.Solve(targets, deformed);
+        // The least of several batches, after a long warm-up. The runtime
+        // recompiles a method once it has been called enough, and that
+        // bookkeeping is charged to whichever thread happens to be calling:
+        // in the middle of the full suite one batch of fifty was billed
+        // 7,576 bytes that were not the solve's. Noise only ever adds, so a
+        // solve that allocates shows in every batch and one that does not
+        // shows a zero.
+        for (var i = 0; i < 300; i++) solve.Solve(targets, deformed);
+        var allocated = long.MaxValue;
+        for (var batch = 0; batch < 6; batch++)
+        {
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 50; i++) solve.Solve(targets, deformed);
+            allocated = Math.Min(allocated, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 50; i++) solve.Solve(targets, deformed);
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-        output.WriteLine($"50 solves allocated {allocated} bytes");
+        output.WriteLine($"50 solves allocated {allocated} bytes in the quietest of six batches");
         Assert.Equal(0, allocated);
     }
 
