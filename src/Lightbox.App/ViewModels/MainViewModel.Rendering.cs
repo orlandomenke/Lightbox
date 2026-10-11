@@ -2179,20 +2179,26 @@ public partial class MainViewModel
     /// would ask for them — asked of <see cref="ScenePassBuilder.GhostSpecsFor"/>
     /// rather than restated, so the two cannot disagree about which ghosts.
     /// </summary>
-    private IEnumerable<(Frame Frame, int Cel)> StillImagesNeeded()
+    private IEnumerable<(Frame Frame, int Cel)> StillImagesNeeded() => StillImagesNeeded(CurrentFrameIndex);
+
+    /// <summary>
+    /// The same, for the paused picture at <paramref name="index"/> — what a flip
+    /// there would draw, which the idle warm prepares ahead of it.
+    /// </summary>
+    private IEnumerable<(Frame Frame, int Cel)> StillImagesNeeded(int index)
     {
         var scene = Scene;
         var still = new ScenePassBuilder.State(
-            CurrentFrameIndex, scene.Layers.Count > 0 ? ActiveLayer.Id : null,
+            index, scene.Layers.Count > 0 ? ActiveLayer.Id : null,
             IsPlaying: false, IsLightTable,
             HaveViewport: _publish.Viewport is { Width: > 0, Height: > 0 },
             Onion);
         foreach (var layer in scene.Layers)
         {
             if (!scene.IsLayerVisible(layer)) continue;
-            if (ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is { } frame && FrameBitmapCache.CanCache(frame))
+            if (ExposureSheet.ExposedFrame(layer, index) is { } frame && FrameBitmapCache.CanCache(frame))
             {
-                yield return (frame, CurrentFrameIndex);
+                yield return (frame, index);
             }
             foreach (var ghost in ScenePassBuilder.GhostSpecsFor(layer, scene, still))
             {
@@ -2377,15 +2383,18 @@ public partial class MainViewModel
         foreach (var index in candidates.Distinct())
         {
             if (index < 0 || index >= scene.FrameCount || index == current) continue;
-            foreach (var layer in scene.Layers)
+            // Everything the paused picture there draws: each layer's drawing
+            // and, with onion skin on, its ghosts. Preparing the drawing alone
+            // left a forward flip rendering the next key's ghosts while the
+            // artist waited — 1.1-1.6 s of every one on the lab's large
+            // document (2026-10-11).
+            foreach (var (frame, cel) in StillImagesNeeded(index))
             {
-                if (!scene.IsLayerVisible(layer)) continue;
-                if (ExposureSheet.ExposedFrame(layer, index) is not { } frame) continue;
-                if (!FrameBitmapCache.CanCache(frame) || _cache.Rig.IsPosed(frame)) continue;
-                if (_cache.Holds(frame, scene.Width, scene.Height, 1.0, index)) continue;
+                if (_cache.Rig.IsPosed(frame)) continue;
+                if (_cache.Holds(frame, scene.Width, scene.Height, 1.0, cel)) continue;
                 if (jobs.Count >= room) return jobs;
-                if (!seen.Add($"{frame.Id}#{index}")) continue;
-                jobs.Add(new WarmRequest(frame, scene.Width, scene.Height, index, WarmProduct.Bitmap, Neighbour: true));
+                if (!seen.Add($"{frame.Id}#{cel}")) continue;
+                jobs.Add(new WarmRequest(frame, scene.Width, scene.Height, cel, WarmProduct.Bitmap, Neighbour: true));
             }
         }
         return jobs;
