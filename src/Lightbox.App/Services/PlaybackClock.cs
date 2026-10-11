@@ -163,6 +163,28 @@ public sealed class PlaybackClock
     }
 
     private readonly DispatcherTimer _timer = new(Priority);
+
+    /// <summary>
+    /// This clock's hold on 1 ms timing (<see cref="TimerResolution"/>): taken
+    /// on start, given back on stop. A separate object so the tick, which holds
+    /// the clock only weakly, can still give it back.
+    /// </summary>
+    private readonly ResolutionHold _resolution = new();
+
+    private sealed class ResolutionHold
+    {
+        private int _held;
+
+        public void Take()
+        {
+            if (Interlocked.Exchange(ref _held, 1) == 0) TimerResolution.Hold();
+        }
+
+        public void Release()
+        {
+            if (Interlocked.Exchange(ref _held, 0) == 1) TimerResolution.Release();
+        }
+    }
     private readonly Stopwatch _elapsed = new();
 
     private TimeSpan _frameDuration = TimeSpan.FromSeconds(1.0 / 12);
@@ -203,10 +225,19 @@ public sealed class PlaybackClock
         // the dispatcher is left rooting only the timer object itself.
         var weakSelf = new WeakReference<PlaybackClock>(this);
         var timer = _timer;
+        var resolution = _resolution;
         _timer.Tick += (_, _) =>
         {
-            if (weakSelf.TryGetTarget(out var self)) self.OnTimer();
-            else timer.Stop();
+            if (weakSelf.TryGetTarget(out var self))
+            {
+                self.OnTimer();
+            }
+            else
+            {
+                timer.Stop();
+                // A clock collected while running still gives its timing back.
+                resolution.Release();
+            }
         };
     }
 
@@ -217,6 +248,9 @@ public sealed class PlaybackClock
         _nextFrameDue = _frameDuration;
         _timer.Interval = _frameDuration;
         _tally = default;
+        // Finer than the system timer's default ~15.6 ms, or a 41.7 ms frame is
+        // woken at 31 or 47 ms and the pacing drops frames to stay in time.
+        _resolution.Take();
         _timer.Start();
     }
 
@@ -303,6 +337,7 @@ public sealed class PlaybackClock
     {
         _timer.Stop();
         _elapsed.Stop();
+        _resolution.Release();
     }
 
     private void OnTimer()
