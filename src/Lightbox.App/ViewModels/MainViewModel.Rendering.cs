@@ -947,6 +947,9 @@ public partial class MainViewModel
         _publish.BumpRenderEpoch();
         if (keepFramesOf is null) _cache.Clear();
         _tileFrames.Clear();
+        // Unreachable already (the epoch moved); cleared so a closed or
+        // switched-away document's pictures are not held until the next store.
+        _revisits.Clear();
         // Correctness does not need this — every flatten key carries the stamp of
         // tiles that no longer exist, so none of them can be found again. It is
         // here because "the whole document changed" is the moment those bytes are
