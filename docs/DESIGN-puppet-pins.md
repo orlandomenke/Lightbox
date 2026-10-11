@@ -1,11 +1,10 @@
 # Puppet pins — design and plan
 
-*Status: designed 2026-10-10, **not built**. This branch carries the plan, the
-decision record (Q239), the API surface as stubs that throw, and the tests.
-First build and run 2026-10-11 (Release, `Lightbox.Core.Tests`): all 40 pin
-tests red with `NotImplementedException`, and three lab-wiring tests red for
-the fixtures, spans and shortcut that do not exist yet. The bone baseline
-moved to its own branch — see* The bone baseline, measured *below.*
+*Status: designed 2026-10-10; **the geometry is built** (2026-10-11) —
+`PinMesh`, `PinSolve` and `PinSkinning` in Core, with their tests green. Nothing
+an artist can reach yet: no record, no render path, no tool. Decisions are in
+Q239. The bone rig's baseline and the lab's `pose-drag` scenario landed
+separately (B442, and the lab branch); what they found is under* Performance.*
 
 The request (owner, 2026-10-10): After Effects' Puppet tool — a mesh that
 deforms the drawing and can be shown as simple lines, pins that act as joints,
@@ -62,8 +61,9 @@ not boil. Imported pixels are the one thing drawn *through* the mesh, by the
 A regular triangle grid clipped to the drawing's silhouette:
 
 1. Lay a grid of `Cell` units over the drawing's bounds.
-2. Mark every cell a stroke's ink reaches (control points and their brush
-   radius; a fill's contours mark what they enclose).
+2. Mark every cell a stroke's path passes through — the path, not the
+   brush's width, so a wide brush cannot join two limbs drawn apart. A
+   fill's contours are closed and mark what they enclose.
 3. Flood the unmarked cells from the border. What the flood cannot reach is
    *inside*.
 4. Keep marked and inside cells; two triangles each.
@@ -89,15 +89,42 @@ texture.
 As-rigid-as-possible shape manipulation (Igarashi, Moscovich, Hughes 2005 —
 published, and already cleared by the licensing section of the bones design).
 
+The paper's two steps, as built:
+
+1. **Similarity.** Every triangle tries to stay similar to itself — free to
+   turn and scale, not to shear. Quadratic in the vertices, so with the pins
+   held it is one linear solve, and it reproduces any turn of the pins
+   exactly, a half turn included. Because the energy has no force of its own,
+   the answer is linear in the pins' displacement: `Prepare` works out that
+   matrix once and a drag only multiplies by it.
+2. **Rigid fit.** Each rest triangle is fitted rigidly onto its step-one
+   self, and the mesh is solved once more so that every edge is as near its
+   fitted one as the pins allow — one banded back-substitution per axis.
+
 - **`Prepare(mesh, pins)`** — once, when pins are placed or the mesh changes:
-  assemble and factorise (banded Cholesky, fixed elimination order).
-- **`Solve(targets, deformed)`** — per pointer event and per rendered frame:
-  back-substitution, a fixed number of local/global rounds, into the caller's
-  buffer, allocating nothing.
-- Position pins are hard constraints; a starch pin raises rigidity within its
-  extent and holds no position.
-- A piece of the mesh with no position pin is left out and stays at rest.
+  two banded Cholesky factorisations in a fixed order.
+- **`Solve(targets, deformed)`** — per pointer event and per rendered frame,
+  into the caller's buffer, allocating nothing. Exactly two steps; no
+  iteration and no tolerance.
+- **Pins are exact.** A pin anywhere in a triangle is a linear constraint on
+  its corners, enforced through the constraints' own small system rather
+  than a stiff spring, so a pin lands on its target to rounding.
+- A starch pin makes the triangles within its extent up to sixty times
+  stiffer in both steps and holds no position.
+- A piece of the mesh with no position pin stays at rest; a piece with one is
+  carried by it without bending.
 - No pin moved → rest positions copied, bit-exact, no solve.
+
+**What the solve showed about pins, and it is After Effects' behaviour too:**
+a pin is a point, a point is a pivot, and a body held at two points flexes
+between them like a beam. On the test fork — two prongs on a base — dragging
+one prong's tip 80 units moved the *other* prong's tip 28 with two pins on the
+base, which is no better than a blend that knows nothing about shape (also
+28). With a third base pin it moved 7.0 against the blend's 21.7; with a pin
+at the far prong's root 3.5; with starch over the base 11.2. So the mesh's
+knowledge of the silhouette pays off once the body is held, and the tool
+should make holding it easy — starch as a one-click "this part is solid" is
+not an extra.
 
 ### The record
 
@@ -143,18 +170,22 @@ what the lab measures. The expectation, to be confirmed by the baseline, is
 that re-stamping dominates and that pins and bones therefore cost about the
 same on screen.
 
-**Budgets written as tests** (`Category=Performance`, minimum of several runs,
-absolutes printed, nothing rendered):
+**Budgets, written as tests before the solve existed, and what it measured**
+(2026-10-11, owner's machine, Release, minimum of runs, alone):
 
-| Budget | Rules out |
-| --- | --- |
-| Largest mesh solves inside one refresh (16.7 ms) | a dense solve |
-| Default mesh solves in a tenth of a refresh | — |
-| A drag costs under a quarter of `Prepare` | refactorising per pointer event |
-| `Solve` into the caller's buffer allocates 0 bytes | garbage on the UI thread |
-| 20,000 points mapped inside one refresh | a linear triangle search |
-| Re-meshing a drawing under 100 ms, vertex cap held at 4K | an unbounded mesh |
-| Posing strokes through pins ≤ 3× posing through a bone | pins being the slow way to rig |
+| Budget | Measured | Rules out |
+| --- | --- | --- |
+| Largest mesh (3,888 vertices, 7 pins) solves inside one refresh | 1.3 ms | a dense solve |
+| An ordinary mesh (858 vertices) solves well under a refresh | 0.33 ms | — |
+| A drag costs under a quarter of `Prepare` | 1.6 ms against 112 ms | refactorising per pointer event |
+| `Solve` into the caller's buffer allocates nothing | 0 bytes | garbage on the UI thread |
+| 20,000 points mapped through 7,526 triangles | 2.4 ms | a linear triangle search |
+| Meshing a 4K drawing, vertex cap held | 8.6 ms | an unbounded mesh |
+| Posing 200 strokes through pins against through a bone | 4.2 ms against 8.5 ms | pins being the slow way to rig |
+
+Placing a pin on the largest mesh costs 112 ms — a hitch on the click that
+drops it, never on a drag. Ceilings in the tests sit well above the measured
+figures, because the suite runs beside others (B442 measured a tenfold swing).
 
 ### The bone baseline, measured — and corrected
 
@@ -179,16 +210,23 @@ auto-bind — fixed as **B442** on `perf/rig/posed-frame-geometry`, where
 `BoneRigPerformanceTests` now lives. The pin budgets on this branch
 take the corrected warm-up too (`PinSolvePerformanceTests.MinMs`).
 
-**The lab.** Two scenarios that make the *same* wrist gesture, so they are one
-comparison:
+**The lab.** `pose-drag` (bones) exists and has been run once cleanly, before
+B442 reached main (3 runs, `rigged` fixture — 60 lines on a two-bone arm):
+posing the geometry (`pose.frame`) 4.2 ms, **re-stamping the posed arm
+(`raster.miss`) 380 ms**, release 891 ms, undo 897 ms, 15 s of stalls a run.
+So the geometry is about 1% of a posed frame and the re-stamp is the rest: a
+pose drag updates two or three times a second today, and pins re-stamp
+through the same mechanism. An unposed drawing of similar size missed in
+5.4 ms in the same run — per stroke about twenty times cheaper — which is one
+data point and has not been investigated. **That investigation waits for the
+owner's painting refactor to land** (owner, 2026-10-11): the cost is in the
+stamping path the refactor is changing.
 
-- `pose-drag` — existing bones. Needs a `rigged` fixture and three spans
-  (`pose.drag`, `pose.frame`, `pose.commit`).
-- `pin-drag` — pins. Needs a `pinned` fixture and `pin.drag`, `pin.solve`,
-  `pin.frame`, `pin.commit`, `pin.prepare`.
-
-`RigLabScenarioTests` fails until those fixtures and spans exist, so a
-scenario cannot quietly measure nothing.
+`pin-drag` is the same wrist gesture through pins, so the two are one
+comparison. Its scenario file and wiring tests were written with the plan and
+are parked until the render step, when the `pinned` fixture, the `pin.*`
+spans and the `armature.pinMode` shortcut exist for them to be wired to (the
+file as written is in this branch's history at 67c64229).
 
 **Acceptance for phase 1:** `lab.py ab`-style comparison of `pin-drag` against
 `pose-drag` on the same build — no metric more than 15% above its bone
@@ -202,7 +240,7 @@ and land exactly on release (Q81 decision 5). Pins inherit it by going through
 
 ## Tests
 
-Written on this branch, red until built:
+On this branch, green:
 
 | File | Covers |
 | --- | --- |
@@ -210,23 +248,24 @@ Written on this branch, red until built:
 | `PinSolveTests` (13) | identity to the bit; pins land exactly; one pin translates; rigid motions reproduced; bend keeps area and folds nothing; one prong does not pull the other; unpinned piece stays; starch; starch target ignored; NaN targets; no pins; wrong target count; determinism |
 | `PinSkinningTests` (3) | record untouched and rest path carried; unmoved mesh hands the stroke back; a two-point line bends |
 | `PinSolvePerformanceTests` (7) | the budgets above |
-| `RigLabScenarioTests` (4) | fixtures exist; measured spans are written; both scenarios make the same gesture; the shortcut is registered |
 
-Moved to `perf/rig/posed-frame-geometry` (B442), where it runs green against
-existing code: `BoneRigPerformanceTests` (8), the bone baseline.
+Elsewhere: `BoneRigPerformanceTests` (8) on main with B442;
+`PoseDragPerfLogTests` and `RigLabScenarioTests` on the lab branch.
 
-**Not written here, and why:** the record tests (`APinlessRigWritesNoPinsKey`,
+**Not written yet, and why:** the record tests (`APinlessRigWritesNoPinsKey`,
 `PinsRoundTrip`, `CloningARigCopiesItsPins`, `APinKeyIsAnOrdinaryPoseKey`) and
 the App tests (tool mode, overlay, undo, bake, MCP). They need `Armature.Pins`
-to exist to compile, and `Armature.cs` is a sensitive record file this branch
-deliberately does not touch. They are the first commit of step 2 — red first,
-there.
+to exist to compile, and `Armature.cs` is a sensitive record file. They are
+the first commit of the record step — red first, there.
 
-**Thresholds are provisional.** Each geometric limit (a tenth of the drag, a
-residual of 3, half the starch residual) is a first statement of intent. Per
-house practice they are re-set by breaking the solve on purpose — translation
-only, similarity step only, straight-line weights — and placing each limit
-between what the right answer scores and what the wrong ones do.
+**Where the limits sit.** Two of the geometric tests carry their wrong answer
+with them: a blend of the pins' displacements by straight-line distance, with
+no mesh and no rigidity, computed in the same test. A bent forearm keeps a
+rigid residual of 3.0 where the blend leaves 26.1; the far prong moves 7.0
+where the blend moves it 21.7. Rigid motions of the pins come back exact to
+1e-11, and starch takes a bent patch's residual from 2.23 to 0.32. Still to
+do when the adversary reviews it: break the solve itself (step one only) and
+confirm the bend test's area and residual limits catch it.
 
 ## Steps
 
@@ -235,7 +274,8 @@ between what the right answer scores and what the wrong ones do.
 | 0 | Build this branch; confirm the pin tests are red for the right reason and record what `BoneRigPerformanceTests` measures — **done 2026-10-11** | this one | S |
 | 1a | The two rig costs the baseline found (B442) — **done 2026-10-11**; `BoneRigPerformanceTests` lives there | `perf/rig/posed-frame-geometry` | S |
 | 1b | Bone baseline in the lab: `rigged` fixture in `Lightbox.Bench`, `pose.*` spans, run `pose-drag`. **Spike:** mesh a real frame-by-frame layer drawing by drawing and measure how much the mesh changes | `perf/lab/rig-baseline` | S–M |
-| 2 | `PinMesh` + `PinSolve` + `PinSkinning` in Core to green; record (`Armature.Pins`), optional-absent, with its tests first; sensitivity review | `feat/puppet-pins-core` | L |
+| 2a | `PinMesh` + `PinSolve` + `PinSkinning` in Core to green — **done 2026-10-11** | `feat/puppet-pins` | L |
+| 2b | The record: `Armature.Pins`, optional-absent, its tests first; pins solved to a posed frame beside bones; sensitivity review | `feat/puppet-pins-record` | M |
 | 3 | Render path: pins through `PoseFrameForRender`, imported pixels through `PassMesh`, bake, `pin.*` spans, `pinned` fixture, run `pin-drag` against the acceptance line | `feat/puppet-pins-render` | M |
 | 4 | The tool: Pins mode, overlay (outline / full mesh), options, shortcut, undo, manual, workspace defaults | `feat/ui/puppet-pins-tool` | M–L |
 | 5 | MCP surface and rig export for pins | separate | S–M |
@@ -251,11 +291,18 @@ between what the right answer scores and what the wrong ones do.
    question for the owner (freeze the mesh at pin time, as After Effects does).
 2. **Open line art.** A gap wider than a cell drains the shape. Fallback:
    coarsen until it closes, and say so in the overlay. Untested on real art.
+   Related, and decided by the build: the mesh follows the pen's path and not
+   the brush's width, so a figure painted with a broad brush and no outline
+   is meshed as its centrelines — thin. Whether a painted figure needs the
+   brush's reach marked too is a question for real paintings.
 3. **Determinism of the factorisation across runtimes.** Plain double
    arithmetic in a fixed order should be bit-stable, as the brush engine's is
    (`RuntimeDeterminismTests`); a fingerprint test belongs in step 2.
 4. **Bones gaining scale** (phase 2) touches the pose record, IK, both
    exporters and the no-boil rule's seeding space. Larger than its one line in
    the decision table suggests.
-5. **Re-stamp cost is unmeasured.** Everything above about on-screen speed is
-   an expectation until step 1 produces numbers.
+5. **Re-stamp cost is measured and is the problem**: 380 ms for a 60-line
+   posed arm. Nothing built here makes a pin drag feel fast until that is
+   understood, and it waits on the painting refactor.
+6. **A body held by two pins flexes.** The solve's own finding, above. The
+   tool has to make holding a body easy or pins will read as rubbery.

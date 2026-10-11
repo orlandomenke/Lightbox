@@ -49,6 +49,34 @@ internal static class PinShapes
     public static Stroke Fork() => Outline(
         (0, 0), (60, 0), (60, 200), (240, 200), (240, 0), (300, 0), (300, 260), (0, 260));
 
+    /// <summary>
+    /// What a deformer with no mesh and no rigidity does: every vertex takes
+    /// the pins' displacements blended by inverse-square distance in a
+    /// straight line. The wrong answer the solve is measured against — it
+    /// cannot turn anything, and it does not know a gap from a limb.
+    /// </summary>
+    public static (double X, double Y)[] StraightLineBlend(
+        PinMesh mesh, IReadOnlyList<PinHandle> pins, IReadOnlyList<(double X, double Y)> targets)
+    {
+        var moved = new (double X, double Y)[mesh.Vertices.Count];
+        for (var v = 0; v < moved.Length; v++)
+        {
+            var (x, y) = mesh.Vertices[v];
+            double sum = 0, dx = 0, dy = 0;
+            for (var p = 0; p < pins.Count; p++)
+            {
+                if (pins[p].Kind != PinKind.Position) continue;
+                var d2 = (x - pins[p].X) * (x - pins[p].X) + (y - pins[p].Y) * (y - pins[p].Y);
+                var w = 1 / (d2 + 1e-9);
+                sum += w;
+                dx += w * (targets[p].X - pins[p].X);
+                dy += w * (targets[p].Y - pins[p].Y);
+            }
+            moved[v] = (x + dx / sum, y + dy / sum);
+        }
+        return moved;
+    }
+
     /// <summary>Area of the whole mesh at the given vertex positions.</summary>
     public static double Area(PinMesh mesh, IReadOnlyList<(double X, double Y)> at)
     {

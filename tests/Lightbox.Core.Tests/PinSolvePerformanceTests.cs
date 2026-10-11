@@ -14,10 +14,14 @@ namespace Lightbox.Core.Tests;
 /// <remarks>
 /// Every timing is the <b>minimum</b> of several runs: contention only ever
 /// adds, so the minimum is the cost and the median is the cost plus the
-/// machine's afternoon. Absolutes are printed, ceilings are loose, and nothing
-/// here renders a pixel. The ceilings are to be re-set against deliberately
-/// broken solves (a dense factorisation, a refactor per drag, a linear
-/// triangle search) once there is a real one to break.
+/// machine's afternoon. Absolutes are printed and nothing here renders a
+/// pixel. <b>Measured 2026-10-11</b> on the owner's machine, alone: the
+/// largest mesh solves in 1.3 ms and an ordinary one in 0.33 ms; placing pins
+/// on the largest costs 112 ms; 20,000 points map in 2.4 ms; a 4K drawing
+/// meshes in 8.6 ms; posing strokes through pins costs half what a bone
+/// does. The ceilings sit well above those because this suite runs beside
+/// others — the bone baseline measured a tenfold swing in that company
+/// (B442) — and each still rules out the implementation its test names.
 /// </remarks>
 public class PinSolvePerformanceTests(ITestOutputHelper output)
 {
@@ -90,11 +94,11 @@ public class PinSolvePerformanceTests(ITestOutputHelper output)
 
     [Fact]
     [Trait("Category", "Performance")]
-    public void ADefaultMeshSolvesInAFractionOfARefresh()
+    public void ADefaultMeshSolvesInWellUnderARefresh()
     {
-        // The ordinary case: one character at the default cell. A tenth of a
-        // refresh, so that a puppet on every layer of a shot still leaves the
-        // frame to the brush.
+        // The ordinary case: one character at the default cell. A third of a
+        // millisecond measured, so a puppet on every layer of a shot still
+        // leaves the frame to the brush.
         var mesh = PinMesh.Build([PinShapes.Box(0, 0, 500, 900)]);
         PinHandle[] pins = [new(250, 60), new(250, 450), new(80, 300), new(420, 300), new(150, 850), new(350, 850)];
         var targets = pins.Select((p, i) => (p.X + i * 7.0, p.Y - i * 5.0)).ToArray();
@@ -104,7 +108,7 @@ public class PinSolvePerformanceTests(ITestOutputHelper output)
         var ms = MinMs(20, () => solve.Solve(targets, deformed));
 
         output.WriteLine($"{mesh.Vertices.Count} vertices at the default cell: solve {ms:F4} ms");
-        Assert.True(ms < RefreshMs / 10, $"an ordinary puppet costs {ms:F3} ms a drag");
+        Assert.True(ms < RefreshMs / 2, $"an ordinary puppet costs {ms:F3} ms a drag");
     }
 
     [Fact]
@@ -150,8 +154,9 @@ public class PinSolvePerformanceTests(ITestOutputHelper output)
     public void FindingAPointsTriangleDoesNotSearchTheMesh()
     {
         // Every control point of every stroke is mapped every frame. On a
-        // regular grid that is a division; a scan over ~8,000 triangles for
-        // each of 20,000 points is 160 million tests and a visible stall.
+        // regular grid that is a division — 2.4 ms for these — where a scan
+        // over ~8,000 triangles for each of 20,000 points is 160 million
+        // tests and several hundred milliseconds.
         var (mesh, pins, targets) = Largest();
         var deformed = PinSolve.Prepare(mesh, pins).Solve(targets);
         var points = Enumerable.Range(0, 20_000)
@@ -168,7 +173,7 @@ public class PinSolvePerformanceTests(ITestOutputHelper output)
         });
 
         output.WriteLine($"20,000 points through {mesh.Triangles.Count / 3} triangles: {ms:F2} ms ({sink:E1})");
-        Assert.True(ms < RefreshMs, $"mapping a drawing's points costs {ms:F1} ms a frame");
+        Assert.True(ms < 60, $"mapping a drawing's points costs {ms:F1} ms a frame");
     }
 
     [Fact]
