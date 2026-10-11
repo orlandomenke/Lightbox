@@ -297,7 +297,7 @@ On this branch, green:
 Elsewhere: `BoneRigPerformanceTests` (8) on main with B442;
 `PoseDragPerfLogTests` and `RigLabScenarioTests` on the lab branch.
 
-`PinRecordTests` (19) covers the record: absent unless used, the round trip,
+`PinRecordTests` (24) covers the record: absent unless used, the round trip,
 a pin-only rig, newer keys kept, cloning, pin keys as pose keys, a pin riding
 a bone, non-finite keys, the hand-off to the solve, image resize on one rig
 and on two, rig fitting, and a rigged document written by a build without

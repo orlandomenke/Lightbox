@@ -63,9 +63,13 @@ public sealed class Pin
     /// </summary>
     public string? ParentId { get; set; }
 
-    /// <summary>The kind actually in force. Derived; never serialized.</summary>
+    /// <summary>
+    /// The kind actually in force. Derived; never serialized. Anything that
+    /// is not starch is a position pin — including a number a file supplied
+    /// that names no kind at all.
+    /// </summary>
     [JsonIgnore]
-    public PinKind EffectiveKind => Kind ?? PinKind.Position;
+    public PinKind EffectiveKind => Kind == PinKind.Starch ? PinKind.Starch : PinKind.Position;
 
     /// <summary>A copy holding no reference in common with this one.</summary>
     public Pin Clone() => (Pin)MemberwiseClone();
@@ -103,6 +107,12 @@ public static class PinOps
     /// A pin's own offset is in its bone's frame, the way a child bone's is
     /// in its parent's: turn the arm and the offset turns with it. A parent
     /// id that names no bone is treated as no parent, like a bone's.
+    /// <para>
+    /// "At rest" means a null pose, as it does for bones: a pose that is
+    /// merely empty still runs inverse kinematics and constraints, so on a
+    /// rig that has them a pin riding a driven bone goes where the solver
+    /// puts that bone.
+    /// </para>
     /// </remarks>
     public static (double X, double Y)[] TargetsAt(Armature armature, IReadOnlyDictionary<string, BonePose>? pose)
     {
@@ -113,7 +123,8 @@ public static class PinOps
         {
             var pin = pins[i];
             var (x, y) = (pin.X, pin.Y);
-            if (pose is not null && pose.TryGetValue(pin.Id, out var own))
+            // A file can say "id": null; a dictionary cannot be asked for it.
+            if (pose is not null && pin.Id is { } id && pose.TryGetValue(id, out var own))
             {
                 if (double.IsFinite(own.X)) x += own.X;
                 if (double.IsFinite(own.Y)) y += own.Y;

@@ -253,6 +253,36 @@ public class PinRecordTests(ITestOutputHelper output)
         Assert.Equal((300.0, 100.0), PinOps.TargetsAt(rig, pose)[0]);
     }
 
+    [Theory]
+    [InlineData("\"pins\": [null]", 0)]
+    [InlineData("\"pins\": [null, {\"id\": \"p\", \"x\": 5, \"y\": 6}]", 1)]
+    [InlineData("\"pins\": [{\"id\": null, \"x\": 5, \"y\": 6}]", 1)]
+    [InlineData("\"pins\": [{\"id\": \"p\", \"x\": 5, \"y\": 6, \"kind\": 7, \"extent\": -5}]", 1)]
+    [InlineData("\"pins\": [{\"id\": \"p\", \"parentId\": \"p\"}, {\"id\": \"p\", \"parentId\": \"upper\"}]", 2)]
+    public void AFileThatSaysSomethingOddAboutItsPinsIsReadWithoutACrash(string pins, int kept)
+    {
+        // Found by the adversary: a null in the list crashed the hand-off to
+        // the solve, and a null id crashed posing. A document is input.
+        var json = DocJson.Serialize(DocWith(Rig()));
+        var from = json.IndexOf("\"pins\"", StringComparison.Ordinal);
+        var to = json.IndexOf(']', from) + 1;
+        json = json[..from] + pins + json[to..];
+
+        var doc = DocJson.Deserialize(json);
+        var rig = doc.Armature!;
+        var pose = new Dictionary<string, BonePose> { ["fore"] = new() { RotationDeg = 30 }, ["p"] = new() { X = 1 } };
+
+        Assert.Equal(kept, rig.Pins!.Count);
+        var handles = PinOps.HandlesOf(rig);
+        Assert.Equal(kept, handles.Length);
+        Assert.All(handles, h => Assert.Equal(PinKind.Position, h.Kind));
+        Assert.Equal(kept, PinOps.TargetsAt(rig, null).Length);
+        Assert.Equal(kept, PinOps.TargetsAt(rig, pose).Length);
+        Assert.Equal(kept, rig.Clone().Pins!.Count);
+        Assert.True(ImageResize.Apply(doc, doc.Scene.Width * 2, doc.Scene.Height * 2, new NoPixels()));
+        _ = DocJson.Serialize(doc);
+    }
+
     [Fact]
     public void TheSolveIsHandedThePinsInTheRecordsOrderWithTheirKinds()
     {

@@ -215,7 +215,23 @@ public sealed class Armature
     /// the bones, posed through the same keys. Null rather than empty for the
     /// reason <see cref="Chains"/> is: a rig that never pins writes no key.
     /// </summary>
-    public List<Pin>? Pins { get; set; }
+    /// <remarks>
+    /// A null entry in the list is dropped as it is set: a file can write
+    /// <c>"pins": [null]</c>, it carries nothing to lose, and everything that
+    /// walks the pins — the solve, a copy, a resize — would otherwise have to
+    /// check for it one by one.
+    /// </remarks>
+    public List<Pin>? Pins
+    {
+        get => _pins;
+        set
+        {
+            value?.RemoveAll(pin => pin is null);
+            _pins = value;
+        }
+    }
+
+    private List<Pin>? _pins;
 
     /// <summary>
     /// The spacing of the mesh the pins deform, in document units, or null
