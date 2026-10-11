@@ -2502,7 +2502,7 @@ public static class BrushEngine
     /// The wet edge, as the cap applies it: how dark, and how far in from the
     /// mark's edge, in the footprint buffer's own pixels.
     /// </summary>
-    /// <param name="Strength">0..1: the most a pixel's colour is darkened, right at the edge.</param>
+    /// <param name="Strength">0..1: the brush's wet edge - how far the paint is gathered to the rim.</param>
     /// <param name="WidthPx">How far inside the edge the darkening reaches. Zero is no rim.</param>
     public readonly record struct Rim(float Strength, float WidthPx);
 
@@ -2510,7 +2510,7 @@ public static class BrushEngine
     public static Rim RimOf(BrushSettings brush, double bufferScale) =>
         NeedsRim(brush)
             ? new Rim(
-                (float)(Math.Clamp(brush.WetEdge, 0, 1) * 150.0 / 255.0),
+                (float)Math.Clamp(brush.WetEdge, 0, 1),
                 (float)Math.Max(0.5, RimWidth(brush) * bufferScale))
             : default;
 
@@ -2527,6 +2527,15 @@ public static class BrushEngine
     /// The cap itself: every ink pixel in <paramref name="band"/> held down to
     /// its ceiling, read either index-for-index or through the scaled lookup.
     /// </summary>
+    /// <summary>How much of the middle of a mark a full wet edge carries away.</summary>
+    private const float RimThinsTheMiddle = 0.35f;
+
+    /// <summary>How much denser than laid the paint is at the rim of a full wet edge.</summary>
+    private const float RimGathersAtTheEdge = 0.9f;
+
+    /// <summary>How much darker the gathered paint is, on top of there being more of it.</summary>
+    private const float RimDarkens = 0.25f;
+
     public static void CapCore(
         Span<byte> ink, int inkRow, SKRectI band,
         ReadOnlySpan<byte> cap, int capRow, int capW, int capH,
@@ -2658,11 +2667,13 @@ public static class BrushEngine
                     alpha = ceiling;
                 }
 
-                // The wet edge: pigment pooled where the wash stops. Darker
-                // toward the mark's edge, by how far inside it this pixel sits,
-                // and weighted by how much paint is there at all so the faint
-                // skirt of a soft brush does not turn into a dark halo. Colour
-                // only — this is paint that moved, not more of it.
+                // The wet edge: pigment carried to where the wash stops. The
+                // middle of the mark is thinned, its rim is denser and a little
+                // darker - more paint there and less behind it, which is what a
+                // drying wash does and what makes one read as water rather
+                // than as a soft brush (Q244). It was a darkening of the colour
+                // alone, on the argument that the paint only moved; on a pale
+                // wash that could not be seen at all.
                 if (rimWindow is null || alpha == 0) continue;
                 byte edge;
                 if (direct)
@@ -2679,11 +2690,16 @@ public static class BrushEngine
                     var bottom = c01 + ((c11 - c01) * tx);
                     edge = (byte)Math.Clamp(top + ((bottom - top) * ty) + 0.5, 0, 255);
                 }
-                if (edge == 0) continue;
-                var keep = 1f - (rim.Strength * (edge / 255f) * MathF.Min(1f, alpha * (4f / 255f)));
-                ink[i] = (byte)((ink[i] * keep) + 0.5f);
-                ink[i + 1] = (byte)((ink[i + 1] * keep) + 0.5f);
-                ink[i + 2] = (byte)((ink[i + 2] * keep) + 0.5f);
+                var e = edge / 255f;
+                var inside = 1f - (RimThinsTheMiddle * rim.Strength);
+                var atRim = 1f + (RimGathersAtTheEdge * rim.Strength);
+                var pooled = MathF.Min(255f, alpha * (inside + ((atRim - inside) * e)));
+                var gain = (pooled / alpha) * (1f - (RimDarkens * rim.Strength * e));
+                // Premultiplied: a colour channel can never pass the alpha.
+                ink[i] = (byte)MathF.Min(pooled, (ink[i] * gain) + 0.5f);
+                ink[i + 1] = (byte)MathF.Min(pooled, (ink[i + 1] * gain) + 0.5f);
+                ink[i + 2] = (byte)MathF.Min(pooled, (ink[i + 2] * gain) + 0.5f);
+                ink[i + 3] = (byte)(pooled + 0.5f);
             }
         }
         }

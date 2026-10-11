@@ -340,7 +340,17 @@ same curves, when it does.
 
 ## Physical media
 
-Watercolour, gouache, oil and ink are simulated, not imitated with a texture:
+**Watercolor is no longer simulated.** It is a wash built from parts that are
+finished under the pen: a crisp-edged, thin layer of paint, a **wet edge** that
+gathers its pigment at the rim and thins the middle, the scanned **Fibre**
+sheet, colour picked up from what it is laid over, and paint that runs out
+along the stroke. What you see while drawing is what is kept when you lift.
+Gouache, oil and ink wash are being rebuilt the same way; until then the
+rest of this section describes them, and the Medium option, as they are.
+
+*Planned:* gouache, oil and ink wash without the simulation.
+
+Gouache, oil and ink are simulated, not imitated with a texture:
 wetness, viscosity, absorbency, edge pull, pigment density, granulation, paper
 grain. The simulation is **deterministic** — the same stroke always produces
 the same mark, on reload, after undo, and when the inbetweener replays it.
@@ -348,12 +358,12 @@ the same mark, on reload, after undo, and when the inbetweener replays it.
 That determinism is not a detail. An effect that varies subtly between similar
 strokes looks fine on one image and *boils* at 12 fps.
 
-The three wet-medium brushes ship with a tip and a heading rather than a bare
-circle: **Oil** uses the bristle tip turned to the stroke, **Gouache** a chisel
-turned the same way, and **Watercolor** an irregular wash edge with a little
-size and roundness variation and no heading at all — a wash edge is not
-directional. All of that variation is seeded from where each dab lands, so a
-mark is varied and still replays identically.
+**Oil** and **Gouache** ship with a tip and a heading rather than a bare
+circle: Oil uses the bristle tip turned to the stroke, Gouache a chisel turned
+the same way. Their variation is seeded from where each dab lands, so a mark
+is varied and still replays identically. **Watercolor** is round and even on
+purpose — its wet edge follows the outline of the whole stroke, and a tip that
+varied in size would break that rim into dashes.
 
 **Bristle drag and pickup are not on the Medium option**, and that is deliberate
 rather than missing. Both need the paint to be pushed along the stroke's own
@@ -470,7 +480,7 @@ recomputed while you draw.
 | **Marker nib** | Squarish with rounded corners, the shape a chisel marker lays down. |
 | **Cut nib** | Six flats and six corners. The only tip here with a point. |
 | **Spatter** | Grains with a size, not fog: a sponge, a stipple, a rough charcoal edge. |
-| **Wet edge** | Pale in the middle, dark at the rim — the mark a puddle leaves when it dries, stamped rather than simulated. |
+| **Wet edge** | Gathers the paint at the rim and thins the middle — the mark a wash leaves when it dries. Laid under the pen as you draw; the rim follows the outline of the stroke so far. |
 
 Built-ins cannot be deleted or renamed, because drawings refer to them by name
 under the hood. **Edit a copy** puts one back on the Generate page so you can

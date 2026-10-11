@@ -249,54 +249,27 @@ public static class BuiltInPresets
         {
             Id = "builtin-watercolor-wet",
             Name = "Watercolor",
+            // A wash, without the fluid simulation it used to run (Q240, Q244):
+            // a crisp-edged, thin layer of paint whose pigment gathers at the
+            // rim, on a sheet with visible fibre, that picks up what it is laid
+            // over and runs out along the stroke. Every part of it is finished
+            // under the pen - nothing changes when the pen lifts.
+            //
+            // Chosen from a sheet beside the simulated brush it replaces. Round
+            // and unjittered on purpose: the rim is measured from the edge of
+            // everything the stroke covered, so a tip that varies in size puts
+            // faint bumps on that edge and the rim breaks into dashes on them.
             Settings = new BrushSettings
             {
-                Size = 42, Hardness = 0.25, Opacity = 0.55, Flow = 0.45, Spacing = 0.08,
+                Size = 42, Hardness = 0.8, Opacity = 0.8, Flow = 0.35, Spacing = 0.08,
                 PressureFlowGamma = 0.8,
-                // B36 — a wash edge is not directional, so this gets an
-                // irregular tip and a little jitter rather than a heading.
-                // Both are seeded from dab position via Hash01, so the mark is
-                // varied and still reproducible (invariant 2).
-                TipId = "tip-builtin-wet-edge",
-                SizeJitter = 0.15, RoundnessJitter = 0.2,
-                // Q232: a wash picks up what it is laid over. The first sheet over
-                // a blue stroke, at amount 0.35 and length 0.7, was a grey smear —
-                // the lattice re-wets the ground as well, so the mixing has to
-                // stay nearer the paint than it would on a brush with no medium.
-                // CSP's own gouache ships at 80% paint and 15% stretch.
+                WetEdge = 0.7,
+                TextureSurface = PaperKind.Fibre, TextureScale = 8, TextureDepth = 0.35,
+                // Q232: a wash picks up what it is laid over.
                 Mixing = new ColourMixing { Amount = 0.6, Length = 0.3, Reach = 0.9 },
-                Medium = new MediumSettings
-                {
-                    Kind = MediumKind.Watercolour,
-                    // Very wet and very mobile: pigment travels, pools at the
-                    // boundary, and settles into the tooth as it dries.
-                    Wetness = 0.85, Viscosity = 0.1, Drag = 0.25, FlowSteps = 16,
-                    // B35 — EdgePull 0.7 left the centre at 3/255 alpha: a
-                    // white line down the middle of every stroke, and 0.06 was
-                    // as high as it could go. B431 found why: the capillary
-                    // term carved a channel down the medial axis at any pull.
-                    // With the interior draining evenly to the fringe instead,
-                    // the pull is back to where a wash pools at its edge the
-                    // way the owner asked — darkest at the rim, a wash within.
-                    Absorbency = 0.35, EdgePull = 0.45,
-                    PigmentDensity = 0.5, Granularity = 0.6, Hiding = 0.05,
-                    Paper = PaperKind.ColdPress, PaperScale = 14, PaperInfluence = 0.7,
-                    // A light touch is mostly water: paler, and it blooms.
-                    // Re-wetting off (Q232): the brush now picks up what it is
-                    // laid on dab by dab, in pigment. The lattice's re-wetting
-                    // lifted the paint beneath and mixed it linearly in RGB, and
-                    // the sheet over a blue stroke showed every medium greying
-                    // whatever the mixing did; with it off, yellow over blue
-                    // goes green. Still a slider — an artist who wants the
-                    // under-paint to flow with the wash can turn it back up.
-                    PressureWater = 0.8, Rewetting = 0,
-                    // B434: a loaded brush runs out. At 1 a wash grew heavier along
-                    // every stroke whose pressure rose, which is every stroke a hand
-                    // draws; here the depletion and the hand cancel over the first
-                    // fifths and the wash then fades and narrows. On Q236's reach
-                    // (Size * 6 * load / (1 - load)): nine diameters.
-                    PaintLoad = 0.6,
-                },
+                // Paint that runs out along the stroke (B434); no medium is
+                // simulated - the load is the one thing of it this keeps.
+                Medium = new MediumSettings { PaintLoad = 0.6 },
             },
         },
         new()
