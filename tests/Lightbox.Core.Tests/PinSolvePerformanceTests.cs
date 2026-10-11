@@ -40,8 +40,10 @@ public class PinSolvePerformanceTests(ITestOutputHelper output)
     {
         var warm = Stopwatch.StartNew();
         var settled = double.MaxValue;
-        for (var flat = 0; flat < 3 && warm.ElapsedMilliseconds < 2000;)
+        var calls = 0;
+        for (var flat = 0; (flat < 3 || calls < 60) && warm.ElapsedMilliseconds < 4000;)
         {
+            calls += 10;
             var batch = double.MaxValue;
             for (var i = 0; i < 10; i++)
             {
@@ -60,6 +62,27 @@ public class PinSolvePerformanceTests(ITestOutputHelper output)
             best = Math.Min(best, Stopwatch.GetElapsedTime(start).TotalMilliseconds);
         }
         return best;
+    }
+
+    /// <summary>
+    /// Two costs for a ratio, measured turn and turn about so that whatever
+    /// else the machine is doing lands on both. Measured one after the other
+    /// on a CI runner, pins came out at 51 ms against a bone's 14 — three and
+    /// a half times slower — where this machine measures them at half.
+    /// </summary>
+    private static (double A, double B) MinMsPair(int rounds, Action a, Action b)
+    {
+        var (bestA, bestB) = (MinMs(1, a), MinMs(1, b));
+        for (var i = 0; i < rounds; i++)
+        {
+            var t = Stopwatch.GetTimestamp();
+            a();
+            bestA = Math.Min(bestA, Stopwatch.GetElapsedTime(t).TotalMilliseconds);
+            t = Stopwatch.GetTimestamp();
+            b();
+            bestB = Math.Min(bestB, Stopwatch.GetElapsedTime(t).TotalMilliseconds);
+        }
+        return (bestA, bestB);
     }
 
     /// <summary>A figure-sized drawing meshed as finely as the cap allows: the worst case a drag can meet.</summary>
@@ -210,10 +233,10 @@ public class PinSolvePerformanceTests(ITestOutputHelper output)
         var mesh = PinMesh.Build([PinShapes.Bar()], cell: 20);
         PinHandle[] pins = [new(20, 30), new(200, 30), new(380, 30)];
         var bent = PinSolve.Prepare(mesh, pins).Solve([(20, 30), (200, 30), (330, 160)]);
-        var pinMs = MinMs(8, () =>
+        Action throughPins = () =>
         {
             foreach (var s in strokes) _ = PinSkinning.PoseStroke(s, mesh, bent);
-        });
+        };
 
         var armature = new Armature
         {
@@ -230,7 +253,7 @@ public class PinSolvePerformanceTests(ITestOutputHelper output)
             return copy;
         }).ToArray();
         var pose = new Dictionary<string, BonePose> { ["fore"] = new() { RotationDeg = 45 } };
-        var boneMs = MinMs(8, () =>
+        var (pinMs, boneMs) = MinMsPair(20, throughPins, () =>
         {
             foreach (var s in bound) _ = Skinning.PoseStroke(s, armature, pose);
         });
