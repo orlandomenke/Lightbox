@@ -611,6 +611,33 @@ is what finishing each band in turn came to; `LiveFinishIsPerLookTests` draws
 one stroke looked at once after thirty events and again looked at after each,
 and gets the same bytes; and every pen-up test is unchanged.
 
+**The lab on it** (five brushes against the frozen baseline, 60 / 150 /
+300 px at 900 and 3000 px/s, median ms; 240 strokes, all kept at pen-up):
+
+| | Oil | Watercolor | Gouache (flat) | Watercolor (flat) | soft round |
+| --- | --- | --- | --- | --- | --- |
+| a pointer event at 300 px, slow / fast, before this | 6.3 / 25.0 | 8.1 / 11.8 | 17.4 / 19.4 | 6.8 / 9.0 | 3.2 / 4.3 |
+| a pointer event at 300 px, slow / fast, now | 0.4 / 5.2 | 0.2 / 1.3 | 0.3 / 1.0 | 0.6 / 1.2 | 0.2 / 0.8 |
+| pen → screen at 300 px, fast pen, before | 1532 | 1412 | 1529 | 536 | 40 |
+| pen → screen at 300 px, fast pen, now | 42 | 38 | 40 | 38 | 42 |
+| pen → screen, worst frame anywhere, baseline | 63–164 | 98–199 | 124–325 | 69–360 | 92–182 |
+| pen → screen, worst frame anywhere, now | 63–114 | 60–73 | 59–65 | 60–79 | 62–66 |
+| pen-up, baseline | 67–180 | 74–181 | 80–304 | 81–338 | 64–226 |
+| pen-up, now | 12–24 | 13–29 | 13–22 | 12–26 | 13–17 |
+
+Every brush at every size and speed now holds the pacing floor - 34 to 43 ms
+pen to screen at the median - including the 300 px fast-pen cases that were a
+second and a half behind, and a pointer event costs less than it does on the
+baseline for all but the Oil. That closes the open item phase 2 left and the
+one phase 3 opened.
+
+What the table does not show, and is still open: the **longest stall in a
+stroke** is 91 to 141 ms on the two brushes that mix colour (Oil, Watercolor)
+against 58 to 74 on the others. A mixing brush copies the whole frame at
+pen-down to have a ground to read (`_live.MixBeneath`), which predates this
+work and is paid once per stroke; at 4K it is thirty megabytes. It wants a
+copy of what the stroke can reach, made as it reaches it.
+
 Beside it: the cap's strips share one window (each used to build its own,
 halo and all, which made the dearest part dearer), and the distance
 transform's lines run side by side. A coarser ceiling was measured and not
