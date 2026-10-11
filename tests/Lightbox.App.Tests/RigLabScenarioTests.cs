@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace Lightbox.Core.Tests;
+namespace Lightbox.App.Tests;
 
 /// <summary>
 /// The performance lab's scenarios are wired to things that exist.
