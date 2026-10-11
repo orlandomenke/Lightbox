@@ -1,6 +1,6 @@
 {
   "name": "pose-drag",
-  "about": "The bone rig under the hand: on a rigged arm, take the Bone tool, switch to posing, and swing the wrist through a wide arc twice, then undo both. Each drag is 1.5 s at 120 events a second. Measures the UI cost of each pointer event while posing (pose.drag), the part of it spent finding the region to repaint (pose.reach), building each posed drawing's geometry on the render's miss path (pose.frame: evaluate, solve, densify and blend, before a dab is stamped), re-stamping it (the cache-miss span the lab already reads), how long the moved drawing took to reach the screen, and the key written on release (pose.commit). The fixture's arm lies along the middle of the document: shoulder at [0.35, 0.5], elbow at [0.5, 0.5], wrist at [0.65, 0.5]; the drag starts on the wrist tip. --fixture rigged-heavy has five times the lines, which is what tells posing apart from re-stamping.",
+  "about": "The bone rig under the hand: on a rigged arm, take the Bone tool, switch to posing, and swing the wrist through a wide arc twice, then undo both. Each drag is 1.5 s at 120 events a second. Measures the UI cost of each pointer event while posing (pose.drag), the part of it spent finding the region to repaint (pose.reach), building each posed drawing's geometry on the render's miss path (pose.frame: evaluate, solve, densify and blend, before a dab is stamped), re-stamping it (the cache-miss span the lab already reads), how long the moved drawing took to reach the screen, and the key written on release (pose.commit). The fixture's arm lies along the middle of the document: shoulder at [0.35, 0.5], elbow at [0.5, 0.5], wrist at [0.65, 0.5]; the drag starts on the wrist tip. A tip drag aims the bone and keeps its length, so the first drag leaves the tip at [0.6053, 0.6895], a little past where the pointer stopped; the second starts there, because a press at the pointer's own end point lands on the shaft and moves the bone instead of aiming it (the first lab runs did exactly that). --fixture rigged-heavy has five times the lines, which is what tells posing apart from re-stamping.",
   "fixture": "rigged",
   "measures": ["pose.drag", "pose.reach", "pose.frame", "pose.commit"],
   "repeat": 2,
@@ -11,7 +11,7 @@
     {"do": "settle", "quiet_s": 0.8},
     {"do": "drag", "from": [0.65, 0.5], "by": [-0.05, 0.18], "ms": 1500, "hz": 120},
     {"do": "settle", "quiet_s": 0.8},
-    {"do": "drag", "from": [0.6, 0.68], "by": [0.02, -0.34], "ms": 1500, "hz": 120},
+    {"do": "drag", "from": [0.6053, 0.6895], "by": [0.0147, -0.3495], "ms": 1500, "hz": 120},
     {"do": "settle", "quiet_s": 1.0},
     {"do": "key", "keys": "ctrl+z"},
     {"do": "settle", "quiet_s": 0.6},
