@@ -77,6 +77,27 @@ public class PinRecordTests(ITestOutputHelper output)
         Assert.DoesNotContain("\"effectiveKind\"", json, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void ARiggedDocumentSavedBeforePinsExistedOpensAndSavesBackUnchanged()
+    {
+        // The fixture was written on 2026-10-11 by the build at 2a501f2e,
+        // which has no pin in it anywhere: two bones, an IK chain, a sprung
+        // bone, a stepped pose track, a layer on the whole skeleton and a
+        // stroke with its own weights. This build must open it with no pins,
+        // and write back exactly the file it read — a key that appears on a
+        // document that never asked for it is the failure this guards.
+        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "rigged-before-pins.lightbox.json");
+        var written = File.ReadAllText(path).ReplaceLineEndings("\n");
+
+        var doc = DocJson.Deserialize(written);
+
+        Assert.Equal(3, doc.Armature!.Bones.Count);
+        Assert.Null(doc.Armature.Pins);
+        Assert.Null(doc.Armature.PinCell);
+        Assert.Empty(PinOps.HandlesOf(doc.Armature));
+        Assert.Equal(written.TrimEnd(), DocJson.Serialize(doc).ReplaceLineEndings("\n").TrimEnd());
+    }
+
     // ---- nothing lost --------------------------------------------------------------
 
     [Fact]
@@ -283,6 +304,30 @@ public class PinRecordTests(ITestOutputHelper output)
         // drawing, so they grow with it: the same pin stiffens the same patch.
         Assert.Equal(80, doc.Armature.PinById("pin-starch")!.Extent!.Value, 9);
         Assert.Equal(48, doc.Armature.PinCell!.Value, 9);
+    }
+
+    [Fact]
+    public void ResizingMovesThePinsOfEveryRigNotOnlyTheFirst()
+    {
+        // Two characters in one document. The resize walks every rig for its
+        // pins; walking only the first (which is what it does for bones, and
+        // is a bug of its own) leaves the second character's pins behind.
+        var doc = new Doc
+        {
+            Armatures =
+            [
+                new Armature { Name = "Knight", Pins = [new Pin { Id = "k", X = 100, Y = 50 }] },
+                new Armature { Name = "Dog", PinCell = 20, Pins = [new Pin { Id = "d", X = 300, Y = 150, Kind = PinKind.Starch, Extent = 30 }] },
+            ],
+        };
+
+        ImageResize.Apply(doc, doc.Scene.Width * 2, doc.Scene.Height * 2, new NoPixels());
+
+        Assert.Equal((200.0, 100.0), (doc.Armatures[0].Pins![0].X, doc.Armatures[0].Pins![0].Y));
+        var dog = doc.Armatures[1];
+        Assert.Equal((600.0, 300.0), (dog.Pins![0].X, dog.Pins[0].Y));
+        Assert.Equal(60, dog.Pins[0].Extent!.Value, 9);
+        Assert.Equal(40, dog.PinCell!.Value, 9);
     }
 
     [Fact]

@@ -156,6 +156,28 @@ build writes on a pin survive a save here (Q230).
 - Fitting a rig set measures the bones' bounds; a set of pins alone is placed
   as it stands.
 
+**Debts the record leaves for the branches that make pins reachable** (from
+the sensitivity review of the record, 2026-10-11 — none can happen while
+nothing can author a pin, and each must land with the branch named):
+
+| Debt | Where | Lands with |
+| --- | --- | --- |
+| Deleting a bone, an IK target or a spline handle leaves a pin's `ParentId` naming it. The pin then reads as unparented and its keys, authored in the bone's frame, are read in document axes: it jumps on every keyed frame. Clear or re-parent in the same undo step and rebase the keys, as child bones are. | `MainViewModel.Armature.cs` bone deletion, `MainViewModel.Ik.cs`, `MainViewModel.Spline.cs` | the tool |
+| Pasting a single row's pose key skips any id that is not a bone of the first rig, so a pin's key would be dropped on paste. Whole-key paste refuses a rig of pins alone. | `MainViewModel.TimelineClipboard.cs` | the tool |
+| `ArmatureIsBound` knows layer bindings and stroke weights only. Once a layer can follow pins, pulling or rescaling a rig a drawing is pinned to passes the guard that exists to refuse exactly that. | `MainViewModel.RigSets.cs` | the render path |
+| Image resize rescales the *bones* of the first rig only (B-to-be-filed; found here, predates pins). Pins are rescaled on every rig, so on a second rig a pin would be carried about a bone standing at the old scale. | `ImageResize.cs` | its own branch, before the render path |
+
+**What an older build does with a file that has pins.** A build from
+2026-10-09 on (Q230) carries `pins` as opaque JSON and writes it back, so the
+pins are not lost — but it cannot rescale or re-parent what it cannot read:
+resize the image or delete a bone there, and the pins come back here at the
+old scale or with a dead parent. That is the standing cost of "keep it and
+write it back", and pins are the first carried key that holds coordinates. A
+build from before that date drops them silently on save, and nothing in the
+file can refuse it. Both want checking against the owner's deployed build
+before the tool ships. A pin kind added later will not load on this build,
+like every enum in the record.
+
 Pin poses reuse the pose track's keys, which is what makes easing, `Hold`,
 stepping on 2s, the timeline rows and key editing work for pins without new
 code. A pin with a parent bone rides it, so pins and bones mix on one figure, and
@@ -275,9 +297,12 @@ On this branch, green:
 Elsewhere: `BoneRigPerformanceTests` (8) on main with B442;
 `PoseDragPerfLogTests` and `RigLabScenarioTests` on the lab branch.
 
-`PinRecordTests` (17) covers the record: absent unless used, the round trip,
+`PinRecordTests` (19) covers the record: absent unless used, the round trip,
 a pin-only rig, newer keys kept, cloning, pin keys as pose keys, a pin riding
-a bone, non-finite keys, the hand-off to the solve, image resize, rig fitting.
+a bone, non-finite keys, the hand-off to the solve, image resize on one rig
+and on two, rig fitting, and a rigged document written by a build without
+pins opening and saving back byte for byte (the fixture the sensitivity
+review asked for).
 
 **Not written yet:** the App tests (tool mode, overlay, undo, bake, MCP),
 which arrive with the things they test.

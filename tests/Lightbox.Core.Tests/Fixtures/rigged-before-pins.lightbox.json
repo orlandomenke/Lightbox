@@ -1,0 +1,428 @@
+{
+  "version": 1,
+  "scene": {
+    "id": "scene-rigged-before-pins",
+    "name": "Scene 1",
+    "width": 320,
+    "height": 200,
+    "fps": 12,
+    "frameCount": 12,
+    "backgroundColor": "#ffffff",
+    "transparentBackground": false,
+    "ppi": 72,
+    "layers": [
+      {
+        "id": "layer-arm",
+        "name": "Paint",
+        "kind": "painted",
+        "visible": true,
+        "locked": false,
+        "alphaLocked": false,
+        "isBackground": false,
+        "onionEnabled": true,
+        "opacity": 1,
+        "blendMode": "normal",
+        "boneId": "",
+        "jointWeights": true,
+        "cels": [
+          {
+            "frame": {
+              "id": "drawing-arm",
+              "role": "key",
+              "strokes": [
+                {
+                  "id": "s-bound",
+                  "tool": "brush",
+                  "color": "#1a1a1a",
+                  "brush": {
+                    "size": 6,
+                    "antiAlias": true,
+                    "hardness": 0.8,
+                    "opacity": 1,
+                    "flow": 1,
+                    "spacing": 0.15,
+                    "kind": "paint",
+                    "smudgeMode": "smearing",
+                    "sampleSource": "thisLayer",
+                    "smudgeLength": 0.5,
+                    "smudgeRadius": 0.5,
+                    "colorRate": 0,
+                    "wetEdge": 0,
+                    "granulation": 0,
+                    "tipRotationDeg": 0,
+                    "rotationJitter": 0,
+                    "scatter": 0,
+                    "sizeJitter": 0,
+                    "minimumDiameter": 0.25,
+                    "roundnessJitter": 0,
+                    "roundness": 1,
+                    "angleFollowsDirection": false,
+                    "flowJitter": 0,
+                    "textureScale": 12,
+                    "textureDepth": 0,
+                    "colorJitter": 0,
+                    "hueJitter": 0,
+                    "saturationJitter": 0,
+                    "brightnessJitter": 0,
+                    "pressureEnabled": true,
+                    "pressureSizeGamma": 1,
+                    "pressureFlowGamma": 0,
+                    "pressureHardnessGamma": 0
+                  },
+                  "points": [
+                    {
+                      "x": 70,
+                      "y": 96,
+                      "pressure": 0.8
+                    },
+                    {
+                      "x": 70.92364702396785,
+                      "y": 96.14970292929134,
+                      "pressure": 0.804499993348009
+                    },
+                    {
+                      "x": 73.53548412640158,
+                      "y": 96.5645763084018,
+                      "pressure": 0.8168685765807211
+                    },
+                    {
+                      "x": 77.59685535518136,
+                      "y": 97.19326702442427,
+                      "pressure": 0.8354085725307349
+                    },
+                    {
+                      "x": 82.86910475818739,
+                      "y": 97.98442196445173,
+                      "pressure": 0.8584235504132558
+                    },
+                    {
+                      "x": 89.1135763832998,
+                      "y": 98.88668801557704,
+                      "pressure": 0.8842160123547795
+                    },
+                    {
+                      "x": 96.09161427839878,
+                      "y": 99.84871206489316,
+                      "pressure": 0.9110896459519591
+                    },
+                    {
+                      "x": 103.56456249136448,
+                      "y": 100.81914099949299,
+                      "pressure": 0.9373470311484651
+                    },
+                    {
+                      "x": 111.29376507007709,
+                      "y": 101.74662170646941,
+                      "pressure": 0.9612913969163228
+                    },
+                    {
+                      "x": 119.0405660624168,
+                      "y": 102.57980107291543,
+                      "pressure": 0.9812258099704688
+                    },
+                    {
+                      "x": 126.56630951626374,
+                      "y": 103.26732598592392,
+                      "pressure": 0.995453310534886
+                    },
+                    {
+                      "x": 133.63233947949809,
+                      "y": 103.7578433325878,
+                      "pressure": 1.002277044797371
+                    },
+                    {
+                      "x": 140,
+                      "y": 104,
+                      "pressure": 1
+                    },
+                    {
+                      "x": 146.090191416743,
+                      "y": 103.98093012588936,
+                      "pressure": 0.9872545243942333
+                    },
+                    {
+                      "x": 152.89146320511475,
+                      "y": 103.75542736229475,
+                      "pressure": 0.9644121925041916
+                    },
+                    {
+                      "x": 160.1952952343296,
+                      "y": 103.35967937964696,
+                      "pressure": 0.9334074683096532
+                    },
+                    {
+                      "x": 167.79316737360185,
+                      "y": 102.82987384837665,
+                      "pressure": 0.8961747819321358
+                    },
+                    {
+                      "x": 175.47655949214584,
+                      "y": 102.20219843891454,
+                      "pressure": 0.8546485014196817
+                    },
+                    {
+                      "x": 183.03695145917587,
+                      "y": 101.51284082169138,
+                      "pressure": 0.8107629722481597
+                    },
+                    {
+                      "x": 190.2658231439063,
+                      "y": 100.79798866713789,
+                      "pressure": 0.7664527825443002
+                    },
+                    {
+                      "x": 196.95465441555154,
+                      "y": 100.09382964568476,
+                      "pressure": 0.7236522834270147
+                    },
+                    {
+                      "x": 202.89492514332574,
+                      "y": 99.43655142776272,
+                      "pressure": 0.6842960108248837
+                    },
+                    {
+                      "x": 207.87811519644342,
+                      "y": 98.86234168380253,
+                      "pressure": 0.6503180435799807
+                    },
+                    {
+                      "x": 211.69570444411877,
+                      "y": 98.40738808423485,
+                      "pressure": 0.6236532315151677
+                    },
+                    {
+                      "x": 214.1391727555662,
+                      "y": 98.10787829949042,
+                      "pressure": 0.6062356767500725
+                    },
+                    {
+                      "x": 215,
+                      "y": 98,
+                      "pressure": 0.6000000000000001
+                    }
+                  ],
+                  "alphaLocked": false,
+                  "weights": [
+                    {
+                      "boneId": "bone-upper",
+                      "pointWeights": [
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        0.8591462412364699,
+                        0.6348467613259355,
+                        0.5,
+                        0.37755774839877154,
+                        0.16557769643594286,
+                        0.014874072718475486,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0
+                      ]
+                    },
+                    {
+                      "boneId": "bone-fore",
+                      "pointWeights": [
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0.14085375876353018,
+                        0.3651532386740646,
+                        0.5,
+                        0.6224422516012285,
+                        0.8344223035640571,
+                        0.9851259272815245,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        1
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "s-free",
+                  "tool": "brush",
+                  "color": "#1a1a1a",
+                  "brush": {
+                    "size": 6,
+                    "antiAlias": true,
+                    "hardness": 0.8,
+                    "opacity": 1,
+                    "flow": 1,
+                    "spacing": 0.15,
+                    "kind": "paint",
+                    "smudgeMode": "smearing",
+                    "sampleSource": "thisLayer",
+                    "smudgeLength": 0.5,
+                    "smudgeRadius": 0.5,
+                    "colorRate": 0,
+                    "wetEdge": 0,
+                    "granulation": 0,
+                    "tipRotationDeg": 0,
+                    "rotationJitter": 0,
+                    "scatter": 0,
+                    "sizeJitter": 0,
+                    "minimumDiameter": 0.25,
+                    "roundnessJitter": 0,
+                    "roundness": 1,
+                    "angleFollowsDirection": false,
+                    "flowJitter": 0,
+                    "textureScale": 12,
+                    "textureDepth": 0,
+                    "colorJitter": 0,
+                    "hueJitter": 0,
+                    "saturationJitter": 0,
+                    "brightnessJitter": 0,
+                    "pressureEnabled": true,
+                    "pressureSizeGamma": 1,
+                    "pressureFlowGamma": 0,
+                    "pressureHardnessGamma": 0
+                  },
+                  "points": [
+                    {
+                      "x": 65,
+                      "y": 120,
+                      "pressure": 1
+                    },
+                    {
+                      "x": 210,
+                      "y": 124,
+                      "pressure": 1
+                    }
+                  ],
+                  "alphaLocked": false
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "markers": [],
+    "layerGroups": [],
+    "poseTrack": {
+      "keys": [
+        {
+          "frame": 0,
+          "bones": {},
+          "ease": "linear"
+        },
+        {
+          "frame": 8,
+          "bones": {
+            "bone-goal": {
+              "rotationDeg": 0,
+              "x": -20,
+              "y": 35
+            },
+            "bone-upper": {
+              "rotationDeg": 12.5,
+              "x": 0,
+              "y": 0
+            }
+          },
+          "ease": "easeInOut"
+        }
+      ],
+      "step": 2
+    }
+  },
+  "referenceSheets": [],
+  "brushTips": {},
+  "clipRegions": {},
+  "palettes": [
+    {
+      "id": "pal_1a12a981114_5",
+      "name": "Default",
+      "columns": 8,
+      "swatches": [
+        {
+          "id": "swatch_black",
+          "color": "#000000",
+          "name": "Black"
+        },
+        {
+          "id": "swatch_white",
+          "color": "#ffffff",
+          "name": "White"
+        }
+      ]
+    }
+  ],
+  "gradients": {},
+  "armatures": [
+    {
+      "id": "rig-arm",
+      "name": "Arm",
+      "bones": [
+        {
+          "id": "bone-upper",
+          "name": "Upper arm",
+          "length": 80,
+          "x": 60,
+          "y": 100,
+          "rotationDeg": 0
+        },
+        {
+          "id": "bone-fore",
+          "name": "Forearm",
+          "parentId": "bone-upper",
+          "length": 80,
+          "x": 0,
+          "y": 0,
+          "rotationDeg": 0,
+          "connected": true,
+          "jiggle": {
+            "stiffness": 0.3,
+            "damping": 0.2
+          }
+        },
+        {
+          "id": "bone-goal",
+          "name": "Goal",
+          "length": 10,
+          "x": 230,
+          "y": 120,
+          "rotationDeg": 0
+        }
+      ],
+      "chains": [
+        {
+          "id": "ik-arm",
+          "name": "Arm IK",
+          "tipBoneId": "bone-fore",
+          "targetBoneId": "bone-goal",
+          "bones": 2
+        }
+      ]
+    }
+  ]
+}
