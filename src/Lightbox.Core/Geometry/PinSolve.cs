@@ -119,8 +119,12 @@ public sealed class PinSolve
         var triangles = mesh.TriangleSpan;
 
         // Where each position pin sits, and which piece it is on. A pin on
-        // top of an earlier one adds no information and would make the
-        // constraints' own system singular, so it is dropped: the first wins.
+        // top of an earlier one adds no information and makes the
+        // constraints' own system singular — and one a hair away makes it
+        // nearly so: two pins a millionth of a unit apart with different
+        // targets threw the mesh 7e8 units. Closer than a hundredth of a
+        // cell is the same place, and the first pin there wins.
+        var same = mesh.Cell / 100 * (mesh.Cell / 100);
         _pinRest = new (double X, double Y)[pins.Count];
         var embedded = new PinMesh.Embedding[pins.Count];
         var pinComponent = new int[pins.Count];
@@ -138,7 +142,7 @@ public sealed class PinSolve
             foreach (var other in perComponent[component])
             {
                 var (dx, dy) = (pins[other].X - pins[p].X, pins[other].Y - pins[p].Y);
-                duplicate |= dx * dx + dy * dy < 1e-18;
+                duplicate |= dx * dx + dy * dy < same;
             }
             if (duplicate) continue;
             pinComponent[p] = component;
@@ -343,7 +347,9 @@ public sealed class PinSolve
     public static (double X, double Y) MapPoint(
         PinMesh mesh, ReadOnlySpan<(double X, double Y)> deformed, double x, double y)
     {
-        if (mesh.IsEmpty) return (x, y);
+        // A point that is not a number is nowhere on the mesh; it goes back
+        // as it came rather than being moved somewhere that looks valid.
+        if (mesh.IsEmpty || !double.IsFinite(x) || !double.IsFinite(y)) return (x, y);
         var e = mesh.Embed(x, y);
         var triangles = mesh.TriangleSpan;
         var a = deformed[triangles[e.Triangle * 3]];

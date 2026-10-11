@@ -147,6 +147,63 @@ public class PinSolveTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void PullingALimbLongerDoesNotMakeItFatter()
+    {
+        // The test that is about the second step and nothing else. The first
+        // step lets every triangle scale, so two pins pulled 30% apart are
+        // answered by the whole limb growing 30% in every direction — a
+        // forearm that inflates when the wrist is pulled. The rigid fit is
+        // what takes that back out. (The adversary skipped the second step
+        // and only a starch test noticed, by accident.)
+        var mesh = BarMesh();
+        PinHandle[] pins = [new(20, 30), new(380, 30)];
+        var solve = PinSolve.Prepare(mesh, pins);
+
+        var at = solve.Solve([(20, 30), (488, 30)]);   // 360 apart becomes 468
+
+        var top = mesh.NearestVertex(200, 0);
+        var bottom = mesh.NearestVertex(200, 80);
+        var before = mesh.Vertices[bottom].Y - mesh.Vertices[top].Y;
+        var after = at[bottom].Y - at[top].Y;
+        var area = PinShapes.Area(mesh, at) / PinShapes.Area(mesh, mesh.Vertices);
+        output.WriteLine($"thickness {before:F1} -> {after:F1}; area {area:P1} for a 30% pull");
+        Assert.True(after < before * 1.1, $"the limb went from {before:F1} thick to {after:F1}");
+        Assert.True(area < 1.45, $"the limb's area grew to {area:P0}; scaling in both directions would be 169%");
+    }
+
+    [Fact]
+    public void TwoPinsAHairApartAreOnePin()
+    {
+        // The adversary's near-miss: a millionth of a unit apart with
+        // different targets is a demand no drawing can meet, and the mesh
+        // answered it by moving 7e8 units.
+        var mesh = BarMesh();
+        PinHandle[] pins = [new(100, 30), new(100.000001, 30), new(300, 30)];
+
+        var at = PinSolve.Prepare(mesh, pins).Solve([(100, 30), (150, 80), (300, 30)]);
+
+        var worst = MaxDistance(mesh.Vertices, at);
+        Assert.True(worst < 1e-9, $"the second pin was not dropped: the mesh moved {worst:E2}");
+    }
+
+    [Theory]
+    [InlineData(1e200, 1e200)]
+    [InlineData(double.PositiveInfinity, 0)]
+    [InlineData(double.NaN, double.NaN)]
+    public void APinDroppedNowhereIsNotACrash(double x, double y)
+    {
+        var mesh = BarMesh();
+        PinHandle[] pins = [new(20, 30), new(380, 30), new(x, y)];
+
+        var at = PinSolve.Prepare(mesh, pins).Solve([(20, 30), (380, 90), (0, 0)]);
+
+        Assert.All(at, v => Assert.True(double.IsFinite(v.X) && double.IsFinite(v.Y)));
+        var (px, py) = PinSolve.MapPoint(mesh, at, 380, 30);
+        Assert.Equal(380, px, 6);
+        Assert.Equal(90, py, 6);
+    }
+
+    [Fact]
     public void PullingOneProngLeavesTheOtherAlone()
     {
         // The reason the mesh follows the silhouette. The prong tips are 180

@@ -168,6 +168,48 @@ public class PinMeshTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void TheOrderTheStrokesWereDrawnInDoesNotChangeTheMesh()
+    {
+        // Reordering layers' worth of lines, or undoing and redoing one, must
+        // not hand every pin a different mesh.
+        Stroke[] drawing =
+        [
+            PinShapes.Box(0, 0, 120, 90), PinShapes.Box(60, 40, 260, 200), PinShapes.Box(300, 10, 380, 70),
+            PinShapes.Outline((150, 0), (290, 60), (170, 120)),
+        ];
+
+        foreach (var cell in new[] { 20.0, 7.3, PinMesh.MinCell })
+        {
+            var forward = PinMesh.Build(drawing, cell);
+            var backward = PinMesh.Build(drawing.Reverse().ToArray(), cell);
+            Assert.Equal(forward.Vertices, backward.Vertices);
+            Assert.Equal(forward.Triangles, backward.Triangles);
+            Assert.Equal(forward.Outline, backward.Outline);
+        }
+    }
+
+    [Theory]
+    [InlineData(double.PositiveInfinity, 30)]
+    [InlineData(200, double.NegativeInfinity)]
+    [InlineData(double.NaN, 30)]
+    [InlineData(0, double.NaN)]
+    [InlineData(1e200, 30)]
+    [InlineData(double.MaxValue, -double.MaxValue)]
+    public void APointThatIsNowhereStillGetsARealTriangleAndRealWeights(double x, double y)
+    {
+        // Found by the adversary: an infinite coordinate indexed off the end
+        // of the grid, and a NaN one came back as NaN weights for the
+        // renderer to paint with.
+        var mesh = PinMesh.Build([PinShapes.Bar()], cell: 20);
+
+        var e = mesh.Embed(x, y);
+
+        Assert.InRange(e.Triangle, 0, mesh.Triangles.Count / 3 - 1);
+        Assert.True(double.IsFinite(e.U) && double.IsFinite(e.V) && double.IsFinite(e.W), $"weights {e.U}, {e.V}, {e.W}");
+        Assert.False(mesh.Contains(x, y));
+    }
+
+    [Fact]
     public void AnEmptyDrawingIsAnEmptyMeshAndNotAnError()
     {
         var none = PinMesh.Build([]);

@@ -372,9 +372,17 @@ public sealed class PinMesh
     /// weights there. A point outside the mesh takes the nearest triangle and
     /// extrapolates, so a brush's reach past the silhouette still follows.
     /// </summary>
+    /// <remarks>
+    /// Never throws and never answers with a weight that is not a number: a
+    /// coordinate that is not finite is read as the middle of the grid, and
+    /// one absurdly far away as the edge of a wide margin round it. Stroke
+    /// points come from files, and a renderer handed NaN weights paints NaN.
+    /// </remarks>
     public Embedding Embed(double x, double y)
     {
         if (IsEmpty) return default;
+        x = Tame(x, _originX, _cols);
+        y = Tame(y, _originY, _rows);
         var c = CellAt(x, y);
         if (c < 0 || _cellTriangle[c] < 0) c = NearestCell(x, y);
 
@@ -390,6 +398,14 @@ public sealed class PinMesh
 
     /// <summary>A point's place in a triangle: weights on its three corners, summing to one.</summary>
     public readonly record struct Embedding(int Triangle, double U, double V, double W);
+
+    /// <summary>A coordinate the grid arithmetic can square without overflowing.</summary>
+    private double Tame(double value, double origin, int cells)
+    {
+        var (low, high) = (origin - 1e6 * Cell, origin + (cells + 1e6) * Cell);
+        if (double.IsNaN(value)) return origin + cells * Cell / 2;
+        return Math.Clamp(value, low, high);
+    }
 
     private int CellAt(double x, double y)
     {
@@ -410,7 +426,6 @@ public sealed class PinMesh
     {
         var ci = (int)Math.Clamp(Math.Floor((x - _originX) / Cell), 0, _cols - 1);
         var cj = (int)Math.Clamp(Math.Floor((y - _originY) / Cell), 0, _rows - 1);
-        if (!double.IsFinite(x) || !double.IsFinite(y)) (ci, cj) = (0, 0);
         var best = -1;
         var bestDistance = double.MaxValue;
         var limit = Math.Max(_cols, _rows);

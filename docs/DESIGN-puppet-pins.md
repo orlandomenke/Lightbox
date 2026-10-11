@@ -177,13 +177,13 @@ same on screen.
 | --- | --- | --- |
 | Largest mesh (3,888 vertices, 7 pins) solves inside one refresh | 1.3 ms | a dense solve |
 | An ordinary mesh (858 vertices) solves well under a refresh | 0.33 ms | — |
-| A drag costs under a quarter of `Prepare` | 1.6 ms against 112 ms | refactorising per pointer event |
+| A drag costs under a quarter of `Prepare` | 1.3–1.6 ms against 66–112 ms | refactorising per pointer event |
 | `Solve` into the caller's buffer allocates nothing | 0 bytes | garbage on the UI thread |
 | 20,000 points mapped through 7,526 triangles | 2.4 ms | a linear triangle search |
 | Meshing a 4K drawing, vertex cap held | 8.6 ms | an unbounded mesh |
 | Posing 200 strokes through pins against through a bone | 4.2 ms against 8.5 ms | pins being the slow way to rig |
 
-Placing a pin on the largest mesh costs 112 ms — a hitch on the click that
+Placing a pin on the largest mesh costs about a tenth of a second (66 to 112 ms across runs) — a hitch on the click that
 drops it, never on a drag. Ceilings in the tests sit well above the measured
 figures, because the suite runs beside others (B442 measured a tenfold swing).
 
@@ -244,8 +244,8 @@ On this branch, green:
 
 | File | Covers |
 | --- | --- |
-| `PinMeshTests` (13) | inside of an outline; small gaps; separate drawings; fork prongs; winding; cell clamp; vertex cap; outline; embedding; reach past the silhouette; bit-identical rebuild; empty; record untouched |
-| `PinSolveTests` (13) | identity to the bit; pins land exactly; one pin translates; rigid motions reproduced; bend keeps area and folds nothing; one prong does not pull the other; unpinned piece stays; starch; starch target ignored; NaN targets; no pins; wrong target count; determinism |
+| `PinMeshTests` (15) | inside of an outline; small gaps; separate drawings; fork prongs; winding; cell clamp; vertex cap; outline; embedding; reach past the silhouette; bit-identical rebuild; empty; record untouched |
+| `PinSolveTests` (16) | identity to the bit; pins land exactly; one pin translates; rigid motions reproduced; bend keeps area and folds nothing; one prong does not pull the other; unpinned piece stays; starch; starch target ignored; NaN targets; no pins; wrong target count; determinism |
 | `PinSkinningTests` (3) | record untouched and rest path carried; unmoved mesh hands the stroke back; a two-point line bends |
 | `PinSolvePerformanceTests` (7) | the budgets above |
 
@@ -263,9 +263,13 @@ with them: a blend of the pins' displacements by straight-line distance, with
 no mesh and no rigidity, computed in the same test. A bent forearm keeps a
 rigid residual of 3.0 where the blend leaves 26.1; the far prong moves 7.0
 where the blend moves it 21.7. Rigid motions of the pins come back exact to
-1e-11, and starch takes a bent patch's residual from 2.23 to 0.32. Still to
-do when the adversary reviews it: break the solve itself (step one only) and
-confirm the bend test's area and residual limits catch it.
+1e-11, and starch takes a bent patch's residual from 2.23 to 0.32. The adversary
+broke the solve four ways. An identity rigid fit, soft pins and no starch were
+each caught by the test meant for them. Skipping the second step was caught
+only by a starch test, by accident, so `PullingALimbLongerDoesNotMakeItFatter`
+was added for it. It also found that a point or a pin at infinity threw, and
+that two pins a millionth of a unit apart threw the mesh 7e8 units; both are
+fixed and tested.
 
 ## Steps
 
