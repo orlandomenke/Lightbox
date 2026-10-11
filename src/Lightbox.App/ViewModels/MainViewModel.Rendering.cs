@@ -2254,6 +2254,19 @@ public partial class MainViewModel
     /// way — an undo, a stroke — and the hand-off would only add latency.
     /// </para>
     /// </remarks>
+    /// <summary>Finished pictures of paused frames, for a flip back (see <see cref="RevisitCache"/>).</summary>
+    private readonly RevisitCache _revisits = new();
+
+    /// <summary>Paused publishes that drew a frame's earlier picture instead of composing it — for tests.</summary>
+    internal int RevisitHits { get; private set; }
+
+    /// <summary>
+    /// Whether a paused revisit may draw its earlier picture — on, and off only
+    /// for a test that times compositing itself and must not be answered by
+    /// the cache instead.
+    /// </summary>
+    internal bool ReuseRevisits { get; set; } = true;
+
     /// <summary>What the last paused publish named as the frame on screen.</summary>
     private List<(Frame Frame, int Cel)>? _stillsOnScreen;
 
