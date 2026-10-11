@@ -434,6 +434,45 @@ run is after those.
   0.7 ms an event and moved every grained stroke by a level. Not worth
   changing existing art for.
 
+### The replayed strokes, and what ending them cost
+
+The third lab run named the reason for every stroke rendered again at
+pen-up: *a settled dab changed*, thirteen times in ninety-six strokes. The
+live path judged a dab settled when the previous walk of the stroke agreed
+with this one (forgiving a quarter of a pixel on brushes with nothing seeded
+from position), and one capture with the detail showed a dab three from the
+tip, stamped for good, whose pressure then changed.
+
+It could not be reproduced outside the application. Random strokes built of
+long unchanging runs, through the same walk, with the same curve cache and
+batched as the lab batches them, never fooled either old rule. So the
+replacement was chosen for what it can be shown to do rather than for
+explaining the failure: `BrushEngine.SettledPrefix` calls a dab settled when
+it comes out the same with the newest points taken away, which is a
+comparison between two walks of the stroke *as it is now* and so does not
+depend on whether anything happened to change since the last event.
+
+**The fourth run: no stroke was replayed.** Ninety-six strokes on the three
+flats and the soft round, pen-up 9 to 17 ms on all of them.
+
+**And it was sent to the lab measured for correctness and not for cost,
+which the owner saw before the numbers did**: *"the mark falls behind the
+pen, new build."* With three points taken away (four with smoothing) the
+unsettled tail was two to three times as many dabs, every one stamped again
+on every event. Gouache went from 2.2 to 3.9 ms an event at 60 px and
+3000 px/s and from 4.4 to 6.7 at 150 px; the soft round from 1.9 to 3.3.
+(Watercolor (flat) read worse still, 12 ms, in a part of the run where the
+baseline's own numbers were up by four fifths, so the machine was busy and
+that figure is not the rule's.)
+
+The horizon is now one point, the least the property test accepts — it
+accepts it because the comparison is itself the test of dependence. Profiled
+on and off in the same run, headless, on the lab's stroke shape: the tail is
+about 60% longer than under the old rule instead of two to three times, and
+an event costs 0.5 to 1.4 ms more at a fast pen. That has not been back to
+the lab. If one point is ever too few, the live mark is drawn and not kept,
+so the price is a stall at pen-up and never a wrong pixel.
+
 ## Order
 
 1. **Promote at pen-up**, for the brushes that are already dab-final (ink, soft

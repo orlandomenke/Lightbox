@@ -1555,11 +1555,23 @@ public static class BrushEngine
         StableCount(now, before, 0);
 
     /// <summary>
-    /// How many of the newest points a dab can still be changed by, beyond the
-    /// smoothing's own reach: the curve through the points looks two ahead of
-    /// the span it fills, and one more is kept in hand.
+    /// How many of the newest points are taken away to find the dabs that do
+    /// not depend on them, beyond the smoothing's own reach.
     /// </summary>
-    public const int SettleHorizonPoints = 3;
+    /// <remarks>
+    /// One, and the number is a cost. Every dab past the settled prefix is
+    /// stamped again on each pointer event, so a longer horizon is a longer
+    /// tail: at three, the perf lab had gouache and the soft round 20 to 80%
+    /// dearer per event at a fast pen and the mark visibly behind it. One is
+    /// the least that
+    /// <c>SettledDabsStaySettledTests.WhatIsCalledSettledNeverChanges</c>
+    /// accepts, and it accepts it because the comparison is itself the test of
+    /// dependence - a dab on a span that reaches past the removed point is not
+    /// in the shorter walk at all. If it is ever wrong the live mark is drawn
+    /// and not kept (the stroke is rendered from its record at pen-up), so the
+    /// price of too short a horizon is a stall, never a wrong pixel.
+    /// </remarks>
+    public const int SettleHorizonPoints = 1;
 
     /// <summary>
     /// How many leading dabs are final: the same dabs whether or not the last
