@@ -113,13 +113,14 @@ number and to *read* one. A value that is only ever set exactly (frame count,
 canvas size) gets the field alone. A value with fewer than about six choices
 gets buttons or a combo, never a slider.
 
-**Button sizes are consistent by role, not by neighbour.** Three roles:
+**Button sizes are consistent by role, not by neighbour.** Four roles:
 
 | Role | Size | Examples |
 | --- | --- | --- |
 | Icon | `--tile` square, padding `0` | ✕ close, ▲▼ reorder, ＋ add |
 | Text | `--row` high, padding `8,0`, `MinWidth 70` | "Import…", "＋ Swatch" |
-| Tool | `--tool` high, padding `4,0` | Toolbar tools, transport buttons |
+| Tool | `--tool` high, padding `4,0` | Toolbar tools |
+| Transport | `--tool` high, 32 wide, padding `8,0` | The transport's seven buttons and Loop — tool height at a text button's width, because they are pressed while watching playback (owner, 2026-10-10) |
 
 Named from the scale rather than restated as numbers, because this table
 restating them is how it came to disagree with the scale on every row at once:

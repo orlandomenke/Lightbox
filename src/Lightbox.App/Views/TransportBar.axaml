@@ -12,31 +12,31 @@
   -->
   <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space10}">
     <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}">
-      <Button Command="{Binding GoToStartFrameCommand}"
+      <Button Classes="transport" Command="{Binding GoToStartFrameCommand}"
               ToolTip.Tip="To start frame (the set start frame, else the first)">
         <Path Classes="icon" Data="{StaticResource IconSkipToStart}" />
       </Button>
-      <Button Command="{Binding PreviousKeyframeCommand}" ToolTip.Tip="Previous keyframe">
+      <Button Classes="transport" Command="{Binding PreviousKeyframeCommand}" ToolTip.Tip="Previous keyframe">
         <Path Classes="icon" Data="{StaticResource IconFastRewind}" />
       </Button>
-      <Button Command="{Binding PlayBackwardsCommand}" ToolTip.Tip="Play backwards">
+      <Button Classes="transport" Command="{Binding PlayBackwardsCommand}" ToolTip.Tip="Play backwards">
         <Path Classes="icon" Data="{StaticResource IconPlayReverse}" />
       </Button>
-      <Button Command="{Binding PauseCommand}" ToolTip.Tip="Pause">
+      <Button Classes="transport" Command="{Binding PauseCommand}" ToolTip.Tip="Pause">
         <Path Classes="icon" Data="{StaticResource IconPause}" />
       </Button>
-      <Button Command="{Binding PlayCommand}" ToolTip.Tip="Play (Space toggles)">
+      <Button Classes="transport" Command="{Binding PlayCommand}" ToolTip.Tip="Play (Space toggles)">
         <Path Classes="icon" Data="{StaticResource IconPlay}" />
       </Button>
-      <Button Command="{Binding NextKeyframeCommand}" ToolTip.Tip="Next keyframe">
+      <Button Classes="transport" Command="{Binding NextKeyframeCommand}" ToolTip.Tip="Next keyframe">
         <Path Classes="icon" Data="{StaticResource IconFastForward}" />
       </Button>
-      <Button Command="{Binding GoToEndFrameCommand}"
+      <Button Classes="transport" Command="{Binding GoToEndFrameCommand}"
               ToolTip.Tip="To end frame (the set end frame, else the last)">
         <Path Classes="icon" Data="{StaticResource IconSkipToEnd}" />
       </Button>
     </StackPanel>
-    <ToggleButton IsChecked="{Binding LoopPlayback}" Padding="6,2"
+    <ToggleButton Classes="transport" IsChecked="{Binding LoopPlayback}"
                   VerticalAlignment="Center"
                   ToolTip.Tip="Loop playback. Off plays once and stops on the last frame.">
       <Path Classes="icon" Data="{StaticResource IconLoop}" />
