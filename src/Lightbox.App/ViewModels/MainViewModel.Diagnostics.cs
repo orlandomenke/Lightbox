@@ -158,8 +158,13 @@ public partial class MainViewModel
         // unrelated commit.
         _markSnapshots.Discard();
         MarkDocumentEdited();
-        _publish.InvalidateWholeCanvas(); // a document-wide change can move any pixel
-        _composeRing.InvalidateAll();
+        // A document-wide change can move any pixel — except the ones that say
+        // of themselves that they move none (a lock: PerformMovingNoPixel).
+        if (!_editMovesNoPixel)
+        {
+            _publish.InvalidateWholeCanvas();
+            _composeRing.InvalidateAll();
+        }
         // The structural listener in named parts for the lab (Q209): every
         // X-sheet verb measured 215-465 ms here and 1 ms in the edit itself.
         var panels = PerfLog.Begin("changed.panels");
@@ -180,7 +185,7 @@ public partial class MainViewModel
         using (PerfLog.Begin("changed.stats")) RefreshDocumentStats();
         OnPropertyChanged(nameof(ReferenceSheetsView));
         SyncLayerChoices();
-        ClampCurrentFrame(publishIfUnchanged: !_applyingEditScope);
+        ClampCurrentFrame(publishIfUnchanged: !_applyingEditScope && !_editMovesNoPixel);
         using (PerfLog.Begin("changed.rows")) SyncLayerRows();
         var notify = PerfLog.Begin("changed.notify");
         OnPropertyChanged(nameof(FrameLabel));
@@ -205,6 +210,9 @@ public partial class MainViewModel
         // Undo/redo publishes from ApplyEditScope instead, once the stale
         // frame bitmaps have been dropped.
         if (_applyingEditScope) return;
+        // Nor does an edit that moved no pixel: there is no new picture to
+        // publish and no thumbnail that changed.
+        if (_editMovesNoPixel) return;
         PublishSnapshot();
         RefreshThumbnails();
     }
