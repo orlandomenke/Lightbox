@@ -162,19 +162,26 @@ public static class Skinning
     /// and interpolating left a two-point line one blend from end to end, and
     /// posed it as a chord that pivoted off its bone.
     /// </param>
+    /// <param name="deltas">
+    /// <see cref="Deltas"/> for this armature and pose, when the caller is
+    /// posing more than one stroke with them. They depend on nothing about
+    /// the stroke, and solving the skeleton twice for every line of a drawing
+    /// made a posed frame's cost follow the size of the rig. Null solves here.
+    /// </param>
     public static Stroke PoseStroke(
         Stroke stroke, Armature armature, IReadOnlyDictionary<string, BonePose>? pose,
         IReadOnlyList<BoneBinding>? fallback = null,
         IReadOnlyList<PointOffset>? correction = null,
         bool wholeSkeleton = false,
-        bool jointWeights = false)
+        bool jointWeights = false,
+        IReadOnlyDictionary<string, RigidDelta>? deltas = null)
     {
         var bindings = stroke.Weights is { Count: > 0 } own ? own : fallback;
         var auto = bindings is not { Count: > 0 } && wholeSkeleton;
         if ((bindings is not { Count: > 0 } && !auto) || stroke.Points.Count == 0)
             return stroke;
 
-        var deltas = Deltas(armature, pose);
+        deltas ??= Deltas(armature, pose);
         var source = Corrected(stroke.Points, correction);
         IReadOnlyList<StrokePoint> rest;
         double[][] weights;
@@ -251,6 +258,8 @@ public static class Skinning
         // collapsed joint the artist drew the fix to cure — the live view and
         // the baked result have to be the same picture.
         var corrections = CorrectiveOps.Resolve(frame.Correctives, pose);
+        // Solved for the first stroke that needs them and shared by the rest.
+        Dictionary<string, RigidDelta>? deltas = null;
         var baked = 0;
         for (var i = 0; i < frame.Strokes.Count; i++)
         {
@@ -258,9 +267,10 @@ public static class Skinning
             var own = stroke.Weights is { Count: > 0 };
             if (!own && (layerBone is null || !TakesLayerBinding(stroke))) continue;
             var fallback = own ? null : named;
+            deltas ??= Deltas(armature, pose);
             var posed = PoseStroke(
                 stroke, armature, pose, fallback, corrections.GetValueOrDefault(stroke.Id),
-                wholeSkeleton: !own && named is null, jointWeights);
+                wholeSkeleton: !own && named is null, jointWeights, deltas);
             if (ReferenceEquals(posed, stroke)) continue;
             frame.Strokes[i] = posed;
             baked++;
@@ -321,6 +331,8 @@ public static class Skinning
         var jointWeights = layer is not null && doc.Scene.UsesJointWeights(layer);
         var named = NamedBinding(layerBone);
 
+        // The skeleton's own answer, once for the drawing like the two above.
+        Dictionary<string, RigidDelta>? deltas = null;
         var copy = frame.Clone();
         for (var i = 0; i < frame.Strokes.Count; i++)
         {
@@ -332,9 +344,10 @@ public static class Skinning
             // frame, which is where its cost belongs.
             var own = stroke.Weights is { Count: > 0 };
             if (!own && (layerBone is null || !TakesLayerBinding(stroke))) continue;
+            deltas ??= Deltas(armature, pose);
             var posed = PoseStroke(
                 stroke, armature, pose, own ? null : named, corrections.GetValueOrDefault(stroke.Id),
-                wholeSkeleton: !own && named is null, jointWeights);
+                wholeSkeleton: !own && named is null, jointWeights, deltas);
             if (ReferenceEquals(posed, stroke)) continue;
             if (ghostOverBudget && BrushCostOf.Settings(stroke.Brush) == BrushCost.Expressive)
                 GhostCentreline(posed);
@@ -1198,10 +1211,15 @@ public static class Skinning
         // Every pair's zone once, not per point: a whole-skeleton layer weighs
         // every dense sample on every render, and a parent lookup per sample
         // per bone pair would make that bones² × samples.
+        // And every bone's own zone once before the pairs: reading it per
+        // pair walked the bone list for a parent each time, which made this
+        // table bones-cubed for every stroke bound.
+        var own = new double[bones.Count];
+        for (var a = 0; a < bones.Count; a++) own[a] = JointZoneOf(armature, bones[a]);
         var zones = new double[bones.Count, bones.Count];
         for (var a = 0; a < bones.Count; a++)
             for (var b = 0; b < bones.Count; b++)
-                if (a != b) zones[a, b] = ZoneBetween(armature, bones[a], bones[b]);
+                if (a != b) zones[a, b] = ZoneBetween(bones[a], bones[b], own[a], own[b]);
         var w = new double[bones.Count][];
         for (var b = 0; b < bones.Count; b++) w[b] = new double[count];
         for (var i = 0; i < count; i++)
@@ -1226,11 +1244,11 @@ public static class Skinning
     }
 
     /// <summary>The blend zone between two bones: their joint's when they meet, the narrower default when they do not.</summary>
-    private static double ZoneBetween(Armature armature, Bone a, Bone b)
+    private static double ZoneBetween(Bone a, Bone b, double zoneOfA, double zoneOfB)
     {
-        if (a.ParentId == b.Id) return JointZoneOf(armature, a);
-        if (b.ParentId == a.Id) return JointZoneOf(armature, b);
-        return Math.Min(JointZoneOf(armature, a), JointZoneOf(armature, b));
+        if (a.ParentId == b.Id) return zoneOfA;
+        if (b.ParentId == a.Id) return zoneOfB;
+        return Math.Min(zoneOfA, zoneOfB);
     }
 
     /// <summary>

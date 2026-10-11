@@ -56,6 +56,31 @@ public class SkinningTests
     }
 
     [Fact]
+    public void SharingTheFramesDeltasChangesNoBitOfAPosedStroke()
+    {
+        // A frame solves the skeleton once and hands the answer to every
+        // stroke. That is a saving and must be nothing else: the posed points
+        // are the ones a stroke solving for itself gets, to the last bit.
+        var chain = Chain(4);
+        var stroke = FreehandLine(400);
+        Skinning.AutoBind(stroke, chain);
+        var pose = new Dictionary<string, BonePose>
+        {
+            ["b1"] = new() { RotationDeg = 37.5 }, ["b2"] = new() { RotationDeg = -61, X = 3.25 },
+        };
+
+        var alone = Skinning.PoseStroke(stroke, chain, pose);
+        var shared = Skinning.PoseStroke(stroke, chain, pose, deltas: Skinning.Deltas(chain, pose));
+
+        Assert.Equal(alone.Points.Count, shared.Points.Count);
+        for (var i = 0; i < alone.Points.Count; i++)
+        {
+            Assert.Equal(BitConverter.DoubleToInt64Bits(alone.Points[i].X), BitConverter.DoubleToInt64Bits(shared.Points[i].X));
+            Assert.Equal(BitConverter.DoubleToInt64Bits(alone.Points[i].Y), BitConverter.DoubleToInt64Bits(shared.Points[i].Y));
+        }
+    }
+
+    [Fact]
     public void AWhollyBoundStrokeFollowsItsBoneRigidly()
     {
         var posed = Skinning.PoseStroke(OnTheBone(), OneBone(), Rotate(90));

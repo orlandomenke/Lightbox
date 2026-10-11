@@ -32,7 +32,17 @@ public class LegacyWeightingFingerprintTests(ITestOutputHelper output)
     private const string RecordedRender = "BAF2E9BB2FF52ACDD61A1300C672E10AF29023F1EEC6AE0B822ECC6F811B8B5F";
     private const string RecordedBake = "BAF2E9BB2FF52ACDD61A1300C672E10AF29023F1EEC6AE0B822ECC6F811B8B5F";
 
-    private static (Doc Doc, Frame Frame) Scene()
+    // The same scene on a layer bound *with* joint weighting (Q217). Recorded
+    // 2026-10-11 with the bone-pair zone table built the way main at 93a750e8
+    // builds it, before B442 read each bone's zone once ahead of the pairs.
+    // That change is the same arithmetic in the same order; this is what says
+    // so, and what the next thing hoisted out of JointFalloff has to pass.
+    // Checked against three wrong tables: a halved parent zone, a sibling
+    // zone of nothing, and a sibling zone of the greater. Each turns it red.
+    private const string RecordedJointRender = "D40344D554944009001140CD0529EA2BBC567A03BC511DE72392BD8D4689E14E";
+    private const string RecordedJointBake = "D40344D554944009001140CD0529EA2BBC567A03BC511DE72392BD8D4689E14E";
+
+    private static (Doc Doc, Frame Frame) Scene(bool jointWeights = false)
     {
         var doc = DocumentFactory.CreateDoc();
         doc.Armature = new Armature
@@ -62,6 +72,15 @@ public class LegacyWeightingFingerprintTests(ITestOutputHelper output)
         };
         var layer = doc.Scene.Layers.First(l => !l.IsBackground);
         layer.BoneId = ""; // the whole skeleton, bound before Q217: no marker
+        if (jointWeights)
+        {
+            layer.JointWeights = true;
+            // A second child of the upper arm, lying beside the forearm: the
+            // two are siblings, so their zone is the lesser of their own — the
+            // one branch of the pair table a plain chain never asks for, and
+            // the adversary showed it could be anything without this.
+            doc.Armature.Bones.Add(new Bone { Id = "spur", ParentId = "upper", X = 100, Y = 14, Length = 80, JointZone = 9 });
+        }
         var frame = layer.Cels[0].Frame!;
         frame.Strokes.Add(new Stroke
         {
@@ -111,5 +130,24 @@ public class LegacyWeightingFingerprintTests(ITestOutputHelper output)
         output.WriteLine($"bake   {bake}");
         Assert.Equal(RecordedRender, render);
         Assert.Equal(RecordedBake, bake);
+    }
+
+    [Fact]
+    public void AJointWeightedLayerPosesAsItDid()
+    {
+        var (doc, frame) = Scene(jointWeights: true);
+        var rig = RigIndex.For(doc);
+        var render = Fingerprint(Skinning.PoseFrameForRender(doc, frame, 0, rig).Strokes);
+
+        var baked = frame.Clone();
+        Skinning.BakeFrame(
+            baked, doc.Armature!, ArmatureOps.EffectivePoseAt(doc.Armature!, doc.Scene.PoseTrack, 0), "", jointWeights: true);
+        var bake = Fingerprint(baked.Strokes);
+
+        output.WriteLine($"joint render {render}");
+        output.WriteLine($"joint bake   {bake}");
+        Assert.NotEqual(RecordedRender, render);   // or the marker reached nothing and this pins the legacy path twice
+        Assert.Equal(RecordedJointRender, render);
+        Assert.Equal(RecordedJointBake, bake);
     }
 }
