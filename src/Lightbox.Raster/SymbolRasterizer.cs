@@ -147,6 +147,41 @@ public static class SymbolRasterizer
     }
 
     /// <summary>
+    /// What a symbol would look like dropped fresh, and the box it would occupy
+    /// with its pivot at the origin: the picture a drag shows before the drop.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Takes the symbol rather than an id, because the symbol being dragged may
+    /// be one from the artist's library that no document has adopted yet — the
+    /// registry does not hold it until the drop places it.
+    /// </para>
+    /// <para>
+    /// The same cached render and the same matrix <see cref="Stamp"/> and
+    /// <see cref="PlacementBounds"/> use, so the preview cannot disagree with
+    /// the drop about where the ink lands: move the box by the drop point and it
+    /// is the placement's bounds. A symbol of several drawings shows the one a
+    /// fresh placement shows at <paramref name="celIndex"/>, which is not always
+    /// the first.
+    /// </para>
+    /// </remarks>
+    /// <returns>A bitmap the caller owns and disposes, or null when the symbol has no ink.</returns>
+    public static (SKBitmap Bitmap, SKRect Box)? Ghost(Symbol symbol, SKImageInfo info, int celIndex = 0)
+    {
+        if (symbol.Layers.Count == 0 || symbol.FrameCount == 0) return null;
+        var fresh = new SymbolPlacement();
+        var index = fresh.FrameIndexAt(celIndex, symbol.FrameCount);
+        if (Resolve(symbol, index, info, RenderScale(fresh, 1.0)) is not { } rendered) return null;
+        // A fresh placement at the origin has nothing to rotate or scale, so
+        // its matrix is the pivot shift alone and the box is the rendered
+        // rectangle moved by it.
+        var box = PlacementMatrix(fresh, symbol).MapRect(rendered.Rect);
+        // A copy: the cache owns the one it rendered, and a ghost outlives a
+        // cache that an edit to the symbol clears.
+        return (rendered.Bitmap.Copy(), box);
+    }
+
+    /// <summary>
     /// Where a placement's ink lands in document coordinates, or null when
     /// nothing of it renders.
     /// </summary>

@@ -144,6 +144,8 @@ app itself reports it**, over the lab instance's own pipe:
 | `{"do": "click", "target": {"tip_starts": "Move (V)"}}` | the same, by how the tooltip begins: a tool's tip is its name and key, then a paragraph |
 | `{"do": "expect", "row": ["Ink", "A . B . . . . ."]}` | a layer's row: drawing ids, `.` for an empty cel |
 | `{"do": "expect", "frame_count": 7}` / `"selected": [...]` / `"folder_selected": "..."` / `"status_contains": "..."` | |
+| `{"do": "drag", "from_target": {"symbol": "Star"}, "to": [0.5, 0.5], "ms": 2500}` | a real drag from a named thing to a point of the document — the one gesture no headless test can make, because headless Avalonia has no drag source. `"library": "symbols"` on the scenario puts one symbol, Star, in the run's throwaway library |
+| `{"do": "expect", "placements": 1}` / `"logged": "symbol.ghost"` | placed symbols in the scene; an event the app wrote to its own log, for something on screen only mid-gesture |
 | `{"do": "expect", "icons": "placed"}` | every icon on screen is on whole device pixels, inside its button, and — alone in it — within `"within_px"` (1) of the centre; fewer than `"at_least"` (40) icons is a failure, not a pass |
 
 `"window": "maximised"` and `"panels": ["Xsheet"]` set the stage, whatever a fresh
@@ -175,6 +177,7 @@ Windows Ink echo) still need a real tablet.
 | `xsheet-delete-pull-block` | a Shift-selected block of holds, Shift+Delete |
 | `layers-multiselect` | Ctrl+click, Shift+click range, folder click, Ctrl+click after a folder |
 | `icon-buttons` | where every icon sits at this display's scaling, before and after its buttons are pressed |
+| `symbol-drag` | a Symbols tile dragged onto the canvas: the symbol is shown on the way and placed on the drop (B374, B438) |
 
 `icon-buttons` is both kinds at once. `check` answers placement: the app counts its own
 icons (`lab_icons`) and reports where each landed in its button — the question a headless
