@@ -680,11 +680,23 @@ public static class BrushEngine
                 {
                     // Flushed per dab inside; the pixmap is a view of the raster
                     // surface's own memory, so it sees every dab laid before.
-                    using var scratchPixels = scratch.PeekPixels();
+                    //
+                    // With a plane the dabs and the ground they read are in
+                    // document coordinates, as they are while drawing: the
+                    // stroke so far is the plane itself and the layer beneath
+                    // lines up with it pixel for pixel. A mixing dab's colour
+                    // depends on the pixels of every dab before it, so the two
+                    // paths have to agree on each one exactly for the live
+                    // mark to be the replay - under a translation they were a
+                    // level apart on a scattering of pixels, and that was
+                    // carried down the whole stroke.
+                    using var scratchPixels = plane is null ? scratch.PeekPixels() : plane.Ink.PeekPixels();
                     using var beneathPixels = targetPixels?.PeekPixels();
                     var ground = new MixGround(
-                        scratchPixels, beneathPixels, new SKPointI(dev.Left, dev.Top), canvas.TotalMatrix);
-                    StampMixedDabRange(canvas, stroke, WalkDabs(stroke), 0, int.MaxValue, ground, default, deposits, fp);
+                        scratchPixels, beneathPixels,
+                        plane is null ? new SKPointI(dev.Left, dev.Top) : default,
+                        dabCanvas.TotalMatrix);
+                    StampMixedDabRange(dabCanvas, stroke, WalkDabs(stroke), 0, int.MaxValue, ground, default, deposits, fp);
                 }
                 else
                 {
@@ -1072,7 +1084,11 @@ public static class BrushEngine
         return stroke.Tool == ToolKind.Brush
             && brush.Kind == BrushKind.Paint
             && brush.Medium.Kind == MediumKind.None
-            && brush.Mixing is null
+            // A mixing brush reads the ground under each dab. Its own layer is
+            // the same pixels while drawing as on replay; a composite of the
+            // layers beneath is handed over differently by the two, and is not
+            // yet held to be.
+            && (brush.Mixing is null || brush.SampleSource == SampleSource.ThisLayer)
             && stroke.ClipId is null
             && !stroke.AlphaLocked
             && stroke.Points.Count > 0
@@ -1154,14 +1170,11 @@ public static class BrushEngine
 
         /// <summary>
         /// A plane for this render, or null when the render is not the
-        /// document's own — another scale, a tile's origin — or the brush reads
-        /// its ground through the scratch (colour mixing, until that route is
-        /// moved too).
+        /// document's own: another scale, a tile's origin, a document too large.
         /// </summary>
         public static DocPlane? Rent(SKImageInfo info, SKRectI dev, double scale, SKPointI origin, BrushSettings brush)
         {
             if (scale != 1.0 || origin.X != 0 || origin.Y != 0) return null;
-            if (brush.Mixing is not null) return null;
             if (!ReplaysInDocumentSpace(info.Width, info.Height)) return null;
             if (dev.Width <= 0 || dev.Height <= 0
                 || dev.Left < 0 || dev.Top < 0 || dev.Right > info.Width || dev.Bottom > info.Height)

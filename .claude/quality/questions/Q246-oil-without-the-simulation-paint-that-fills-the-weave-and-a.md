@@ -25,4 +25,4 @@ What it blocks: every medium with body. Gouache and acrylic-like paint meet a su
 - **Strokes already drawn with the simulated Oil are untouched for now**; their settings name the simulation. They change when it is deleted (Q240).
 - **The hairs need a sheet.** They work by pressing paint into a paper unevenly, so a brush with no paper texture has none. A tip that streaks on a perfectly smooth ground is not built.
 - **One number.** How many hairs a tip has, how wide, which are thin, and how they move when the brush is pressed and dragged are what the owner means the tip system to grow into; none of it exists yet.
-- **Still rendered again at pen-up**, like Watercolor: the Oil mixes colour with what is under it, and a mixing brush is not yet a mark the live path can keep.
+- **Was still rendered again at pen-up** when this was answered, like Watercolor, because it mixes colour with what is under it. Closed the same day (`PenUpChangesNothingTests.AMixingStrokeAcrossPaintIsKept`).

@@ -494,6 +494,58 @@ harder edge), which is where to look first. This is the open item phase 2
 leaves. If one point is ever too few, the live mark is drawn and not kept,
 so the price is a stall at pen-up and never a wrong pixel.
 
+## Phase 3, so far: the media as recipes
+
+The owner's brief, once the first sheets were on the table (2026-10-11): no
+physics, *"but visually I would like to come really close with how pigment and
+water/oil interact with the paper/surface"* — pressure that decides how the
+paint meets the sheet, on every medium; paint that can be reworked; and, later,
+paper that can be wetted first. Each medium is judged on a sheet beside the
+simulated brush it replaces before it ships.
+
+| | what it is now | decided in |
+| --- | --- | --- |
+| **Watercolor** | a crisp thin wash; a wet edge that *gathers* paint at the rim and thins the middle; the scanned Fibre sheet; colour picked up from beneath; paint that runs out | Q244 |
+| **Oil** | paint that a press of a third pushes into linen until it is solid (*Fills at*); the canvas showing as the brush empties; a tip with hairs, each with its own contact, so the dry end is streaks | Q246 |
+| Gouache, Ink wash | still simulated | — |
+
+Three pieces of engine carry it, all ceilings or stencils laid under the pen:
+
+- **The wet edge gathers.** It used to darken the rim's colour and leave the
+  middle alone, which on a pale wash cannot be seen. It replaces the old one
+  for every brush.
+- **Paint fills; graphite does not.** With a fill pressure the tooth's
+  threshold runs down past the deepest valley, and how hard the paint is
+  pressed is pressure times the paint left on the brush.
+- **A hair is a contact, not a shade.** `BrushSettings.Bristles`, on the tip
+  and for any brush. The first version made each hair a level and got a ribbon
+  with faint stripes; gating the sheet hair by hair gets streaks.
+
+**A mixing stroke is kept at pen-up.** Both recipes mix colour with what is
+under them, and a mixing dab's colour depends on the pixels of every dab before
+it — so a level's difference in how one dab is rasterised is carried down the
+stroke. The replay stamped a mixing stroke into a stroke-sized scratch under a
+translation while the live path stamps in the document's own coordinates. It
+now goes through the document plane like every other brush, reading the stroke
+so far from the plane and the layer beneath at the same pixels, and
+`AMixingStrokeAcrossPaintIsKept` holds Watercolor and Oil to byte-exact and
+kept across existing paint. No fingerprint moved. (A brush that mixes with a
+composite of the layers beneath is still replayed: the two paths are handed
+that composite differently, and it is not yet held to be the same.)
+
+Krita does not have this problem, and it is worth saying why: its document is
+the pixels. A dab is painted into the layer once, undo restores saved tiles,
+and nothing is ever replayed. Here the record is the document (invariant 1),
+which is what gives resolution-independent output and strokes an inbetweener
+can read — and the price is that the mark drawn live has to be shown to be the
+mark a replay makes. That proof, brush family by brush family, is what this
+note has been.
+
+**Not done in phase 3:** gouache and ink wash; a tooth and a wet edge on one
+brush (so Watercolor does not yet answer pressure against the paper as Oil
+does); the rework brushes (Q245); wetting the page; shaping and moving a tip's
+hairs. None of phase 3 has been through the perf lab.
+
 ## Order
 
 1. **Promote at pen-up**, for the brushes that are already dab-final (ink, soft

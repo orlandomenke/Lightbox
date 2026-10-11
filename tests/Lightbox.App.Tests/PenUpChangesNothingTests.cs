@@ -30,6 +30,9 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
         "builtin-ink", "builtin-soft-round", "builtin-airbrush", "builtin-pencil",
         // Phase 2: wet edge, grain and paper land under the pen for the flats.
         "builtin-watercolor", "builtin-gouache", "builtin-oil-flat",
+        // Phase 3: the media rebuilt as recipes. They mix colour with what is
+        // under them, which is a mark the live path keeps too.
+        "builtin-watercolor-wet", "builtin-oil",
     ];
 
     public static IEnumerable<object[]> Shipped() =>
@@ -315,5 +318,77 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
         Assert.True(gap.Differing == 0,
             $"{preset.Name}: the committed frame is not what its record renders ({gap.Differing} pixels, worst {gap.Worst}) — invariant 1");
         Assert.True(vm.PromotedStrokes == 1, $"{preset.Name} at {size}: rendered again at pen-up — {vm.WhyReplayed}");
+    }
+
+    public static IEnumerable<object[]> Mixing() =>
+        from id in new[] { "builtin-watercolor-wet", "builtin-oil" }
+        from size in new[] { 0, 90 }
+        from smooth in new[] { true, false }
+        select new object[] { id, size, smooth };
+
+    /// <summary>
+    /// A brush that mixes colour with what is under it, drawn across paint
+    /// that is already there. On a blank layer such a brush picks up nothing
+    /// and is exactly its own colour, so the strokes above do not test the
+    /// mixing at all; here every dab reads the ground, carries some of it on,
+    /// and the next dab reads what this one laid.
+    /// </summary>
+    /// <remarks>
+    /// The chain is what makes it hard: a dab's colour depends on the pixels
+    /// of the dabs before it, so a level's difference in how one dab is
+    /// rasterised is carried into every dab after. The replay used to stamp a
+    /// mixing stroke into a stroke-sized scratch under a translation, where
+    /// the live path stamps into the document's own coordinates - a level
+    /// apart on a scattering of pixels, by Skia's gradient arithmetic - so a
+    /// mixing stroke was never one the live path could keep, and Watercolor
+    /// and Oil, rebuilt without the simulation, were still rendered again at
+    /// every pen-up.
+    /// </remarks>
+    [AvaloniaTheory]
+    [MemberData(nameof(Mixing))]
+    public void AMixingStrokeAcrossPaintIsKept(string presetId, int size, bool smooth)
+    {
+        var vm = Vm(smooth);
+        var scene = vm.Doc.Scene;
+
+        // Something to pick up: three fat bars of plain ink in other colours.
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-ink"));
+        vm.BrushSize = 40;
+        foreach (var (x, hex) in new[] { (300.0, "#c8301c"), (480.0, "#e2a11c"), (660.0, "#1c7a3a") })
+        {
+            vm.ColorHex = hex;
+            vm.BeginStroke(x, 150, 1);
+            for (var i = 1; i <= 12; i++) vm.MoveStroke(x + (i * 2), 150 + (i * 25), 1);
+            vm.EndStroke();
+            for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        var before = vm.PromotedStrokes;
+
+        var preset = vm.BrushPresetChoices.Single(p => p.Id == presetId);
+        vm.ApplyPreset(preset);
+        if (size > 0) vm.BrushSize = size;
+        vm.ColorHex = "#203060";
+        Assert.NotNull(vm.CurrentToolSettingsForTest.Mixing);
+
+        vm.BeginStroke(180, 300, 0.5);
+        for (var i = 1; i <= 50; i++)
+        {
+            vm.MoveStroke(180 + (i * 12.0), 300 + (Math.Sin(i * 0.2) * 60), 0.5 + (0.4 * i / 50.0));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        vm.EndStroke();
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        var gap = Compare(kept, replay);
+        var promoted = vm.PromotedStrokes - before == 1;
+        output.WriteLine(
+            $"MIXING {preset.Name,-12} size {vm.BrushSize,4:0} {(smooth ? "smooth" : "raw"),-6} {(promoted ? "kept" : "REPLAYED: " + vm.WhyReplayed)}  differing {gap.Differing} worst {gap.Worst}");
+
+        Assert.True(gap.Differing == 0,
+            $"{preset.Name}: the committed frame is not what its record renders ({gap.Differing} pixels, worst {gap.Worst}) — invariant 1");
+        Assert.True(promoted, $"{preset.Name}: a mixing stroke was rendered again at pen-up — {vm.WhyReplayed}");
     }
 }
