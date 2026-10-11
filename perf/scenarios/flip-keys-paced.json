@@ -1,0 +1,68 @@
+{
+  "name": "flip-keys-paced",
+  "about": "Flip through the keys forward and back, looking at each drawing for two seconds, as an animator checks a pass. flip-keys flips every 250 ms, faster than idle time can prepare the next key, so it cannot see the warm; this can.",
+  "fixture": "owner-shape",
+  "steps": [
+    {
+      "do": "hover",
+      "at": [
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "do": "key",
+      "keys": "2",
+      "after_ms": 2000
+    },
+    {
+      "do": "key",
+      "keys": "2",
+      "after_ms": 2000
+    },
+    {
+      "do": "key",
+      "keys": "2",
+      "after_ms": 2000
+    },
+    {
+      "do": "key",
+      "keys": "2",
+      "after_ms": 2000
+    },
+    {
+      "do": "key",
+      "keys": "2",
+      "after_ms": 2000
+    },
+    {
+      "do": "key",
+      "keys": "1",
+      "after_ms": 2000
+    },
+    {
+      "do": "key",
+      "keys": "1",
+      "after_ms": 2000
+    },
+    {
+      "do": "key",
+      "keys": "1",
+      "after_ms": 2000
+    },
+    {
+      "do": "key",
+      "keys": "1",
+      "after_ms": 2000
+    },
+    {
+      "do": "key",
+      "keys": "1",
+      "after_ms": 2000
+    },
+    {
+      "do": "settle",
+      "quiet_s": 1.0
+    }
+  ]
+}
