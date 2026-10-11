@@ -161,8 +161,8 @@ first. The cost is the processor working for a few seconds after each change —
 turn it off on a laptop running on battery.
 
 **If you press play before the range is ready, playback waits for it.** The
-playhead stays where it is, **Preparing** and a progress bar appear beside the
-Loop button, and every core but one works on the range. Playback starts on its
+playhead stays where it is, **Preparing loop** and a progress bar appear at the
+end of the transport, and every core but one works on the range. Playback starts on its
 own, at full speed, the moment the range is ready — so the first loop plays on
 time rather than stuttering through drawings that are still being painted.
 Press play again, or start drawing, to cancel. A range too large to hold in

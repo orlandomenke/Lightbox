@@ -193,7 +193,7 @@ before it with `perf/lab.py ab`.
 | 2a | **One cold render, cheaper**: stamp each stroke once per drawing on the tile route, not once per tile; stop rebuilding paints, shaders and dab lists per stroke render. Bit-identical: `RuntimeDeterminismTests` and the brush pixel tests unchanged | `tiles`: one-core render down by about the repeat factor (≥ 2.5× at 1080p); managed allocation per drawing a small fraction of 24 MB |
 | 2b | **Idle warming**, a pool sized by `--scaling` after 2a (not assumed N−1), restarts on edit, drains at Background, window-sized on small machines | `first-playback`: first frame **< 100 ms** after a 10 s idle; `play-after-edit` reported against idle time; UI stall from the warmer **0** (it never runs on the UI thread) |
 | 3 | **Stop stays on tiles**, bitmaps warmed behind | Stop → frame on screen **< 50 ms**; the two routes pixel-identical (test) |
-| 4 | **Buffering** state and the timeline indicator — **built 2026-10-11** (`PlayBuffersTests`): the first cut's rule (every drawing held), shown beside Loop rather than on the timeline cells | Pressing play cold: no frame shown out of time; UI responsive throughout (no stall over 50 ms while buffering) |
+| 4 | **Buffering** state and the timeline indicator — **built 2026-10-11** (`PlayBuffersTests`): the first cut's rule (every drawing held), shown at the end of the transport rather than on the timeline cells | Pressing play cold: no frame shown out of time; UI responsive throughout (no stall over 50 ms while buffering) |
 | 5 | **One cache**: the paused canvas composes from tiles | Folded into B125/B167; not started before they settle |
 
 Two things are deliberately not here:

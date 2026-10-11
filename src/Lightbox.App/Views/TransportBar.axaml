@@ -41,18 +41,6 @@
                   ToolTip.Tip="Loop playback. Off plays once and stops on the last frame.">
       <Path Classes="icon" Data="{StaticResource IconLoop}" />
     </ToggleButton>
-    <!--
-      Buffering before play (Q214): the playhead holds while the loop is
-      prepared, so it starts at full speed and plays on time. Shown only then.
-    -->
-    <StackPanel x:Name="PlayBuffering" Orientation="Horizontal" Spacing="{StaticResource Space4}"
-                VerticalAlignment="Center" IsVisible="{Binding IsBufferingPlay}"
-                ToolTip.Tip="Preparing the loop so it plays at full speed. Press play again to cancel.">
-      <TextBlock Text="Preparing" VerticalAlignment="Center" FontSize="{StaticResource TypeDense}" />
-      <ProgressBar Minimum="0" Maximum="1" Value="{Binding PlayBufferProgress}"
-                   Height="{StaticResource SizeBusyBar}" Width="{StaticResource SizeDockerLabel}"
-                   VerticalAlignment="Center" />
-    </StackPanel>
     <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}" VerticalAlignment="Center">
       <TextBlock Text="fps" VerticalAlignment="Center" />
       <NumericUpDown Value="{Binding Fps}" Minimum="1" Maximum="60" Increment="1"
@@ -63,6 +51,18 @@
       <NumericUpDown Value="{Binding PlaybackSpeedPercent}" Minimum="10" Maximum="400" Increment="10"
                      FormatString="0" Width="50" VerticalAlignment="Center"
                      ToolTip.Tip="Playback speed as a percentage of real time" />
+    </StackPanel>
+    <!--
+      Buffering before play (Q214): the playhead holds while the loop is
+      prepared, so it starts at full speed and plays on time. Shown only then,
+      and last in the row, so appearing moves nothing the artist may reach for.
+    -->
+    <StackPanel x:Name="PlayBuffering" Orientation="Horizontal" Spacing="{StaticResource Space4}"
+                VerticalAlignment="Center" IsVisible="{Binding IsBufferingPlay}"
+                ToolTip.Tip="Preparing the loop so it plays at full speed. Press play again to cancel.">
+      <TextBlock Text="Preparing loop" VerticalAlignment="Center" />
+      <ProgressBar Classes="busy" Minimum="0" Maximum="1" Value="{Binding PlayBufferProgress}"
+                   Width="{StaticResource SizeBufferBar}" VerticalAlignment="Center" />
     </StackPanel>
   </StackPanel>
 </UserControl>
