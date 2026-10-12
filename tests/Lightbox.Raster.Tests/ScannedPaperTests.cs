@@ -111,11 +111,70 @@ public class ScannedPaperTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// No strip of a sheet is smeared: the grain is as busy down every band of
+    /// columns, and across every band of rows, as it is on the sheet as a whole.
+    /// </summary>
+    /// <remarks>
+    /// The Plain scan shipped with a strip at its right edge where the grain
+    /// ran into vertical streaks - where the scan's maker had blended the tile
+    /// shut. Its edges met, so the wrap test above passed; on a canvas it was a
+    /// pale band every 1024 px down every large mark of Pencil, Gouache and Ink
+    /// wash, found in a 300 px wash the day the paper merged. Measured as the
+    /// mean step between neighbouring texels along a 16-texel band against the
+    /// sheet's median: 0.75 on that strip, 0.94 on the cleaned sheet.
+    /// Kraft is not here yet: it has the same fault at its left and top edges
+    /// (0.74), and replacing a shipped sheet is the owner's decision each time
+    /// (Q254 decided Plain).
+    /// </remarks>
+    [Theory]
+    [InlineData(PaperKind.Plain)]
+    [InlineData(PaperKind.Fibre)]
+    [InlineData(PaperKind.Linen)]
+    [InlineData(PaperKind.Plaster)]
+    public void NoStripOfAScanIsSmearedIntoStreaks(PaperKind kind)
+    {
+        int w = PaperField.TilePeriod(kind, 8), h = PaperField.TilePeriodY(kind, 8);
+        var field = new float[w * h];
+        PaperField.Fill(field, w, h, 0, 0, kind, 8);
+
+        // How busy each column is going down it, and each row going along it.
+        var columns = new double[w];
+        var rows = new double[h];
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                var here = field[(y * w) + x];
+                columns[x] += Math.Abs(field[(((y + 1) % h) * w) + x] - here) / h;
+                rows[y] += Math.Abs(field[(y * w) + ((x + 1) % w)] - here) / w;
+            }
+        }
+
+        var worstColumns = Quietest(columns, 16);
+        var worstRows = Quietest(rows, 16);
+        output.WriteLine($"{kind}: the quietest band of columns is {worstColumns:0.00} of the sheet's median, of rows {worstRows:0.00}");
+        Assert.True(worstColumns >= 0.85, $"{kind} has a band of columns smeared into streaks: {worstColumns:0.00} of the median");
+        Assert.True(worstRows >= 0.85, $"{kind} has a band of rows smeared into streaks: {worstRows:0.00} of the median");
+    }
+
+    /// <summary>The least busy band of <paramref name="width"/>, wrapping, as a fraction of the median band.</summary>
+    private static double Quietest(double[] busy, int width)
+    {
+        var bands = new double[busy.Length];
+        for (var i = 0; i < busy.Length; i++)
+        {
+            for (var k = 0; k < width; k++) bands[i] += busy[(i + k) % busy.Length] / width;
+        }
+        var sorted = bands.OrderBy(b => b).ToArray();
+        return sorted[0] / sorted[sorted.Length / 2];
+    }
+
+    /// <summary>
     /// At its native grain size a scan is the embedded file, texel for pixel,
     /// and its proportions are the scan's own.
     /// </summary>
     [Theory]
-    [InlineData(PaperKind.Plain, 1024, 600)]
+    [InlineData(PaperKind.Plain, 816, 552)]
     [InlineData(PaperKind.Kraft, 794, 1024)]
     [InlineData(PaperKind.Fibre, 1024, 1024)]
     [InlineData(PaperKind.Linen, 1024, 1024)]
@@ -139,7 +198,7 @@ public class ScannedPaperTests(ITestOutputHelper output)
     /// replaced scan needs a new kind, not a new file under an old name.
     /// </summary>
     [Theory]
-    [InlineData(PaperKind.Plain, "9536CD9900B2-E542E34A87A6-69577B814F19")]
+    [InlineData(PaperKind.Plain, "CDC033D29A16-CB96CDF0FA63-BB7E02EB9FDC")] // re-recorded 2026-10-12: the streaked strip cut out (Q254, B459)
     [InlineData(PaperKind.Kraft, "87A43F6260FF-12C28E384E5D-F45CB3CCDC7E")]
     [InlineData(PaperKind.Fibre, "CE10CA61DEA9-75DA70D559E5-B38548207CB5")]
     [InlineData(PaperKind.Linen, "01F02A42986A-F110512B6941-D1C47DF779F0")]
