@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.Input;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Geometry;
 
 namespace Lightbox.App.ViewModels;
 
@@ -334,7 +335,7 @@ public partial class MainViewModel
     /// pixels that are already down, so the frame is rebuilt from the record —
     /// which is invariant 1 doing its job rather than a cost to be avoided.
     /// </remarks>
-    private void AfterStrokeEdit(string frameId)
+    private void AfterStrokeEdit(string frameId, GeometryOps.BBox? repaintBounds = null)
     {
         // Through the funnel rather than at the bitmap cache directly. This
         // called `_cache.Invalidate` alone, which left the *tile* cache holding
@@ -343,7 +344,7 @@ public partial class MainViewModel
         // because tiles were only reachable while playing, and reshaping is the
         // first editing path that writes new geometry into a frame the tiles may
         // already hold.
-        InvalidateFrameRender(frameId);
+        InvalidateFrameRender(frameId, repaintBounds);
         _dirtyThumbIds.Add(frameId);
         PublishSnapshot();
         RefreshThumbnails();

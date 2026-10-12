@@ -1658,6 +1658,23 @@ public static class BrushEngine
     }
 
     /// <summary>
+    /// <see cref="StableCount(IReadOnlyList{Dab}, IReadOnlyList{Dab})"/> - the
+    /// position rule, which is the one the effect draft settles by
+    /// (LiveBlurFidelityTests) - asked of a <see cref="LiveDabWalk"/>: the list
+    /// before was the first <paramref name="kept"/> dabs of this one followed
+    /// by <paramref name="replaced"/>, so only what follows them is compared.
+    /// </summary>
+    public static int StablePositions(IReadOnlyList<Dab> now, int kept, IReadOnlyList<Dab> replaced)
+    {
+        if (now.Count == 0) return 0;
+        kept = Math.Clamp(kept, 0, now.Count);
+        var shared = Math.Min(now.Count, kept + replaced.Count);
+        var agreed = kept;
+        while (agreed < shared && now[agreed].Pos == replaced[agreed - kept].Pos) agreed++;
+        return Math.Max(1, agreed);
+    }
+
+    /// <summary>
     /// <see cref="StableCount(IReadOnlyList{Dab}, IReadOnlyList{Dab}, double, out int)"/>
     /// and, for a brush with no tolerance, <see cref="SettledCount"/>, asked of
     /// a <see cref="LiveDabWalk"/>: the list before was the first

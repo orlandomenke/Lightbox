@@ -321,6 +321,22 @@ class Pointer:
         # starts again from the next deliberate move.
         self.expected = None
 
+    def glide(self, start: tuple[float, float], end: tuple[float, float], ms: float, hz: float) -> None:
+        """Move at `hz` events a second for `ms` with no button held — a hand carrying
+        the pointer somewhere. What a rubber band, a hover preview or a cursor ring is
+        drawn against; `hover` is one jump and shows none of it."""
+        self.move(*start)
+        steps = max(2, int(ms / 1000 * hz))
+        t0 = time.perf_counter()
+        for i in range(1, steps + 1):
+            f = i / steps
+            # Unguarded for the drag's reason: a busy app is the thing being measured.
+            self.move(start[0] + (end[0] - start[0]) * f, start[1] + (end[1] - start[1]) * f,
+                      guarded=False)
+            while time.perf_counter() - t0 < i / hz:
+                time.sleep(0.0005)
+        self.expected = None
+
 
 def window_of(pid: int) -> int | None:
     found: list[int] = []
@@ -701,6 +717,9 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
             if step["do"] == "phase":
                 marks.append({"phase": step["name"], "qpc": qpc()})
                 continue
+            if step["do"] == "shot":
+                shoot(hwnd, out / f"{step['name']}-{name}.png")
+                continue
             if step["do"] == "drag" and "from_target" in step:
                 step = {**step, "_screen": locate(pipe, step["from_target"])}
             if step["do"] == "click" and "target" in step:
@@ -735,6 +754,62 @@ def run_once(scenario: dict, exe: Path, out: Path, presentmon: str | None) -> di
     return result
 
 
+def shoot(hwnd: int, path: Path) -> None:
+    """The lab's own window as a PNG, so a run can be looked at as well as timed.
+
+    PrintWindow, not a copy of the screen: it asks the window for its own pixels, so
+    whatever else is on the desktop — the artist's real Lightbox, a chat — cannot end up
+    in the file. Flag 2 (PW_RENDERFULLCONTENT) is what makes a GPU-drawn window answer
+    with its picture instead of black. The pointer is not in it; Windows draws that."""
+    import struct
+    import zlib
+    gdi32 = ctypes.WinDLL("gdi32")
+    rect = wt.RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(rect))
+    w, h = rect.right - rect.left, rect.bottom - rect.top
+    if w <= 0 or h <= 0:
+        return
+    for f, res, args in ((user32.GetWindowDC, wt.HDC, [wt.HWND]),
+                         (gdi32.CreateCompatibleDC, wt.HDC, [wt.HDC]),
+                         (gdi32.CreateCompatibleBitmap, wt.HBITMAP, [wt.HDC, ctypes.c_int, ctypes.c_int]),
+                         (gdi32.SelectObject, wt.HGDIOBJ, [wt.HDC, wt.HGDIOBJ]),
+                         (user32.PrintWindow, wt.BOOL, [wt.HWND, wt.HDC, wt.UINT]),
+                         (gdi32.GetDIBits, ctypes.c_int, [wt.HDC, wt.HBITMAP, wt.UINT, wt.UINT,
+                                                          ctypes.c_void_p, ctypes.c_void_p, wt.UINT]),
+                         (gdi32.DeleteObject, wt.BOOL, [wt.HGDIOBJ]),
+                         (gdi32.DeleteDC, wt.BOOL, [wt.HDC]),
+                         (user32.ReleaseDC, ctypes.c_int, [wt.HWND, wt.HDC])):
+        f.restype, f.argtypes = res, args
+    window = user32.GetWindowDC(hwnd)
+    memory = gdi32.CreateCompatibleDC(window)
+    bitmap = gdi32.CreateCompatibleBitmap(window, w, h)
+    gdi32.SelectObject(memory, bitmap)
+    user32.PrintWindow(hwnd, memory, 2)
+    # BITMAPINFOHEADER: 32-bit, top-down (negative height), uncompressed.
+    header = struct.pack("<IiiHHIIiiII", 40, w, -h, 1, 32, 0, 0, 0, 0, 0, 0)
+    pixels = ctypes.create_string_buffer(w * h * 4)
+    gdi32.GetDIBits(memory, bitmap, 0, h, pixels, header, 0)
+    gdi32.DeleteObject(bitmap)
+    gdi32.DeleteDC(memory)
+    user32.ReleaseDC(hwnd, window)
+
+    raw = bytearray()
+    row = w * 4
+    for y in range(h):
+        line = bytearray(pixels.raw[y * row:(y + 1) * row])
+        line[0::4], line[2::4] = line[2::4], line[0::4]      # BGRA -> RGBA
+        line[3::4] = b"\xff" * w                              # the window is opaque
+        raw += b"\x00" + line
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+    path.write_bytes(b"\x89PNG\r\n\x1a\n"
+                     + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
+                     + chunk(b"IDAT", zlib.compress(bytes(raw), 6))
+                     + chunk(b"IEND", b""))
+
+
 def iterate_steps(scenario: dict):
     for i in range(int(scenario.get("repeat", 1))):
         for step in scenario["steps"]:
@@ -764,6 +839,13 @@ def do_step(step: dict, place: Placement, pointer: Pointer, log: Log, hwnd: int)
         # way and read as the change under test.
         if not input_accepted():
             raise InputRefused("Windows refused the lab's input during a drag — the session "
+                               "most likely locked; unlock it and run again")
+    elif kind == "glide":
+        a = place.at(*step["from"])
+        b = place.at(step["from"][0] + step["by"][0], step["from"][1] + step["by"][1])
+        pointer.glide(a, b, ms=float(step.get("ms", 1000)), hz=float(step.get("hz", 120)))
+        if not input_accepted():
+            raise InputRefused("Windows refused the lab's input during a glide — the session "
                                "most likely locked; unlock it and run again")
     elif kind == "hover":
         pointer.move(*(step["_screen"] if "_screen" in step else place.at(*step["at"])))

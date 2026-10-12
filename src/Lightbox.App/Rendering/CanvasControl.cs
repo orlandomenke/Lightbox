@@ -1101,7 +1101,7 @@ public sealed partial class CanvasControl : Control
     public void SetPenPreview(IReadOnlyList<Core.Documents.StrokePoint>? points)
     {
         _penPreview = points is { Count: > 1 } ? points : null;
-        InvalidateVisual();
+        InvalidateOverlay();
     }
 
     /// <summary>
@@ -1120,7 +1120,7 @@ public sealed partial class CanvasControl : Control
     public void SetPathTrace(IReadOnlyList<Core.Documents.StrokePoint>? points)
     {
         _pathTrace = points is { Count: > 1 } ? points : null;
-        InvalidateVisual();
+        InvalidateOverlay();
     }
 
     /// <summary>
@@ -1149,7 +1149,7 @@ public sealed partial class CanvasControl : Control
     public void SetPathNodes(IReadOnlyList<PathNodeGlyph>? nodes)
     {
         _pathNodes = nodes is { Count: > 0 } ? nodes : null;
-        InvalidateVisual();
+        InvalidateOverlay();
     }
 
     /// <summary>
@@ -1179,7 +1179,7 @@ public sealed partial class CanvasControl : Control
     /// The same 10 the transform gizmo's handles use. One number for "close
     /// enough to have meant it" rather than two that drift apart.
     /// </remarks>
-    private const double GrabPixels = 10.0;
+    private const double GrabPixels = OverlayStyle.GrabPixels;
 
     /// <summary>The marquee in flight, or null when there is not one.</summary>
     private SKRect? LineMarqueeRect()
@@ -1879,7 +1879,7 @@ public sealed partial class CanvasControl : Control
 
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
-            NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
+            NoteRendered, FrameTimeReporter(), CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, ReferenceSheetBox, EmphasisedGuides(), _draftGuide, WithRigPreview(RigMarks), _balanceDots,
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,
@@ -4199,168 +4199,11 @@ public sealed partial class CanvasControl : Control
             if (dragging) canvas.Restore();
         }
 
-        /// <summary>
-        /// The node overlay: handles behind, nodes in front, everything sized in
-        /// screen pixels rather than document ones.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// <b>Every dimension is divided by the view scale</b>, which is what
-        /// makes a node the same size to grab at 25% and at 800%. The overlay is
-        /// drawn inside the document transform so its coordinates need no
-        /// conversion; only its <em>thicknesses</em> do. Getting this backwards
-        /// gives handles that vanish when you zoom out to see the shape — which
-        /// is exactly when you need them.
-        /// </para>
-        /// <para>
-        /// <b>Corners are squares and smooth nodes are circles</b>, which is the
-        /// convention every vector tool shares and is worth matching rather than
-        /// inventing: it is the only way to see, without clicking, whether a
-        /// point will kink when you drag its handle.
-        /// </para>
-        /// <para>
-        /// <b>Handles are drawn only for selected nodes</b>, matching the hit
-        /// test exactly — an overlay that showed a handle nothing could grab, or
-        /// hid one that could be, would make the tool feel unreliable in a way
-        /// that is very hard to report.
-        /// </para>
-        /// </remarks>
-        private void DrawPathNodes(SKCanvas canvas)
-        {
-            if (pathNodes is null || pathNodes.Count == 0) return;
-
-            var scale = Math.Max(0.01f, view.Scale);
-            var nodeRadius = 4f / scale;
-            var handleRadius = 3f / scale;
-
-            using var stem = new SKPaint
-            {
-                Color = SKColors.DeepSkyBlue.WithAlpha(200),
-                StrokeWidth = 1f / scale,
-                Style = SKPaintStyle.Stroke,
-                IsAntialias = true,
-            };
-            using var outline = new SKPaint
-            {
-                Color = SKColors.DeepSkyBlue,
-                StrokeWidth = 1.5f / scale,
-                Style = SKPaintStyle.Stroke,
-                IsAntialias = true,
-            };
-            using var hollow = new SKPaint
-            {
-                Color = SKColors.White,
-                Style = SKPaintStyle.Fill,
-                IsAntialias = true,
-            };
-            using var filled = new SKPaint
-            {
-                Color = SKColors.DeepSkyBlue,
-                Style = SKPaintStyle.Fill,
-                IsAntialias = true,
-            };
-
-            // Handles first, so a stem never draws over the node it belongs to.
-            foreach (var n in pathNodes)
-            {
-                if (!n.Selected) continue;
-                foreach (var (hx, hy) in new[] { (n.InX, n.InY), (n.OutX, n.OutY) })
-                {
-                    if (hx == 0 && hy == 0) continue;
-                    var ax = (float)(n.X + hx);
-                    var ay = (float)(n.Y + hy);
-                    canvas.DrawLine((float)n.X, (float)n.Y, ax, ay, stem);
-                    canvas.DrawCircle(ax, ay, handleRadius, hollow);
-                    canvas.DrawCircle(ax, ay, handleRadius, outline);
-                }
-            }
-
-            foreach (var n in pathNodes)
-            {
-                var x = (float)n.X;
-                var y = (float)n.Y;
-                var body = n.Selected ? filled : hollow;
-                if (n.Corner)
-                {
-                    var box = new SKRect(x - nodeRadius, y - nodeRadius, x + nodeRadius, y + nodeRadius);
-                    canvas.DrawRect(box, body);
-                    canvas.DrawRect(box, outline);
-                }
-                else
-                {
-                    canvas.DrawCircle(x, y, nodeRadius, body);
-                    canvas.DrawCircle(x, y, nodeRadius, outline);
-                }
-
-                // The pen's closing indicator: a ring, because the node itself
-                // must stay legible under it — the ring says "the next click
-                // lands here and joins up", the node keeps saying what it is.
-                if (n.CloseHint)
-                {
-                    canvas.DrawCircle(x, y, nodeRadius * 2.2f, outline);
-                }
-            }
-        }
-
-        /// <summary>
-        /// The path the pen has drawn so far, traced rather than painted.
-        /// </summary>
-        /// <remarks>
-        /// <b>Deliberately not the brush.</b> Seeing the real mark would mean
-        /// stamping the whole path into the scratch surface on every pointer
-        /// move, for as long as the artist takes to place their nodes — the cost
-        /// invariant 6 exists to refuse. What a pen actually needs shown is the
-        /// <em>shape</em>, and the shape is what a traced line is.
-        /// </remarks>
-        private void DrawPenPreview(SKCanvas canvas)
-        {
-            // Two traces, one look: the pen's path in progress and the isolated
-            // line being reshaped. Separate channels because both can be alive
-            // at once — a parked pen path survives a tool switch into isolation.
-            TraceLine(canvas, penPreview);
-            TraceLine(canvas, pathTrace);
-        }
-
-        private void TraceLine(SKCanvas canvas, IReadOnlyList<Core.Documents.StrokePoint>? trace)
-        {
-            if (trace is not { Count: > 1 } points) return;
-
-            var scale = Math.Max(0.01f, view.Scale);
-            using var path = new SKPath();
-            path.MoveTo((float)points[0].X, (float)points[0].Y);
-            for (var i = 1; i < points.Count; i++)
-            {
-                path.LineTo((float)points[i].X, (float)points[i].Y);
-            }
-
-            // Two passes: a pale wide one so the line reads over dark artwork,
-            // and the blue the nodes are drawn in over it. The same trick the
-            // marching ants use, for the same reason — an overlay that vanishes
-            // against half the drawings is an overlay you cannot trust.
-            using var halo = new SKPaint
-            {
-                Color = SKColors.White.WithAlpha(160),
-                StrokeWidth = 3f / scale,
-                Style = SKPaintStyle.Stroke,
-                IsAntialias = true,
-            };
-            using var line = new SKPaint
-            {
-                Color = SKColors.DeepSkyBlue,
-                StrokeWidth = 1.25f / scale,
-                Style = SKPaintStyle.Stroke,
-                IsAntialias = true,
-            };
-            canvas.DrawPath(path, halo);
-            canvas.DrawPath(path, line);
-        }
-
         private void DrawObjectSelections(SKCanvas canvas)
         {
             DrawSelectedLines(canvas);
             DrawLineMarquee(canvas);
-            DrawPenPreview(canvas);
-            DrawPathNodes(canvas);
+            PathOverlayPainter.Paint(canvas, pathNodes, penPreview, pathTrace, view.Scale);
             if (selectionManager is null || !selectionManager.HasSelection) return;
 
             var scale = view.Scale;

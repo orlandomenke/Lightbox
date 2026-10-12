@@ -217,6 +217,10 @@ public partial class MainViewModel
         UiScale.Current = Settings.UiScale;
         ApplyTheme(Settings.Theme);
         _snapTolerance = Settings.SnapTolerance;
+        // The fields, not the properties: reading a switch back must not publish
+        // a frame or write the file it was just read from.
+        _snapToGuides = Settings.SnapToGuides;
+        _viewThroughCamera = Settings.ViewThroughCamera;
         // Mirror it where the render thread can see it (B125): the draw op has no
         // route to the view model, and an environment variable still forces it on
         // for headless runs.
