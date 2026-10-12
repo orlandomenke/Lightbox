@@ -4019,6 +4019,11 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B456** `P2` `ui` The pointer forbids painting on an alpha-locked layer wherever its centre is not over ink, though a wider brush or a drag would paint `evidence: AnAlphaLockedDrawingWithPaintNeverForbids, AnAlphaLockedDrawingWithNoPaintStillForbids`
+  - **Reported by the owner, 2026-10-12:** *"When I lock transparency on a layer, I am able to paint but forces to only paint over existing ink. But the block/forbidden icon is presented."* Seen over empty areas; over ink the pointer was right.
+  - **Cause: the refusal asked about one pixel.** `PaintUnder` read the cached drawing at the pointer's centre and forbade when it was transparent. A brush is wider than a pixel and a stroke is longer than a press, so the pointer refused marks the application then made: a 24-pixel brush sixteen pixels from a line paints its edge, and a press on bare paper dragged onto ink paints from where it arrives. The regression test asks at all three places — on the paint, beside it, far from it — and failed at the second.
+  - **Fix (the owner's choice of three):** alpha lock forbids only a drawing with no paint on it at all, which is the case the refusal was added for. Asked of the record — a stroke, stored pixels or a placed symbol — so the per-move lookup in the frame cache is gone with it; on a miss that was a whole-drawing render on the UI thread from a hover.
+
 - [x] **B445** `P2` `ui` Every flip to a frame not seen before holds the UI thread 160-190 ms on a 30-layer document: the navigator composes the whole page to make a 256-pixel picture `evidence: ThePictureIsComposedAtItsOwnSize`
 
 - [x] **B438** `P2` `ui` The Symbols panel shows none of the artist's library until a project is opened or closed `evidence: TheLibraryIsOnShowFromLaunchWithNoProject`
@@ -4561,7 +4566,7 @@ test reopens the bug.
   - `HeatPoints` gated only on the Bone tool being active and a bone being selected, so zero-influence blue dots covered every line while the artist was building or posing the skeleton. The dots answer "what would the weight brush touch" — outside Weights mode that question has no brush, and the answer is noise.
   - Fixed by gating on the weight brush being armed, which is also when the dots' posed positions mean something to correct against.
 
-- [x] **B209** `P3` `ui` `CanvasCursorTests` paints without taking the BrushState collection, so it can read another class's brush store `evidence: CanvasCursorTests, AlphaLockRefusesOverBareCanvasAndAllowsOverPaint`
+- [x] **B209** `P3` `ui` `CanvasCursorTests` paints without taking the BrushState collection, so it can read another class's brush store `evidence: CanvasCursorTests, AnAlphaLockedDrawingWithPaintNeverForbids`
   - Found while landing B208: the alpha-lock test went red once under full-solution load, reporting a refusal *over paint it had just laid down*. In isolation it passes every time, on this branch and on `main` — which is the signature of the parallelism hazard rather than of a bug in the code it guards.
   - `BrushStateIsolated` swaps four **process-wide statics** — the brush store, the settings file, the workspace store and the AI settings path — and `[Collection("BrushState")]` serialises the classes that do it against *each other*. A class outside the collection still runs beside them, so it reads whichever path happens to be set. `CanvasCursorTests` sets a brush size, picks a tool and strokes through the real path in ten places, and had no collection attribute.
   - **The rule was already written down and this class did not follow it**: *"any test that changes a brush must take this collection so it does not run beside one that assumes defaults."* Adding six window-building tests in B208's file changed the timing enough to make it fire, which is the only reason it was seen — it has presumably been latent for as long as the class has painted.
