@@ -667,6 +667,9 @@ the test needs relaxing.
   - Detection power proved with three mutants: writing the patch without taking the old pixels back kills two tests, skipping a rendering the snapshot never saw kills one, and leaving the patches in place across a rebuild kills one. B327's own suite keeps testing the replay, because `UndoRegionRepaintTests` now clears the snapshots in its warm-up.
 - [x] Warp transform `evidence: TransformToolTests, TransformBegun`
 - [x] Cage warp: a lattice of handles over the transform box, bicubic between them, imported pixels through the same mesh (Q199) `evidence: CageWarp, CageWarpTests, TransformCageTests, ACageCommitBendsTheLineThroughTheDraggedHandle, ImportedPixelsAreResampledThroughTheCage`
+- [ ] A region repaint costs what it covers, not what it touches (B450) `evidence: ARegionRepaintStampsOnlyTheDabsThatReachIt`
+  - **Measured 2026-10-12.** Repainting a rectangle of a drawing stamps every stroke whose reach touches it in full and lets Skia discard the rest: a 200 px square touching all twenty strokes of the owner-shaped fixture's first drawing cost 204 ms, against 221 ms for the whole drawing. So an undo whose saved pixels are gone, a fill below line work and a reshaped line (B448) all cost the drawing rather than the mark wherever strokes overlap.
+  - **What it needs:** `BrushEngine.StampStroke` stamping only the dabs whose footprint reaches the clip, and any per-stroke scratch bounded to it. Exact only where dabs are independent; the stroke-global passes need their own answer or a refusal. Cost: M, and in the one path every brush renders through, so it is its own branch with the lab before and after.
 - [ ] Liquify: push, bloat, pinch and twirl as a brush over the stroke record, one undo step per stroke, pixels through the same displacement (Q199; after the cage) `evidence: LiquifyBrush, LiquifyTests`
 - [?] Clone stamp
 - [?] Healing brush
