@@ -99,7 +99,9 @@ public static class BrushEngine
     /// plain texture pass seed a repeating field from the scratch's corner
     /// (<c>StampPaint</c> says so where it sizes it). A mixing brush carries
     /// colour along the whole stroke. Each would come out differently from a
-    /// smaller scratch, and each is refused here rather than reasoned about;
+    /// smaller scratch — as would a stroke painted inside a selection, whose
+    /// mask is drawn from the scratch's corner — and each is refused here
+    /// rather than reasoned about;
     /// <c>RegionRepaintWindowTests</c> holds every built-in brush, and a brush
     /// for each option this admits, to the whole render pixel for pixel.
     /// </para>
@@ -108,6 +110,12 @@ public static class BrushEngine
     {
         var brush = stroke.Brush;
         return deposits is null
+            // A selection's mask is rasterised in the scratch, under a
+            // translation by the scratch's corner. A cut scratch moves it, and
+            // a slanted edge came out up to 33 levels different on 157 bytes
+            // of one patch (the adversary's angle; the test that measured it
+            // is APatchedDrawingOfStrokesInsideASelectionIsTheWholeRender).
+            && stroke.ClipId is null
             && brush.Mixing is null
             && brush.Medium.Kind == MediumKind.None
             && brush.Granulation <= 0

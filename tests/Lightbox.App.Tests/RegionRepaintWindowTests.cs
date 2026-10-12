@@ -249,6 +249,70 @@ public sealed class RegionRepaintWindowTests(ITestOutputHelper output) : BrushSt
         }
     }
 
+    /// <summary>
+    /// Strokes painted inside a selection — hard-edged and feathered — are
+    /// patched exactly.
+    /// </summary>
+    /// <remarks>
+    /// The adversary's open angle on the window: a stroke's selection mask is
+    /// rasterised in the scratch, under a translation by the scratch's corner,
+    /// so a cut scratch moves the translation — the same kind of move that put
+    /// a level's difference into a patch at 2x. A slanted contour with
+    /// fractional corners is what would show it. Such strokes are stamped
+    /// whole; this holds them to the whole render either way.
+    /// </remarks>
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(6.0)]
+    public void APatchedDrawingOfStrokesInsideASelectionIsTheWholeRender(double feather)
+    {
+        var clipId = $"clip_b450_{feather}";
+        List<StrokePoint> triangle =
+        [
+            new() { X = 3.1, Y = 5.7 }, new() { X = 600.3, Y = 40.9 }, new() { X = 200.7, Y = 390.2 },
+        ];
+        ClipRegionRegistry.Register(clipId, new ClipRegion { Contours = [triangle], Feather = feather });
+
+        var frame = Drawing(Option("plain"));
+        foreach (var stroke in frame.Strokes) stroke.ClipId = clipId;
+        using var whole = FrameRasterizer.Materialize(frame, W, H);
+
+        // Squares the slanted edges cross, at offsets that are not multiples of anything.
+        SKRectI[] regions =
+        [
+            new(271, 13, 331, 73), new(383, 197, 443, 257), new(87, 161, 147, 221), new(40, 30, 600, 370),
+        ];
+        foreach (var rect in regions)
+        {
+            using var patched = whole.Copy();
+            Assert.True(FrameRasterizer.RepaintRegion(patched, frame, rect, W, H));
+            var (differing, worst) = Compare(patched, whole);
+            output.WriteLine($"feather {feather}, region at {rect.Left},{rect.Top}: differing {differing}, worst {worst}");
+            Assert.True(differing == 0, $"feather {feather} at {rect.Left},{rect.Top}: {differing} bytes differ, worst by {worst}");
+        }
+    }
+
+    /// <summary>Alpha-locked strokes over earlier paint are patched exactly.</summary>
+    [Fact]
+    public void APatchedDrawingWithAlphaLockedStrokesIsTheWholeRender()
+    {
+        var frame = Drawing(Option("large and soft"));
+        for (var i = 6; i < frame.Strokes.Count; i++)
+        {
+            frame.Strokes[i].AlphaLocked = true;
+            frame.Strokes[i].Brush = Option("plain");
+        }
+        using var whole = FrameRasterizer.Materialize(frame, W, H);
+        foreach (var (name, rect) in Regions)
+        {
+            using var patched = whole.Copy();
+            Assert.True(FrameRasterizer.RepaintRegion(patched, frame, rect, W, H));
+            var (differing, worst) = Compare(patched, whole);
+            output.WriteLine($"alpha-locked, {name}: differing {differing}, worst {worst}");
+            Assert.True(differing == 0, $"alpha-locked, {name}: {differing} bytes differ, worst by {worst}");
+        }
+    }
+
     /// <summary>The same, with eraser strokes among the paint: a patch has to take away what was taken away.</summary>
     [Theory]
     [InlineData("builtin-ink")]
