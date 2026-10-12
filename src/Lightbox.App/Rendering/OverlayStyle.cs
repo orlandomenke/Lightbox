@@ -59,23 +59,47 @@ public static class OverlayStyle
     public static readonly SKColor Accent = new(0x00, 0xD1, 0xBC);
 
     /// <summary>What goes under and around the accent so it reads on any artwork.</summary>
+    /// <remarks>
+    /// Not a palette role, deliberately: it is drawn over the artist's picture
+    /// rather than over the application's surfaces, so it does not follow the
+    /// theme. The dark the symmetry axis and the camera's handles already used.
+    /// </remarks>
     public static readonly SKColor Casing = new(0x26, 0x29, 0x2F, 200);
 
-    /// <summary>The inside of an unselected grip.</summary>
+    /// <summary>
+    /// The inside of an unselected grip. White, not a text or surface token:
+    /// it has to read as empty on any artwork, in either theme.
+    /// </summary>
     public static readonly SKColor Open = SKColors.White;
 
-    public const float LineWidth = 1.25f;
+    public const float LineWidth = 1.5f;
 
-    /// <summary>The line and a little over a pixel of casing on each side.</summary>
-    public const float CasingWidth = 3.75f;
+    /// <summary>
+    /// The line and a pixel of casing on each side. Any wider and the casing
+    /// is most of what is seen: at 1.25 inside 3.75 the line read as grey-teal
+    /// rather than as the accent (the ui-critic, on the first render).
+    /// </summary>
+    public const float CasingWidth = 3.5f;
 
-    /// <summary>Half the width of a grip: nine pixels across.</summary>
+    /// <summary>
+    /// Half the width of a grip's body: nine pixels across, and about twelve
+    /// drawn once its outline and rim are on.
+    /// </summary>
     public const float GripHalf = 4.5f;
 
     public const float GripOutline = 1.5f;
 
-    /// <summary>A steering dot — a curve handle. A third of a grip's area.</summary>
+    /// <summary>
+    /// A steering dot — a curve handle. About a quarter of a drawn grip's
+    /// area, which is what keeps it from being read as a point.
+    /// </summary>
     public const float DotRadius = 2.5f;
+
+    /// <summary>
+    /// How far out the "next click lands here" ring sits, in grip half-widths:
+    /// clear of the grip's own rim with a gap the eye can see between them.
+    /// </summary>
+    public const float RingReach = 2.2f;
 
     public const float StemWidth = 1f;
 

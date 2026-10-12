@@ -348,22 +348,32 @@ dictionary cannot be read; a test holds its accent to the palette's.
 
 - **One accent means "this is chrome you can edit": `AccentCyan`.** Colours that
   carry a meaning of their own keep it — onion red and blue, the heat map, the
-  camera's orange, the brush ring's adaptive ink.
+  camera's orange, the brush ring's adaptive ink. Cyan is also the chosen-state
+  accent in the panels and the hex behind the success and tween roles; on the
+  canvas it means this and nothing else.
 - **Every line is cased**: the accent over a wider dark pass. An overlay has no
   say in what it is drawn over, and one that vanishes on artwork of its own
   colour cannot be trusted.
-- **Squares grab, dots steer.** Anything moved or resized is a nine-pixel square
-  grip; a smooth point is the same grip, round. What only steers a curve is a
-  small solid dot on a stem — a third of a grip's area, so a handle is never
-  read as a point.
+- **Squares grab, dots steer.** Anything moved or resized is a square grip —
+  nine pixels of body, about twelve drawn with its outline and rim; a smooth
+  point is the same grip, round. What only steers a curve is a small solid dot
+  on a stem, about a quarter of a grip's area, so a handle is never read as a
+  point. A ring around a grip means *the next click lands here*.
 - **Selected is filled; unselected is white inside an accent outline.**
 - **Sizes are screen pixels at every zoom**, and one distance — ten pixels —
-  decides whether a press meant a grip.
+  decides whether a press meant a grip, on the overlays that are on the style
+  so far.
+- **Two colours here are literals on purpose**: the dark casing and the white
+  inside an open grip. They are drawn over the artist's picture, not over the
+  application's surfaces, so they do not follow the theme.
 
 **Not every overlay is on it yet.** The pen and the white arrow are; the
 transform box, guides, selection outlines, crop, camera, symmetry and the rig
 are the next branch. A new overlay takes its pens from `OverlayStyle` and adds
-no colour of its own.
+no colour of its own — by convention for now; the next branch is where a check
+that enforces it belongs, along with the two things the style does not have yet
+and those overlays will need: a hover state, and a second colour for a mark
+that means something other than "editable" (a pivot, a guide's states).
 
 ## Dockers
 

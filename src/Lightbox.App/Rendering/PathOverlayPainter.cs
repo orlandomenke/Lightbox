@@ -67,7 +67,7 @@ public static class PathOverlayPainter
             // The pen's closing indicator is a ring, because the point under it
             // must stay legible: the ring says the next click joins up here,
             // the point keeps saying what it is.
-            if (n.CloseHint) pens.Ring(canvas, x, y, OverlayStyle.GripHalf * 2.2f);
+            if (n.CloseHint) pens.Ring(canvas, x, y, OverlayStyle.GripHalf * OverlayStyle.RingReach);
         }
     }
 
