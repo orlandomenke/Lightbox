@@ -195,7 +195,9 @@ public static class ImageResize
                 bone.Length *= mark;
                 // A joint zone the artist set is a distance along the limb
                 // like the length it is measured against (B447). The default
-                // is derived from the lengths and needs nothing.
+                // is a quarter of the shorter bone, so it follows the lengths
+                // by itself — down to its two-pixel floor, which is a number
+                // in the code and stays two pixels at any size.
                 if (bone.JointZone is { } zone) bone.JointZone = zone * mark;
             }
 

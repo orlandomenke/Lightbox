@@ -351,11 +351,18 @@ public class ImageResizeTests
         };
         var defaultBefore = Skinning.JointZoneOf(doc.Armature, doc.Armature.Bones[2]);
 
-        ImageResize.Apply(doc, doc.Scene.Width * 2, doc.Scene.Height * 2, new FakeResampler());
+        // Twice as wide and the same height, so the factor matters: a zone
+        // is a distance along a limb that may point anywhere, and it takes
+        // the one number a bone's length takes — the mark's — not the
+        // width's. (Resized evenly, this test could not tell the two apart;
+        // the adversary scaled the zone by the width and nothing noticed.)
+        ImageResize.Apply(doc, doc.Scene.Width * 2, doc.Scene.Height, new FakeResampler());
 
-        Assert.Equal(60, doc.Armature.Bones[1].JointZone!.Value, 9);
+        var lengthGrewBy = doc.Armature.Bones[0].Length / 100;
+        Assert.Equal(Math.Sqrt(2), lengthGrewBy, 9);
+        Assert.Equal(30 * lengthGrewBy, doc.Armature.Bones[1].JointZone!.Value, 9);
         Assert.Null(doc.Armature.Bones[2].JointZone);
-        Assert.Equal(defaultBefore * 2, Skinning.JointZoneOf(doc.Armature, doc.Armature.Bones[2]), 9);
+        Assert.Equal(defaultBefore * lengthGrewBy, Skinning.JointZoneOf(doc.Armature, doc.Armature.Bones[2]), 9);
     }
 
     [Fact]
