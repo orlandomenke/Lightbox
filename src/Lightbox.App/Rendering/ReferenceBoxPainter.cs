@@ -47,68 +47,44 @@ public static class ReferenceBoxPainter
     {
         if (referenceBoxes is not { Count: > 0 } && newBox is null && sheetBox is null) return;
         var scale = Math.Max(0.01f, viewScale);
-        var thin = 1f / scale;
-        var handle = 4f / scale;
-
-        using var edge = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = thin,
-            Color = new SKColor(90, 170, 255, 200),
-            IsAntialias = true,
-        };
-        using var chosen = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = thin * 2,
-            Color = new SKColor(255, 190, 60, 235),
-            IsAntialias = true,
-        };
-        using var pivot = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = thin * 1.5f,
-            Color = new SKColor(255, 90, 90, 235),
-            IsAntialias = true,
-        };
-        using var grip = new SKPaint
-        {
-            Style = SKPaintStyle.Fill,
-            Color = new SKColor(255, 255, 255, 220),
-            IsAntialias = true,
-        };
+        // The canvas's one overlay style (Q252). A box that is not selected is
+        // the thin outline — a sheet is a grid of these and they must not
+        // crowd the drawing they frame; the selected one is the styled line
+        // with a grip at each corner; the registration mark is a reference
+        // mark, so it is amber. They were a blue, an amber, a red and a white.
+        using var pens = new OverlayStyle.Pens(scale);
+        using var plain = new SKPath();
+        using var selected = new SKPath();
 
         foreach (var box in Boxes(referenceBoxes, sheetBox))
         {
-            var rect = SKRect.Create(box.X, box.Y, box.W, box.H);
-            canvas.DrawRect(rect, box.Selected ? chosen : edge);
-            if (box.Selected)
-            {
-                // Corners only. Eight handles on a box this small is a row
-                // of overlapping targets, and the corners are the two
-                // gestures — origin and extent — that actually differ.
-                foreach (var corner in (SKPoint[])
-                    [
-                        new(rect.Left, rect.Top), new(rect.Right, rect.Top),
-                        new(rect.Left, rect.Bottom), new(rect.Right, rect.Bottom),
-                    ])
-                {
-                    canvas.DrawRect(
-                        SKRect.Create(corner.X - handle, corner.Y - handle, handle * 2, handle * 2),
-                        grip);
-                }
-            }
+            (box.Selected ? selected : plain).AddRect(SKRect.Create(box.X, box.Y, box.W, box.H));
             // The registration mark, as a cross rather than a dot: a dot
             // has no centre you can see once it is over a drawing. A whole
             // sheet has no mark of its own — registration belongs to the cell
             // — and says so with a pivot that is not a number.
+        }
+        if (newBox is { } drawing) selected.AddRect(drawing);
+
+        pens.Thin(canvas, plain);
+        pens.Line(canvas, selected);
+        foreach (var box in Boxes(referenceBoxes, sheetBox))
+        {
             if (float.IsNaN(box.PivotX) || float.IsNaN(box.PivotY)) continue;
-            var arm = 6f / scale;
-            canvas.DrawLine(box.PivotX - arm, box.PivotY, box.PivotX + arm, box.PivotY, pivot);
-            canvas.DrawLine(box.PivotX, box.PivotY - arm, box.PivotX, box.PivotY + arm, pivot);
+            pens.Cross(canvas, box.PivotX, box.PivotY, OverlayStyle.Role.Reference);
         }
 
-        if (newBox is { } drawing) canvas.DrawRect(drawing, chosen);
+        foreach (var box in Boxes(referenceBoxes, sheetBox))
+        {
+            if (!box.Selected) continue;
+            // Corners only. Eight handles on a box this small is a row of
+            // overlapping targets, and the corners are the two gestures —
+            // origin and extent — that actually differ.
+            pens.Grip(canvas, box.X, box.Y, round: false, selected: false);
+            pens.Grip(canvas, box.X + box.W, box.Y, round: false, selected: false);
+            pens.Grip(canvas, box.X, box.Y + box.H, round: false, selected: false);
+            pens.Grip(canvas, box.X + box.W, box.Y + box.H, round: false, selected: false);
+        }
     }
     /// <summary>
     /// The grid's boxes and the sheet selection, as one sequence to draw.

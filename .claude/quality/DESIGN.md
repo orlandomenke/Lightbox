@@ -354,26 +354,64 @@ dictionary cannot be read; a test holds its accent to the palette's.
 - **Every line is cased**: the accent over a wider dark pass. An overlay has no
   say in what it is drawn over, and one that vanishes on artwork of its own
   colour cannot be trusted.
-- **Squares grab, dots steer.** Anything moved or resized is a square grip —
-  nine pixels of body, about twelve drawn with its outline and rim; a smooth
-  point is the same grip, round. What only steers a curve is a small solid dot
-  on a stem, about a quarter of a grip's area, so a handle is never read as a
-  point. A ring around a grip means *the next click lands here*.
+- **Squares grab, dots steer.** A grip that moves freely is a square — nine
+  pixels of body, about twelve drawn with its outline and rim: a corner, a
+  centre, a handle to pan by. A grip that turns something or slides along one
+  line is the same grip, round: a rotate handle, the middle of an edge, the end
+  of an axis, a smooth point. What only steers a curve is a small solid dot on
+  a stem, about a quarter of a grip's area, so a handle is never read as a
+  point.
 - **Selected is filled; unselected is white inside an accent outline.**
-- **Sizes are screen pixels at every zoom**, and one distance — ten pixels —
-  decides whether a press meant a grip, on the overlays that are on the style
-  so far.
+- **Sizes are screen pixels at every zoom** — except the box round a placed
+  symbol, which stands for a thing with a size in the document. One distance,
+  ten pixels, decides whether a press meant a grip on a point or a line; guides
+  (six), the rig's handles (five) and the symmetry axis (nine) still measure
+  their own, which is a difference in behaviour and is not changed by a
+  restyle.
 - **Two colours here are literals on purpose**: the dark casing and the white
   inside an open grip. They are drawn over the artist's picture, not over the
   application's surfaces, so they do not follow the theme.
 
-**Not every overlay is on it yet.** The pen and the white arrow are; the
-transform box, guides, selection outlines, crop, camera, symmetry and the rig
-are the next branch. A new overlay takes its pens from `OverlayStyle` and adds
-no colour of its own — by convention for now; the next branch is where a check
-that enforces it belongs, along with the two things the style does not have yet
-and those overlays will need: a hover state, and a second colour for a mark
-that means something other than "editable" (a pivot, a guide's states).
+- **Hover grows and thickens, in the same colours** (Q252): a grip two pixels
+  bigger, a line a pixel thicker. It says *a press takes this one* and cannot
+  be read as selected, which is filled.
+- **One second colour, `AccentAmber`, for a reference mark** — a pivot, a warp
+  band, a guide's anchor: the point something turns or is held about, not the
+  thing itself.
+- **The outline of a picked drawn line is two uncased pixels**, three while the
+  pointer is on it. It sits on ink, and the ink has to stay the thing you see;
+  the price, accepted, is that it can be lost on artwork of the accent's colour.
+- **Cased when selected or being edited, thin when merely present.** A reference
+  box or a rig mark that is not selected, and the lazy brush's string, are one
+  uncased pixel, so a sheet of boxes or a rig of hitboxes does not sit on the
+  drawing. Same price as above.
+- **The camera keeps its orange** — the palette's `CameraTrack`, the colour it
+  has on the timeline — and takes its casing and its grips from the style. It
+  is the one overlay with a colour of its own, because the colour is the
+  camera's name.
+- **A dashed line is a copy, not the thing**: the spokes of a rotational
+  symmetry beside its mirror line. The casing under a dashed line stays whole.
+- **A guide at rest is one faint pass**, not a styled line: a perspective rig of
+  thirty lines must not read as thirty selections — lines in a quiet blue, a
+  guide's own marks and its label in the amber turned down. With the Move tool
+  in hand it is still quiet, a touch stronger; the guide the pointer is on and
+  the one that is selected are the styled line.
+- **A cross marks a point that is not a grip** — a pivot, a registration mark —
+  in a lighter weight than a line, because at that size a line's casing is most
+  of the mark. A ring marks a point too: where the next click lands, or a pivot.
+
+**What is not on it, and why.** The armature — bones are green at rest and
+violet when posed, and that difference is information — the motion trail's
+before and after, the balance arc, the heat map and the fill preview each carry
+a colour that means something, and are still drawn in their own. The pointer's
+own ink (the brush ring, its badge, the eyedropper's ring) adapts to the artwork
+and is not chrome you edit. The marching ants are black and white because they
+mean an area that confines paint, not an object; the crop frame's thirds are a
+composition aid in a faint white. The motion arc and the spacing intent are
+judged against rather than edited, and take the one amber. Everything else on
+the canvas takes its pens from `OverlayStyle`, and `EveryCanvasOverlayTakesItsPensFromTheStyle` holds every
+file under `Rendering` to the colour literals it has today — a file it does not
+list, to none.
 
 ## Dockers
 

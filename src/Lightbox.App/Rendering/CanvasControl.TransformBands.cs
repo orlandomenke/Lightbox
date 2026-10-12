@@ -373,33 +373,32 @@ public partial class CanvasControl
     private static bool DrawBandsInstead(SKCanvas canvas, TxGizmoData g, float scale)
     {
         if (g.Bands is not { } b) return false;
-        // Amber — the colour the pivot and the lazy-brush gizmo use for "the
-        // thing you grab", against the box's blue.
-        var colour = new SKColor(0xe0, 0xa0, 0x30, 240);
-        using var line = new SKPaint
-        {
-            IsAntialias = true,
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = 1.6f / scale,
-            Color = colour,
-        };
-        using var grip = new SKPaint { IsAntialias = true, Color = colour };
-        var r = 3.5f / scale;
+        // The style's reference colour (Q252): a divider is where the warp is
+        // held, not part of the box, which is what the pivot it replaces was.
+        using var pens = new OverlayStyle.Pens(scale);
+        using var path = new SKPath();
         foreach (var y in b.Horizontal)
         {
-            var fy = (float)y;
-            canvas.DrawLine(b.Left, fy, b.Right, fy, line);
-            // A grip at each end, so a divider lying over dark ink still reads
-            // as something you can take hold of.
-            canvas.DrawCircle(b.Left, fy, r, grip);
-            canvas.DrawCircle(b.Right, fy, r, grip);
+            path.MoveTo(b.Left, (float)y);
+            path.LineTo(b.Right, (float)y);
         }
         foreach (var x in b.Vertical)
         {
-            var fx = (float)x;
-            canvas.DrawLine(fx, b.Top, fx, b.Bottom, line);
-            canvas.DrawCircle(fx, b.Top, r, grip);
-            canvas.DrawCircle(fx, b.Bottom, r, grip);
+            path.MoveTo((float)x, b.Top);
+            path.LineTo((float)x, b.Bottom);
+        }
+        pens.Line(canvas, path, role: OverlayStyle.Role.Reference);
+        // A grip at each end, so a divider lying over dark ink still reads as
+        // something you can take hold of. Square, because it is grabbed.
+        foreach (var y in b.Horizontal)
+        {
+            pens.Grip(canvas, b.Left, (float)y, round: false, selected: false, role: OverlayStyle.Role.Reference);
+            pens.Grip(canvas, b.Right, (float)y, round: false, selected: false, role: OverlayStyle.Role.Reference);
+        }
+        foreach (var x in b.Vertical)
+        {
+            pens.Grip(canvas, (float)x, b.Top, round: false, selected: false, role: OverlayStyle.Role.Reference);
+            pens.Grip(canvas, (float)x, b.Bottom, round: false, selected: false, role: OverlayStyle.Role.Reference);
         }
         return true;
     }
