@@ -35,6 +35,14 @@ turns it into the file under `src/Lightbox.Raster/Media/Papers/`:
 Paper 001 and Paper 002 are not square and are kept in their own proportions:
 squaring them would stretch the grain.
 
+Paper 001 is also cut down first. It has a strip about 140 pixels wide at its
+right edge where the grain is smeared into vertical streaks, and on a canvas
+that repeated as a pale band down every large mark (B459). The script keeps
+the 880 columns that are paper and makes them tile again by cross-fading the
+first 64 columns and 48 rows with the ones that follow the last, so Plain is
+816 by 552. Paper 002 has the same fault at two edges and has not been cleaned
+yet (Q254).
+
 ## Why these and not others
 
 The first papers tried were a purchased set whose licence grants commercial

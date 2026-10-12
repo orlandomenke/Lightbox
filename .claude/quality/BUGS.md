@@ -1294,6 +1294,13 @@ test reopens the bug.
   - Measured: peak alpha on a wash of 60 stays **60** after a blur. It used to climb to opaque. Cost: S
   - **Smudge and blender have the same runaway and it is not fixed — that is B38.** Splitting them because the fixes are not the same size: blur replaces a region and `Src` says exactly that, while a smudge has to blend and there is no blend mode for it.
 
+- [x] **B459** `P2` `brush` The Plain paper repeats a streaked band down every large mark `evidence: NoStripOfAScanIsSmearedIntoStreaks`
+  - **Seen in a render of the lab's own gesture**, 2026-10-12, while checking how the new Ink wash looks at 300 px: a pale band of vertical streaks through every stroke at the same x. It is in the sheet, not the brush - the Plain scan has a strip about 140 px wide at its right edge where the grain is smeared (where the scan's maker blended the tile shut), so it repeats every 1024 px at the default grain size, on Pencil and Gouache as well.
+  - **Why the paper tests passed:** they check that the tile's edges meet and that it uses the whole range. Both are true of a sheet with a smeared strip in it. The papers were judged on sheets drawn at 26 to 30 px, where a 140 px band in a 1024 px tile is easy to miss.
+  - **Fix:** `scripts/make_papers.py` crops Paper 001 to the 880 columns that are paper and makes them tile again with a contrast-preserving cross-fade; Plain is 816x552. Replacing a pinned surface changes where the grain falls in strokes already drawn on it, which the owner decided (Q254).
+  - **Guard:** `NoStripOfAScanIsSmearedIntoStreaks` - the quietest 16-texel band of columns and of rows against the sheet's median: 0.75 on the old Plain, 0.94 now; Fibre 0.95, Linen 0.98, Plaster 0.86.
+  - **Left open on purpose, needs the same decision:** Kraft has the same fault at its left and top edges (0.74). No shipped brush uses it.
+
 - [x] **B454** `P2` `brush` Blur and smudge walk the whole stroke on every pointer event `evidence: ALongStrokeKeepsUpWithThePenTests, StablePositions`
   - **Found in review of B449** (leak-hunter and the adversary, independently). The effect draft in `FlushLivePreview` called `WalkDabs(live, _live.Densify)` and `StableCount(walk, _live.EffectDabs)` per event: a new list of every dab and a comparison of every position, the same shape B449 removed from paint and left standing here. The only budget on this path, `SmudgeCostTests`, draws 80 points.
   - **Fix:** the draft shares the stroke's kept walk (`LiveDabWalk` - the two paths are exclusive) and settles by position on the tail (`BrushEngine.StablePositions`), the rule it always used.
