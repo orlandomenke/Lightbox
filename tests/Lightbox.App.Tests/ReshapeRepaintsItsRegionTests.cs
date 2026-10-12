@@ -36,7 +36,13 @@ public sealed class ReshapeRepaintsItsRegionTests(ITestOutputHelper output) : Br
     /// A pen line with two drawn lines crossing it, so the rectangle that gets
     /// repainted has other people's ink in it to put back.
     /// </summary>
-    private static (MainViewModel Vm, string LineId) Crossed()
+    /// <param name="busyElsewhere">
+    /// Whether the drawing has most of its ink somewhere the reshape cannot
+    /// reach. That is what makes a patch worth taking: it is priced by the
+    /// strokes it replays, so a line that touches most of the drawing is
+    /// cheaper to rebuild than to patch.
+    /// </param>
+    private static (MainViewModel Vm, string LineId) Crossed(bool busyElsewhere = true)
     {
         var vm = VmLayers.BareVm();
         vm.SmoothStrokes = false;
@@ -56,6 +62,10 @@ public sealed class ReshapeRepaintsItsRegionTests(ITestOutputHelper output) : Br
 
         vm.ActiveTool = ToolId.Brush;
         Line(vm, 150, 60, 150, 420);
+        if (busyElsewhere)
+        {
+            for (var row = 0; row < 4; row++) Scribble(vm, 600, 440 + row * 20, 900);
+        }
 
         vm.ActiveTool = ToolId.Pen;
         vm.ColorHex = "#2244cc";
@@ -82,6 +92,14 @@ public sealed class ReshapeRepaintsItsRegionTests(ITestOutputHelper output) : Br
         vm.BeginStroke(x0, y0, 1);
         vm.MoveStroke((x0 + x1) / 2, (y0 + y1) / 2, 1);
         vm.MoveStroke(x1, y1, 1);
+        vm.EndStroke();
+    }
+
+    /// <summary>A long line of many points, well away from the pen line.</summary>
+    private static void Scribble(MainViewModel vm, double x0, double y, double x1)
+    {
+        vm.BeginStroke(x0, y, 1);
+        for (var i = 1; i <= 60; i++) vm.MoveStroke(x0 + (x1 - x0) * i / 60, y + (i % 2) * 3, 1);
         vm.EndStroke();
     }
 
@@ -173,6 +191,37 @@ public sealed class ReshapeRepaintsItsRegionTests(ITestOutputHelper output) : Br
         // The second number is what stops the first passing on a reshape that
         // changed nothing at all.
         Assert.True(moved > 500, $"the reshape moved only {moved} pixels");
+        Assert.Equal(0, differing);
+    }
+
+    /// <summary>
+    /// A line that reaches most of the drawing is rebuilt, not patched — and
+    /// is still right.
+    /// </summary>
+    /// <remarks>
+    /// The patch stamps every stroke its rectangle touches in full, so here it
+    /// would replay the whole drawing through a clip and cost more than the
+    /// render it was meant to save. Measured, not assumed: see
+    /// <c>ReplayingBeatsRebuilding</c>.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AReshapeThatReachesMostOfTheDrawingRebuildsItInstead()
+    {
+        var (vm, lineId) = Crossed(busyElsewhere: false);
+        using var _ = Shown(vm);
+        var repaintsBefore = vm.FrameRegionRepaints;
+        var dropsBefore = vm.FrameRenderDrops;
+
+        Reshape(vm, lineId);
+
+        using var cached = Cached(vm);
+        using var rebuilt = Rebuilt(vm);
+        var (differing, worst) = Compare(cached, rebuilt);
+        output.WriteLine(
+            $"repaints {repaintsBefore} → {vm.FrameRegionRepaints}, "
+            + $"drops {dropsBefore} → {vm.FrameRenderDrops}; differing {differing}, worst {worst}");
+        Assert.Equal(repaintsBefore, vm.FrameRegionRepaints);
+        Assert.Equal(dropsBefore + 1, vm.FrameRenderDrops);
         Assert.Equal(0, differing);
     }
 

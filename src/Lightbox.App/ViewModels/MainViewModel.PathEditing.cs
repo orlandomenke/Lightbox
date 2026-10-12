@@ -280,6 +280,36 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// Whether repainting a rectangle is the cheaper way to bring a drawing up
+    /// to date, or dropping it and rendering it again is (B448).
+    /// </summary>
+    /// <remarks>
+    /// <b>A region repaint is priced by the strokes it replays, not by the
+    /// pixels it covers.</b> Every stroke whose reach touches the rectangle is
+    /// stamped in full and Skia throws away what falls outside — measured on
+    /// the owner-shaped fixture, a 200 px square that touched all twenty
+    /// strokes of a drawing cost 204 ms against 221 ms for the whole drawing,
+    /// and a quarter of the page touching eleven cost 106 ms. So a long line
+    /// across a busy drawing gains nothing from the patch, and in the lab it
+    /// lost: 360 ms from release to screen against 240 ms for the drop. Half
+    /// the drawing's points is where the patch is still clearly ahead.
+    /// </remarks>
+    private static bool ReplayingBeatsRebuilding(Frame frame, GeometryOps.BBox bounds)
+    {
+        var region = RegionOf(bounds);
+        long replayed = 0, all = 0;
+        foreach (var stroke in frame.Strokes)
+        {
+            all += stroke.Points.Count;
+            if (Lightbox.Raster.BrushEngine.ReachBounds(stroke) is { } reach && reach.IntersectsWith(region))
+            {
+                replayed += stroke.Points.Count;
+            }
+        }
+        return replayed * 2 <= all;
+    }
+
+    /// <summary>
     /// Write the reshaped line into the document as one undo step.
     /// </summary>
     /// <remarks>
@@ -332,6 +362,7 @@ public partial class MainViewModel
                 Math.Min(was.MinX, now.MinX), Math.Min(was.MinY, now.MinY),
                 Math.Max(was.MaxX, now.MaxX), Math.Max(was.MaxY, now.MaxY))
             : (GeometryOps.BBox?)null;
+        if (repaint is { } rectangle && !ReplayingBeatsRebuilding(frame, rectangle)) repaint = null;
 
         var frameId = frame.Id;
         _editor.PerformDelta(
