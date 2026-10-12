@@ -136,6 +136,16 @@ public class LiveDabWalkTests(ITestOutputHelper output)
                         + $"{tail} (exact {tailExact}) asked of the tail");
                 }
 
+                // The position rule the effect draft settles by, the same way.
+                if (n > 1)
+                {
+                    var wholePositions = BrushEngine.StableCount(live, before);
+                    var tailPositions = BrushEngine.StablePositions(live, walk.Kept, walk.Replaced);
+                    Assert.True(
+                        wholePositions == tailPositions,
+                        $"{name}, {n} points: {wholePositions} dabs settled by position asked of the whole list, {tailPositions} asked of the tail");
+                }
+
                 before = [.. live];
                 walked++;
             }

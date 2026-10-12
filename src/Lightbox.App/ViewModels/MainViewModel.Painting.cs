@@ -2663,12 +2663,22 @@ public partial class MainViewModel
             // ones left, which is how a smear travels at all — the committed
             // path gives it the very bitmap it is writing, and the draft has to
             // match or the preview stops matching the commit.
-            // The whole stroke, walked with the shared densify cache, so the dabs land where the
-            // commit will put them — a per-segment walk restarts the spacing phase and Densify sees
-            // two points, which was 1148 px of over-coverage on the blur (B54) and the same defect
-            // on the smudge (B69/B89). Only the dabs that are not settled yet are stamped.
-            var walk = BrushEngine.WalkDabs(live, _live.Densify);
-            var settled = BrushEngine.StableCount(walk, _live.EffectDabs);
+            // The whole stroke's dabs, so they land where the commit will put them — a
+            // per-segment walk restarts the spacing phase and Densify sees two points, which was
+            // 1148 px of over-coverage on the blur (B54) and the same defect on the smudge
+            // (B69/B89). Only the dabs that are not settled yet are stamped.
+            //
+            // Kept between events and resumed, as the paint path's are (LiveDabWalk): this was
+            // a walk of the whole stroke and a comparison of every dab on every pointer event,
+            // the cost that stopped a long line following the pen (B449), left standing here
+            // when paint was fixed. The paths are exclusive - a stroke is an effect or paint -
+            // so they share the one kept walk. Position alone settles a dab here, as before.
+            var firstEffectWalk = _live.EffectDabs is null;
+            var walk = _live.Walk.Of(live);
+            var settled = firstEffectWalk
+                ? (walk.Count == 0 ? 0 : 1)
+                : BrushEngine.StablePositions(walk, _live.Walk.Kept, _live.Walk.Replaced);
+            _live.WalkWork = _live.Walk.LastWalked + Math.Max(0, walk.Count - _live.Walk.Kept);
 
             if (live.Brush.Kind == BrushKind.Blur)
             {
@@ -2996,6 +3006,9 @@ public partial class MainViewModel
 
     /// <summary>What the last pointer event did to find the stroke's dabs, for the test that bounds it.</summary>
     internal int LiveWalkWorkForTest => _live.WalkWork;
+
+    /// <summary>How many dabs the effect draft (blur, smudge) has walked for the stroke in hand.</summary>
+    internal int LiveEffectDabCountForTest => _live.EffectDabs?.Count ?? 0;
 
     private void StampLiveDabs(Stroke live, SKImageInfo info)
     {
