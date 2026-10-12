@@ -39,9 +39,20 @@ public static class BrushEngine
     /// uses — a stroke the window refuses counts whole. An estimate: it reads
     /// the drawn copy's reach and not each mirrored copy's.
     /// </remarks>
-    public static long ReplayArea(Stroke stroke, SKImageInfo info, SKRectI? window = null)
+    public static long ReplayArea(Stroke stroke, SKImageInfo info, SKRectI? window = null) =>
+        ReachBounds(stroke) is { } reach ? ReplayArea(stroke, reach, info, window) : 0;
+
+    /// <summary>
+    /// Both answers from one walk of the stroke's points: the whole stroke,
+    /// and the part a repaint over <paramref name="window"/> would stamp.
+    /// </summary>
+    public static (long Whole, long Patch) ReplayAreas(Stroke stroke, SKImageInfo info, SKRectI window) =>
+        ReachBounds(stroke) is { } reach
+            ? (ReplayArea(stroke, reach, info, null), ReplayArea(stroke, reach, info, window))
+            : (0, 0);
+
+    private static long ReplayArea(Stroke stroke, SKRectI reach, SKImageInfo info, SKRectI? window)
     {
-        if (ReachBounds(stroke) is not { } reach) return 0;
         var page = SKRectI.Intersect(reach, SKRectI.Create(0, 0, info.Width, info.Height));
         if (page.Width <= 0 || page.Height <= 0) return 0;
         if (window is not { } wanted) return (long)page.Width * page.Height;

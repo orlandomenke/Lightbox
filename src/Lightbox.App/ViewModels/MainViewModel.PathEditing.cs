@@ -321,8 +321,9 @@ public partial class MainViewModel
         long patch = 0, whole = 0;
         foreach (var stroke in frame.Strokes)
         {
-            whole += Lightbox.Raster.BrushEngine.ReplayArea(stroke, page);
-            patch += Lightbox.Raster.BrushEngine.ReplayArea(stroke, page, region);
+            var (all, part) = Lightbox.Raster.BrushEngine.ReplayAreas(stroke, page, region);
+            whole += all;
+            patch += part;
         }
         return patch * 2 <= whole;
     }
