@@ -101,7 +101,8 @@ public static class BrushCostOf
     /// one (2026-10-09): a brush with a paper and a depth wore no badge.
     /// </summary>
     private static bool HasPaper(BrushSettings brush) =>
-        brush.TextureDepth > 0 && (brush.TextureSurface is not null || brush.TextureId is not null);
+        (brush.TextureDepth > 0 || (brush.TextureSettle ?? 0) > 0)
+        && (brush.TextureSurface is not null || brush.TextureId is not null);
 
     /// <summary>
     /// The reason, for a tooltip — or null when there is nothing to say.

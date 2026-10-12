@@ -306,6 +306,21 @@ public sealed class BrushSettings
     /// </remarks>
     public double? TextureFill { get; set; }
 
+    /// <summary>
+    /// 0..1: how far thin paint settles into the sheet. The mark covers
+    /// everything and is thinner on the peaks than in the valleys, so the
+    /// surface shows as tone inside it and not as gaps. Null - absent from the
+    /// record - for a brush that does not.
+    /// </summary>
+    /// <remarks>
+    /// The other half of how a sheet shows, and the opposite sign to a tooth:
+    /// a tooth (<see cref="TexturePressure"/>, <see cref="TextureFill"/>) is
+    /// thick or dry paint catching the peaks and leaving the valleys empty;
+    /// this is runny paint pooling in them. A brush can have both. Laid under
+    /// the pen as a stencil, like the paper texture itself.
+    /// </remarks>
+    public double? TextureSettle { get; set; }
+
     // ---- colour dynamics -------------------------------------------------------
 
     /// <summary>
@@ -514,6 +529,7 @@ public sealed class BrushSettings
         TextureDepth = TextureDepth,
         TexturePressure = TexturePressure,
         TextureFill = TextureFill,
+        TextureSettle = TextureSettle,
         SecondaryColor = SecondaryColor,
         ColorJitter = ColorJitter,
         HueJitter = HueJitter,
