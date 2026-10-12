@@ -314,6 +314,12 @@
                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
             <Slider Value="{Binding BrushTextureFill}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
           </DockPanel>
+          <DockPanel ToolTip.Tip="For thin, runny paint: it covers the whole surface and settles into the valleys, so the surface shows as tone inside the mark rather than as gaps. Needs a surface. Works alone, with Depth, or with Tooth.">
+            <TextBlock Text="Settles" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
+            <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushTextureSettle}" Minimum="0" Maximum="1"
+                           Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
+            <Slider Value="{Binding BrushTextureSettle}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+          </DockPanel>
           <DockPanel ToolTip.Tip="The flat grain used when no texture surface is chosen.">
             <TextBlock Text="Granulation" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushGranulation}" Minimum="0" Maximum="1"

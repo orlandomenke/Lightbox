@@ -32,7 +32,7 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
         "builtin-watercolor", "builtin-gouache", "builtin-oil-flat",
         // Phase 3: the media rebuilt as recipes. They mix colour with what is
         // under them, which is a mark the live path keeps too.
-        "builtin-watercolor-wet", "builtin-oil",
+        "builtin-watercolor-wet", "builtin-oil", "builtin-gouache-body", "builtin-ink-wash",
     ];
 
     public static IEnumerable<object[]> Shipped() =>
@@ -321,7 +321,7 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
     }
 
     public static IEnumerable<object[]> Mixing() =>
-        from id in new[] { "builtin-watercolor-wet", "builtin-oil" }
+        from id in new[] { "builtin-watercolor-wet", "builtin-oil", "builtin-gouache-body", "builtin-ink-wash" }
         from size in new[] { 0, 90 }
         from smooth in new[] { true, false }
         select new object[] { id, size, smooth };

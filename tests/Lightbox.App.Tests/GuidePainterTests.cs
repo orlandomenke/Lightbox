@@ -254,11 +254,94 @@ public class GuidePainterTests(ITestOutputHelper output)
         var grabbable = Ink(GuidePainter.Emphasis.Grabbable);
         var hover = Ink(GuidePainter.Emphasis.Hover);
         var selected = Ink(GuidePainter.Emphasis.Selected);
+        int Wide(GuidePainter.Emphasis e)
+        {
+            using var bmp = PaintOverArtwork([plain with { Emphasis = e }]);
+            var count = 0;
+            for (var x = 0; x < W; x++)
+            {
+                var c = bmp.GetPixel(x, H / 2);
+                if (Math.Abs(255 - c.Red) + Math.Abs(255 - c.Green) + Math.Abs(255 - c.Blue) > 60) count++;
+            }
+            return count;
+        }
 
-        output.WriteLine($"none {none}, grabbable {grabbable}, hover {hover}, selected {selected}");
+        output.WriteLine(
+            $"none {none}, grabbable {grabbable}, hover {hover}, selected {selected}; "
+            + $"width hovered {Wide(GuidePainter.Emphasis.Hover)}, selected {Wide(GuidePainter.Emphasis.Selected)}");
         Assert.True(none < grabbable, $"grabbable ({grabbable}) must read above plain ({none})");
+        Assert.True(grabbable < selected, $"selected ({selected}) must read above grabbable ({grabbable})");
         Assert.True(grabbable < hover, $"hover ({hover}) must read above grabbable ({grabbable})");
-        Assert.True(hover < selected, $"selected ({selected}) must read above hover ({hover})");
+        // Q252: hover and selected are both the styled line, and are told apart
+        // the way they are everywhere else on the canvas — the hovered one is
+        // thicker. They used to be two strengths of two colours.
+        Assert.True(
+            Wide(GuidePainter.Emphasis.Hover) > Wide(GuidePainter.Emphasis.Selected),
+            "a hovered guide is thicker than a selected one");
+    }
+
+    /// <summary>
+    /// Q252: a guide you are drawing against is one faint pass, and takes the
+    /// canvas's one overlay style only when the Move tool has hold of it.
+    /// </summary>
+    /// <remarks>
+    /// A perspective rig is thirty lines. Drawn in the style they would read
+    /// as thirty selections, and a selection among them would be lost — so at
+    /// rest a guide is deliberately <em>not</em> on the style, and the test
+    /// holds both halves: quiet where it should be, the accent and its casing
+    /// where it should be.
+    /// </remarks>
+    [Fact]
+    public void GuidesAreQuietAtRestAndStyledWhenGrabbed()
+    {
+        static int From(SKColor a, SKColor b) => Math.Max(
+            Math.Abs(a.Red - b.Red), Math.Max(Math.Abs(a.Green - b.Green), Math.Abs(a.Blue - b.Blue)));
+        (int Accent, int Dark, int Marked) Row(GuidePainter.Emphasis e)
+        {
+            using var bmp = PaintOverArtwork([Vertical() with { Emphasis = e }]);
+            int accent = 255, dark = 255, marked = 0;
+            for (var x = 0; x < W; x++)
+            {
+                var c = bmp.GetPixel(x, H / 2);
+                accent = Math.Min(accent, From(c, OverlayStyle.Accent));
+                dark = Math.Min(dark, From(c, new SKColor(0x26, 0x29, 0x2F)));
+                if (From(c, SKColors.White) > 24) marked++;
+            }
+            return (accent, dark, marked);
+        }
+
+        var rest = Row(GuidePainter.Emphasis.None);
+        var selected = Row(GuidePainter.Emphasis.Selected);
+        output.WriteLine($"at rest: nearest to the accent {rest.Accent}, to the casing {rest.Dark}, {rest.Marked} px marked");
+        output.WriteLine($"selected: nearest to the accent {selected.Accent}, to the casing {selected.Dark}, {selected.Marked} px marked");
+        Assert.True(rest.Marked <= 2, "a guide at rest is one thin pass");
+        Assert.True(rest.Accent > 60, "and is not the accent");
+        Assert.True(rest.Dark > 100, "and has no casing");
+        Assert.True(selected.Accent < 60, "a selected guide is the accent");
+        Assert.True(selected.Dark < 100, "with its casing");
+    }
+
+    /// <summary>
+    /// The anchor a grid is picked up by is a grip like any other: open while
+    /// it can be taken, filled when it is the one the options are changing —
+    /// and amber, because it is where the grid is held, not part of the grid.
+    /// </summary>
+    [Fact]
+    public void AGridsAnchorIsAnAmberGripOpenUntilItIsTheOneSelected()
+    {
+        static int From(SKColor a, SKColor b) => Math.Max(
+            Math.Abs(a.Red - b.Red), Math.Max(Math.Abs(a.Green - b.Green), Math.Abs(a.Blue - b.Blue)));
+        var grid = new GuidePainter.Line(Kind: 1, X: 100, Y: 60, Spacing: 40, Angles: [0.0]);
+        using var reaching = PaintOverArtwork([grid with { Emphasis = GuidePainter.Emphasis.Grabbable }]);
+        using var chosen = PaintOverArtwork([grid with { Emphasis = GuidePainter.Emphasis.Selected }]);
+
+        // Two pixels off the centre on the diagonal: inside the grip, off the
+        // lattice lines that cross the anchor.
+        var open = reaching.GetPixel(102, 62);
+        var filled = chosen.GetPixel(102, 62);
+        output.WriteLine($"inside the anchor grip: {open} while grabbable, {filled} when selected");
+        Assert.True(From(open, SKColors.White) < 16, "open while it can be taken");
+        Assert.True(From(filled, OverlayStyle.Reference) < 24, "filled, in the reference colour, when selected");
     }
 
     [Fact]

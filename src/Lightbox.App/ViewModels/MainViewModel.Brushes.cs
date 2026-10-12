@@ -637,6 +637,17 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// How far thin paint settles into the sheet: denser in the valleys,
+    /// thinner on the peaks, no gaps. Zero is off and writes nothing to the
+    /// record.
+    /// </summary>
+    public double BrushTextureSettle
+    {
+        get => GetBrush(s => s.TextureSettle ?? 0);
+        set => SetBrush(s => s.TextureSettle = value <= 0 ? null : Math.Clamp(value, 0, 1));
+    }
+
+    /// <summary>
     /// The tip's hairs - how unevenly they carry paint: streaks as the brush
     /// lifts or empties. Zero is a tip with none and writes nothing to the
     /// record.
@@ -1224,7 +1235,7 @@ public partial class MainViewModel
         nameof(BrushSizeJitter), nameof(BrushMinimumDiameter), nameof(BrushRoundness),
         nameof(BrushRoundnessJitter), nameof(BrushAngleFollowsDirection), nameof(BrushFlowJitter),
         nameof(BrushTextureSurface), nameof(BrushTextureScale), nameof(BrushTextureDepth), nameof(BrushTexturePressure),
-        nameof(BrushTextureFill), nameof(BrushBristles),
+        nameof(BrushTextureFill), nameof(BrushTextureSettle), nameof(BrushBristles),
         nameof(BrushSecondaryColor), nameof(BrushColorJitter), nameof(BrushHueJitter),
         nameof(BrushSaturationJitter), nameof(BrushBrightnessJitter),
         nameof(IsSmudgeBrush), nameof(IsEffectBrush), nameof(ShowsEffectOptions), nameof(EffectStrength),

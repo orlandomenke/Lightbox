@@ -31,9 +31,11 @@ namespace Lightbox.App.Rendering;
 /// overlay that vanishes against half the drawings is one you cannot trust.
 /// </item>
 /// <item>
-/// <b>Squares grab, dots steer.</b> Anything you move or resize is a square
-/// grip — except a smooth point, which stays round so a curve can be told from
-/// a corner without clicking. What only steers a curve is a small solid dot on
+/// <b>Squares grab, dots steer.</b> A grip that moves freely is square — a
+/// corner, a centre, a handle to pan by. One that turns something or slides
+/// along a line is the same grip, round: a rotate handle, the middle of an
+/// edge, the end of an axis, and a smooth point, which is how a curve is told
+/// from a corner without clicking. What only steers a curve is a small solid dot on
 /// a stem, clearly smaller than a grip, so a handle is never mistaken for a
 /// point.
 /// </item>
@@ -57,6 +59,79 @@ public static class OverlayStyle
 {
     /// <summary>The colour of editable chrome. The palette's <c>AccentCyan</c>.</summary>
     public static readonly SKColor Accent = new(0x00, 0xD1, 0xBC);
+
+    /// <summary>
+    /// The style's one second colour: a mark that is a reference point rather
+    /// than the thing being edited — a pivot, a warp band, a guide's anchor.
+    /// The palette's <c>AccentAmber</c> (Q252), in place of the dozen ambers
+    /// those marks had each picked.
+    /// </summary>
+    public static readonly SKColor Reference = new(0xFF, 0xB0, 0x20);
+
+    /// <summary>The camera's colour. The palette's <c>CameraTrack</c>.</summary>
+    public static readonly SKColor CameraOrange = new(0xFF, 0x9F, 0x45);
+
+    /// <summary>
+    /// A guide being drawn against, at rest: one faint pass, no casing. Thirty
+    /// of them must not read as thirty selections (Q252); a guide takes the
+    /// full style only once the Move tool has hold of it.
+    /// </summary>
+    public static readonly SKColor QuietLine = new(0x50, 0x96, 0xF0, 110);
+
+    /// <summary>
+    /// A guide's own marks at rest — its vanishing point, its post — in the
+    /// reference colour, turned down to sit with <see cref="QuietLine"/>.
+    /// </summary>
+    public static readonly SKColor QuietMark = new(0xFF, 0xB0, 0x20, 150);
+
+    /// <summary>
+    /// The outline of a drawn line the arrow has picked: two pixels, uncased,
+    /// so the ink shows either side of it; three while the pointer is on it.
+    /// The owner's rulings, in order: <em>"make the outline thinner so the ink
+    /// shows"</em> when the cased line hid a picked stroke, and then two and
+    /// three rather than one and two, because the line you have chosen should
+    /// not be the faintest mark on the canvas. The named cost stands: uncased,
+    /// it can be lost on artwork of the accent's own colour.
+    /// </summary>
+    public const float OutlineWidth = 2f;
+
+    /// <summary>
+    /// Chrome that is merely present — a reference box or a rig mark that is
+    /// not selected, the lazy brush's string: one uncased pixel. Cased when
+    /// selected or being edited, thin when only there, so a sheet of boxes or
+    /// a rig of hitboxes does not sit on the drawing (Q252).
+    /// </summary>
+    public const float ThinWidth = 1f;
+
+    /// <summary>What a mark is, which decides its colour.</summary>
+    public enum Role
+    {
+        /// <summary>Chrome you can edit: the accent.</summary>
+        Edit,
+
+        /// <summary>A reference point, not the thing itself: amber.</summary>
+        Reference,
+
+        /// <summary>
+        /// The camera's frame and its handles. The camera keeps the orange it
+        /// has on the timeline (Q249: a colour that carries a meaning keeps
+        /// it) and takes everything else — the casing, the grips — from here.
+        /// </summary>
+        Camera,
+    }
+
+    /// <summary>
+    /// How much a hovered line thickens. Hover grows and thickens in the same
+    /// colours (Q252): bigger says "a press takes this one", and it cannot be
+    /// read as selected, which is filled.
+    /// </summary>
+    public const float HoverLineGain = 1f;
+
+    /// <summary>How strongly a dragged-out area is washed with the accent.</summary>
+    public const byte AreaAlpha = 24;
+
+    /// <summary>How much a hovered grip grows on each side: two pixels across.</summary>
+    public const float HoverGripGain = 1f;
 
     /// <summary>What goes under and around the accent so it reads on any artwork.</summary>
     /// <remarks>
@@ -103,6 +178,12 @@ public static class OverlayStyle
 
     public const float StemWidth = 1f;
 
+    /// <summary>
+    /// The arm of a cross that marks a point — a pivot, a registration mark.
+    /// One length, where the painters had four.
+    /// </summary>
+    public const float CrossArm = 7f;
+
     /// <summary>How near a press has to land to have meant a grip.</summary>
     public const double GrabPixels = 10.0;
 
@@ -138,11 +219,69 @@ public static class OverlayStyle
             IsAntialias = true,
         };
 
-        /// <summary>A line: the casing, then the accent over it.</summary>
-        public void Line(SKCanvas canvas, SKPath path)
+        private static SKColor ColourOf(Role role) => role switch
         {
+            Role.Reference => Reference,
+            Role.Camera => CameraOrange,
+            _ => Accent,
+        };
+
+        /// <summary>A line: the casing, then the role's colour over it.</summary>
+        /// <param name="dashed">
+        /// A line that is a copy of another rather than the thing itself — the
+        /// spokes of a rotational symmetry beside its mirror line. The casing
+        /// stays whole, so the dashes are legible on anything.
+        /// </param>
+        public void Line(
+            SKCanvas canvas, SKPath path, bool hover = false, Role role = Role.Edit, bool dashed = false)
+        {
+            var gain = hover ? HoverLineGain / _scale : 0f;
+            _casing.StrokeWidth = CasingWidth / _scale + gain;
+            _line.StrokeWidth = LineWidth / _scale + gain;
+            _line.Color = ColourOf(role);
             canvas.DrawPath(path, _casing);
+            if (dashed)
+            {
+                using var dash = SKPathEffect.CreateDash([6f / _scale, 5f / _scale], 0);
+                _line.PathEffect = dash;
+                canvas.DrawPath(path, _line);
+                _line.PathEffect = null;
+                return;
+            }
             canvas.DrawPath(path, _line);
+        }
+
+        /// <summary>
+        /// The outline of a picked drawn line: uncased, so the line under it
+        /// is still the thing you see. See <see cref="OutlineWidth"/>.
+        /// </summary>
+        public void Outline(SKCanvas canvas, SKPath path, bool hover = false)
+        {
+            _line.StrokeWidth = (OutlineWidth + (hover ? HoverLineGain : 0f)) / _scale;
+            _line.Color = Accent;
+            canvas.DrawPath(path, _line);
+        }
+
+        /// <summary>Chrome that is there and not selected. See <see cref="ThinWidth"/>.</summary>
+        public void Thin(SKCanvas canvas, SKPath path, Role role = Role.Edit)
+        {
+            _line.StrokeWidth = ThinWidth / _scale;
+            _line.Color = ColourOf(role);
+            canvas.DrawPath(path, _line);
+        }
+
+        /// <summary>
+        /// An area being dragged out — a marquee: a faint wash of the accent
+        /// inside the styled line, so the box reads as a region and the artwork
+        /// under it stays legible.
+        /// </summary>
+        public void Area(SKCanvas canvas, SKRect rect)
+        {
+            _fill.Color = Accent.WithAlpha(AreaAlpha);
+            canvas.DrawRect(rect, _fill);
+            using var path = new SKPath();
+            path.AddRect(rect);
+            Line(canvas, path);
         }
 
         /// <summary>The thin line from a grip to the dot that steers it.</summary>
@@ -152,13 +291,33 @@ public static class OverlayStyle
             canvas.DrawLine(x0, y0, x1, y1, _stem);
         }
 
-        /// <summary>Something you take hold of: square, or round for a smooth point.</summary>
-        public void Grip(SKCanvas canvas, float x, float y, bool round, bool selected)
+        /// <summary>
+        /// A cross on a point that is not a grip. In the stem's weight rather
+        /// than the line's: at this size the line's casing is most of the
+        /// mark, and an amber cross read as a dark one with a gold core (the
+        /// ui-critic, on the registration mark and the pivot).
+        /// </summary>
+        public void Cross(SKCanvas canvas, float x, float y, Role role = Role.Edit, float reach = 1f)
         {
-            var half = GripHalf / _scale;
+            var arm = CrossArm * reach / _scale;
+            _stem.Color = ColourOf(role);
+            canvas.DrawLine(x - arm, y, x + arm, y, _stemCasing);
+            canvas.DrawLine(x, y - arm, x, y + arm, _stemCasing);
+            canvas.DrawLine(x - arm, y, x + arm, y, _stem);
+            canvas.DrawLine(x, y - arm, x, y + arm, _stem);
+            _stem.Color = Accent;
+        }
+
+        /// <summary>Something you take hold of: square, or round for a smooth point.</summary>
+        public void Grip(
+            SKCanvas canvas, float x, float y, bool round, bool selected,
+            bool hover = false, Role role = Role.Edit)
+        {
+            var half = (GripHalf + (hover ? HoverGripGain : 0f)) / _scale;
             // The rim sits just outside the outline, so the grip keeps an edge
             // on a page of the accent's own colour.
             var rimHalf = half + (GripOutline / 2f + 0.5f) / _scale;
+            _fill.Color = _outline.Color = ColourOf(role);
             var body = selected ? _fill : _open;
             if (round)
             {
@@ -176,16 +335,19 @@ public static class OverlayStyle
         }
 
         /// <summary>Something that steers and is not itself a place: a curve handle.</summary>
-        public void Dot(SKCanvas canvas, float x, float y)
+        public void Dot(SKCanvas canvas, float x, float y, Role role = Role.Edit)
         {
             var radius = DotRadius / _scale;
+            _fill.Color = ColourOf(role);
             canvas.DrawCircle(x, y, radius, _fill);
             canvas.DrawCircle(x, y, radius + 0.5f / _scale, _rim);
         }
 
-        /// <summary>A ring around a grip: "the next click lands here".</summary>
-        public void Ring(SKCanvas canvas, float x, float y, float radius)
+        /// <summary>A ring around a place: "the next click lands here", or a pivot.</summary>
+        public void Ring(SKCanvas canvas, float x, float y, float radius, Role role = Role.Edit)
         {
+            _casing.StrokeWidth = CasingWidth / _scale;
+            _outline.Color = ColourOf(role);
             canvas.DrawCircle(x, y, radius / _scale, _casing);
             canvas.DrawCircle(x, y, radius / _scale, _outline);
         }

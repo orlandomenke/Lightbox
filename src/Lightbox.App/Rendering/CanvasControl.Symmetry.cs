@@ -167,59 +167,25 @@ public partial class CanvasControl
             if (symmetry is not { } axis) return;
             var scale = Math.Max(0.01f, view.Scale);
 
-            using var casing = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 3.0f / scale,
-                Color = new SKColor(0x26, 0x29, 0x2f, 160),
-            };
-            using var line = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.2f / scale,
-                Color = new SKColor(0x00, 0xd1, 0xbc, 230),
-            };
-            using var spoke = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.2f / scale,
-                Color = new SKColor(0x00, 0xd1, 0xbc, 200),
-                PathEffect = SKPathEffect.CreateDash([6f / scale, 5f / scale], 0),
-            };
-
+            // The axis was the one overlay already in the palette's cyan with a
+            // casing — it is where the style's colour and casing came from —
+            // and now draws with the style's pens like the rest (Q252).
+            using var pens = new OverlayStyle.Pens(scale);
+            using var mirror = new SKPath();
+            using var spokes = new SKPath();
             foreach (var l in SymmetryAxisGizmo.Lines(axis, new SKRect(0, 0, view.DocW, view.DocH)))
             {
-                canvas.DrawLine(l.From, l.To, casing);
-                canvas.DrawLine(l.From, l.To, l.IsMirror ? line : spoke);
+                var path = l.IsMirror ? mirror : spokes;
+                path.MoveTo(l.From);
+                path.LineTo(l.To);
             }
-
-            using var fill = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Fill,
-                Color = new SKColor(0x00, 0xd1, 0xbc, 255),
-            };
-            using var rim = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.2f / scale,
-                Color = new SKColor(0x26, 0x29, 0x2f, 220),
-            };
+            pens.Line(canvas, spokes, dashed: true);
+            pens.Line(canvas, mirror);
 
             var centre = SymmetryAxisGizmo.Centre(axis);
-            var half = SymmetryAxisGizmo.CentreHalfPx / scale;
-            var box = new SKRect(centre.X - half, centre.Y - half, centre.X + half, centre.Y + half);
-            canvas.DrawRect(box, fill);
-            canvas.DrawRect(box, rim);
-
+            pens.Grip(canvas, centre.X, centre.Y, round: false, selected: false);
             var rotate = SymmetryAxisGizmo.RotateHandle(axis, SymmetryAxisGizmo.RotateOffsetPx / scale);
-            var r = SymmetryAxisGizmo.RotateRadiusPx / scale;
-            canvas.DrawCircle(rotate, r, fill);
-            canvas.DrawCircle(rotate, r, rim);
+            pens.Grip(canvas, rotate.X, rotate.Y, round: true, selected: false);
         }
 
     }

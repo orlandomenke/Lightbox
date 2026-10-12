@@ -348,29 +348,21 @@ public partial class CanvasControl
     private static bool DrawCageInstead(SKCanvas canvas, TxGizmoData g, float scale)
     {
         if (g.Cage is not { } cage) return false;
-        var colour = new SKColor(0xe0, 0xa0, 0x30, 240);
-        using var line = new SKPaint
-        {
-            IsAntialias = true,
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = 1.2f / scale,
-            Color = colour.WithAlpha(170),
-        };
+        using var pens = new OverlayStyle.Pens(scale);
         using var path = new SKPath();
         foreach (var poly in cage.Rows.Concat(cage.Columns))
         {
-            path.Reset();
             path.MoveTo(poly[0]);
             for (var k = 1; k < poly.Length; k++) path.LineTo(poly[k]);
-            canvas.DrawPath(path, line);
         }
-        using var grip = new SKPaint { IsAntialias = true, Color = colour };
-        using var held = new SKPaint { IsAntialias = true, Color = SKColors.White };
-        var r = 4f / scale;
+        pens.Line(canvas, path, role: OverlayStyle.Role.Reference);
+        // The one in the hand is filled, which is what selected means
+        // everywhere else on the canvas.
         for (var k = 0; k < cage.Handles.Length; k++)
         {
-            canvas.DrawCircle(cage.Handles[k], r, grip);
-            if (cage.Held == k) canvas.DrawCircle(cage.Handles[k], r * 0.5f, held);
+            pens.Grip(
+                canvas, cage.Handles[k].X, cage.Handles[k].Y, round: false,
+                selected: cage.Held == k, role: OverlayStyle.Role.Reference);
         }
         return true;
     }

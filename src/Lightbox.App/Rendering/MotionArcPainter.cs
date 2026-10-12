@@ -24,7 +24,7 @@ namespace Lightbox.App.Rendering;
 /// </remarks>
 public static class MotionArcPainter
 {
-    private static readonly SKColor ArcColor = new(0xd8, 0xb0, 0x40);
+    private static readonly SKColor ArcColor = OverlayStyle.Reference;
 
     /// <summary>
     /// Paint the overlay. Expects the canvas already in document space; null
