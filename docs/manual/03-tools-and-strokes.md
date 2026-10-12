@@ -210,13 +210,19 @@ something a hand can work with.
 | **Drag the line itself**, between two points | Pulls the curve to where you put it. The points either side do not move — this bends the line rather than shifting it, and it is usually the one you want. |
 | **Drag a point** | Moves it, and the line follows as you drag — the shape you see mid-drag is the shape you get on release. |
 | **Alt-drag a point** | Pulls a curve out of it: the point stays put and its two arms reach for the pointer, mirrored — the same gesture the pen uses to place a curved point. The quickest way to turn a corner into a curve. |
-| **Click a point** | Selects it, and shows its **handles** — the two arms that decide how the line curves through it. Drag an arm to bend the curve. |
+| **Click a point** | Selects it — it fills in — and shows its **handles**: two arms, each ending in a small solid dot, that decide how the line curves through it. Drag a dot to bend the curve. A handle is always smaller than a point, so the two are not mistaken for each other. |
 | **Square points are corners**, round ones are smooth | On a smooth point the two arms stay in line, so the curve runs through without a kink. On a corner they are independent. |
 | **Alt-drag an arm** | Breaks the pair, turning a smooth point into a corner. |
 | **Shift-click** | Adds a point to what you have got; dragging then moves them together. |
 | **Click empty canvas** | Lets the points go, without leaving the mode. |
 
 Each drag is **one undo step**, however far you pushed the point around.
+
+**While you are inside a line you see the line itself**, with its points on it.
+The thin cyan trace appears only while you are dragging — it shows where the
+line is going, and goes again once the ink has caught up. Points, handles and
+the trace are drawn in one cyan with a dark edge, so they stay visible on white
+paper, on black, and on artwork that happens to be cyan.
 
 ### Fewer points
 
@@ -633,12 +639,14 @@ bottom of the window. It means one of:
 - the layer is **hidden**. Turn its eye back on in the Layers panel.
 - the layer is **locked**. Unlock it with the padlock.
 - you are **outside the selection**. Strokes only land inside it.
-- the layer is **alpha locked** and there is no paint under the brush. Alpha lock
-  means "only draw where I have already drawn", so bare canvas is off limits —
-  move over existing paint and the pointer allows it again.
+- the layer is **alpha locked** and this drawing has no paint on it at all. Alpha
+  lock means "only draw where I have already drawn", so on an empty drawing
+  there is nowhere a mark could land. On a drawing that has paint the pointer
+  never refuses, wherever it is: the brush only colours the paint it crosses,
+  and a stroke that starts on bare paper still paints once it reaches some.
 
-The last two change as you move, because they are about *where you are* rather
-than about the layer. Before, all four did nothing and said nothing, which is
+The selection one changes as you move, because it is about *where you are*
+rather than about the layer. Before, all four did nothing and said nothing, which is
 hard to tell apart from the application being broken.
 
 **Hold `Ctrl` and the brush becomes an eyedropper** for as long as you hold it —

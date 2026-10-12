@@ -147,7 +147,7 @@ public readonly record struct CanvasTarget(
     bool LayerHidden = false,
     bool LayerLocked = false,
     bool AlphaLocked = false,
-    bool NothingUnderPointer = false,
+    bool NothingToPaintOn = false,
     bool OutsideSelection = false,
     bool SelectionToMove = false);
 
@@ -157,7 +157,7 @@ public readonly record struct CanvasTarget(
 /// <remarks>
 /// <para>
 /// <b>The refusal is the half that matters.</b> Painting on a hidden layer, a
-/// locked layer, an alpha-locked layer with nothing under the brush, or outside
+/// locked layer, an alpha-locked drawing with no paint on it at all, or outside
 /// a selection all currently do nothing and say nothing — and silence is
 /// indistinguishable from a broken application. This turns "it is not working"
 /// into "it will not do that here", which an artist can act on. B2's lesson as
@@ -352,7 +352,7 @@ public static class CanvasCursor
     /// <b>The order is the message.</b> A hidden, locked layer is reported as
     /// hidden, because that is the one the artist has to fix first and because
     /// unlocking it would still leave nothing visible. Reporting the innermost
-    /// reason — "nothing under the brush" on a hidden layer — is technically
+    /// reason — "no paint to draw on" on a hidden layer — is technically
     /// true and useless.
     /// </para>
     /// <para>
@@ -369,9 +369,12 @@ public static class CanvasCursor
         if (target.LayerHidden) return "This layer is hidden — turn its eye back on to draw here.";
         if (target.LayerLocked) return "This layer is locked.";
         if (target.OutsideSelection) return "Outside the selection.";
-        if (target.AlphaLocked && target.NothingUnderPointer)
+        // B456: the whole drawing, not the pixel under the pointer. A brush is
+        // wider than a pixel and a stroke is longer than a press, so "nothing
+        // here" forbade marks that were then made.
+        if (target.AlphaLocked && target.NothingToPaintOn)
         {
-            return "Alpha lock is on, and there is no paint here to draw on.";
+            return "Alpha lock is on, and this drawing has no paint to draw on.";
         }
         return null;
     }

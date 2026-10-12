@@ -217,6 +217,24 @@ public sealed class RenderSnapshot(
     /// <summary>Whether this frame was served from the cache rather than blended.</summary>
     public bool FromCache { get; private set; }
 
+    /// <summary>
+    /// A frame shown from a composite already in <paramref name="cache"/>, which
+    /// the caller has acquired: this snapshot borrows it under that hold and
+    /// releases it when done, never frees it — the protocol
+    /// <see cref="Materialise(GRContext?, LayerTextureCache?, ComposeCache?)"/>
+    /// follows for a hit on the render thread, taken a step earlier, on the UI
+    /// thread, so the frame is never built at all.
+    /// </summary>
+    internal static RenderSnapshot Borrowing(
+        ComposeCache cache, SKImage acquired, ComposeKey key,
+        int docWidth, int docHeight, long seq, SKRectI? docViewport)
+    {
+        var snapshot = new RenderSnapshot(acquired, docWidth, docHeight, seq, docViewport) { CacheKey = key };
+        snapshot._borrowedFrom = cache;
+        snapshot.FromCache = true;
+        return snapshot;
+    }
+
     private static long BytesOf(SKImage image) => (long)image.Width * image.Height * 4;
 
     /// <summary>

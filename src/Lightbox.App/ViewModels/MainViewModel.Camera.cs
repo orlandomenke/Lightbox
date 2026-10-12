@@ -258,13 +258,18 @@ public partial class MainViewModel
     /// <summary>
     /// Show the canvas through the camera rather than the world. Off by
     /// default: the artist draws in the world, and this is for checking the
-    /// shot.
+    /// shot. Remembered through settings, like the snap switch beside it.
     /// </summary>
     [ObservableProperty]
     private bool _viewThroughCamera;
 
     partial void OnViewThroughCameraChanged(bool value)
     {
+        if (Settings.ViewThroughCamera != value)
+        {
+            Settings.ViewThroughCamera = value;
+            Settings.Save();
+        }
         _publish.InvalidateWholeCanvas();
         _composeRing.InvalidateAll();
         RefreshCamera();

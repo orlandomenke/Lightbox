@@ -277,6 +277,13 @@ public partial class MainViewModel
     internal int EffectiveEndFrame =>
         Math.Clamp(PlaybackEndFrame < 0 ? Scene.FrameCount - 1 : PlaybackEndFrame, EffectiveStartFrame, Math.Max(0, Scene.FrameCount - 1));
 
+    /// <summary>
+    /// Pace playback by a window's refresh (<see cref="Services.PlaybackClock.Screen"/>),
+    /// or by the timer again when <paramref name="screen"/> is null — the main
+    /// window hands its refresh in when it opens and takes it back when it closes.
+    /// </summary>
+    internal void PaceBy(Action<Action<TimeSpan>>? screen) => _clock.Screen = screen;
+
     [RelayCommand]
     private void Play() => StartPlayback(1);
 

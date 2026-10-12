@@ -1603,6 +1603,17 @@ public partial class MainViewModel
             return;
         }
 
+        // A frame composed before — a second lap, or prepared ahead — is shown
+        // from the cache as it is, without building it: the pass list, the folds
+        // and the tile flattening below are what a playing tick spends the UI
+        // thread on, and paced by the screen's refresh that time holds the
+        // refresh itself (Q248).
+        if (TryShowPlayingFrameFromCache(fingerprint, scene))
+        {
+            RequestPlaybackPrewarm(IsPlaying, ComposeScale);
+            return;
+        }
+
         // The pass list is built by ScenePassBuilder (B166): a pure function
         // from the document and the state below to an ordered list, with no
         // surface and no graphics context in it. It was 230 lines here, and
@@ -1939,11 +1950,20 @@ public partial class MainViewModel
                 // nothing — the failure this codebase keeps finding. The ring
                 // route publishes an image; the tiled route playback takes does
                 // not, which is where the saving is.
+                // No stroke in flight, rather than "no scratch": the scratch is
+                // allocated by the first stroke and kept for the session, so
+                // testing it switched the cache off for good the moment
+                // anything was drawn (found 2026-10-12).
                 CacheKey = deferred is not null && IsPlaying
-                    && _live.Composite is null && _live.Scratch is null
-                    ? new Rendering.ComposeKey(fingerprint, _publish.RenderEpoch)
+                    && _live.Composite is null && !_strokeBuilder.IsActive
+                    ? new Rendering.ComposeKey(
+                        fingerprint, _publish.RenderEpoch, _editor.Revision, StackStamp(scene, CurrentFrameIndex))
                     : null,
             };
+            if (snapshot.CacheKey is { } placedKey)
+            {
+                NotePlaybackPlacement(placedKey, (int)viewWidth, (int)viewHeight, imageCovers);
+            }
             // B321: the last unmeasured box in the chain from pen to screen.
             // Everything from the publish stamp at the top of this method to
             // here is the UI thread BUILDING the frame — the composite B189
