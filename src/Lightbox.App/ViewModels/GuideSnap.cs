@@ -69,8 +69,12 @@ sealed class GuideSnap
         _decided = true;
     }
 
-    /// <summary>Put a raw point where the guides say it belongs.</summary>
+    /// <summary>
+    /// Hold a point on the guide the stroke committed to, or leave it where the hand put it.
+    /// </summary>
     /// <remarks>
+    /// <paramref name="tolerance"/> is how near a ruler the stroke must have started for
+    /// that ruler to take it; it no longer pulls points.
     /// Called after stabilisation, not before. Snapping first and smoothing after would
     /// drag the point back off the guide, which is the wrong way round — the wobble is
     /// what you want removed, the guide is what you want obeyed.
@@ -85,7 +89,7 @@ sealed class GuideSnap
         }
         if (!_decided)
         {
-            if (Snapper.Lock(guides, _anchor.X, _anchor.Y, x, y) is { } found)
+            if (Snapper.Lock(guides, _anchor.X, _anchor.Y, x, y, tolerance) is { } found)
             {
                 _locked = found;
                 _decided = true;
@@ -98,6 +102,10 @@ sealed class GuideSnap
             var dy = y - _anchor.Y;
             if (Math.Sqrt(dx * dx + dy * dy) >= Snapper.LockDistance) _decided = true;
         }
-        return Snapper.Point(guides, x, y, tolerance);
+        // Not held on a guide, so it goes where the hand went (B457). This used to
+        // be Snapper.Point, which pulled the middle of a freehand stroke onto every
+        // ruler and grid intersection it passed — against the rule the manual and
+        // the lasso already stated: a stroke snaps its start and not its middle.
+        return (x, y);
     }
 }

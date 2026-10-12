@@ -128,8 +128,8 @@ public class GuideTests
         // locking on them locks on noise.
         var guides = (Guide[])[Line(0)];
 
-        Assert.Null(Snapper.Lock(guides, 0, 0, 2, 0));
-        Assert.NotNull(Snapper.Lock(guides, 0, 0, 40, 1));
+        Assert.Null(Snapper.Lock(guides, 0, 0, 2, 0, tolerance: 12));
+        Assert.NotNull(Snapper.Lock(guides, 0, 0, 40, 1, tolerance: 12));
     }
 
     [Fact]
@@ -138,8 +138,8 @@ public class GuideTests
         var horizontal = Line(0);
         var vertical = Line(90);
 
-        Assert.Same(vertical, Snapper.Lock([horizontal, vertical], 0, 0, 2, 40));
-        Assert.Same(horizontal, Snapper.Lock([horizontal, vertical], 0, 0, 40, 2));
+        Assert.Same(vertical, Snapper.Lock([horizontal, vertical], 0, 0, 2, 40, tolerance: 12));
+        Assert.Same(horizontal, Snapper.Lock([horizontal, vertical], 0, 0, 40, 2, tolerance: 12));
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class GuideTests
         // stroke miss its own guide.
         var horizontal = Line(0);
 
-        Assert.Same(horizontal, Snapper.Lock([horizontal], 0, 0, -40, 1));
+        Assert.Same(horizontal, Snapper.Lock([horizontal], 0, 0, -40, 1, tolerance: 12));
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class GuideTests
     {
         var guides = (Guide[])[Line(0), Line(90)];
 
-        Assert.Null(Snapper.Lock(guides, 0, 0, 40, 40));
+        Assert.Null(Snapper.Lock(guides, 0, 0, 40, 40, tolerance: 12));
     }
 
     [Fact]
@@ -168,9 +168,75 @@ public class GuideTests
         // Two receding axes and the vertical — the convention that makes a cube
         // read as a cube.
         Assert.Equal([30d, -30d, 90d], iso.Angles);
-        Assert.Same(iso, Snapper.Lock([iso], 0, 0, 40, 23));
-        Assert.Same(iso, Snapper.Lock([iso], 0, 0, 40, -23));
-        Assert.Same(iso, Snapper.Lock([iso], 0, 0, 1, 40));
+        Assert.Same(iso, Snapper.Lock([iso], 0, 0, 40, 23, tolerance: 12));
+        Assert.Same(iso, Snapper.Lock([iso], 0, 0, 40, -23, tolerance: 12));
+        Assert.Same(iso, Snapper.Lock([iso], 0, 0, 1, 40, tolerance: 12));
+    }
+
+    // ---- how far a guide reaches (B457, Q253) -------------------------------------
+
+    /// <summary>
+    /// A ruler takes a stroke that starts on it, and leaves one drawn parallel to
+    /// it somewhere else alone.
+    /// </summary>
+    /// <remarks>
+    /// It used to take both: any stroke within <see cref="Snapper.LockDegrees"/> of
+    /// the ruler's direction locked, wherever on the canvas it was drawn, so one
+    /// horizontal ruler straightened a sixth of everything.
+    /// </remarks>
+    [Fact]
+    public void ARulerOnlyTakesAStrokeThatStartsOnIt()
+    {
+        var ruler = Line(0, y: 100);
+
+        var onIt = Snapper.Lock([ruler], 20, 100, 60, 101, tolerance: 12);
+        var besideIt = Snapper.Lock([ruler], 20, 108, 60, 109, tolerance: 12);
+        var justOutside = Snapper.Lock([ruler], 20, 113, 60, 114, tolerance: 12);
+        var farAway = Snapper.Lock([ruler], 20, 300, 60, 301, tolerance: 12);
+
+        Assert.Same(ruler, onIt);
+        Assert.Same(ruler, besideIt);      // 8 px off, inside the 12 px tolerance
+        Assert.Null(justOutside);          // 13 px off
+        Assert.Null(farAway);
+    }
+
+    /// <summary>The distance is to the line, so a tilted ruler reaches along its own length.</summary>
+    [Fact]
+    public void ATiltedRulersReachIsMeasuredToTheLine()
+    {
+        var diagonal = Line(45);           // through the origin
+
+        // (200, 200) is on it; (200, 240) is 28 px off it.
+        Assert.Same(diagonal, Snapper.Lock([diagonal], 200, 200, 230, 231, tolerance: 12));
+        Assert.Null(Snapper.Lock([diagonal], 200, 240, 230, 271, tolerance: 12));
+    }
+
+    /// <summary>
+    /// A grid places points and never straightens a stroke, even one drawn from
+    /// an intersection straight along a grid line.
+    /// </summary>
+    [Fact]
+    public void AGridNeverStraightensAStroke()
+    {
+        var grid = Grid(20);
+
+        Assert.Null(Snapper.Lock([grid], 20, 20, 80, 21, tolerance: 12));
+        Assert.Null(Snapper.Lock([grid], 20, 20, 21, 80, tolerance: 12));
+    }
+
+    /// <summary>
+    /// A vanishing point and an isometric rig have no line to be near: their
+    /// directions hold everywhere, which is what makes them perspective.
+    /// </summary>
+    [Fact]
+    public void AVanishingPointAndAnIsometricRigStillReachTheWholeCanvas()
+    {
+        var vp = Vp(0, 0);
+        var iso = new Guide { Kind = GuideKind.Isometric };
+
+        // Heading away from the point along its own ray, 700 px out.
+        Assert.Same(vp, Snapper.Lock([vp], 500, 500, 540, 541, tolerance: 12));
+        Assert.Same(iso, Snapper.Lock([iso], 500, 900, 540, 923, tolerance: 12));
     }
 
     // ---- holding a stroke on the guide -------------------------------------------
@@ -260,7 +326,7 @@ public class GuideTests
         var scale = Scale();
 
         Assert.Empty(scale.Angles);
-        Assert.Null(Snapper.Lock([scale], 100, 500, 160, 501));
+        Assert.Null(Snapper.Lock([scale], 100, 500, 160, 501, tolerance: 12));
     }
 
     [Fact]
@@ -467,7 +533,7 @@ public class GuideTests
         var radians = 12 * Math.PI / 180;
         var guides = new[] { Line(0) };
         Assert.NotNull(Snapper.Lock(
-            guides, 0, 0, 40 * Math.Cos(radians), 40 * Math.Sin(radians)));
+            guides, 0, 0, 40 * Math.Cos(radians), 40 * Math.Sin(radians), tolerance: 12));
 
         // Used as a *step*, the same fifteen would round that heading to 15 and
         // leave it well off the guide. Tolerance: taken and flattened to 0.
