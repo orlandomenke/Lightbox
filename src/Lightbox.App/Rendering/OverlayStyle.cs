@@ -90,6 +90,9 @@ public static class OverlayStyle
     /// </summary>
     public const float HoverLineGain = 1f;
 
+    /// <summary>How strongly a dragged-out area is washed with the accent.</summary>
+    public const byte AreaAlpha = 24;
+
     /// <summary>How much a hovered grip grows on each side: two pixels across.</summary>
     public const float HoverGripGain = 1f;
 
@@ -195,6 +198,20 @@ public static class OverlayStyle
             _line.StrokeWidth = 1f / _scale;
             _line.Color = QuietLine;
             canvas.DrawPath(path, _line);
+        }
+
+        /// <summary>
+        /// An area being dragged out — a marquee: a faint wash of the accent
+        /// inside the styled line, so the box reads as a region and the artwork
+        /// under it stays legible.
+        /// </summary>
+        public void Area(SKCanvas canvas, SKRect rect)
+        {
+            _fill.Color = Accent.WithAlpha(AreaAlpha);
+            canvas.DrawRect(rect, _fill);
+            using var path = new SKPath();
+            path.AddRect(rect);
+            Line(canvas, path);
         }
 
         /// <summary>The thin line from a grip to the dot that steers it.</summary>

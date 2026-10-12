@@ -4123,18 +4123,8 @@ public sealed partial class CanvasControl : Control
         private void DrawLineMarquee(SKCanvas canvas)
         {
             if (lineMarquee is not { } rect) return;
-            var scale = Math.Max(0.01f, view.Scale);
-            using var paint = new SKPaint
-            {
-                Color = SKColors.Cyan,
-                StrokeWidth = 1f / scale,
-                Style = SKPaintStyle.Stroke,
-                IsAntialias = true,
-                PathEffect = SKPathEffect.CreateDash([4f / scale, 4f / scale], 0),
-            };
-            using var fill = new SKPaint { Color = SKColors.Cyan.WithAlpha(20) };
-            canvas.DrawRect(rect, fill);
-            canvas.DrawRect(rect, paint);
+            using var pens = new OverlayStyle.Pens(view.Scale);
+            pens.Area(canvas, rect);
         }
 
         private void DrawSelectedLines(SKCanvas canvas)
@@ -4142,14 +4132,14 @@ public sealed partial class CanvasControl : Control
             // The hover goes underneath, so a line that is both hovered and
             // picked reads as picked. B217: one painter for both, because two
             // would be the divergence B215 spent a branch removing one object
-            // along — a hover that did not look like a dimmer selection would
-            // stop saying "this is the thing the click will take".
-            DrawLineOutlines(canvas, hoveredLines, alpha: 0.45f, dragging: false);
-            DrawLineOutlines(canvas, selectedLines, alpha: 1f, dragging: lineDrag != default);
+            // along. Q250: a hovered line is the styled line a pixel thicker —
+            // "a press takes this one" — where it used to be a dimmer copy.
+            DrawLineOutlines(canvas, hoveredLines, hover: true, dragging: false);
+            DrawLineOutlines(canvas, selectedLines, hover: false, dragging: lineDrag != default);
         }
 
         private void DrawLineOutlines(
-            SKCanvas canvas, IReadOnlyList<SelectedLine>? lines, float alpha, bool dragging)
+            SKCanvas canvas, IReadOnlyList<SelectedLine>? lines, bool hover, bool dragging)
         {
             if (lines is null || lines.Count == 0) return;
 
@@ -4166,35 +4156,16 @@ public sealed partial class CanvasControl : Control
                 canvas.Save();
                 canvas.Translate(lineDrag.X, lineDrag.Y);
             }
-            using var halo = new SKPaint
-            {
-                Color = SKColors.Cyan.WithAlpha((byte)(70 * alpha)),
-                StrokeWidth = 6f / scale,
-                Style = SKPaintStyle.Stroke,
-                StrokeCap = SKStrokeCap.Round,
-                StrokeJoin = SKStrokeJoin.Round,
-                IsAntialias = true,
-            };
-            using var core = new SKPaint
-            {
-                Color = SKColors.Cyan.WithAlpha((byte)(255 * alpha)),
-                StrokeWidth = 1.5f / scale,
-                Style = SKPaintStyle.Stroke,
-                StrokeCap = SKStrokeCap.Round,
-                StrokeJoin = SKStrokeJoin.Round,
-                IsAntialias = true,
-            };
-
+            using var pens = new OverlayStyle.Pens(scale);
+            using var path = new SKPath();
             foreach (var line in lines)
             {
                 if (line.Points.Length < 2) continue;
-                using var path = new SKPath();
                 path.MoveTo(line.Points[0]);
                 for (var i = 1; i < line.Points.Length; i++) path.LineTo(line.Points[i]);
                 if (line.Closed) path.Close();
-                canvas.DrawPath(path, halo);
-                canvas.DrawPath(path, core);
             }
+            pens.Line(canvas, path, hover);
 
             if (dragging) canvas.Restore();
         }
@@ -4206,126 +4177,57 @@ public sealed partial class CanvasControl : Control
             PathOverlayPainter.Paint(canvas, pathNodes, penPreview, pathTrace, view.Scale);
             if (selectionManager is null || !selectionManager.HasSelection) return;
 
-            var scale = view.Scale;
-            var reach = (view.DocW + view.DocH) * 2f;
+            // What the arrow has picked that is not a line. One styled outline
+            // for all four kinds (Q250): they used to be cyan, green, orange
+            // and magenta, which said four things about one state. Not folded
+            // into the marks' own "selected" look, because that one follows the
+            // rig panel's single choice and this follows the arrow's selection,
+            // which can hold several.
+            using var pens = new OverlayStyle.Pens(view.Scale);
+            using var picked = new SKPath();
 
-            // Draw placement selections
-            if (getPlacementsForSelection is not null)
+            if (getPlacementsForSelection?.Invoke() is { Count: > 0 } placements)
             {
-                var placements = getPlacementsForSelection();
-                if (placements is not null && placements.Count > 0)
+                foreach (var placementId in selectionManager.SelectedPlacementIds)
                 {
-                    foreach (var placementId in selectionManager.SelectedPlacementIds)
-                    {
-                        var placement = placements.FirstOrDefault(p => p.Id == placementId);
-                        if (placement is null) continue;
-
-                        var boxSize = 40f;
-                        var left = (float)placement.X - boxSize / 2;
-                        var top = (float)placement.Y - boxSize / 2;
-
-                        using var paint = new SKPaint
-                        {
-                            Color = SKColors.Cyan,
-                            StrokeWidth = (float)(2f / scale),
-                            Style = SKPaintStyle.Stroke,
-                            IsAntialias = true,
-                        };
-
-                        canvas.DrawRect(
-                            SKRect.Create(left, top, boxSize, boxSize),
-                            paint);
-                    }
+                    if (placements.FirstOrDefault(p => p.Id == placementId) is not { } placement) continue;
+                    // Document units: the box stands for the placed drawing,
+                    // which has a size in the document, not on the screen.
+                    const float boxSize = 40f;
+                    picked.AddRect(SKRect.Create(
+                        (float)placement.X - boxSize / 2, (float)placement.Y - boxSize / 2, boxSize, boxSize));
                 }
             }
 
-            // Guides are not drawn here (B215). A gold line and a crosshair
-            // used to be laid over the rig from this block, which meant a
-            // selected guide was painted twice by two different pieces of code:
-            // GuidePainter drew the guide with its Emphasis, and this drew a
-            // second one on top. It could only draw two of the five kinds —
-            // anything without an Angles[0] became a crosshair, so a grid and a
-            // height scale were marked as if they were vanishing points — and
-            // it drew whatever tool was in hand, so the mark outlived the
-            // capability. Emphasis.Selected is the one route now, it knows
-            // every kind because it is the painter that draws them, and it is
-            // gated on GuideDragEnabled so it goes when the tool does.
-
-            // Draw reference box selections
-            if (referenceBoxes is not null && referenceBoxes.Count > 0)
+            if (referenceBoxes is { Count: > 0 })
             {
                 foreach (var boxIndex in selectionManager.SelectedRefBoxIndices)
                 {
                     if (boxIndex < 0 || boxIndex >= referenceBoxes.Count) continue;
                     var box = referenceBoxes[boxIndex];
-
-                    using var paint = new SKPaint
-                    {
-                        Color = new SKColor(0, 255, 0, 200),  // Green
-                        StrokeWidth = (float)(2f / scale),
-                        Style = SKPaintStyle.Stroke,
-                        IsAntialias = true,
-                    };
-
-                    canvas.DrawRect(
-                        SKRect.Create(box.X, box.Y, box.W, box.H),
-                        paint);
+                    picked.AddRect(SKRect.Create(box.X, box.Y, box.W, box.H));
                 }
             }
 
-            // Draw anchor selections
-            if (rigMarks is not null && rigMarks.Count > 0)
+            if (rigMarks is { Count: > 0 })
             {
                 foreach (var anchorId in selectionManager.SelectedAnchorIds)
                 {
                     var anchor = rigMarks.FirstOrDefault(m => m.Id == anchorId && m.Kind == RigMarkKind.Anchor);
                     if (anchor.Id is null) continue;
-
-                    var hitRadius = 10f;
-                    using var paint = new SKPaint
-                    {
-                        Color = new SKColor(255, 165, 0, 200),  // Orange
-                        StrokeWidth = (float)(2f / scale),
-                        Style = SKPaintStyle.Stroke,
-                        IsAntialias = true,
-                    };
-
-                    canvas.DrawCircle((float)anchor.X, (float)anchor.Y, hitRadius, paint);
+                    picked.AddCircle((float)anchor.X, (float)anchor.Y, (float)OverlayStyle.GrabPixels / Math.Max(0.01f, view.Scale));
                 }
-            }
-
-            // Draw collision shape selections
-            if (rigMarks is not null && rigMarks.Count > 0)
-            {
                 foreach (var shapeId in selectionManager.SelectedShapeIds)
                 {
                     var shape = rigMarks.FirstOrDefault(m => m.Id == shapeId && m.Kind == RigMarkKind.Shape);
                     if (shape.Id is null) continue;
-
-                    using var paint = new SKPaint
-                    {
-                        Color = new SKColor(255, 0, 255, 200),  // Magenta
-                        StrokeWidth = (float)(2f / scale),
-                        Style = SKPaintStyle.Stroke,
-                        IsAntialias = true,
-                    };
-
-                    canvas.DrawRect(
-                        SKRect.Create((float)shape.X, (float)shape.Y, (float)shape.W, (float)shape.H),
-                        paint);
+                    picked.AddRect(SKRect.Create((float)shape.X, (float)shape.Y, (float)shape.W, (float)shape.H));
                 }
             }
+
+            pens.Line(canvas, picked);
         }
 
-        /// <summary>
-        /// The shot's framing, drawn over the world: the frame outlined, and
-        /// everything outside it dimmed so the artist can see at a glance what
-        /// the camera keeps. View-only chrome, exactly like the transform
-        /// gizmo — it never reaches a pixel of the document.
-        ///
-        /// Absent unless the document has a camera. A sprite document shows no
-        /// camera UI at all, which is what "optional" has to mean.
-        /// </summary>
         private void DrawCameraFrame(SKCanvas canvas)
         {
             if (cameraFrame is not { Length: 4 } corners) return;

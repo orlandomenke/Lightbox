@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4581
+budget: 4483
 
 ## Why it has moved
 
@@ -143,3 +143,6 @@ other's reason and leaves a number nobody can account for.
 - **→ 4,581** (2026-10-12, Q250): −57. The transform box and its pivot went to
   `TransformGizmoPainter`, the second overlay onto `OverlayStyle` and for the
   same reason as the first: it could not be tested where it was.
+- **→ 4,483** (2026-10-12, Q250): −98. The arrow's selection outlines, the
+  hovered line and the marquee draw with `OverlayStyle`'s pens instead of
+  building a paint each; four coloured blocks became one path.

@@ -136,6 +136,26 @@ public class OverlayStyleTests(ITestOutputHelper output)
         Assert.True(quietStrength < fullStrength);
     }
 
+    /// <summary>
+    /// A dragged-out area is the styled line around a faint wash: a region,
+    /// with the artwork under it still legible.
+    /// </summary>
+    [Fact]
+    public void AnAreaIsAFaintWashInsideTheStyledLine()
+    {
+        var page = SKColors.White;
+        using var bmp = Render(page, (c, pens) => pens.Area(c, new SKRect(20, 20, 100, 60)));
+
+        var inside = Difference(bmp.GetPixel(60, 40), page);
+        var edge = 0;
+        for (var y = 14; y <= 26; y++) edge = Math.Max(edge, Difference(bmp.GetPixel(60, y), page));
+        var outside = Difference(bmp.GetPixel(60, 70), page);
+        output.WriteLine($"inside the area {inside}, its edge {edge}, outside {outside}");
+        Assert.InRange(inside, 8, 60);
+        Assert.True(edge >= 90);
+        Assert.Equal(0, outside);
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
