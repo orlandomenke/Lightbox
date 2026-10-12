@@ -87,8 +87,8 @@ They sound alike and they do different things, so it is worth one paragraph.
 Click to take something; **Shift**-click to add another, and Shift-click one you
 already have to put it back. Click empty canvas to let go of everything — though
 a Shift-click that misses leaves your selection alone, because you are part-way
-through building one. **What you have picked is traced in cyan** — a thin line down
-its middle, thin enough that the drawn line still shows either side of it — so
+through building one. **What you have picked is traced in cyan** — a line down its
+middle, narrow enough that the drawn line still shows either side of it — so
 it is always clear which line you got.
 
 **Hovering shows you the line before you take it**, traced in the same cyan a

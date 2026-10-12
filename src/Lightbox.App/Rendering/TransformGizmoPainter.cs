@@ -18,9 +18,9 @@ namespace Lightbox.App.Rendering;
 /// <para>
 /// <b>Nothing on a transform box is filled.</b> Filled means selected, and a
 /// box has no selected handle — every grip is equally there to be taken. A
-/// corner is square; an edge's grip is the same grip, round, which is the
-/// difference between the handle that scales both ways and the one that
-/// scales one.
+/// corner is square; an edge's grip is the same grip, round, because it
+/// slides along one line where a corner moves freely — the style's rule for
+/// every grip.
 /// </para>
 /// <para>
 /// <b>The pivot is the one reference mark</b>: it is where the drawing turns,

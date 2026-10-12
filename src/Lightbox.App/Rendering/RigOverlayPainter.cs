@@ -82,7 +82,7 @@ public static class RigOverlayPainter
             (mark.Selected ? selected : plain).AddRect(
                 new SKRect((float)mark.X, (float)mark.Y, (float)mark.Right, (float)mark.Bottom));
         }
-        pens.Outline(canvas, plain);
+        pens.Thin(canvas, plain);
         pens.Line(canvas, selected);
         foreach (var mark in marks)
         {
@@ -121,7 +121,7 @@ public static class RigOverlayPainter
             path.MoveTo(x, y);
             path.LineTo((float)tx, (float)ty);
         }
-        pens.Outline(canvas, plain);
+        pens.Thin(canvas, plain);
         pens.Line(canvas, selected);
         foreach (var mark in marks)
         {

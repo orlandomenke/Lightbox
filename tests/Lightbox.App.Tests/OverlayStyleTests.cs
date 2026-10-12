@@ -52,6 +52,15 @@ public class OverlayStyleTests(ITestOutputHelper output)
         return path;
     }
 
+    /// <summary>The same line on the boundary between rows 40 and 41, for two-pixel marks.</summary>
+    private static SKPath Between()
+    {
+        var path = new SKPath();
+        path.MoveTo(10, 41);
+        path.LineTo(110, 41);
+        return path;
+    }
+
     private static SKPath Level()
     {
         var path = new SKPath();
@@ -177,16 +186,16 @@ public class OverlayStyleTests(ITestOutputHelper output)
         var ink = new SKColor(0xC0, 0x20, 0x20);
         SKBitmap Over(Action<SKCanvas, OverlayStyle.Pens, SKPath> draw) => Render(SKColors.White, (c, pens) =>
         {
-            using var path = Centred();
-            using var paint = new SKPaint { Color = ink, StrokeWidth = 6, Style = SKPaintStyle.Stroke };
+            using var path = Between();
+            using var paint = new SKPaint { Color = ink, StrokeWidth = 8, Style = SKPaintStyle.Stroke };
             c.DrawPath(path, paint);
             draw(c, pens, path);
         });
 
         using var outlined = Over((c, pens, path) => pens.Outline(c, path));
+        // The two-pixel outline fills rows 40 and 41; row 39 is the ink beside it.
         using var cased = Over((c, pens, path) => pens.Line(c, path));
 
-        // The row next to the centre row of a six-pixel line.
         var beside = Difference(outlined.GetPixel(60, 39), ink);
         var besideCased = Difference(cased.GetPixel(60, 39), ink);
         var centre = Difference(outlined.GetPixel(60, 40), OverlayStyle.Accent);
@@ -200,14 +209,33 @@ public class OverlayStyleTests(ITestOutputHelper output)
     public void AHoveredOutlineIsThickerAndStillLeavesInkAtTheEdge()
     {
         var page = SKColors.White;
-        using var path = Centred();
+        using var path = Between();
         using var rest = Render(page, (c, pens) => pens.Outline(c, path));
         using var hover = Render(page, (c, pens) => pens.Outline(c, path, hover: true));
         var restHigh = Extent(rest, page, 60, 40, across: false);
         var hoverHigh = Extent(hover, page, 60, 40, across: false);
         output.WriteLine($"outline at rest {restHigh} px high, hovered {hoverHigh} px");
+        Assert.Equal(2, restHigh);
         Assert.True(hoverHigh > restHigh);
-        Assert.True(hoverHigh <= 3, "a hovered outline is still narrower than a drawn line");
+        Assert.True(hoverHigh <= 4, "a hovered outline is three pixels, still uncased");
+    }
+
+    /// <summary>
+    /// Chrome that is there and not selected is one uncased pixel, in its
+    /// role's colour: lighter than a picked line, lighter than anything cased.
+    /// </summary>
+    [Fact]
+    public void WhatIsMerelyPresentIsOnePixel()
+    {
+        var page = SKColors.White;
+        using var path = Centred();
+        using var thin = Render(page, (c, pens) => pens.Thin(c, path));
+        using var amber = Render(page, (c, pens) => pens.Thin(c, path, OverlayStyle.Role.Reference));
+        var high = Extent(thin, page, 60, 40, across: false);
+        output.WriteLine($"thin line {high} px high; centre {thin.GetPixel(60, 40)}; as a reference mark {amber.GetPixel(60, 40)}");
+        Assert.Equal(1, high);
+        Assert.True(Difference(thin.GetPixel(60, 40), OverlayStyle.Accent) < 12);
+        Assert.True(Difference(amber.GetPixel(60, 40), OverlayStyle.Reference) < 12);
     }
 
     /// <summary>

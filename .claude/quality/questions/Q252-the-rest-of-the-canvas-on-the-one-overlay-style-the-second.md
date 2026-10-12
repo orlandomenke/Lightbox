@@ -29,3 +29,13 @@ What it blocks: moving the transform box, bands and cage, guides, selection outl
 What was built instead keeps the intent — fewer colours, one meaning: all four kinds are drawn as **one styled outline**, the cased accent line, so the arrow's selection looks the same whatever it holds. `SelectionRenderer`, which had no callers, is deleted as asked. Whether the two selections should become one is a larger question about the rig panel and is not answered here.
 
 **The arrow's outline of a drawn line became a third kind of line, by a later ruling.** The first render put the cased line over a picked stroke and hid the stroke — a five-pixel line of ink under three and a half pixels of chrome. Shown it, the owner said: *"make the outline thinner so the ink shows."* So the outline of a picked or hovered drawn line is one pixel of the accent with no casing (two when hovered), and the cost was named before it was chosen: it can be lost on artwork of the accent's own colour. Everything that is not sitting on ink keeps the cased line.
+
+## Three more rulings, after the review of the built branch
+
+The ui-critic read the finished branch against the rules as written and found three places where what was drawn had got ahead of what had been decided. Each was put to the owner; all three went as recommended.
+
+**What round means.** The rule said *squares grab; a smooth point is round*, and round was also on the transform box's edge midpoints, the camera's and the symmetry axis's rotate handles and the gradient axis's ends. **Answered: round turns or slides** — a square grip moves freely; a round one turns something or slides along one line. Against: everything square except smooth points (a rotate handle then looks like a corner), or leaving the four as unruled exceptions.
+
+**Thin lines for what is merely present.** The uncased outline had been ruled for picked drawn lines only, and was also on unselected reference boxes, unselected rig marks and the lazy-brush gizmo — the builder's call, not the owner's. **Answered: keep it.** Cased when selected or being edited, one uncased pixel when only there. Against: casing them all (fifty cased rectangles on a five-by-five sheet), or a third weight with a faint casing.
+
+**A picked line was fainter than a hovered one**, one pixel against two, as a side effect of the thin outline and the hover rule together. **Answered: two pixels picked, three hovered.** Against: leaving it, or one weight with a glow on hover — an effect nothing else on the canvas uses.

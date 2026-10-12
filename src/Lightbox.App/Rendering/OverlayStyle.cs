@@ -31,9 +31,11 @@ namespace Lightbox.App.Rendering;
 /// overlay that vanishes against half the drawings is one you cannot trust.
 /// </item>
 /// <item>
-/// <b>Squares grab, dots steer.</b> Anything you move or resize is a square
-/// grip — except a smooth point, which stays round so a curve can be told from
-/// a corner without clicking. What only steers a curve is a small solid dot on
+/// <b>Squares grab, dots steer.</b> A grip that moves freely is square — a
+/// corner, a centre, a handle to pan by. One that turns something or slides
+/// along a line is the same grip, round: a rotate handle, the middle of an
+/// edge, the end of an axis, and a smooth point, which is how a curve is told
+/// from a corner without clicking. What only steers a curve is a small solid dot on
 /// a stem, clearly smaller than a grip, so a handle is never mistaken for a
 /// point.
 /// </item>
@@ -83,13 +85,23 @@ public static class OverlayStyle
     public static readonly SKColor QuietMark = new(0xFF, 0xB0, 0x20, 150);
 
     /// <summary>
-    /// The outline of a drawn line the arrow has picked or is over: one pixel,
-    /// uncased, so the ink shows either side of it. The owner's ruling on the
-    /// cased line over a picked stroke — <em>"make the outline thinner so the
-    /// ink shows"</em> — with its cost named: it can be lost on artwork of the
-    /// accent's own colour.
+    /// The outline of a drawn line the arrow has picked: two pixels, uncased,
+    /// so the ink shows either side of it; three while the pointer is on it.
+    /// The owner's rulings, in order: <em>"make the outline thinner so the ink
+    /// shows"</em> when the cased line hid a picked stroke, and then two and
+    /// three rather than one and two, because the line you have chosen should
+    /// not be the faintest mark on the canvas. The named cost stands: uncased,
+    /// it can be lost on artwork of the accent's own colour.
     /// </summary>
-    public const float OutlineWidth = 1f;
+    public const float OutlineWidth = 2f;
+
+    /// <summary>
+    /// Chrome that is merely present — a reference box or a rig mark that is
+    /// not selected, the lazy brush's string: one uncased pixel. Cased when
+    /// selected or being edited, thin when only there, so a sheet of boxes or
+    /// a rig of hitboxes does not sit on the drawing (Q252).
+    /// </summary>
+    public const float ThinWidth = 1f;
 
     /// <summary>What a mark is, which decides its colour.</summary>
     public enum Role
@@ -240,12 +252,20 @@ public static class OverlayStyle
         }
 
         /// <summary>
-        /// The outline of a drawn line: thin and uncased, so the line under it
+        /// The outline of a picked drawn line: uncased, so the line under it
         /// is still the thing you see. See <see cref="OutlineWidth"/>.
         /// </summary>
-        public void Outline(SKCanvas canvas, SKPath path, bool hover = false, Role role = Role.Edit)
+        public void Outline(SKCanvas canvas, SKPath path, bool hover = false)
         {
             _line.StrokeWidth = (OutlineWidth + (hover ? HoverLineGain : 0f)) / _scale;
+            _line.Color = Accent;
+            canvas.DrawPath(path, _line);
+        }
+
+        /// <summary>Chrome that is there and not selected. See <see cref="ThinWidth"/>.</summary>
+        public void Thin(SKCanvas canvas, SKPath path, Role role = Role.Edit)
+        {
+            _line.StrokeWidth = ThinWidth / _scale;
             _line.Color = ColourOf(role);
             canvas.DrawPath(path, _line);
         }

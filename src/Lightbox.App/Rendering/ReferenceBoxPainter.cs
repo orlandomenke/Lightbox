@@ -66,7 +66,7 @@ public static class ReferenceBoxPainter
         }
         if (newBox is { } drawing) selected.AddRect(drawing);
 
-        pens.Outline(canvas, plain);
+        pens.Thin(canvas, plain);
         pens.Line(canvas, selected);
         foreach (var box in Boxes(referenceBoxes, sheetBox))
         {

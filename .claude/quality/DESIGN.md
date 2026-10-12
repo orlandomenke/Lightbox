@@ -354,11 +354,13 @@ dictionary cannot be read; a test holds its accent to the palette's.
 - **Every line is cased**: the accent over a wider dark pass. An overlay has no
   say in what it is drawn over, and one that vanishes on artwork of its own
   colour cannot be trusted.
-- **Squares grab, dots steer.** Anything moved or resized is a square grip —
-  nine pixels of body, about twelve drawn with its outline and rim; a smooth
-  point is the same grip, round. What only steers a curve is a small solid dot
-  on a stem, about a quarter of a grip's area, so a handle is never read as a
-  point. A ring around a grip means *the next click lands here*.
+- **Squares grab, dots steer.** A grip that moves freely is a square — nine
+  pixels of body, about twelve drawn with its outline and rim: a corner, a
+  centre, a handle to pan by. A grip that turns something or slides along one
+  line is the same grip, round: a rotate handle, the middle of an edge, the end
+  of an axis, a smooth point. What only steers a curve is a small solid dot on
+  a stem, about a quarter of a grip's area, so a handle is never read as a
+  point.
 - **Selected is filled; unselected is white inside an accent outline.**
 - **Sizes are screen pixels at every zoom** — except the box round a placed
   symbol, which stands for a thing with a size in the document. One distance,
@@ -376,9 +378,13 @@ dictionary cannot be read; a test holds its accent to the palette's.
 - **One second colour, `AccentAmber`, for a reference mark** — a pivot, a warp
   band, a guide's anchor: the point something turns or is held about, not the
   thing itself.
-- **The outline of a drawn line is one uncased pixel** — two when hovered. It
-  sits on ink, and the ink has to stay the thing you see; the price, accepted,
-  is that it can be lost on artwork of the accent's colour.
+- **The outline of a picked drawn line is two uncased pixels**, three while the
+  pointer is on it. It sits on ink, and the ink has to stay the thing you see;
+  the price, accepted, is that it can be lost on artwork of the accent's colour.
+- **Cased when selected or being edited, thin when merely present.** A reference
+  box or a rig mark that is not selected, and the lazy brush's string, are one
+  uncased pixel, so a sheet of boxes or a rig of hitboxes does not sit on the
+  drawing. Same price as above.
 - **The camera keeps its orange** — the palette's `CameraTrack`, the colour it
   has on the timeline — and takes its casing and its grips from the style. It
   is the one overlay with a colour of its own, because the colour is the

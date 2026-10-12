@@ -4352,10 +4352,10 @@ public sealed partial class CanvasControl : Control
             rope.AddCircle(g.CursorX, g.CursorY, g.Radius);
             rope.MoveTo(g.CursorX, g.CursorY);
             rope.LineTo(g.AnchorX, g.AnchorY);
-            pens.Outline(canvas, rope, role: OverlayStyle.Role.Reference);
+            pens.Thin(canvas, rope, OverlayStyle.Role.Reference);
             using var lands = new SKPath();
             lands.AddCircle(g.AnchorX, g.AnchorY, g.BrushRadius);
-            pens.Outline(canvas, lands);
+            pens.Thin(canvas, lands);
         }
 
         /// <summary>Marching ants for the selection + in-progress shapes (drawn in doc space).</summary>
