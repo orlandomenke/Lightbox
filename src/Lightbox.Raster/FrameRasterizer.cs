@@ -160,7 +160,12 @@ public static class FrameRasterizer
         var replay = new List<Stroke>();
         foreach (var stroke in frame.Strokes)
         {
-            if (BrushEngine.ReachBounds(stroke) is not { } reach) continue;
+            // B460: every copy's reach, not only the drawn one's. A stroke
+            // under a mirror or a tile wrap is stamped once per copy, and a
+            // rectangle that holds only a reflection was cleared and never
+            // repainted, because the stroke as drawn was nowhere near it.
+            // CommitRegion is the union the commit itself declares.
+            if (BrushEngine.CommitRegion(stroke, info) is not { } reach) continue;
             if (!Scale(reach, outputScale).IntersectsWith(region)) continue;
             // An effect brush reads the pixels it sits on. Outside the clip this
             // bitmap holds the drawing as it stands *now* — every stroke, including
