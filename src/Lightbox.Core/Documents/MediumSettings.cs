@@ -41,6 +41,26 @@ public enum PaperKind
 
     /// <summary>Woven canvas: directional weave, for oil.</summary>
     Canvas,
+
+    // The scanned sheets. Appended, never reordered: the name is what a file
+    // stores, and a build that predates one reads the stroke with its default
+    // paper rather than failing. Each is a measured surface rather than a
+    // constructed one - see PaperField and docs/CREDITS-papers.md.
+
+    /// <summary>Plain white paper, scanned: a fine, even pebbled tooth. The pencil's sheet.</summary>
+    Plain,
+
+    /// <summary>Kraft paper, scanned: short dense fibres, a little coarser than plain.</summary>
+    Kraft,
+
+    /// <summary>Fibre paper, scanned: long visible fibres, the most open of the papers.</summary>
+    Fibre,
+
+    /// <summary>Linen, scanned: a tight plain weave with the irregularity of real thread.</summary>
+    Linen,
+
+    /// <summary>Plaster, scanned: a trowelled ground with scratches and hollows, for heavy paint.</summary>
+    Plaster,
 }
 
 /// <summary>

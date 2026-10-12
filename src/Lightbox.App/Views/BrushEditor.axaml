@@ -178,6 +178,12 @@
                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
             <Slider Value="{Binding BrushRoundness}" Minimum="0.05" Maximum="1" Margin="{StaticResource RowColumnGap}" />
           </DockPanel>
+          <DockPanel ToolTip.Tip="The tip's hairs: how unevenly they carry paint. Thin hairs lift first as the brush empties or the touch lightens, and the mark opens into streaks along the stroke. Works through a paper with Tooth above zero, and wants Angle follows stroke direction.">
+            <TextBlock Text="Bristles" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
+            <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushBristles}" Minimum="0" Maximum="1"
+                           Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
+            <Slider Value="{Binding BrushBristles}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+          </DockPanel>
           <CheckBox Content="Angle follows stroke direction" IsChecked="{Binding BrushAngleFollowsDirection}"
                     ToolTip.Tip="Required for any flat or chisel tip to behave like one instead of a repeated stamp." />
           <StackPanel x:Name="CurvesTip" Spacing="{StaticResource Space6}" Margin="{StaticResource SectionGap}" />
@@ -301,6 +307,12 @@
             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushTexturePressure}" Minimum="0" Maximum="1"
                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
             <Slider Value="{Binding BrushTexturePressure}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+          </DockPanel>
+          <DockPanel ToolTip.Tip="For paint with body: the pressure at which it covers the surface completely. Below it the surface shows, more the lighter the touch and the emptier the brush. Zero is off, and the tooth then never quite fills - a pencil. Needs Tooth above zero.">
+            <TextBlock Text="Fills at" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
+            <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushTextureFill}" Minimum="0" Maximum="1"
+                           Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
+            <Slider Value="{Binding BrushTextureFill}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
           </DockPanel>
           <DockPanel ToolTip.Tip="The flat grain used when no texture surface is chosen.">
             <TextBlock Text="Granulation" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />

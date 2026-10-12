@@ -144,7 +144,9 @@ public class SimulatedMediumTests(ITestOutputHelper output)
         var peaks = new[] { 0.25, 0.5, 0.75, 1.0 }
             .Select(d =>
             {
-                var b = Preset("Watercolor");
+                // Ink wash: the thinnest medium still simulated, now that
+                // Watercolor is a recipe with no density to turn (Q244).
+                var b = Preset("Ink wash");
                 b.Medium.PigmentDensity = d;
                 return (d, peak: Measure(b).Peak);
             })

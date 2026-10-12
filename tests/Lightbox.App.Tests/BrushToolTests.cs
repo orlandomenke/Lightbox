@@ -69,13 +69,16 @@ public class BrushPresetTests : BrushStateIsolated
         Assert.Equal(watercolor.Settings.Granulation, stroke.Brush.Granulation);
         Assert.Equal(watercolor.Settings.Flow, stroke.Brush.Flow);
 
-        // Watercolor carries its character in the medium rather than in the
-        // flat texture knobs, so those two assertions above are now 0 == 0.
-        // This is the part that would actually notice the preset being lost.
-        Assert.Equal(MediumKind.Watercolour, stroke.Brush.Medium.Kind);
-        Assert.Equal(watercolor.Settings.Medium.Wetness, stroke.Brush.Medium.Wetness);
-        Assert.Equal(watercolor.Settings.Medium.EdgePull, stroke.Brush.Medium.EdgePull);
-        Assert.Equal(watercolor.Settings.Medium.Paper, stroke.Brush.Medium.Paper);
+        // Watercolor is a recipe and no longer a simulation (Q244): what makes
+        // it a wash is a wet edge, a sheet, colour picked up from beneath and
+        // paint that runs out. These are the parts that would notice the
+        // preset being lost on its way to the record.
+        Assert.True(stroke.Brush.WetEdge > 0, "the wash has no wet edge");
+        Assert.Equal(MediumKind.None, stroke.Brush.Medium.Kind);
+        Assert.Equal(watercolor.Settings.Medium.PaintLoad, stroke.Brush.Medium.PaintLoad);
+        Assert.Equal(watercolor.Settings.TextureSurface, stroke.Brush.TextureSurface);
+        Assert.Equal(watercolor.Settings.TextureDepth, stroke.Brush.TextureDepth);
+        Assert.NotNull(stroke.Brush.Mixing);
 
         vm.SelectedBrushPreset = restore;
     }
@@ -83,9 +86,11 @@ public class BrushPresetTests : BrushStateIsolated
     [AvaloniaFact]
     public void EachSimulatedMedium_ReachesTheStrokeRecord_WithItsOwnPhysics()
     {
-        // Four presets that must differ by physics, not just by colour. If two
-        // of them ever collapse onto the same numbers, the distinction the
-        // artist picked between them has quietly stopped existing.
+        // The presets still simulated must differ by physics, not just by
+        // colour. If two of them ever collapse onto the same numbers, the
+        // distinction the artist picked between them has quietly stopped
+        // existing. Four until 2026-10-11: Watercolor (Q244) and Oil (Q246) are
+        // recipes now, and the last two follow them one sheet at a time.
         var vm = new MainViewModel(null) { SmoothStrokes = false };
         var seen = new List<(MediumKind Kind, double Wetness, double Viscosity, double Hiding)>();
         // The brush store is shared across tests, and a medium brush now
@@ -93,7 +98,7 @@ public class BrushPresetTests : BrushStateIsolated
         // changes what later tests paint with.
         var restore = vm.SelectedBrushPreset;
 
-        foreach (var name in new[] { "Watercolor", "Gouache", "Oil", "Ink wash" })
+        foreach (var name in new[] { "Gouache", "Ink wash" })
         {
             vm.SelectedBrushPreset = vm.BrushPresetChoices.First(p => p.Name == name);
             vm.BeginStroke(10, 10, 0.7);
@@ -105,16 +110,16 @@ public class BrushPresetTests : BrushStateIsolated
             seen.Add((brush.Medium.Kind, brush.Medium.Wetness, brush.Medium.Viscosity, brush.Medium.Hiding));
         }
 
-        Assert.Equal(4, seen.Select(m => m.Kind).Distinct().Count());
-        Assert.Equal(4, seen.Distinct().Count());
+        Assert.Equal(2, seen.Select(m => m.Kind).Distinct().Count());
+        Assert.Equal(2, seen.Distinct().Count());
 
-        // And the physics must be the right way round: watercolour is the
-        // wettest and least hiding, oil the most viscous and most hiding.
-        var water = seen.Single(m => m.Kind == MediumKind.Watercolour);
-        var oil = seen.Single(m => m.Kind == MediumKind.Oil);
-        Assert.True(water.Wetness > oil.Wetness, "watercolour should be wetter than oil");
-        Assert.True(oil.Viscosity > water.Viscosity, "oil should be more viscous than watercolour");
-        Assert.True(oil.Hiding > water.Hiding, "oil should hide more than watercolour");
+        // And the physics must be the right way round: ink is the wetter and
+        // less hiding, gouache the more viscous and more hiding.
+        var water = seen.Single(m => m.Kind == MediumKind.Ink);
+        var body = seen.Single(m => m.Kind == MediumKind.Gouache);
+        Assert.True(water.Wetness > body.Wetness, "ink should be wetter than gouache");
+        Assert.True(body.Viscosity > water.Viscosity, "gouache should be more viscous than ink");
+        Assert.True(body.Hiding > water.Hiding, "gouache should hide more than ink");
 
         vm.SelectedBrushPreset = restore;
     }

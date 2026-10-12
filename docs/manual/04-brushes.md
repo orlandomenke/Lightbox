@@ -262,6 +262,22 @@ On the **Effects** page. Pick one of the built-in surfaces, or **Paper image…*
 to use a scan or photograph of the real thing — an imported paper takes over
 and the surface list goes quiet.
 
+The built-in surfaces are of two kinds. **Smooth**, **Cold press**, **Rough**
+and **Canvas** are constructed: clean, even, and the same at any grain size.
+**Plain**, **Kraft**, **Fibre**, **Linen** and **Plaster** are scans of real
+surfaces, with the irregularity real ones have:
+
+| Surface | What it is |
+| --- | --- |
+| **Plain** | White paper with a fine, even pebbled tooth. The Pencil's sheet. |
+| **Kraft** | Brown carton paper: short, dense fibres, a little coarser. |
+| **Fibre** | Paper with long visible fibres, the most open of the three. |
+| **Linen** | A tight plain weave. Coarse under a pencil; made for paint on a large canvas. |
+| **Plaster** | A trowelled ground with scratches and hollows, for heavy paint. |
+
+A scan is shown at its own size at a **Grain size** of 8; larger magnifies it
+and smaller makes it finer. `docs/CREDITS-papers.md` says where each came from.
+
 Two things worth knowing:
 
 - **The image goes into the drawing, not a path on disk.** A file pointing at
@@ -274,15 +290,26 @@ Two things worth knowing:
 **Depth** is how hard it bites. Depth starts at zero, so importing a paper
 opens it for you — a texture you cannot see looks like a broken import.
 
+**Fills at** is for paint with body. It is the pressure at which the paint
+covers the surface completely: press that hard or harder and the mark is
+solid; press less, or let the brush run out of paint, and the surface shows
+through. At zero it is off and the tooth never quite fills, which is how
+graphite behaves and paint does not. It needs **Tooth** above zero. The shipped
+**Oil** fills at about a third of full pressure.
+
 **Tooth** is what makes a pencil a pencil. At zero the bite is the same
 however hard you press, the way a texture overlay is. Turn it up and the bite
 becomes something pressure fills in: a light touch catches only the peaks of
 the paper, a firm stroke reaches the valleys, and the edge of a mark — where
 the tip presses least — shows more paper than its middle. It needs a paper and
 a Depth above zero, like everything on this option, and it follows the pen
-only when **Pen pressure** is on for the brush. The shipped **Pencil** is a
-fine cold-press grain with this most of the way up; a mouse, which always
-presses fully, draws it at its darkest.
+only when **Pen pressure** is on for the brush. Either way the paper lands
+under the pen as you draw and nothing changes at pen-lift. The shipped **Pencil**
+is the scanned **Plain** sheet, a little finer than life, with this most of
+the way up. It is tuned to read as graphite rather than ink: it never reaches
+black, a light touch is several times lighter than a firm one, and going over
+a passage again builds its tone. A mouse, which always presses fully, draws it
+at its darkest.
 
 ## How the brush answers the pen
 
@@ -320,7 +347,22 @@ same curves, when it does.
 
 ## Physical media
 
-Watercolour, gouache, oil and ink are simulated, not imitated with a texture:
+**Watercolor and Oil are no longer simulated.** Oil is thick paint on linen:
+pressure pushes it into the weave until the mark is solid, and the canvas
+shows only where your touch is light or the brush is running dry — as streaks,
+because the tip has hairs and each lifts on its own.
+
+**Watercolor** It is a wash built from parts that are
+finished under the pen: a crisp-edged, thin layer of paint, a **wet edge** that
+gathers its pigment at the rim and thins the middle, the scanned **Fibre**
+sheet, colour picked up from what it is laid over, and paint that runs out
+along the stroke. What you see while drawing is what is kept when you lift.
+Gouache and ink wash are being rebuilt the same way; until then the
+rest of this section describes them, and the Medium option, as they are.
+
+*Planned:* gouache and ink wash without the simulation.
+
+Gouache and ink are simulated, not imitated with a texture:
 wetness, viscosity, absorbency, edge pull, pigment density, granulation, paper
 grain. The simulation is **deterministic** — the same stroke always produces
 the same mark, on reload, after undo, and when the inbetweener replays it.
@@ -328,12 +370,12 @@ the same mark, on reload, after undo, and when the inbetweener replays it.
 That determinism is not a detail. An effect that varies subtly between similar
 strokes looks fine on one image and *boils* at 12 fps.
 
-The three wet-medium brushes ship with a tip and a heading rather than a bare
-circle: **Oil** uses the bristle tip turned to the stroke, **Gouache** a chisel
-turned the same way, and **Watercolor** an irregular wash edge with a little
-size and roundness variation and no heading at all — a wash edge is not
-directional. All of that variation is seeded from where each dab lands, so a
-mark is varied and still replays identically.
+**Oil** and **Gouache** ship with a tip and a heading rather than a bare
+circle: Oil uses the bristle tip turned to the stroke, Gouache a chisel turned
+the same way. Their variation is seeded from where each dab lands, so a mark
+is varied and still replays identically. **Watercolor** is round and even on
+purpose — its wet edge follows the outline of the whole stroke, and a tip that
+varied in size would break that rim into dashes.
 
 **Bristle drag and pickup are not on the Medium option**, and that is deliberate
 rather than missing. Both need the paint to be pushed along the stroke's own
@@ -450,7 +492,7 @@ recomputed while you draw.
 | **Marker nib** | Squarish with rounded corners, the shape a chisel marker lays down. |
 | **Cut nib** | Six flats and six corners. The only tip here with a point. |
 | **Spatter** | Grains with a size, not fog: a sponge, a stipple, a rough charcoal edge. |
-| **Wet edge** | Pale in the middle, dark at the rim — the mark a puddle leaves when it dries, stamped rather than simulated. |
+| **Wet edge** | Gathers the paint at the rim and thins the middle — the mark a wash leaves when it dries. Laid under the pen as you draw; the rim follows the outline of the stroke so far. |
 
 Built-ins cannot be deleted or renamed, because drawings refer to them by name
 under the hood. **Edit a copy** puts one back on the Generate page so you can
@@ -473,45 +515,59 @@ Two things worth knowing:
   that stamps a faint box down every stroke. Re-crop with clear paper all the
   way round.
 
+### Bristles
+
+A tip can have hairs. **Bristles**, on the **Tip** option, is how unevenly they
+carry paint. At zero the tip is one even pad. Turn it up and each hair gets its
+own share of your pressure: a loaded brush pressed home is still solid, but as
+you lift, or as the brush runs out of paint, the thin hairs stop reaching the
+surface first and the mark opens into streaks along the stroke.
+
+- **The hairs are the brush's own.** Hair seven is thin on every stroke that
+  brush makes, the way it is on a real one, and a stroke replays with the same
+  hairs.
+- **They need a surface to press into**: a paper on the **Texture** option with
+  **Tooth** above zero. Without one there is nothing for a hair to lift off.
+- **They run with the stroke**, so tick **Angle follows stroke direction**.
+
+Any brush can have them. The shipped **Oil** does.
+
+*Planned:* tips whose hairs you can shape — how many, how wide, which are
+thin — and hairs that splay and drag as you press and pull the brush.
+
 ## Fast brushes, textured ones, and expressive ones
 
 Brushes come in three kinds, and the picker tells them apart:
 
 - **Fast** — stamps dabs and stops. Predictable cost at any canvas size, and
   what almost every brush is. Ink, soft round, airbrush.
-- **Textured ◇** — stamps dabs and then finishes the mark: a wet edge or
-  granulation pass runs over the whole stroke when the pen lifts. Drawing
-  stays light; the finish is a beat at pen-lift, longer on a big stroke.
-  Pencil and the paper-grain brushes live here — a pencil's tooth is a paper
-  texture that pressure fills in, so it pays what a textured brush pays.
+- **Textured ◇** — stamps dabs and finishes them as it goes: a wet edge, a
+  grain or a paper is laid on the part of the mark the pen just touched. Each
+  moment of drawing costs a little more than a fast brush, and nothing is left
+  to do when the pen lifts. Pencil and the paper-grain brushes live here — a
+  pencil's tooth is a paper texture that pressure fills in.
 - **Expressive ◈** — reads the canvas back, simulates a medium, or blends the
   layers underneath. The mark behaves like a material instead of like paint
   being placed. Slower, particularly on a large canvas.
 
 The glyphs mark the two paid kinds, and the list is grouped so they sit apart
 from the fast ones. Hover a brush and the tooltip names what it is paying for —
-"reads the canvas back as it goes", "settles pigment into the grain at
-pen-lift" — because that is the thing you can turn off if you want the speed
-back.
+"reads the canvas back as it goes", "darkens its own edge as you draw" — because that is
+the thing you can turn off if you want the speed back.
 
 ### What a textured brush shows you while you draw
 
-A wet edge or a grain pass runs a little behind your hand, so the newest part of
-the mark reaches the screen before the finish does. You see the ink land under
-the nib and then settle into its texture a moment later.
+The finished mark. A wet edge, a grain and a paper texture are laid under the
+pen, on the part of the stroke each movement touched, and what you see while
+drawing is what is kept when you lift — to the pixel. The wet edge's dark rim
+follows the outline of the stroke so far, so at the very tip it moves forward
+with the pen; behind the tip it does not change again.
 
-**On a fast stroke the newest part can drop out entirely** — the mark stops
-under your pen and catches up when you slow down or lift. The faster you go the
-more of the mark this affects. It is not lost: everything you drew is there the
-instant the pen stops, and the committed stroke is unaffected. It is the preview
-falling behind, not the drawing.
+A **simulated medium** is the exception, for now. Its simulation still runs
+just behind your hand and once more at pen-lift, so on a fast stroke the newest
+part can trail the pen and the mark can shift a little when you lift.
 
-Slower and shorter strokes show the mark the whole way. Smaller brushes hold up
-better than large ones, because the finish has less to compute.
-
-*Planned:* keeping the preview under the pen at any speed. The passes that fake
-a medium — wet edge and grain — currently do this; a **simulated medium** or a
-**paper texture** does not, and shows the mark as of its last finished pass.
+*Planned:* the simulated media finishing under the pen as well.
 
 It is a price tag, not a warning. These brushes exist because the coupling is
 what makes a mark expressive, and an artist reaching for one has decided the
@@ -521,11 +577,11 @@ discovered at frame 180.
 Nothing about a brush *declares* which kind it is — it is worked out from the
 brush's own settings, so turning the medium off moves it to the fast group and
 turning it on moves it back. Every simulated medium also has a **(flat)**
-counterpart that gets close to the look without running the simulation — but
-the flat pair lean on the wet edge and grain passes to fake it, so today they
-are textured rather than free, and a flat brush with both turned up can cost as
-much at pen-lift as the medium it stands in for. The tooltip tells the truth
-per brush.
+counterpart that gets close to the look without running the simulation. The
+flat ones lean on the wet edge and grain to do it, so they are textured rather
+than fast — but they finish under the pen and cost nothing at pen-lift, which
+their simulated originals do not yet manage. The tooltip tells the truth per
+brush.
 
 ## The brush library
 

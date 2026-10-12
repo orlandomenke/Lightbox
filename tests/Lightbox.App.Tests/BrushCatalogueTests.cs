@@ -70,7 +70,11 @@ public class BrushCatalogueTests : BrushStateIsolated
         // going up by one.
         var unexpected = BuiltInPresets.Create()
             .Where(p => p.IsExpressive)
+            // A brush that picks up the colour it is laid on reads the canvas
+            // back as it goes, which is what the badge is for - Watercolor, since
+            // it stopped being simulated (Q244), is expressive for that reason.
             .Where(p => p.Settings.Medium.Kind == MediumKind.None
+                        && p.Settings.Mixing is null
                         && p.Settings.Kind is not (BrushKind.Smudge or BrushKind.Blur))
             .Select(p => p.Name)
             .ToList();

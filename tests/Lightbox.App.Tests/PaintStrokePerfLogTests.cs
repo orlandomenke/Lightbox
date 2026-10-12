@@ -76,7 +76,9 @@ public sealed class PaintStrokePerfLogTests : BrushStateIsolated
     [AvaloniaFact]
     public void AStrokeWithAMediumLogsItsBatchesItsPassesHowFarBehindTheyLandedAndItsCommit()
     {
-        var lines = Record(Draw, "builtin-watercolor-wet");
+        // Gouache: a medium that is still simulated, so still has passes to
+        // log. Watercolor was the subject until it became a recipe (Q244).
+        var lines = Record(Draw, "builtin-gouache-body");
         var events = Events(lines);
 
         Assert.Contains("stroke.move", events);

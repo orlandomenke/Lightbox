@@ -234,39 +234,37 @@ sealed class LivePaintSession
     /// </remarks>
     internal SKBitmap? CoverageTailBackup { get; set; }
 
-    /// <summary>
-    /// Where the pen was and how hard, for a brush whose texture is gated by
-    /// pressure (the pencil's tooth): a document-sized running maximum the dabs
-    /// accumulate into, carried across the stroke exactly as
-    /// <see cref="Coverage"/> is, so a pointer event never re-walks the mark.
-    /// Always at document scale — the gate's grain is a few pixels, and a
-    /// coarser map would gate the wrong ones.
-    /// </summary>
-    internal SKBitmap? Press { get; private set; }
-
-    internal SKCanvas? PressCanvas { get; private set; }
-
-    internal SKBitmap? PressTailBackup { get; set; }
-
-    internal void BeginPress(int width, int height)
-    {
-        if (Press is null || Press.Width != width || Press.Height != height)
-        {
-            PressCanvas?.Dispose();
-            Press?.Dispose();
-            Press = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque));
-            PressCanvas = new SKCanvas(Press);
-        }
-        PressCanvas!.Clear(SKColors.Black);
-        PressCanvas.Flush();
-    }
-
     internal SKBitmap? TailBackup { get; set; }
 
     internal SKRectI? TailRegion { get; set; }
 
     /// <summary>Dabs in the scratch whose position is settled, so never taken back.</summary>
     internal int StableDabs { get; set; }
+
+    /// <summary>
+    /// A dab stamped as settled later changed, so the scratch holds pixels the
+    /// record will not replay. The live mark is then shown but never promoted.
+    /// </summary>
+    internal bool SettledDabChanged { get; set; }
+
+    /// <summary>What changed, the first time, for the perf log.</summary>
+    internal string? WhySettledDabChanged { get; set; }
+
+    /// <summary>The band this pointer event's in-place finish rewrote, or null when it finished nothing.</summary>
+    internal SKRectI? FinishedBand { get; set; }
+
+    /// <summary>
+    /// Everything the pen has touched since the live mark was last finished:
+    /// the bands of the pointer events since, as one rectangle. Null when the
+    /// finished mark is up to date.
+    /// </summary>
+    internal SKRectI? FinishPending { get; set; }
+
+    /// <summary>
+    /// Where the stroke's unsettled tail will be stamped when the mark is next
+    /// looked at; null when there is none or it is already down.
+    /// </summary>
+    internal SKRectI? TailOwed { get; set; }
 
     /// <summary>
     /// The dab walk from the previous pointer event.
@@ -288,6 +286,18 @@ sealed class LivePaintSession
     /// strokes so the common case allocates nothing.
     /// </remarks>
     internal Lightbox.Core.Geometry.IncrementalDensify Densify { get; } = new();
+
+    /// <summary>
+    /// The same cache for the stroke without its newest few points, which is
+    /// walked beside the whole one to find the dabs that are final.
+    /// </summary>
+    internal Lightbox.Core.Geometry.IncrementalDensify HorizonDensify { get; } = new();
+
+    /// <summary>The stroke's points without its newest few, refilled each event rather than allocated.</summary>
+    internal List<Lightbox.Core.Documents.StrokePoint> HorizonPoints { get; } = [];
+
+    /// <summary>The same for a posed stroke's rest points.</summary>
+    internal List<Lightbox.Core.Documents.StrokePoint> HorizonRestPoints { get; } = [];
 
     /// <summary>The effect draft's own dab bookkeeping, mirroring <see cref="Dabs"/>.</summary>
     /// <remarks>
@@ -653,6 +663,9 @@ sealed class LivePaintSession
         StampedCount = 0;
         DabCount = 0;
         StableDabs = 0;
+        SettledDabChanged = false;
+        FinishPending = null;
+        TailOwed = null;
         TailRegion = null;
         Dabs = null;
         EffectDabs = null;

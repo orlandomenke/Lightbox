@@ -621,6 +621,28 @@ public partial class MainViewModel
         set => SetBrush(s => s.TexturePressure = value <= 0 ? null : Math.Clamp(value, 0, 1));
     }
 
+    /// <summary>
+    /// The pressure at which the paint covers the sheet completely. Zero is
+    /// off and writes nothing to the record: the tooth then never quite fills,
+    /// which is a pencil's behaviour and not a paint's.
+    /// </summary>
+    public double BrushTextureFill
+    {
+        get => GetBrush(s => s.TextureFill ?? 0);
+        set => SetBrush(s => s.TextureFill = value <= 0 ? null : Math.Clamp(value, 0.05, 1));
+    }
+
+    /// <summary>
+    /// The tip's hairs - how unevenly they carry paint: streaks as the brush
+    /// lifts or empties. Zero is a tip with none and writes nothing to the
+    /// record.
+    /// </summary>
+    public double BrushBristles
+    {
+        get => GetBrush(s => s.Bristles ?? 0);
+        set => SetBrush(s => s.Bristles = value <= 0 ? null : Math.Clamp(value, 0, 1));
+    }
+
     /// <summary>Empty means colour dynamics drift only in hue/saturation/value.</summary>
     public string BrushSecondaryColor
     {
@@ -930,6 +952,7 @@ public partial class MainViewModel
     // are the directional advection loop that DESIGN-fluid-media.md sequences last —
     // so exposing them gave an artist two sliders that moved and changed nothing.
     // Charter O7, and B23. `MediumSettings` says the same thing at the declarations.
+    // (A brush's hairs are a different thing and a property of its tip: BrushBristles.)
 
     public double MediumPaintLoad
     {
@@ -1197,6 +1220,7 @@ public partial class MainViewModel
         nameof(BrushSizeJitter), nameof(BrushMinimumDiameter), nameof(BrushRoundness),
         nameof(BrushRoundnessJitter), nameof(BrushAngleFollowsDirection), nameof(BrushFlowJitter),
         nameof(BrushTextureSurface), nameof(BrushTextureScale), nameof(BrushTextureDepth), nameof(BrushTexturePressure),
+        nameof(BrushTextureFill), nameof(BrushBristles),
         nameof(BrushSecondaryColor), nameof(BrushColorJitter), nameof(BrushHueJitter),
         nameof(BrushSaturationJitter), nameof(BrushBrightnessJitter),
         nameof(IsSmudgeBrush), nameof(IsEffectBrush), nameof(ShowsEffectOptions), nameof(EffectStrength),

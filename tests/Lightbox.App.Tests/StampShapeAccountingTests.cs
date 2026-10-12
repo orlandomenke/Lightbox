@@ -160,43 +160,33 @@ public class StampShapeAccountingTests(ITestOutputHelper output) : BrushStateIso
     }
 
     /// <summary>
-    /// <b>The tip is kept between publishes, and thrown away when the pass
-    /// moves</b> (B322 attempt 6). Both halves matter: keeping it is the whole
-    /// saving, and throwing it away when a pass completes is what stops raw
-    /// dabs being drawn over pixels the pass has already finished — the
-    /// artifact three earlier attempts produced and the owner rejected.
+    /// <b>No brush draws a raw tip any more.</b> The tip was the newest dabs
+    /// drawn plainly over a mark whose finish ran behind the pen (B322), and
+    /// keeping it between passes without drawing over finished pixels took six
+    /// attempts. Since the paint path's phase 2 a grain, a paper and a wet edge
+    /// are finished in place per event, and a simulated medium never showed a
+    /// tip (Q168) — so there is nothing left for one to stand in for.
     /// </summary>
     /// <remarks>
-    /// Driven through the view model rather than asserted on the decision in
-    /// isolation, because the bug this guards against is the two halves
-    /// disagreeing about which dabs the buffer holds — which no unit test of
-    /// either half alone would see.
+    /// This replaced a test that the tip was added to between passes and
+    /// rebuilt when one landed. It pins the absence instead, on the brush that
+    /// test used and on a simulated medium, so that a route which starts
+    /// drawing unfinished dabs under the pen again has to say so here. The
+    /// tip's machinery is deleted in phase 4 (docs/DESIGN-paint-path.md).
     /// </remarks>
-    [AvaloniaFact]
-    public void TheTipIsAddedToBetweenPassesAndRebuiltWhenOneLands()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void NoBrushDrawsARawTipUnderThePen(bool simulated)
     {
         var vm = Ready(hardness: 0.4);
-        vm.BrushGranulation = 0.35;   // gives it a live pass, so a tip exists at all
+        if (simulated) vm.BrushMedium = Lightbox.Core.Documents.MediumKind.Watercolour;
+        else vm.BrushGranulation = 0.35;
         Dispatcher.UIThread.RunJobs();
 
         Stroke(vm);
 
-        var decisions = vm.LiveTipAdded + vm.LiveTipRebuilt;
-        output.WriteLine(
-            $"added {vm.LiveTipAdded}, rebuilt {vm.LiveTipRebuilt}, "
-            + $"adding median {vm.LiveTipDabsAdded.MedianMs}, rebuilding median {vm.LiveTipDabsRebuilt.MedianMs}");
-
-        Assert.True(decisions > 0, "no tip was built at all — this brush has no live pass");
-        // An addition must never stamp more than a rebuild would have: it starts
-        // further along the same dab list. If it does, the two halves disagree
-        // about what the buffer holds.
-        if (vm.LiveTipDabsAdded.Count > 0 && vm.LiveTipDabsRebuilt.Count > 0)
-        {
-            Assert.True(
-                vm.LiveTipDabsAdded.WorstMs <= vm.LiveTipDabsRebuilt.WorstMs
-                || vm.LiveTipDabsAdded.MedianMs <= vm.LiveTipDabsRebuilt.MedianMs,
-                "adding to the tip stamped more dabs than rebuilding it, so the buffer's "
-                + "idea of what it holds has drifted from the plan's");
-        }
+        output.WriteLine($"simulated {simulated}: added {vm.LiveTipAdded}, rebuilt {vm.LiveTipRebuilt}");
+        Assert.Equal(0, vm.LiveTipAdded + vm.LiveTipRebuilt);
     }
 }

@@ -1402,35 +1402,6 @@ public partial class MainViewModel
     /// duplicates them, and the source rectangle already bounds what is read.
     /// </para>
     /// </remarks>
-    /// <summary>
-    /// Keep what the press map holds under the tail, so the tail's dabs can be
-    /// taken back when the next event moves them — the coverage's own tail
-    /// discipline (B299), at document scale.
-    /// </summary>
-    private void BackUpPressTail(SKRectI tail)
-    {
-        if (_live.Press is null || tail.Width <= 0 || tail.Height <= 0) return;
-        if (_live.PressTailBackup is null
-            || _live.PressTailBackup.Width < tail.Width
-            || _live.PressTailBackup.Height < tail.Height)
-        {
-            _live.PressTailBackup?.Dispose();
-            _live.PressTailBackup = new SKBitmap(new SKImageInfo(
-                Math.Max(tail.Width, 64), Math.Max(tail.Height, 64),
-                SKColorType.Rgba8888, SKAlphaType.Premul));
-        }
-
-        using var region = new SKBitmap();
-        if (!_live.Press.ExtractSubset(region, tail)) return;
-        using var px = region.PeekPixels();
-        using var view = px is null ? null : SKImage.FromPixels(px);
-        if (view is null) return;
-        using var into = new SKCanvas(_live.PressTailBackup);
-        using var src = new SKPaint { BlendMode = SKBlendMode.Src };
-        into.DrawImage(view, 0, 0, src);
-        into.Flush();
-    }
-
     private static void RestoreTail(SKCanvas canvas, SKBitmap backup, SKRectI where)
     {
         using var pixels = backup.PeekPixels();
@@ -1584,6 +1555,367 @@ public partial class MainViewModel
     /// </remarks>
     internal int LiveDabCountForTest => _live.Dabs?.Count ?? 0;
 
+    /// <summary>How many strokes this session committed by promoting the live mark rather than replaying the record.</summary>
+    internal int PromotedStrokes { get; private set; }
+
+    /// <summary>
+    /// The live mark, held across the moment the live state is cleared: a copy
+    /// of the stroke's region of the scratch, and the dabs it was stamped from.
+    /// </summary>
+    private sealed class LiveMark(SKBitmap pixels, SKRectI region, List<BrushEngine.Dab> dabs) : IDisposable
+    {
+        public SKBitmap Pixels { get; } = pixels;
+        public SKRectI Region { get; } = region;
+        public List<BrushEngine.Dab> Dabs { get; } = dabs;
+        public void Dispose() => Pixels.Dispose();
+    }
+
+    /// <summary>
+    /// Copy out the stroke's region of the live mark if it is complete and is
+    /// the kind of mark a replay reproduces exactly; null otherwise, and the
+    /// commit stamps the record as it always has.
+    /// </summary>
+    private LiveMark? TakeLiveMark(Stroke stroke)
+    {
+        WhyReplayed = null;
+        LiveMark? No(string why)
+        {
+            WhyReplayed = why;
+            return null;
+        }
+
+        if (!BrushEngine.PromotesAtPenUp(stroke)) return No("not a kind of stroke that is kept");
+        if (PaperHasMoved) return No("the paper moved");
+        // A document too large for the replay's plane is replayed in another
+        // frame of reference, and the live mark is then not the replay.
+        if (!BrushEngine.ReplaysInDocumentSpace(Scene.Width, Scene.Height)) return No("document too large for the plane");
+        if (_live.SettledDabChanged) return No($"a settled dab changed ({_live.WhySettledDabChanged})");
+        if (_live.Dabs is not { Count: > 0 } dabs) return No("nothing was stamped live");
+
+        var brush = stroke.Brush;
+        SKBitmap? source;
+        if (BrushEngine.NeedsBandFinish(brush))
+        {
+            // The finish is applied in place as the pen moves; it has to have
+            // seen every dab, and a footprint has to be at the scale the record
+            // replays with.
+            if (_live.PostStampedDabs != dabs.Count)
+            {
+                return No($"the finish had seen {_live.PostStampedDabs} of {dabs.Count} dabs");
+            }
+            if (BrushEngine.NeedsFootprintCap(brush)
+                && (_live.Coverage is null || _live.CoverageScale != BrushEngine.CeilingScale(brush)))
+            {
+                return No("the ceiling was kept at another scale");
+            }
+            source = _live.PostScratch;
+        }
+        else if (BrushEngine.DrawsAsOneSilhouette(brush))
+        {
+            source = _live.Scratch;
+        }
+        else
+        {
+            source = _live.Scratch;
+        }
+        if (source is null) return No("no live buffer");
+
+        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        if (BrushEngine.CommitRegion(stroke, info) is not { } reach) return No("the stroke reaches nothing");
+        var region = SKRectI.Intersect(reach, new SKRectI(0, 0, source.Width, source.Height));
+        if (region.Width <= 0 || region.Height <= 0) return No("the stroke is off the paper");
+        return CopyRegion(source, region) is { } pixels ? new LiveMark(pixels, region, dabs) : No("the copy failed");
+    }
+
+    /// <summary>
+    /// Why the last stroke's pen-up rendered the record instead of keeping the
+    /// live mark; null when it was kept. In the perf log as
+    /// <c>commit.replayed</c>, because a stroke that is silently replayed is
+    /// the stall this path exists to remove and the lab only showed that it
+    /// happened, not why.
+    /// </summary>
+    internal string? WhyReplayed { get; private set; }
+
+    /// <summary>Where two walks of the same stroke first disagree, for <see cref="WhyReplayed"/>.</summary>
+    private static string DescribeDifference(IReadOnlyList<BrushEngine.Dab> live, IReadOnlyList<BrushEngine.Dab> record)
+    {
+        var shared = Math.Min(live.Count, record.Count);
+        var at = 0;
+        while (at < shared && live[at].Equals(record[at])) at++;
+        if (at == shared) return $"the record walks to {record.Count} dabs, {live.Count} were drawn";
+        var a = live[at];
+        var b = record[at];
+        var what = a.Pos != b.Pos ? $"moved {Math.Sqrt(Math.Pow(a.Pos.X - b.Pos.X, 2) + Math.Pow(a.Pos.Y - b.Pos.Y, 2)):0.###} px"
+            : !a.Pressure.Equals(b.Pressure) ? "pressure"
+            : !a.Heading.Equals(b.Heading) ? "heading"
+            : "load";
+        return $"dab {at} of {live.Count} drawn / {record.Count} recorded differs: {what}";
+    }
+
+    /// <summary>
+    /// The pixels the live path holds for the stroke in hand — the finished
+    /// mark when a cap or pass has produced one, the raw dabs otherwise —
+    /// before opacity, blend, clip and alpha lock. What pen-up would promote
+    /// (docs/DESIGN-paint-path.md); null between strokes.
+    /// </summary>
+    internal SKBitmap? LiveMarkSource
+    {
+        get
+        {
+            if (_strokeBuilder.Current is null) return null;
+            PrepareLiveMark();
+            return _live.PostStampedPoints > 0 && _live.PostScratch is { } finished ? finished : _live.Scratch;
+        }
+    }
+
+    /// <summary>
+    /// Stamp the unsettled tail of the live stroke, if it is owed: back up what
+    /// is under it, then lay the dabs past the settled prefix - ink, and the
+    /// footprint for a brush that keeps one. Called when the mark is about to
+    /// be looked at, so a tail is stamped once per look instead of once per
+    /// pointer event; the next event takes it back as it always did
+    /// (<see cref="RestoreTail"/>).
+    /// </summary>
+    private void StampLiveTail()
+    {
+        if (_live.TailOwed is not { } owedRect) return;
+        _live.TailOwed = null;
+        if (_live.TailRegion is not null) return; // already down
+        if (_strokeBuilder.Current is not { } live || _live.Dabs is not { } dabs || _live.ScratchCanvas is null) return;
+
+        SKRectI? owed = owedRect;
+        var info = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var carriesFootprint = BrushEngine.NeedsFootprintCap(live.Brush)
+            && _live.CoverageCanvas is not null
+            && _live.Coverage is not null;
+        using var mixPixels = live.Brush.Mixing is null ? null : _live.Scratch?.PeekPixels();
+        using var mixBeneath = mixPixels is null ? null : _live.MixBeneath?.PeekPixels();
+        var mixGround = mixPixels is null
+            ? default
+            : new BrushEngine.MixGround(mixPixels, mixBeneath, default, _live.ScratchCanvas.TotalMatrix);
+
+        var backupAt = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (owed is { } tail && _live.Scratch is not null)
+        {
+            _live.ScratchCanvas.Flush();
+            if (_live.TailBackup is null
+                || _live.TailBackup.Width < tail.Width || _live.TailBackup.Height < tail.Height)
+            {
+                _live.TailBackup?.Dispose();
+                _live.TailBackup = new SKBitmap(new SKImageInfo(
+                    Math.Max(tail.Width, 64), Math.Max(tail.Height, 64),
+                    SKColorType.Rgba8888, SKAlphaType.Premul));
+            }
+            // A real copy, not a subset view. SKBitmap.ExtractSubset hands back a bitmap
+            // that SHARES the source's pixels, so using it as the backup made it track the
+            // scratch and the rollback a no-op — the tail accumulated instead of being
+            // taken back, which measured as the live mark 9% heavier than the commit.
+            //
+            // The subset is taken FIRST and only then wrapped, which is the same trap
+            // PostProcessDabs records: SKImage.FromBitmap on the whole scratch sets up a
+            // 33 MB image at 4K, every pointer event, to read back a region a few hundred
+            // pixels across.
+            using (var region = new SKBitmap())
+            {
+                if (_live.Scratch.ExtractSubset(region, tail))
+                {
+                    using var pixels = region.PeekPixels();
+                    using var view = pixels is null ? null : SKImage.FromPixels(pixels);
+                    if (view is not null)
+                    {
+                        using var into = new SKCanvas(_live.TailBackup);
+                        using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+                        into.DrawImage(view, 0, 0, src);
+                        into.Flush();
+                        _live.TailRegion = tail;
+                    }
+                }
+            }
+
+            // The backup is area work over the tail rectangle, which spans the
+            // distance the pen covered in two events — so it grows with SPEED
+            // while the dab count does not. Timed apart from the dabs for
+            // exactly that reason.
+            StampBackupMs.Add(Ms(backupAt));
+            StampTailMpx.Add(tail.Width * (double)tail.Height / 1_000_000.0);
+            var tailAt = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (mixPixels is not null)
+            {
+                // From the checkpoint, and the result is dropped: the tail is on
+                // loan and re-stamped from the same carry next event.
+                BrushEngine.StampMixedDabRange(
+                    _live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count, mixGround, _live.MixCarry,
+                    _live.MixDeposits);
+            }
+            else
+            {
+                BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count);
+            }
+            // Counted HERE and not from the tail's size below, because the tail
+            // is only re-stamped when RangeBounds gives it a rectangle. Counting
+            // `dabs.Count - StableDabs` regardless would report work that did not
+            // happen — the same shape of error as measuring a range in one unit
+            // and subtracting it in another (B329).
+            _live.ScratchCanvas.Flush();
+            StampTailMs.Add(Ms(tailAt));
+
+            // 3b. The footprint's own copy of the same loan.
+            if (carriesFootprint)
+            {
+                // B189: the coverage buffer's own pixels, which are fewer than
+                // the document's when the footprint follows the compose scale.
+                // Sized off THIS rectangle rather than the document one, or the
+                // backup would be four times the size it needs and the copy
+                // would give back what the smaller buffer just saved.
+                var coverTail = _live.ToCoverage(tail);
+                if (_live.CoverageTailBackup is null
+                    || _live.CoverageTailBackup.Width < coverTail.Width
+                    || _live.CoverageTailBackup.Height < coverTail.Height)
+                {
+                    _live.CoverageTailBackup?.Dispose();
+                    _live.CoverageTailBackup = new SKBitmap(new SKImageInfo(
+                        Math.Max(coverTail.Width, 64), Math.Max(coverTail.Height, 64),
+                        SKColorType.Rgba8888, SKAlphaType.Premul));
+                }
+
+                using (var region = new SKBitmap())
+                {
+                    if (_live.Coverage!.ExtractSubset(region, coverTail))
+                    {
+                        using var px = region.PeekPixels();
+                        using var view = px is null ? null : SKImage.FromPixels(px);
+                        if (view is not null)
+                        {
+                            using var into = new SKCanvas(_live.CoverageTailBackup);
+                            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
+                            into.DrawImage(view, 0, 0, src);
+                            into.Flush();
+                        }
+                    }
+                }
+
+                // The tail's own second walk, which nothing timed until now: it
+                // sits after StampTailMs closes, so it was invisible to the
+                // split that named the tail copies.
+                var tailFootprintAt = System.Diagnostics.Stopwatch.GetTimestamp();
+                BrushEngine.AccumulateFootprint(
+                    _live.CoverageCanvas!, live, dabs, _live.StableDabs, dabs.Count,
+                    _live.CoverageScale);
+                _live.CoverageCanvas!.Flush();
+                StampFootprintMs.Add(Ms(tailFootprintAt));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Bring the live mark up to the last dab before something reads it: the
+    /// tail, then the finish over everything touched since the last look.
+    /// </summary>
+    private void PrepareLiveMark()
+    {
+        StampLiveTail();
+        FinishLiveMark();
+    }
+
+    /// <summary>How many times the live mark's finish ran this session, against the pointer events that asked for it.</summary>
+    internal int LiveFinishes { get; private set; }
+
+    /// <summary>
+    /// Finish whatever part of the live mark the pen has touched since it was
+    /// last looked at: copy that band from the raw dabs and lay the ceiling,
+    /// the rim, the grain and the paper over it
+    /// (<see cref="BrushEngine.FinishBand"/>). Called by everything that reads
+    /// the finished mark - the frame being composed, the pen lifting - and by
+    /// nothing else, so the work is done once per look and not once per
+    /// pointer event.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why it is lazy.</b> The perf lab had Watercolor at 12 ms and Oil at
+    /// 25 ms a pointer event at 300 px, against an interval of 8, and the
+    /// screen a second and a half behind the pen. The finish was most of
+    /// Watercolor's event, and every event paid it in full although one
+    /// frame shows the result of several. Deferred, consecutive bands - a
+    /// 300 px dab moved 25 px - are almost the same pixels, so their union
+    /// costs little more than one; and when the app is behind, the events
+    /// that queue up share a finish instead of each making the queue longer.
+    /// </para>
+    /// <para>
+    /// <b>Nothing about the pixels changes.</b> The band is copied afresh from
+    /// the raw dabs each time (capping is not idempotent across a growing
+    /// footprint), so finishing the union once is what finishing each band in
+    /// turn came to. What a frame shows is finished to the last dab stamped;
+    /// what pen-up keeps is finished to the last dab of the stroke.
+    /// </para>
+    /// </remarks>
+    private void FinishLiveMark()
+    {
+        if (_live.FinishPending is not { } band) return;
+        _live.FinishPending = null;
+        if (_strokeBuilder.Current is not { } live
+            || _live.Scratch is not { } inkSource
+            || _live.Dabs is not { } dabs)
+        {
+            return;
+        }
+
+        var carriesFootprint = BrushEngine.NeedsFootprintCap(live.Brush)
+            && _live.CoverageCanvas is not null
+            && _live.Coverage is not null;
+        band = SKRectI.Intersect(band, new SKRectI(0, 0, inkSource.Width, inkSource.Height));
+        if (band.Width <= 0 || band.Height <= 0) return;
+
+        _live.EnsurePostScratch(Scene.Width, Scene.Height);
+        if (_live.PostScratch is not { } capped || (carriesFootprint && _live.Coverage is null)) return;
+
+        // Re-copied from the UNCAPPED scratch rather than capped again in
+        // place: capping is not idempotent across a growing footprint, so a
+        // second pass over already-capped pixels would hold the mark down to
+        // the ceiling it had last time.
+        _live.ScratchCanvas?.Flush();
+        _live.CoverageCanvas?.Flush();
+        using (var into = new SKCanvas(capped))
+        using (var src = new SKPaint { BlendMode = SKBlendMode.Src })
+        using (var region = new SKBitmap())
+        {
+            if (inkSource.ExtractSubset(region, band))
+            {
+                using var px = region.PeekPixels();
+                using var view = px is null ? null : SKImage.FromPixels(px);
+                if (view is not null) into.DrawImage(view, band.Left, band.Top, src);
+            }
+
+            into.Flush();
+        }
+
+        // B349: with the brush's reach, the ceiling over this band is the swept
+        // mark's - flat between passes - and it reads the support beyond the
+        // band straight off the whole-stroke coverage buffer, which is why no
+        // bigger band is needed. And with it everything else that finishes the
+        // mark - the wet edge's rim, the grain, the paper - by the one call a
+        // replay makes (docs/DESIGN-paint-path.md, phase 2).
+        BrushEngine.FinishBand(
+            capped, carriesFootprint ? _live.Coverage : null, band, live.Brush, _live.CoverageScale);
+        LiveFinishes++;
+        _live.PostUsed = _live.PostUsed is { } prior
+            ? LivePaintSession.UnionRect(prior, band)
+            : band;
+        // Invariant 6, on the counters the worker pass reported to: how much
+        // of the mark one finish read.
+        if (_live.PostUsed is { } finished)
+        {
+            var finishPixels = (long)band.Width * band.Height;
+            var finishedPixels = (long)finished.Width * finished.Height;
+            if (finishPixels > LivePostWorstPixels) LivePostWorstPixels = finishPixels;
+            if (finishedPixels > LivePostWorstMarkPixels) LivePostWorstMarkPixels = finishedPixels;
+        }
+        // Above zero is what makes the compositor read PostScratch instead of
+        // the raw dabs (ScenePassBuilder). Points here, the same unit the
+        // worker path records (B329); and the dab count in its own field.
+        _live.PostStampedPoints = live.Points.Count;
+        _live.PostStampedDabs = dabs.Count;
+    }
+
     /// <summary>The points the live stroke holds right now. Tests only.</summary>
     internal int LivePointCountForTest => _strokeBuilder.Current?.Points.Count ?? 0;
 
@@ -1647,11 +1979,11 @@ public partial class MainViewModel
     /// </para>
     /// </remarks>
     private static bool CapIsTheWholePass(BrushSettings brush) =>
-        BrushEngine.NeedsFootprintCap(brush)
-        && brush.Medium.Kind == MediumKind.None
-        && brush.WetEdge <= 0
-        && brush.TextureSurface is null
-        && brush.Granulation <= 0;
+        // Every finish but a medium's, since the paint path's phase 2: the
+        // ceiling and its rim, the grain and the paper are all applied in
+        // place on the band the event changed (BrushEngine.FinishBand). The
+        // name is from when the ceiling was the only one that was.
+        BrushEngine.NeedsBandFinish(brush);
 
     /// <summary>
     /// Record that this region of the dab scratch has moved, so the next live
@@ -1860,6 +2192,7 @@ public partial class MainViewModel
         if (!IsPlaying && _prewarm.IsBusy) _prewarm.Request([], 1);
         // A stroke draws on the still canvas: no held tiles under it.
         _holdTilesAfterStop = false;
+        _strokeBuilder.Smoothing ??= points => _stabilizer.PostProcess(points);
         _strokeBuilder.Begin(
             IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,
             ColorHex,
@@ -1939,22 +2272,30 @@ public partial class MainViewModel
                 // route's coverage IS the mark and may not. Fixed for the
                 // stroke — the ceiling and its rollbacks have to agree about
                 // where a pixel is, and a zoom mid-stroke would move it.
+                // A tooth ceiling is a few pixels of grain and stays at document
+                // scale; the soft brush's ceiling may follow the compose scale.
+                // The brush's own scale, never the view's. A ceiling kept at the
+                // compose scale (B189) was not the ceiling the record replays
+                // with, so the mark changed when the pen lifted; kept at the
+                // document's it cost a 300 px soft brush twice the event. The
+                // replay uses this same number (BrushEngine.CeilingScale), so
+                // the live mark is the replay and can be promoted. A
+                // silhouette's coverage is the mark itself and stays at 1.
                 _live.BeginCoverage(
                     Scene.Width, Scene.Height,
-                    BrushEngine.NeedsFootprintCap(CurrentToolSettings)
-                        ? Rendering.LiveFootprintScale.For(ComposeScale)
-                        : 1.0);
+                    BrushEngine.DrawsAsOneSilhouette(CurrentToolSettings)
+                        ? 1.0
+                        : BrushEngine.CeilingScale(CurrentToolSettings));
                 LiveFootprintScaleUsed = _live.CoverageScale;
-            }
-            if (BrushEngine.NeedsPressMap(CurrentToolSettings))
-            {
-                _live.BeginPress(Scene.Width, Scene.Height);
             }
         }
         _live.ResetPostProcess();
         _live.StampedCount = 0;
         _live.DabCount = 0;
         _live.StableDabs = 0;
+        _live.SettledDabChanged = false;
+        _live.FinishPending = null;
+        _live.TailOwed = null;
         _live.TailRegion = null;
         _live.Dabs = null;
         _live.EffectDabs = null;
@@ -2349,6 +2690,9 @@ public partial class MainViewModel
             // has to run from the start for its phase, travel and heading to match the
             // commit, and only the drawing is incremental.
             StampLiveDabs(live, info);
+            // The finish can reach past the dabs that caused it; the screen has
+            // to be told about all of it.
+            if (_live.FinishedBand is { } finishedBand) _publish.MarkDirty(finishedBand);
             // Every copy's extent, not just the drawn mark's. ScratchUsed is
             // what the scratch is cleared over when the stroke ends, so a copy
             // missing from it is ink left behind for the next stroke to
@@ -2579,7 +2923,7 @@ public partial class MainViewModel
     /// </remarks>
     private void StampSettledCopies(
         Stroke live, IReadOnlyList<BrushEngine.Dab> dabs, int from, int to, SKImageInfo info,
-        bool carriesFootprint, bool carriesPress = false)
+        bool carriesFootprint)
     {
         if (_live.ScratchCanvas is null || to <= from) return;
 
@@ -2615,20 +2959,10 @@ public partial class MainViewModel
                 BrushEngine.StampDabRange(cover, live, dabs, from, to, cover, footprintOnly: true);
                 cover.Restore();
             }
-
-            if (carriesPress && _live.PressCanvas is { } pressCanvas)
-            {
-                // Document scale, so the copy's transform composes alone.
-                pressCanvas.Save();
-                pressCanvas.Concat(m);
-                BrushEngine.AccumulatePress(pressCanvas, live, dabs, from, to);
-                pressCanvas.Restore();
-            }
         }
 
         _live.ScratchCanvas.Flush();
         _live.CoverageCanvas?.Flush();
-        _live.PressCanvas?.Flush();
 
         // The scratch now holds ink outside the drawn mark's extent, so the
         // clear at stroke end has to know about it.
@@ -2679,7 +3013,57 @@ public partial class MainViewModel
         // brush where that is not true, which is B45's rule kept rather than
         // relaxed.
         var settleTolerance = BrushEngine.SettleTolerance(live.Brush);
+        var dabsBefore = _live.Dabs;
         var stable = BrushEngine.StableCount(dabs, _live.Dabs, settleTolerance, out var exactStable);
+        if (settleTolerance <= 0)
+        {
+            // With nothing forgiven, settled means the whole dab stopped
+            // changing, not only its place: a tip that follows the stroke turns
+            // where it stands (BrushEngine.SettledCount).
+            stable = Math.Min(stable, BrushEngine.SettledCount(dabs, _live.Dabs));
+            exactStable = stable;
+        }
+
+        // And never past what is final by construction: the dabs that come out
+        // the same with the newest few points taken away, which no point still
+        // to come can reach (BrushEngine.SettledPrefix). Agreeing with the last
+        // walk is not that - the perf lab had a dab three from the tip stamped
+        // for good and then changed, and the stroke rendered again at pen-up.
+        // One more walk of the stroke an event, on its own curve cache.
+        //
+        // Only for a stroke whose live mark can be kept. A mirrored or wrapped
+        // stroke is rendered from its record at pen-up whatever happens here,
+        // and its copies are drawn from the settled dabs alone - holding those
+        // back by the horizon would trail every reflection four points behind
+        // the pen for nothing (SymmetryLiveRegionTests).
+        var points = live.Points;
+        if (BrushEngine.PromotesAtPenUp(live))
+        stable = Math.Min(stable, BrushEngine.SettledPrefix(
+            dabs,
+            drop =>
+            {
+                var keep = points.Count - drop;
+                if (keep <= 0) return [];
+                // Into a list the session keeps, not a new one an event: a long
+                // stroke's points are past the large-object threshold, and a
+                // fresh copy of them per pointer event is the expensive kind of
+                // garbage (leak-hunter).
+                var shorter = _live.HorizonPoints;
+                shorter.Clear();
+                for (var i = 0; i < keep; i++) shorter.Add(points[i]);
+                List<StrokePoint>? shorterRest = null;
+                if (live.RestPoints is { } rest && rest.Count == points.Count)
+                {
+                    shorterRest = _live.HorizonRestPoints;
+                    shorterRest.Clear();
+                    for (var i = 0; i < keep; i++) shorterRest.Add(rest[i]);
+                }
+                return BrushEngine.WalkDabs(
+                    new Stroke { Tool = live.Tool, Brush = live.Brush, Points = shorter, RestPoints = shorterRest },
+                    _live.HorizonDensify);
+            },
+            _stabilizer.SmoothingHorizon));
+        exactStable = Math.Min(exactStable, stable);
 
         // **The arm, in the file, while the stroke is happening.** B322 cost a
         // whole round of captures because the tip's arm only appeared in a block
@@ -2704,7 +3088,6 @@ public partial class MainViewModel
             if (stable < _live.StableDabs)
             {
                 coverage.Clear(SKColors.Black);
-                _live.PressCanvas?.Clear(SKColors.Black);
                 _live.StableDabs = 0;
                 _live.TailRegion = null;
             }
@@ -2857,9 +3240,6 @@ public partial class MainViewModel
         var carriesFootprint = BrushEngine.NeedsFootprintCap(live.Brush)
             && _live.CoverageCanvas is not null
             && _live.Coverage is not null;
-        var carriesPress = BrushEngine.NeedsPressMap(live.Brush)
-            && _live.PressCanvas is not null
-            && _live.Press is not null;
 
         // 1. Take back the tail lent out last time. Only the part of the buffer this
         // tail actually used: the backup is sized to the largest tail seen, so drawing
@@ -2871,10 +3251,6 @@ public partial class MainViewModel
             // the backup was taken over exactly this rectangle in exactly this
             // conversion — so the round trip is a copy either way.
             RestoreTail(_live.CoverageCanvas!, _live.CoverageTailBackup, _live.ToCoverage(coverLent));
-        }
-        if (carriesPress && _live.TailRegion is { } pressLent && _live.PressTailBackup is not null)
-        {
-            RestoreTail(_live.PressCanvas!, _live.PressTailBackup, pressLent);
         }
 
         if (_live.TailRegion is { } lent && _live.TailBackup is not null)
@@ -2888,6 +3264,18 @@ public partial class MainViewModel
         // 2. Everything whose position has stopped moving, permanently.
         var settledAt = System.Diagnostics.Stopwatch.GetTimestamp();
         var settledFrom = _live.StableDabs;
+        // A dab already stamped for good has changed. Its old pixels are in the
+        // scratch and cannot be taken back, so what is on screen is no longer
+        // what the record replays: the stroke still draws, and pen-up renders
+        // the record instead of keeping this mark.
+        if (stable < _live.StableDabs && !_live.SettledDabChanged)
+        {
+            _live.SettledDabChanged = true;
+            _live.WhySettledDabChanged = dabsBefore is null
+                ? "no earlier walk"
+                : $"{_live.StableDabs - stable} back from {_live.StableDabs} of {dabs.Count} at {live.Points.Count} points, "
+                    + $"tolerance {settleTolerance:0.##}: {DescribeDifference(dabsBefore, dabs)}";
+        }
         // A mixing brush reads the ground as it goes: the scratch so far through
         // a view of its own memory, over the frame's cached bitmap (Q232). The
         // carry is checkpointed after the settled dabs and the tail continues
@@ -2924,145 +3312,25 @@ public partial class MainViewModel
             _live.CoverageCanvas!.Flush();
             StampFootprintMs.Add(Ms(footprintAt));
         }
-        if (carriesPress)
-        {
-            BrushEngine.AccumulatePress(_live.PressCanvas!, live, dabs, settledFrom, stable);
-            _live.PressCanvas!.Flush();
-        }
 
         StampSettledMs.Add(Ms(settledAt));
 
         // 2c. Symmetry's copies of the same settled dabs. Before the loan
         //     below, so a copy landing inside the drawn mark's tail is in the
         //     backup and survives next event's rollback.
-        StampSettledCopies(live, dabs, settledFrom, _live.StableDabs, info, carriesFootprint, carriesPress);
+        StampSettledCopies(live, dabs, settledFrom, _live.StableDabs, info, carriesFootprint);
 
         // 3. The rest on loan, so the mark reaches the pen tip.
-        var backupAt = System.Diagnostics.Stopwatch.GetTimestamp();
-        var reStamped = 0;
-        if (BrushEngine.RangeBounds(dabs, _live.StableDabs, live.Brush, info) is { } tail
-            && _live.Scratch is not null)
-        {
-            _live.ScratchCanvas.Flush();
-            if (_live.TailBackup is null
-                || _live.TailBackup.Width < tail.Width || _live.TailBackup.Height < tail.Height)
-            {
-                _live.TailBackup?.Dispose();
-                _live.TailBackup = new SKBitmap(new SKImageInfo(
-                    Math.Max(tail.Width, 64), Math.Max(tail.Height, 64),
-                    SKColorType.Rgba8888, SKAlphaType.Premul));
-            }
-            // A real copy, not a subset view. SKBitmap.ExtractSubset hands back a bitmap
-            // that SHARES the source's pixels, so using it as the backup made it track the
-            // scratch and the rollback a no-op — the tail accumulated instead of being
-            // taken back, which measured as the live mark 9% heavier than the commit.
-            //
-            // The subset is taken FIRST and only then wrapped, which is the same trap
-            // PostProcessDabs records: SKImage.FromBitmap on the whole scratch sets up a
-            // 33 MB image at 4K, every pointer event, to read back a region a few hundred
-            // pixels across.
-            using (var region = new SKBitmap())
-            {
-                if (_live.Scratch.ExtractSubset(region, tail))
-                {
-                    using var pixels = region.PeekPixels();
-                    using var view = pixels is null ? null : SKImage.FromPixels(pixels);
-                    if (view is not null)
-                    {
-                        using var into = new SKCanvas(_live.TailBackup);
-                        using var src = new SKPaint { BlendMode = SKBlendMode.Src };
-                        into.DrawImage(view, 0, 0, src);
-                        into.Flush();
-                        _live.TailRegion = tail;
-                    }
-                }
-            }
-
-            // The backup is area work over the tail rectangle, which spans the
-            // distance the pen covered in two events — so it grows with SPEED
-            // while the dab count does not. Timed apart from the dabs for
-            // exactly that reason.
-            StampBackupMs.Add(Ms(backupAt));
-            StampTailMpx.Add(tail.Width * (double)tail.Height / 1_000_000.0);
-            var tailAt = System.Diagnostics.Stopwatch.GetTimestamp();
-            if (mixPixels is not null)
-            {
-                // From the checkpoint, and the result is dropped: the tail is on
-                // loan and re-stamped from the same carry next event.
-                BrushEngine.StampMixedDabRange(
-                    _live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count, mixGround, _live.MixCarry,
-                    _live.MixDeposits);
-            }
-            else
-            {
-                BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count);
-            }
-            // Counted HERE and not from the tail's size below, because the tail
-            // is only re-stamped when RangeBounds gives it a rectangle. Counting
-            // `dabs.Count - StableDabs` regardless would report work that did not
-            // happen — the same shape of error as measuring a range in one unit
-            // and subtracting it in another (B329).
-            reStamped = Math.Max(0, dabs.Count - _live.StableDabs);
-            _live.ScratchCanvas.Flush();
-            StampTailMs.Add(Ms(tailAt));
-
-            // 3b. The footprint's own copy of the same loan.
-            if (carriesFootprint)
-            {
-                // B189: the coverage buffer's own pixels, which are fewer than
-                // the document's when the footprint follows the compose scale.
-                // Sized off THIS rectangle rather than the document one, or the
-                // backup would be four times the size it needs and the copy
-                // would give back what the smaller buffer just saved.
-                var coverTail = _live.ToCoverage(tail);
-                if (carriesPress) BackUpPressTail(tail);
-                if (_live.CoverageTailBackup is null
-                    || _live.CoverageTailBackup.Width < coverTail.Width
-                    || _live.CoverageTailBackup.Height < coverTail.Height)
-                {
-                    _live.CoverageTailBackup?.Dispose();
-                    _live.CoverageTailBackup = new SKBitmap(new SKImageInfo(
-                        Math.Max(coverTail.Width, 64), Math.Max(coverTail.Height, 64),
-                        SKColorType.Rgba8888, SKAlphaType.Premul));
-                }
-
-                using (var region = new SKBitmap())
-                {
-                    if (_live.Coverage!.ExtractSubset(region, coverTail))
-                    {
-                        using var px = region.PeekPixels();
-                        using var view = px is null ? null : SKImage.FromPixels(px);
-                        if (view is not null)
-                        {
-                            using var into = new SKCanvas(_live.CoverageTailBackup);
-                            using var src = new SKPaint { BlendMode = SKBlendMode.Src };
-                            into.DrawImage(view, 0, 0, src);
-                            into.Flush();
-                        }
-                    }
-                }
-
-                // The tail's own second walk, which nothing timed until now: it
-                // sits after StampTailMs closes, so it was invisible to the
-                // split that named the tail copies.
-                var tailFootprintAt = System.Diagnostics.Stopwatch.GetTimestamp();
-                BrushEngine.AccumulateFootprint(
-                    _live.CoverageCanvas!, live, dabs, _live.StableDabs, dabs.Count,
-                    _live.CoverageScale);
-                _live.CoverageCanvas!.Flush();
-                StampFootprintMs.Add(Ms(tailFootprintAt));
-            }
-            else if (carriesPress)
-            {
-                BackUpPressTail(tail);
-            }
-
-            if (carriesPress)
-            {
-                BrushEngine.AccumulatePress(_live.PressCanvas!, live, dabs, _live.StableDabs, dabs.Count);
-                _live.PressCanvas!.Flush();
-            }
-        }
+        // The tail - the dabs past the settled prefix, which the next point may
+        // still move - is not stamped here. It is stamped when the mark is next
+        // looked at (StampLiveTail), because every pointer event stamped it and
+        // the next one took it straight back: three dabs of a 300 px Oil, a
+        // millisecond and a half each, for a picture nobody was shown. Where it
+        // will be is noted now, so the screen is told about it.
+        var tailOwed = BrushEngine.RangeBounds(dabs, _live.StableDabs, live.Brush, info);
+        var tailOwedBefore = _live.TailOwed;
+        _live.TailOwed = tailOwed;
+        var reStamped = Math.Max(0, dabs.Count - _live.StableDabs);
 
         // 4. Everything the three steps above could have touched: the newly
         // settled dabs' reach, the region lent last time and the one lent now.
@@ -3072,7 +3340,8 @@ public partial class MainViewModel
         // itself without a second dab walk per event.
         var touched = BrushEngine.RangeBounds(dabs, settledFrom, live.Brush, info);
         if (lentBefore is { } lentWas) touched = touched is { } g ? SKRectI.Union(g, lentWas) : lentWas;
-        if (_live.TailRegion is { } lentNow) touched = touched is { } g ? SKRectI.Union(g, lentNow) : lentNow;
+        if (tailOwedBefore is { } owedWas) touched = touched is { } g ? SKRectI.Union(g, owedWas) : owedWas;
+        if (tailOwed is { } lentNow) touched = touched is { } g ? SKRectI.Union(g, lentNow) : lentNow;
         if (touched is { } dirty) NotePostProcessDirty(dirty);
 
         // How much of the mark is still on loan. Suspected to grow with pen
@@ -3090,54 +3359,33 @@ public partial class MainViewModel
 
         // For a brush whose only post-process is the ceiling, apply it here and
         // skip the worker entirely (B293).
-        if (carriesFootprint && CapIsTheWholePass(live.Brush) && _live.Scratch is { } inkSource)
+        _live.FinishedBand = null;
+        if (CapIsTheWholePass(live.Brush) && _live.Scratch is { } inkSource)
         {
+            // Grown by how far a ceiling or a rim can be changed by a dab that
+            // does not touch it: the edge a pixel is measured from moves when a
+            // later dab covers it (BrushEngine.FinishReachPx).
             var changed = touched;
-            if (changed is { } band)
+            var finishReach = BrushEngine.FinishReachPx(live.Brush);
+            if (changed is { } grown && finishReach > 0)
             {
-                _live.EnsurePostScratch(Scene.Width, Scene.Height);
-                if (_live.PostScratch is { } capped && _live.Coverage is { } ceiling)
-                {
-                    // Re-copied from the UNCAPPED scratch rather than capped
-                    // again in place: capping is not idempotent across a growing
-                    // footprint, so a second pass over already-capped pixels
-                    // would hold the mark down to the ceiling it had last time.
-                    using (var into = new SKCanvas(capped))
-                    using (var src = new SKPaint { BlendMode = SKBlendMode.Src })
-                    using (var region = new SKBitmap())
-                    {
-                        var lift = SKRectI.Intersect(band, new SKRectI(0, 0, inkSource.Width, inkSource.Height));
-                        if (lift.Width > 0 && lift.Height > 0 && inkSource.ExtractSubset(region, lift))
-                        {
-                            using var px = region.PeekPixels();
-                            using var view = px is null ? null : SKImage.FromPixels(px);
-                            if (view is not null) into.DrawImage(view, lift.Left, lift.Top, src);
-                        }
-
-                        into.Flush();
-                    }
-
-                    // B349: with the brush's reach, the ceiling over this band
-                    // is the swept mark's — flat between passes — and it reads
-                    // the support beyond the band straight off the whole-stroke
-                    // coverage buffer, which is why no bigger band is needed.
-                    BrushEngine.CapToFootprintBand(
-                        capped, ceiling, band,
-                        new Lightbox.Raster.FootprintSpace(_live.CoverageScale, 0, 0),
-                        BrushEngine.CeilingReachPx(live.Brush, _live.CoverageScale));
-                    _live.PostUsed = _live.PostUsed is { } prior
-                        ? LivePaintSession.UnionRect(prior, band)
-                        : band;
-                    // Above zero is what makes the compositor read PostScratch
-                    // instead of the raw dabs (ScenePassBuilder). Points here,
-                    // the same unit the worker path records — this line used
-                    // to write dabs into a field the guard compared with points
-                    // (B329).
-                    _live.PostStampedPoints = live.Points.Count;
-                    // And the dab count in its own field, which on this path is
-                    // simply the dabs just stamped.
-                    _live.PostStampedDabs = dabs.Count;
-                }
+                grown.Inflate(finishReach, finishReach);
+                changed = SKRectI.Intersect(grown, new SKRectI(0, 0, inkSource.Width, inkSource.Height));
+            }
+            if (changed is { Width: > 0, Height: > 0 } band)
+            {
+                // Noted, not done. The band is finished when the mark is next
+                // looked at - a frame being composed, the pen lifting - and by
+                // then it is usually several pointer events' worth, most of
+                // them the same pixels: a pen reports about twice as often as a
+                // screen refreshes, and when the app is behind they queue. The
+                // finish is the dearest part of an event on a broad brush, and
+                // done per event it was what put the app behind in the first
+                // place (FinishLiveMark).
+                _live.FinishedBand = band;
+                _live.FinishPending = _live.FinishPending is { } waiting
+                    ? LivePaintSession.UnionRect(waiting, band)
+                    : band;
             }
         }
 
@@ -3244,6 +3492,10 @@ public partial class MainViewModel
     /// </remarks>
     private void StartLivePostProcess()
     {
+        // A pass reads the stroke's dabs, all of them: the tail is stamped only
+        // when something looks (StampLiveTail), and this is something looking.
+        StampLiveTail();
+
         // Measured before any early return: a pass that was queued and then
         // found nothing to do still waited, and how long it waited is the
         // question. Recorded even when it bails, or the mean would be taken
@@ -3412,15 +3664,6 @@ public partial class MainViewModel
                 (rect.Top * _live.CoverageScale) - cropRect.Top);
         }
 
-        SKBitmap? pressCrop = null;
-        var pressSpace = Lightbox.Raster.FootprintSpace.Document;
-        if (BrushEngine.NeedsPressMap(whole.Brush) && _live.Press is { } pressMap)
-        {
-            var pressRect = SKRectI.Intersect(rect, new SKRectI(0, 0, pressMap.Width, pressMap.Height));
-            pressCrop = CopyRegion(pressMap, pressRect);
-            pressSpace = new Lightbox.Raster.FootprintSpace(1.0, rect.Left - pressRect.Left, rect.Top - pressRect.Top);
-        }
-
         var generation = _live.PostGeneration;
         // For the lab: how much of the mark this pass reads, which is the number
         // B313 changed and B331 is about. Built here, on the UI thread, and only
@@ -3451,7 +3694,6 @@ public partial class MainViewModel
             dabsCrop.Dispose();
             beneathCrop?.Dispose();
             footprintCrop?.Dispose();
-            pressCrop?.Dispose();
         }
         return;
 
@@ -3469,7 +3711,7 @@ public partial class MainViewModel
                 // growing with the length of the stroke.
                 processed = BrushEngine.PostProcessRegion(
                     dabsCrop, whole, rect, beneathCrop, rect.Location, beneathOrigin,
-                    footprintCrop, footprintSpace, pressCrop, pressSpace);
+                    footprintCrop, footprintSpace);
             }
             catch
             {
@@ -3480,7 +3722,6 @@ public partial class MainViewModel
             {
                 dabsCrop.Dispose();
                 beneathCrop?.Dispose();
-                pressCrop?.Dispose();
             }
             var costMs = (System.Diagnostics.Stopwatch.GetTimestamp() - started)
                          * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
@@ -4022,7 +4263,13 @@ public partial class MainViewModel
         // the publish that follows. The lab reads its median and its worst.
         using var perf = PerfLog.Begin("stroke.commit");
         NoteStrokeEnded(_strokeBuilder.Current?.Points.Count ?? 0, _live.StableDabs);
+        // While the stroke is still the builder's: the mark has to be finished
+        // to its last dab before it can be taken as the stroke's pixels.
+        PrepareLiveMark();
         var stroke = _strokeBuilder.End();
+        // Before the live state is cleared: the pixels the artist is looking at,
+        // if they are the ones a replay of this record would make.
+        using var liveMark = stroke is null ? null : TakeLiveMark(stroke);
         // The commit's parts, for the lab: which of them a pen-up is paying for
         // (B424). Each is a static read when the log is off, like the whole.
         using (PerfLog.Begin("commit.clear")) _live.ClearEffectState();
@@ -4032,7 +4279,9 @@ public partial class MainViewModel
 
         _stabilizer.End();
         LazyBrushCleared?.Invoke();
-        using (PerfLog.Begin("commit.smooth")) stroke.Points = _stabilizer.PostProcess(stroke.Points);
+        // No smoothing here any more: the stroke in hand has held the smoothed
+        // line since its first point (StrokeBuilder.Smoothing), so the line
+        // that is on screen is the line that is committed.
 
         // Remembered for the next Shift+click. The post-processed end, not the
         // raw one, so the next segment starts exactly where this mark stops.
@@ -4093,7 +4342,35 @@ public partial class MainViewModel
             ? StrokeChangeProbe.Open(stroke, _cache.Get(target, Scene.Width, Scene.Height))
             : null;
 
-        using (PerfLog.Begin("commit.append")) AppendToFrameRender(target, stroke); // pre-stroke state (record not yet updated)
+        // The live mark stands for this record only if the record still walks to
+        // the dabs that were drawn: smoothing at pen-up, an unposed rig and a
+        // selection registered above all change it, and then the replay is the
+        // mark. One walk of the stroke, against stamping it.
+        LiveMark? promote = null;
+        if (liveMark is not null)
+        {
+            if (!BrushEngine.PromotesAtPenUp(stroke))
+            {
+                WhyReplayed = "the record is no longer a kind that is kept";
+            }
+            else if (stroke.Brush.Mixing is not null && target.HasPlacements)
+            {
+                // A mixing brush reads the frame under it, and while drawing
+                // that frame has its placed symbols in it; a replay from the
+                // record stamps the placements after the strokes, so the same
+                // dab reads a different ground (adversary). Until the two
+                // agree, such a stroke is replayed.
+                WhyReplayed = "a mixing brush on a frame with placed symbols";
+            }
+            else
+            {
+                var recorded = BrushEngine.WalkDabs(stroke);
+                if (liveMark.Dabs.SequenceEqual(recorded)) promote = liveMark;
+                else WhyReplayed = DescribeDifference(liveMark.Dabs, recorded);
+            }
+        }
+        if (promote is null && WhyReplayed is { } why) PerfLog.Mark("commit.replayed", why);
+        using (PerfLog.Begin("commit.append")) AppendToFrameRender(target, stroke, promote); // pre-stroke state (record not yet updated)
 
         if (erasure?.ChangedNothing() == true)
         {
@@ -4148,7 +4425,39 @@ public partial class MainViewModel
             else _publish.InvalidateWholeCanvas();
         }
         PublishSnapshot();
-        RefreshThumbnails();
+        RefreshThumbnailsWhenThePenRests();
+    }
+
+    private bool _thumbsWaitForRest;
+
+    /// <summary>
+    /// The timeline, layer and navigator thumbnails after a stroke — once the
+    /// pen is resting, not inside pen-up.
+    /// </summary>
+    /// <remarks>
+    /// They cost 15 to 16 ms at every pen-up on the baseline (perf lab,
+    /// 2026-10-10), a whole refresh spent on pictures the artist is not looking
+    /// at while the next stroke of a hatch is already starting. Posted behind
+    /// pointer input (ThumbnailWorker.PostAtRest), so the next stroke goes first; if the pen is down
+    /// again when it runs it does nothing, and that stroke's own pen-up asks
+    /// again — the drawing is still marked dirty.
+    /// </remarks>
+    private void RefreshThumbnailsWhenThePenRests()
+    {
+        // No dispatcher to wait on (a headless test, a tool): now, as before.
+        if (Services.ThumbnailWorker.PostAtRest is not { } post)
+        {
+            RefreshThumbnails();
+            return;
+        }
+        if (_thumbsWaitForRest) return;
+        _thumbsWaitForRest = true;
+        post(() =>
+        {
+            _thumbsWaitForRest = false;
+            if (_strokeBuilder.Current is not null) return;
+            RefreshThumbnails();
+        });
     }
 
     /// <summary>

@@ -4,6 +4,15 @@
     <ProjectReference Include="..\Lightbox.Core\Lightbox.Core.csproj" />
   </ItemGroup>
 
+  <!--
+    The scanned papers (PaperField): 8-bit grey height maps, built from CC0
+    sets by scripts/make_papers.py. docs/CREDITS-papers.md names each source.
+    A logical name is given so it does not depend on the folder's spelling.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Media\Papers\*.png" LogicalName="Lightbox.Raster.Media.Papers.%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />

@@ -279,6 +279,17 @@ public static class TiledRasterizer
 
         var size = store.Grid.TileSize;
         using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+        // A view of the stroke's region, made once. DrawBitmap on the frame's
+        // own bitmap wraps the WHOLE frame in an image for every tile it is
+        // asked to feed — 8 MB at 1080p, a dozen times for one stroke — which
+        // was the 17 to 24 ms this step cost at every pen-up whatever the
+        // brush (perf lab, 2026-10-10). The same trap CoverageToInk and the
+        // live tail backup each record.
+        using var window = new SKBitmap();
+        if (!rendered.ExtractSubset(window, area)) return;
+        using var pixels = window.PeekPixels();
+        using var view = pixels is null ? null : SKImage.FromPixels(pixels);
+        if (view is null) return;
         foreach (var coord in store.Grid.Covering(area.Left, area.Top, area.Width, area.Height))
         {
             var (originX, originY) = store.Grid.OriginOf(coord);
@@ -288,9 +299,9 @@ public static class TiledRasterizer
 
             var tile = store.Rent(coord);
             using var canvas = new SKCanvas(tile);
-            canvas.DrawBitmap(
-                rendered,
-                SKRect.Create(part.Left, part.Top, part.Width, part.Height),
+            canvas.DrawImage(
+                view,
+                SKRect.Create(part.Left - area.Left, part.Top - area.Top, part.Width, part.Height),
                 SKRect.Create(part.Left - originX, part.Top - originY, part.Width, part.Height),
                 replace);
             canvas.Flush();

@@ -653,7 +653,9 @@ always names the one it actually used.
 
 ### If a brush with an effect loses its preview mid-stroke
 
-A brush with a wet edge, granulation, a paper texture or a simulated medium is
+This is about brushes with a **simulated medium** only. A wet edge,
+granulation and a paper texture are finished under the pen and have no second
+step to fall behind. A simulated medium is
 drawn in two steps: the dabs, then the effect over them. The second step runs
 just behind your hand, so what is on screen is the mark **as of the last time
 that step finished**. Draw slowly and it keeps up and you never see it. Draw

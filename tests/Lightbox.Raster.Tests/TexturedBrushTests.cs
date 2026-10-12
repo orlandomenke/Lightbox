@@ -44,38 +44,47 @@ public class TexturedBrushTests
         return bmp;
     }
 
+    /// <summary>
+    /// A wet edge gathers the paint at the rim: the middle of the mark is
+    /// thinner than it was laid, evenly, and the outline is denser than the
+    /// same stroke without one (Q244). It used to darken the outline's colour
+    /// and leave the middle alone, which on a pale wash could not be seen.
+    /// </summary>
     [Fact]
-    public void WetEdge_DarkensTheOutline_NotTheInterior()
+    public void WetEdge_GathersPaintAtTheOutline_AndThinsTheMiddle()
     {
         using var plain = Render(Stroke(160, wet: 0, gran: 0, points: 2));
         using var wet = Render(Stroke(160, wet: 0.8, gran: 0, points: 2));
 
         // The first stroke point is at (200,400) with a 160 px brush, so the
-        // centre is solid interior and the rim sits near the 80 px radius.
-        // The deep interior must be untouched — a wet edge that darkens the
-        // whole mark is the bug this replaced, not a wet edge.
+        // centre is interior and the rim sits near the 80 px radius. On white
+        // paper a higher red is less paint.
+        var middle = wet.GetPixel(200, 400).Red;
+        var middlePlain = plain.GetPixel(200, 400).Red;
+        Assert.True(middle > middlePlain + 3,
+            $"the middle was not thinned: {middlePlain} plain, {middle} with a wet edge");
+        // Evenly: the same share of what was laid is taken everywhere in the
+        // middle, so the brush's own falloff is kept and nothing is mottled.
+        var share = (255.0 - middle) / (255.0 - middlePlain);
         for (var r = 0; r <= 16; r += 4)
         {
-            var plainPx = plain.GetPixel(200, 400 - r);
-            var wetPx = wet.GetPixel(200, 400 - r);
-            Assert.True(Math.Abs(wetPx.Red - plainPx.Red) <= 1,
-                $"interior at r={r} should be untouched, was {plainPx.Red} → {wetPx.Red}");
+            var here = (255.0 - wet.GetPixel(200, 400 - r).Red) / (255.0 - plain.GetPixel(200, 400 - r).Red);
+            Assert.True(Math.Abs(here - share) <= 0.03,
+                $"the middle is not thinned evenly at r={r}: {here:0.000} of the paint kept against {share:0.000} at the centre");
         }
 
-        // And somewhere along the outline it must actually darken.
+        // And along the outline there is more paint than the plain stroke has.
         var deepest = 0;
         var deepestAt = -1;
         for (var r = 20; r <= 78; r++)
         {
-            var plainPx = plain.GetPixel(200, 400 - r);
-            var wetPx = wet.GetPixel(200, 400 - r);
-            var delta = plainPx.Red - wetPx.Red;
+            var delta = plain.GetPixel(200, 400 - r).Red - wet.GetPixel(200, 400 - r).Red;
             if (delta > deepest) { deepest = delta; deepestAt = r; }
         }
         Assert.True(deepest >= 3,
-            $"wet edge produced no darker band along the outline (deepest {deepest} at r={deepestAt})");
+            $"the wet edge gathered nothing along the outline (deepest {deepest} at r={deepestAt})");
         Assert.True(deepestAt >= 24,
-            $"the darkening peaked at r={deepestAt}, which is interior, not outline");
+            $"the paint gathered at r={deepestAt}, which is interior, not outline");
     }
 
     [Fact]
