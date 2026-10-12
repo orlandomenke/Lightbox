@@ -16,7 +16,8 @@ namespace Lightbox.Core.Geometry;
 /// <item><b>Constraining a stroke</b> — a ruler or a vanishing point takes the
 /// first bit of the drag as a statement of intent, locks to the guide that
 /// best matches it, and holds every later point on that line. What you want
-/// when you are drawing <i>along</i> something.</item>
+/// when you are drawing <i>along</i> something. A ruler only does it for a
+/// stroke that starts on it; a grid never does.</item>
 /// </list>
 /// <para>
 /// The second is what makes a perspective ruler usable rather than a fight.
@@ -183,12 +184,24 @@ public static class Snapper
     /// (x, y) is being drawn along, or null for none.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Returns null until the stroke has travelled <see cref="LockDistance"/>,
     /// so the decision is made on a direction the artist has committed to
     /// rather than on the jitter of the first few samples.
+    /// </para>
+    /// <para>
+    /// <b>A guide only takes a stroke it can reach (B457, Q252).</b> A ruler is
+    /// a line in a place, so it takes a stroke that starts within
+    /// <paramref name="tolerance"/> of that line and no other: it used to take
+    /// any stroke heading its way anywhere on the canvas, and one horizontal
+    /// ruler straightened a sixth of everything drawn. A grid takes none — it
+    /// places points. A vanishing point and an isometric rig have no line to be
+    /// near; their directions hold everywhere, which is what they are for.
+    /// </para>
     /// </remarks>
     public static Guide? Lock(
-        IReadOnlyList<Guide> guides, double anchorX, double anchorY, double x, double y)
+        IReadOnlyList<Guide> guides, double anchorX, double anchorY, double x, double y,
+        double tolerance)
     {
         var dx = x - anchorX;
         var dy = y - anchorY;
@@ -199,7 +212,7 @@ public static class Snapper
         var bestOff = LockDegrees;
         foreach (var guide in guides)
         {
-            if (!guide.Snaps) continue;
+            if (!guide.Snaps || !Reaches(guide, anchorX, anchorY, tolerance)) continue;
             foreach (var angle in DirectionsAt(guide, anchorX, anchorY))
             {
                 var off = Off(heading, angle);
@@ -209,6 +222,23 @@ public static class Snapper
             }
         }
         return best;
+    }
+
+    /// <summary>Whether a stroke starting at the anchor is this guide's to constrain.</summary>
+    private static bool Reaches(Guide guide, double anchorX, double anchorY, double tolerance)
+    {
+        switch (guide.Kind)
+        {
+            case GuideKind.Grid:
+                return false;
+            case GuideKind.Line:
+                var (cos, sin) = Direction(guide.Angle);
+                // Perpendicular distance to the infinite line.
+                var off = Math.Abs(-(anchorX - guide.X) * sin + (anchorY - guide.Y) * cos);
+                return off <= tolerance;
+            default:
+                return true;
+        }
     }
 
     /// <summary>
