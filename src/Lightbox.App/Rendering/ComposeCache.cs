@@ -197,6 +197,32 @@ internal sealed class ComposeCache(long budgetBytes)
     /// replacing would orphan an entry live readers are holding for no gain.
     /// </para>
     /// </remarks>
+    /// <summary>Whether a composite for <paramref name="key"/> is held — without taking a hold or counting a hit.</summary>
+    internal bool Holds(ComposeKey key)
+    {
+        lock (_gate) return _entries.ContainsKey(key);
+    }
+
+    /// <summary>
+    /// Take in a composite nobody is reading yet — a frame prepared ahead of the
+    /// playhead. Unlike <see cref="Store"/> it carries no hold, so the cache owns
+    /// it outright from here. Refused (and left to the caller to free) when the
+    /// key is already present. A CPU image: prepared frames are composed off the
+    /// render thread, with no graphics context.
+    /// </summary>
+    internal bool Offer(ComposeKey key, SKImage image, long bytes)
+    {
+        lock (_gate)
+        {
+            if (_entries.ContainsKey(key)) return false;
+            _entries[key] = new Entry(image, bytes, gpuBacked: false);
+            _nodes[key] = _order.AddLast(key);
+            CachedBytes += bytes;
+            Trim();
+            return true;
+        }
+    }
+
     internal bool Store(ComposeKey key, SKImage image, long bytes, bool gpuBacked)
     {
         lock (_gate)
