@@ -340,12 +340,10 @@ public partial class MainWindow : IFollowsUiScale
             return;
         }
 
-        // The line's current shape, retraced on every session change, so a
-        // node drag moves the path on screen and not only the glyphs — the
-        // raster stroke cannot follow until the commit (invariant 6), but the
-        // trace can and does. The same flatten the commit will run, so the
-        // preview cannot promise a shape the release then changes.
-        Canvas.SetPathTrace(Core.Geometry.PathFlattener.Flatten(session.Path));
+        // The line's shape while a drag has it somewhere its ink is not: the
+        // raster stroke cannot follow until the commit (invariant 6), the trace
+        // can. Nothing once they agree — see PathEditTrace.
+        Canvas.SetPathTrace(_vm.PathEditTrace);
 
         var glyphs = new List<Rendering.CanvasControl.PathNodeGlyph>(session.NodeCount);
         for (var i = 0; i < session.Path.Nodes.Count; i++)

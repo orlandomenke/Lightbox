@@ -674,6 +674,9 @@ public sealed class PathEditSession
         Original.Nodes.AddRange(committed.Nodes);
         Original.Closed = committed.Closed;
         OriginalWeight = Weight;
+        // What was kept is the line now: nothing is waiting to be committed,
+        // and a click that moves nothing must not write a second step.
+        Dirty = false;
     }
 
     /// <summary>

@@ -165,6 +165,52 @@ public sealed class PlaybackClock
     private readonly DispatcherTimer _timer = new(Priority);
 
     /// <summary>
+    /// The screen's per-refresh callback, handed to this clock by the main window
+    /// when it opens (through its view model, never a static, so a window left
+    /// open in one test cannot change how another test's clock runs):
+    /// a request for one call just before the next refresh is drawn. While it is
+    /// set, playback is paced by the screen rather than by a timer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why the screen and not a timer.</b> The timer queues at <c>Input</c>,
+    /// behind the commit on purpose (B150, below), so it arrives about a refresh
+    /// late every time — the lab measured 16-26 ms on average, every tick, and
+    /// 14-52 frames dropped in a play with everything prepared (play-steady,
+    /// 2026-10-12). Asked from the refresh itself, the frame that is due is
+    /// published inside the very refresh that shows it, and nothing queues
+    /// behind anything.
+    /// </para>
+    /// <para>
+    /// <c>LIGHTBOX_CLOCK=timer</c> puts the timer back for one session, the way
+    /// <c>LIGHTBOX_CLOCK_PRIORITY</c> does for its band: so the two can be
+    /// compared inside one build. Without a window — the headless suite — the
+    /// timer is what runs.
+    /// </para>
+    /// </remarks>
+    public Action<Action<TimeSpan>>? Screen { get; set; }
+
+    /// <summary>Whether this session paces by the screen when it can (LIGHTBOX_CLOCK).</summary>
+    internal static readonly bool ScreenPaced =
+        Environment.GetEnvironmentVariable("LIGHTBOX_CLOCK")?.Trim().ToLowerInvariant() != "timer";
+
+    /// <summary>A screen and a clock of the test's own, in place of the window's and the stopwatch.</summary>
+    private readonly Action<Action<TimeSpan>>? _screen;
+    private readonly Func<TimeSpan>? _now;
+    private TimeSpan _origin;
+
+    private bool _screenRunning;
+    private int _generation;
+    private TimeSpan _lastRefresh;
+
+    /// <summary>The refresh period as measured between calls, starting at 60 Hz.</summary>
+    private double _refreshMs = 1000.0 / 60;
+
+    private Action<Action<TimeSpan>>? ScreenSource => _screen ?? (ScreenPaced ? Screen : null);
+
+    private TimeSpan Now => _now is null ? _elapsed.Elapsed : _now() - _origin;
+
+    /// <summary>
     /// This clock's hold on 1 ms timing (<see cref="TimerResolution"/>): taken
     /// on start, given back on stop. A separate object so the tick, which holds
     /// the clock only weakly, can still give it back.
@@ -201,7 +247,7 @@ public sealed class PlaybackClock
     /// </remarks>
     public event Action<int>? Tick;
 
-    public bool IsRunning => _timer.IsEnabled;
+    public bool IsRunning => _timer.IsEnabled || _screenRunning;
 
     /// <summary>The interval the timer is currently waiting out.</summary>
     public TimeSpan Interval => _timer.Interval;
@@ -241,13 +287,34 @@ public sealed class PlaybackClock
         };
     }
 
+    /// <summary>A clock paced by <paramref name="screen"/>, reading <paramref name="now"/> — for tests.</summary>
+    internal PlaybackClock(Action<Action<TimeSpan>> screen, Func<TimeSpan> now) : this()
+    {
+        _screen = screen;
+        _now = now;
+    }
+
     public void Start(int fps, int speedPercent = 100)
     {
         _frameDuration = IntervalFor(fps, speedPercent);
         _elapsed.Restart();
+        _origin = _now?.Invoke() ?? TimeSpan.Zero;
         _nextFrameDue = _frameDuration;
         _timer.Interval = _frameDuration;
         _tally = default;
+        // A restart is one loop: the old one's pending refresh finds its
+        // generation gone and asks for no more.
+        _generation++;
+        _timer.Stop();
+        _screenRunning = false;
+        if (ScreenSource is { } screen)
+        {
+            _resolution.Take();
+            _screenRunning = true;
+            _lastRefresh = Now;
+            AskForRefresh(screen, _generation);
+            return;
+        }
         // Finer than the system timer's default ~15.6 ms, or a 41.7 ms frame is
         // woken at 31 or 47 ms and the pacing drops frames to stay in time.
         _resolution.Take();
@@ -335,14 +402,60 @@ public sealed class PlaybackClock
 
     public void Stop()
     {
+        _screenRunning = false;
+        _generation++;
         _timer.Stop();
         _elapsed.Stop();
         _resolution.Release();
     }
 
+    /// <summary>One call at the next refresh, holding this clock weakly (B281), as the timer does.</summary>
+    private void AskForRefresh(Action<Action<TimeSpan>> screen, int generation)
+    {
+        var weakSelf = new WeakReference<PlaybackClock>(this);
+        var resolution = _resolution;
+        screen(_ =>
+        {
+            if (weakSelf.TryGetTarget(out var self)) self.OnRefresh(screen, generation);
+            else resolution.Release();
+        });
+    }
+
+    /// <summary>
+    /// A refresh is about to be drawn: show the frame that is due now, if one is.
+    /// </summary>
+    /// <remarks>
+    /// A frame counts as due when this refresh is within half a refresh of its
+    /// moment, so each frame lands on the refresh nearest the time it belongs to
+    /// rather than on the first one after it — the difference between 3:2
+    /// pulldown and every frame a refresh late. Lateness is still measured
+    /// against the frame's own moment and can read negative: early by under
+    /// half a refresh is on time.
+    /// </remarks>
+    private void OnRefresh(Action<Action<TimeSpan>> screen, int generation)
+    {
+        if (!_screenRunning || generation != _generation) return;
+        // Asked first, so a slow frame cannot break the chain.
+        AskForRefresh(screen, generation);
+
+        var now = Now;
+        var between = (now - _lastRefresh).TotalMilliseconds;
+        _lastRefresh = now;
+        // A stall is not a refresh period; only plausible ones move the estimate.
+        if (between is > 2 and < 50) _refreshMs += (between - _refreshMs) * 0.1;
+
+        var halfRefresh = TimeSpan.FromMilliseconds(_refreshMs / 2);
+        var plan = Pace(now + halfRefresh, _nextFrameDue, _frameDuration);
+        if (plan.Frames == 0) return;
+
+        _tally.Record((now - _nextFrameDue).TotalMilliseconds, plan.Frames);
+        _nextFrameDue = plan.NextFrameDue;
+        Tick?.Invoke(plan.Frames);
+    }
+
     private void OnTimer()
     {
-        var elapsed = _elapsed.Elapsed;
+        var elapsed = Now;
         var plan = Pace(elapsed, _nextFrameDue, _frameDuration);
 
         // Lateness is measured against the due time this tick was answering, so

@@ -165,4 +165,46 @@ public class GuideSnapTests(Xunit.ITestOutputHelper output)
 
         Assert.Null(snap.Locked);
     }
+
+    /// <summary>
+    /// A stroke that is not held on a guide goes where the hand went: its middle is
+    /// not pulled onto a ruler it happens to pass.
+    /// </summary>
+    /// <remarks>
+    /// The rule was written down long before it was true — "a stroke snaps its start
+    /// and not its middle" — while every unlocked point still went through
+    /// <c>Snapper.Point</c>, so a freehand line crossing a ruler was flattened onto it
+    /// for the 24 px it spent within tolerance.
+    /// </remarks>
+    [Fact]
+    public void AFreehandStrokePassingARulerIsNotPulledOntoIt()
+    {
+        var snap = new GuideSnap();
+        var guides = new[] { Line(0) };           // horizontal, through y = 0
+        snap.Begin(0, 100);                        // well away from it
+
+        snap.Apply(guides, 30, 60, tolerance: 12); // heading steeply towards it: freehand
+        var (x, y) = snap.Apply(guides, 70, 5, tolerance: 12);   // 5 px from the ruler
+
+        output.WriteLine($"a point 5 px from the ruler came back at ({x:0.##}, {y:0.##})");
+        Assert.Null(snap.Locked);
+        Assert.Equal(70, x, 6);
+        Assert.Equal(5, y, 6);
+    }
+
+    /// <summary>The same for a grid: an unheld stroke's middle is not collected by intersections.</summary>
+    [Fact]
+    public void TheMiddleOfAStrokeIsNotPulledToGridIntersections()
+    {
+        var snap = new GuideSnap();
+        var grid = new Guide { Kind = GuideKind.Grid, Spacing = 20 };
+        snap.Begin(20, 20);
+
+        var (x, y) = snap.Apply([grid], 63, 23, tolerance: 12);  // 3.6 px from (60, 20)
+
+        output.WriteLine($"a point 3.6 px from an intersection came back at ({x:0.##}, {y:0.##})");
+        Assert.Null(snap.Locked);
+        Assert.Equal(63, x, 6);
+        Assert.Equal(23, y, 6);
+    }
 }
