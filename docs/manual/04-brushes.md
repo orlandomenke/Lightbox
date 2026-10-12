@@ -454,6 +454,39 @@ simply the mark you drew. How strong the paint is comes from **pigment
 density** — a watercolour is meant to be transparent, so raise that rather than
 the flow if you want a darker wash.
 
+## Reworking what you painted: a brush's alternates
+
+Hold **Alt** as you put the pen down and the brush in your hand paints with
+its **alternate** instead, for that one stroke. Hold **Ctrl+Alt** and it uses
+its second. Let go and you are painting again. Nothing is switched: the brush,
+its size and its colour stay as they were, and the alternate works at the size
+you are painting at.
+
+| | A brush that names no alternate | Watercolor and Ink wash |
+| --- | --- | --- |
+| **Alt** | Erases with the brush itself - its size, shape and dynamics, unlike **E**, which brings the eraser's own. | The same, for now. *Planned:* a water brush that rewets - the paint bleeds out into the wet area and thins. |
+| **Ctrl+Alt** | Picks a colour, as **Ctrl** does. | **Blot.** |
+
+**Blot** is a paper towel. Dab an edge and it lifts the paint there: more the
+harder you press, and never all of it in one dab - a firm press takes about
+four fifths and leaves a stain, a light one barely touches it. Dab the same
+place again and more comes away. It leaves the towel's texture in what
+remains. Use it to soften the hard edge a wash dries with, or to pull a
+gradient out of a flat one. It is also in the brush list on its own, as an
+eraser.
+
+Any brush can name alternates, including ones you make or import. In the brush
+editor, open **More** (the three dots) and choose **Alternates (Alt,
+Ctrl+Alt)...**, then pick a brush for each key, or leave a key as it is. An
+alternate is simply another brush: a stroke made through one is recorded as a
+stroke of that brush, so a drawing made this way opens the same anywhere. If a
+brush you named is later deleted, the key goes back to what it did before.
+
+With the **Eraser** tool in hand the two keys do nothing new: Alt has nothing
+to switch to, and Ctrl+Alt picks a colour.
+
+*Planned:* a damp brush for Gouache that drags and blends what is there.
+
 ## Colour mixing
 
 A brush with **Colour mixing** on picks up the colour it is laid on — what is

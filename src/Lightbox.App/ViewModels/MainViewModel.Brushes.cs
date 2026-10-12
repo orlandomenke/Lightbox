@@ -1271,6 +1271,9 @@ public partial class MainViewModel
             Tool = IsEraser ? ToolKind.Eraser : ToolKind.Brush,
             Settings = CurrentToolSettings.Clone(),
             Tags = CleanTags(tags),
+            // A brush saved from another keeps how that one is reworked.
+            Alternate = AlternateIdOf(SelectedBrushPreset, Services.BrushAlternate.First),
+            SecondAlternate = AlternateIdOf(SelectedBrushPreset, Services.BrushAlternate.Second),
         };
         _brushes.UserPresets.Add(preset);
         BrushPresetChoices.Add(preset);

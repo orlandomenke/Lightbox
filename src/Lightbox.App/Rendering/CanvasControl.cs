@@ -200,6 +200,23 @@ public sealed partial class CanvasControl : Control
     /// <summary>Alt was held when this stroke began, so it erases with the current brush.</summary>
     private bool _erasingThisStroke;
 
+    /// <summary>
+    /// What a held alternate key does with the brush in hand: whether it starts
+    /// a stroke at all, and whether that stroke erases (Q255). Null leaves Alt
+    /// as the eraser it always was and Ctrl+Alt to the eyedropper.
+    /// </summary>
+    private Func<Services.BrushAlternate, (bool Starts, bool Erases)>? _brushAlternate;
+
+    /// <summary>Let the view model say what the brush's alternates are.</summary>
+    public void SetBrushAlternateQuery(Func<Services.BrushAlternate, (bool Starts, bool Erases)> query) =>
+        _brushAlternate = query;
+
+    /// <summary>The alternate the keys held at a press ask for.</summary>
+    private static Services.BrushAlternate AlternateOf(KeyModifiers modifiers) =>
+        !modifiers.HasFlag(KeyModifiers.Alt) ? Services.BrushAlternate.None
+        : modifiers.HasFlag(KeyModifiers.Control) ? Services.BrushAlternate.Second
+        : Services.BrushAlternate.First;
+
     /// <summary>Shift was held at the press: join to the previous stroke's end.</summary>
     private bool _straightFromLast;
 
@@ -814,7 +831,7 @@ public sealed partial class CanvasControl : Control
     /// stroke erases with the current brush rather than switching tools — and
     /// whether Shift was, which joins this stroke to the last one's end.
     /// </summary>
-    public event Action<double, double, double, bool, bool>? PaintStarted;
+    public event Action<double, double, double, Services.BrushAlternate, bool>? PaintStarted;
 
     /// <summary>
     /// Extend the live stroke with ALL coalesced samples of one pointer event
@@ -2467,8 +2484,15 @@ public sealed partial class CanvasControl : Control
             // Ctrl is a held eyedropper while painting or filling: the colour
             // you want is almost always already on the canvas, and reaching
             // for a tool to fetch it breaks the stroke you were about to make.
+            //
+            // Except Ctrl+Alt with a brush that names a second alternate: that
+            // paints with it (Q255), and falls through to the paint case below.
+            var ctrlAltPaints = ToolMode == CanvasToolMode.Paint
+                && AlternateOf(e.KeyModifiers) == Services.BrushAlternate.Second
+                && _brushAlternate?.Invoke(Services.BrushAlternate.Second).Starts == true;
             if (ToolMode is CanvasToolMode.Paint or CanvasToolMode.Fill
-                && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+                && e.KeyModifiers.HasFlag(KeyModifiers.Control)
+                && !ctrlAltPaints)
             {
                 PickClicked?.Invoke(x, y);
                 e.Handled = true;
@@ -2780,11 +2804,15 @@ public sealed partial class CanvasControl : Control
             _strokeSawRealPressure = false;
             _penAxes.Begin();
             _lastAxisSample = null;
-            // Alt turns the brush in your hand into an eraser without
+            // Alt paints with the brush's alternate, and Ctrl+Alt with its
+            // second (Q255). A brush that names none keeps what Alt always
+            // did: it turns the brush in your hand into an eraser without
             // swapping tools, so it keeps its size, shape and dynamics. That
             // is different from E, which switches to the dedicated eraser and
             // its own settings.
-            _erasingThisStroke = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+            var alternate = AlternateOf(e.KeyModifiers);
+            _erasingThisStroke = alternate != Services.BrushAlternate.None
+                && (_brushAlternate?.Invoke(alternate).Erases ?? alternate == Services.BrushAlternate.First);
             // Shift at the press is Photoshop's straight segment: the stroke
             // runs from wherever the last one ended to here, and the drag that
             // follows carries on from that point. It is how a hard edge or a
@@ -2793,7 +2821,7 @@ public sealed partial class CanvasControl : Control
             _paintAnchor = (x, y);
             ReportInputDiagnostic(e.Pointer.Type, pp.Properties.Pressure);
             ReportCursorPressure(PressureOf(pp), penDown: true);
-            PaintStarted?.Invoke(x, y, PressureOf(pp), _erasingThisStroke, _straightFromLast);
+            PaintStarted?.Invoke(x, y, PressureOf(pp), alternate, _straightFromLast);
             e.Handled = true;
         }
         catch (Exception ex)

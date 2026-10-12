@@ -19,6 +19,40 @@ public sealed class BrushPreset
     public string? TipPng { get; set; }
 
     /// <summary>
+    /// The id of the brush this one paints with while Alt is held, or null for
+    /// what Alt has always done: erase with this brush (Q255).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A wash names a water brush here and a blot on <see cref="SecondAlternate"/>:
+    /// paint, then rework the edge, without putting the brush down. On the
+    /// preset and not in <see cref="Settings"/>, because it is how the artist
+    /// reaches another brush and not something a stroke is made of - a stroke
+    /// drawn through an alternate records that other brush's settings, like any
+    /// stroke, and nothing about how it was reached.
+    /// </para>
+    /// <para>
+    /// An id that no longer names a brush is not an error: the key falls back to
+    /// what it did before. Absent from the file unless set.
+    /// </para>
+    /// <para>
+    /// Null on a brush that shadows a shipped one means "as shipped", so a
+    /// Watercolor an artist tagged or retuned before alternates existed gets
+    /// its blot without doing anything; the empty string is how such a brush
+    /// says "none after all" (<see cref="BuiltInPresets.ShippedAlternate"/>).
+    /// </para>
+    /// </remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Alternate { get; set; }
+
+    /// <summary>
+    /// The same for Ctrl+Alt. Null leaves Ctrl+Alt to the eyedropper, which is
+    /// what Ctrl at pen-down is.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SecondAlternate { get; set; }
+
+    /// <summary>
     /// What the artist filed this brush under. Absent until they tag one.
     /// </summary>
     /// <remarks>
@@ -249,6 +283,9 @@ public static class BuiltInPresets
         {
             Id = "builtin-watercolor-wet",
             Name = "Watercolor",
+            // Ctrl+Alt lifts with the towel (Q255). Alt is for the water brush,
+            // when there is one; until then it erases, as it always has.
+            SecondAlternate = "builtin-blot",
             // A wash, without the fluid simulation it used to run (Q240, Q244):
             // a crisp-edged, thin layer of paint whose pigment gathers at the
             // rim, on a sheet with visible fibre, that picks up what it is laid
@@ -335,6 +372,7 @@ public static class BuiltInPresets
             // Q251): it covers the sheet and settles into it, so the paper
             // shows as tone inside the mark, and it gathers at the rim as a
             // wash does. Chosen from a sheet beside the simulated brush.
+            SecondAlternate = "builtin-blot", // Q255: see Watercolor
             Settings = new BrushSettings
             {
                 Size = 30, Hardness = 0.75, Opacity = 0.8, Flow = 0.4, Spacing = 0.07,
@@ -344,6 +382,23 @@ public static class BuiltInPresets
                 // Q232: a wash over a wash bleeds into it.
                 Mixing = new ColourMixing { Amount = 0.6, Length = 0.2, Reach = 0.9 },
                 Medium = new MediumSettings { PaintLoad = 0.7 },
+            },
+        },
+        new()
+        {
+            Id = "builtin-blot",
+            Name = "Blot",
+            // A paper towel (Q255, from how the owner works a wash): dab an
+            // edge and it lifts, more the harder it is pressed, never all of
+            // it. An eraser whose stroke opacity is the most one dab can take,
+            // with flow on pressure and a sheet's texture in what is left.
+            // Chosen from a sheet: firm edge, 80%, the textured one.
+            Tool = ToolKind.Eraser,
+            Settings = new BrushSettings
+            {
+                Size = 44, Hardness = 0.6, Opacity = 0.8, Flow = 0.6, Spacing = 0.1,
+                PressureFlowGamma = 1.2,
+                TextureSurface = PaperKind.Fibre, TextureScale = 6, TextureDepth = 0.6,
             },
         },
         new()
@@ -414,6 +469,17 @@ public static class BuiltInPresets
     /// the original, which is exactly what "revert" should mean.
     /// </para>
     /// </remarks>
+    private static readonly Lazy<Dictionary<string, (string? First, string? Second)>> Alternates = new(() =>
+        Create().Where(p => p.Alternate is not null || p.SecondAlternate is not null)
+            .ToDictionary(p => p.Id, p => (p.Alternate, p.SecondAlternate)));
+
+    /// <summary>The alternate a shipped brush names for a key, or null: what a shadow of it inherits.</summary>
+    public static string? ShippedAlternate(string presetId, BrushAlternate alternate) =>
+        !Alternates.Value.TryGetValue(presetId, out var named) ? null
+        : alternate == BrushAlternate.First ? named.First
+        : alternate == BrushAlternate.Second ? named.Second
+        : null;
+
     public static List<BrushPreset> Merge(IEnumerable<BrushPreset> userPresets)
     {
         var user = userPresets.ToList();
@@ -465,6 +531,11 @@ public static class PresetStore
         WriteIndented = true,
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
+
+    /// <summary>One preset as the store writes it, for the test that a key is absent unless used.</summary>
+    internal static string SerializeForTest(BrushPreset preset) => JsonSerializer.Serialize(preset, Json);
+
+    internal static BrushPreset DeserializeForTest(string json) => JsonSerializer.Deserialize<BrushPreset>(json, Json)!;
 
     public static State Load(string? path = null)
     {
