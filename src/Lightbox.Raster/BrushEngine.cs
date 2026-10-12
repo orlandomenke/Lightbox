@@ -24,7 +24,7 @@ namespace Lightbox.Raster;
 /// </summary>
 public static class BrushEngine
 {
-    private const double MinPressure = 0.05;
+    internal const double MinPressure = 0.05;
     private const double MinStepPx = 0.5;
 
     /// <summary>
@@ -1468,7 +1468,7 @@ public static class BrushEngine
     /// that turns with it, or a tip with hairs - which run with the stroke
     /// whatever the tip itself does, round and unturned included.
     /// </summary>
-    private static bool CarriesAHeading(BrushSettings brush) =>
+    internal static bool CarriesAHeading(BrushSettings brush) =>
         brush.AngleFollowsDirection || (brush.Bristles ?? 0) > 0;
 
     private static List<Dab> WalkPosedDabs(Stroke stroke, List<StrokePoint> rest)
@@ -1626,15 +1626,88 @@ public static class BrushEngine
         IReadOnlyList<Dab> now, Func<int, IReadOnlyList<Dab>> walkWithout, int smoothingHorizon)
     {
         if (now.Count == 0) return 0;
-        var without = walkWithout(SettleHorizonPoints + Math.Max(0, smoothingHorizon));
-        var agreed = 0;
+        return SettledPrefix(now, walkWithout(SettleHorizonPoints + Math.Max(0, smoothingHorizon)), 0, out _);
+    }
+
+    /// <inheritdoc cref="SettledPrefix(IReadOnlyList{Dab}, Func{int, IReadOnlyList{Dab}}, int)"/>
+    /// <param name="without">The same stroke walked without its newest points.</param>
+    /// <param name="knownAgreed">
+    /// Leading dabs already known to agree, so the comparison starts there and
+    /// not at the first dab: the smallest of what agreed last time and what
+    /// each walk has kept since (<see cref="LiveDabWalk.Kept"/>). Zero
+    /// compares everything.
+    /// </param>
+    /// <param name="agreed">How many leading dabs the two walks share - the next call's <paramref name="knownAgreed"/>.</param>
+    /// <remarks>
+    /// Comparing from the first dab every pointer event was work proportional
+    /// to the mark on a per-event path (invariant 6), and part of why a long
+    /// stroke stopped keeping up with the pen.
+    /// </remarks>
+    public static int SettledPrefix(
+        IReadOnlyList<Dab> now, IReadOnlyList<Dab> without, int knownAgreed, out int agreed)
+    {
+        agreed = 0;
+        if (now.Count == 0) return 0;
         var shared = Math.Min(now.Count, without.Count);
+        agreed = Math.Clamp(knownAgreed, 0, shared);
         while (agreed < shared && now[agreed].Equals(without[agreed])) agreed++;
         // The truncated walk ends on a dab of its own - its last point - which
         // the full walk also has when the spacing happens to land there; it is
         // an end, not a settled dab, until a later truncation walks past it.
-        if (agreed == without.Count && agreed > 0) agreed--;
-        return agreed;
+        return agreed == without.Count && agreed > 0 ? agreed - 1 : agreed;
+    }
+
+    /// <summary>
+    /// <see cref="StableCount(IReadOnlyList{Dab}, IReadOnlyList{Dab}, double, out int)"/>
+    /// and, for a brush with no tolerance, <see cref="SettledCount"/>, asked of
+    /// a <see cref="LiveDabWalk"/>: the list before was the first
+    /// <paramref name="kept"/> dabs of this one followed by
+    /// <paramref name="replaced"/>, so only what follows them is compared.
+    /// </summary>
+    /// <remarks>
+    /// The same answers as the two it stands in for, by construction - the kept
+    /// dabs are the same dabs, so every rule agrees about them - and
+    /// <c>LiveDabWalkTests</c> checks it against them on every event of a
+    /// stroke. What it saves is comparing the whole mark with itself on every
+    /// pointer event.
+    /// </remarks>
+    public static int StableCount(
+        IReadOnlyList<Dab> now, int kept, IReadOnlyList<Dab> replaced, double tolerance, out int exact)
+    {
+        exact = 0;
+        if (now.Count == 0) return 0;
+        kept = Math.Clamp(kept, 0, now.Count);
+        var shared = Math.Min(now.Count, kept + replaced.Count);
+        var agreed = kept;
+        if (tolerance <= 0)
+        {
+            // Position first and then the whole dab, as StableCount and
+            // SettledCount did between them: the smaller of the two is where
+            // the whole dab stops agreeing.
+            while (agreed < shared && now[agreed].Equals(replaced[agreed - kept])) agreed++;
+            exact = Math.Max(1, agreed);
+            return exact;
+        }
+
+        var stillExact = true;
+        var limit = tolerance * tolerance;
+        while (agreed < shared)
+        {
+            var a = now[agreed];
+            var b = replaced[agreed - kept];
+            if (!a.Pressure.Equals(b.Pressure) || !a.Heading.Equals(b.Heading) || !a.Load.Equals(b.Load)) break;
+            double dx = a.Pos.X - b.Pos.X, dy = a.Pos.Y - b.Pos.Y;
+            if ((dx * dx) + (dy * dy) > limit) break;
+            if (stillExact && a.Pos != b.Pos)
+            {
+                stillExact = false;
+                exact = Math.Max(1, agreed);
+            }
+            agreed++;
+        }
+
+        if (stillExact) exact = Math.Max(1, agreed);
+        return Math.Max(1, agreed);
     }
 
     /// <summary>
@@ -2096,7 +2169,7 @@ public static class BrushEngine
     /// <c>step × fidelity</c> is exactly the nominal interval and the thinning
     /// in <see cref="StampDab"/> always matches the dabs actually laid.
     /// </remarks>
-    private static (double Step, int Fidelity) StepFor(
+    internal static (double Step, int Fidelity) StepFor(
         BrushSettings brush, double pressure, bool subdivides)
     {
         var diameter = RadiusAt(brush, pressure) * 2;

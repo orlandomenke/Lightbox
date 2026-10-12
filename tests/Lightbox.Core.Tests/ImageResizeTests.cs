@@ -289,6 +289,116 @@ public class ImageResizeTests
     }
 
     [Fact]
+    public void EveryRigIsRescaledNotOnlyTheFirst()
+    {
+        // B447. Two characters in one document: the resize walked
+        // `doc.Armature`, which is the first rig, while the pose keys of
+        // every rig were scaled — so the second character's skeleton stood
+        // at the old size under a drawing and a pose track at the new one.
+        var doc = new Doc
+        {
+            Armatures =
+            [
+                new Armature { Name = "Knight", Bones = [new Bone { Id = "k", X = 100, Y = 50, Length = 40 }] },
+                new Armature
+                {
+                    Name = "Dog",
+                    Bones =
+                    [
+                        new Bone { Id = "d", X = 300, Y = 150, Length = 60, RotationDeg = 20 },
+                        new Bone { Id = "d-tail", ParentId = "d", X = 10, Y = 4, Length = 30 },
+                    ],
+                },
+            ],
+        };
+        doc.Scene.PoseTrack = new PoseTrack
+        {
+            Keys = [new PoseKey { Frame = 0, Bones = { ["d"] = new BonePose { X = 8, Y = 2 } } }],
+        };
+
+        ImageResize.Apply(doc, doc.Scene.Width * 2, doc.Scene.Height * 2, new FakeResampler());
+
+        var knight = doc.Armatures[0].Bones[0];
+        Assert.Equal((200.0, 100.0, 80.0), (knight.X, knight.Y, knight.Length));
+        var dog = doc.Armatures[1].Bones[0];
+        Assert.Equal((600.0, 300.0, 120.0), (dog.X, dog.Y, dog.Length));
+        Assert.Equal(20, dog.RotationDeg);
+        var tail = doc.Armatures[1].Bones[1];
+        Assert.Equal((20.0, 8.0, 60.0), (tail.X, tail.Y, tail.Length));
+        // The key was always scaled; now the bone it moves is at the same scale.
+        Assert.Equal(16, doc.Scene.PoseTrack.Keys[0].Bones["d"].X);
+    }
+
+    [Fact]
+    public void AJointZoneTheArtistSetGrowsWithTheDrawing()
+    {
+        // B447, the same omission one field over. A joint's blend zone is a
+        // distance in document pixels; left alone, a doubled arm bends over
+        // half the stretch it used to, and every joint-weighted line on it
+        // re-poses differently. The default zone needs nothing — it is
+        // derived from the bones' lengths, which do scale.
+        var doc = new Doc
+        {
+            Armature = new Armature
+            {
+                Bones =
+                [
+                    new Bone { Id = "upper", X = 100, Y = 100, Length = 100 },
+                    new Bone { Id = "fore", ParentId = "upper", Connected = true, Length = 100, JointZone = 30 },
+                    new Bone { Id = "hand", ParentId = "fore", Connected = true, Length = 40 },
+                ],
+            },
+        };
+        var defaultBefore = Skinning.JointZoneOf(doc.Armature, doc.Armature.Bones[2]);
+
+        // Twice as wide and the same height, so the factor matters: a zone
+        // is a distance along a limb that may point anywhere, and it takes
+        // the one number a bone's length takes — the mark's — not the
+        // width's. (Resized evenly, this test could not tell the two apart;
+        // the adversary scaled the zone by the width and nothing noticed.)
+        ImageResize.Apply(doc, doc.Scene.Width * 2, doc.Scene.Height, new FakeResampler());
+
+        var lengthGrewBy = doc.Armature.Bones[0].Length / 100;
+        Assert.Equal(Math.Sqrt(2), lengthGrewBy, 9);
+        Assert.Equal(30 * lengthGrewBy, doc.Armature.Bones[1].JointZone!.Value, 9);
+        Assert.Null(doc.Armature.Bones[2].JointZone);
+        Assert.Equal(defaultBefore * lengthGrewBy, Skinning.JointZoneOf(doc.Armature, doc.Armature.Bones[2]), 9);
+    }
+
+    [Fact]
+    public void ADrawnJointFixGrowsWithTheLineItCorrects()
+    {
+        // B447 again: a corrective is offsets from a stroke's rest points, so
+        // it is made of distances on the paper. The points were doubled and
+        // the fix was not, which leaves the artist's drawn elbow at half
+        // strength on every frame that uses it.
+        var doc = DocWithAStroke(out var stroke);
+        var frame = doc.Scene.Layers[0].Cels[0].Frame!;
+        frame.Correctives =
+        [
+            new Corrective
+            {
+                DriverBoneId = "fore",
+                Stops =
+                [
+                    new CorrectiveStop
+                    {
+                        AngleDeg = 90,
+                        Strokes = [new StrokeCorrection { StrokeId = stroke.Id, Offsets = [new PointOffset(3, -4), new PointOffset(0, 5)] }],
+                    },
+                ],
+            },
+        ];
+
+        ImageResize.Apply(doc, 1920, 540, new FakeResampler());   // twice as wide, the same height
+
+        var offsets = frame.Correctives[0].Stops[0].Strokes[0].Offsets;
+        Assert.Equal(new PointOffset(6, -4), offsets[0]);
+        Assert.Equal(new PointOffset(0, 5), offsets[1]);
+        Assert.Equal(90, frame.Correctives[0].Stops[0].AngleDeg);
+    }
+
+    [Fact]
     public void EveryCoordinateOnTheSceneIsAccountedFor()
     {
         // The omission guard. A new coordinate-bearing property on Scene is
