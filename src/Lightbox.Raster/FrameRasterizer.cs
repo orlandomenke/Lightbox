@@ -175,6 +175,16 @@ public static class FrameRasterizer
             replay.Add(stroke);
         }
 
+        // B450: the region, in the strokes' own coordinates, so each stroke is
+        // stamped over the part of it that reaches the rectangle rather than
+        // whole. The clip stays: the window is grown by what a brush reads
+        // sideways, and nothing outside the region may be written.
+        var window = outputScale == 1.0
+            ? region
+            : new SKRectI(
+                (int)Math.Floor(region.Left / outputScale), (int)Math.Floor(region.Top / outputScale),
+                (int)Math.Ceiling(region.Right / outputScale), (int)Math.Ceiling(region.Bottom / outputScale));
+
         using var canvas = new SKCanvas(layer);
         canvas.Save();
         canvas.ClipRect(SKRect.Create(region.Left, region.Top, region.Width, region.Height));
@@ -182,7 +192,7 @@ public static class FrameRasterizer
         foreach (var stroke in replay)
         {
             BrushEngine.StampStroke(
-                canvas, stroke, info, layer, outputScale: outputScale, backdrop: backdrop);
+                canvas, stroke, info, layer, outputScale: outputScale, backdrop: backdrop, window: window);
         }
         canvas.Restore();
         canvas.Flush();
