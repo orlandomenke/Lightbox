@@ -1101,8 +1101,7 @@ public sealed partial class CanvasControl : Control
     public void SetPenPreview(IReadOnlyList<Core.Documents.StrokePoint>? points)
     {
         _penPreview = points is { Count: > 1 } ? points : null;
-        NoteOverlayChanged();
-        InvalidateVisual();
+        InvalidateOverlay();
     }
 
     /// <summary>
@@ -1121,8 +1120,7 @@ public sealed partial class CanvasControl : Control
     public void SetPathTrace(IReadOnlyList<Core.Documents.StrokePoint>? points)
     {
         _pathTrace = points is { Count: > 1 } ? points : null;
-        NoteOverlayChanged();
-        InvalidateVisual();
+        InvalidateOverlay();
     }
 
     /// <summary>
@@ -1151,8 +1149,7 @@ public sealed partial class CanvasControl : Control
     public void SetPathNodes(IReadOnlyList<PathNodeGlyph>? nodes)
     {
         _pathNodes = nodes is { Count: > 0 } ? nodes : null;
-        NoteOverlayChanged();
-        InvalidateVisual();
+        InvalidateOverlay();
     }
 
     /// <summary>

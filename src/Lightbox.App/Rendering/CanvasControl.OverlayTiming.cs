@@ -33,10 +33,11 @@ public partial class CanvasControl
     private long _overlayChangedAt;
     private long _overlayLogged;
 
-    private void NoteOverlayChanged()
+    /// <summary>Redraw for a change to the path overlay, and start its clock if none is running.</summary>
+    private void InvalidateOverlay()
     {
-        if (!Services.PerfLog.On || _overlayChangedAt != 0) return;
-        _overlayChangedAt = Stopwatch.GetTimestamp();
+        if (Services.PerfLog.On && _overlayChangedAt == 0) _overlayChangedAt = Stopwatch.GetTimestamp();
+        InvalidateVisual();
     }
 
     /// <summary>The frame-time callback for the draw being built, carrying the stamp if one is waiting.</summary>
