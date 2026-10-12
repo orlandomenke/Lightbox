@@ -276,30 +276,25 @@ public static class BuiltInPresets
         {
             Id = "builtin-gouache-body",
             Name = "Gouache",
+            // Opaque body colour, without the simulation it used to run (Q240,
+            // Q251): it goes solid at a light press, carries a little of the
+            // paper's tone inside it, and breaks into streaks as the brush
+            // empties. Chosen from a sheet beside the simulated brush.
             Settings = new BrushSettings
             {
                 Size = 26, Hardness = 0.7, Opacity = 0.95, Flow = 0.85, Spacing = 0.1,
-                // B36 — a loaded chisel brush, turned to the stroke.
+                // B36 - a loaded chisel brush, turned to the stroke.
                 TipId = "tip-builtin-paintbrush",
                 AngleFollowsDirection = true, SizeJitter = 0.1,
+                Bristles = 0.5,
+                // Plain paper: filled by a press of a quarter, and thin enough
+                // that a little of it settles.
+                TextureSurface = PaperKind.Plain, TextureScale = 8, TextureDepth = 0.8,
+                TexturePressure = 1, TextureFill = 0.25, TextureSettle = 0.15,
                 // Q232: body colour covers more than it mixes, and what it picks
                 // up does not travel far.
                 Mixing = new ColourMixing { Amount = 0.8, Length = 0.15, Reach = 0.9 },
-                Medium = new MediumSettings
-                {
-                    Kind = MediumKind.Gouache,
-                    // Barely flows and hides what is underneath — the opposite
-                    // of watercolour in every term that matters.
-                    Wetness = 0.3, Viscosity = 0.75, Drag = 0.7, FlowSteps = 6,
-                    Absorbency = 0.8, EdgePull = 0.05,
-                    PigmentDensity = 0.9, Granularity = 0.15, Hiding = 0.9,
-                    Paper = PaperKind.ColdPress, PaperScale = 10, PaperInfluence = 0.35,
-                    // Q236 moved the reach to Size * 6 * load / (1 - load); 0.63 is
-                    // the load whose reach is what 0.85 had before (ten diameters).
-                    Body = 0.35, Relief = 0.2, PaintLoad = 0.63,
-                    // Body colour: pressure decides how much it picks up.
-                    PressureWater = 0.15, PressureMix = 0.8, Rewetting = 0, // Q232: see Watercolor
-                },
+                Medium = new MediumSettings { PaintLoad = 0.63 },
             },
         },
         new()
@@ -336,23 +331,19 @@ public static class BuiltInPresets
         {
             Id = "builtin-ink-wash",
             Name = "Ink wash",
+            // Thin ink on paper, without the simulation it used to run (Q240,
+            // Q251): it covers the sheet and settles into it, so the paper
+            // shows as tone inside the mark, and it gathers at the rim as a
+            // wash does. Chosen from a sheet beside the simulated brush.
             Settings = new BrushSettings
             {
-                Size = 30, Hardness = 0.35, Opacity = 0.8, Flow = 0.6, Spacing = 0.07,
+                Size = 30, Hardness = 0.75, Opacity = 0.8, Flow = 0.4, Spacing = 0.07,
                 PressureSizeGamma = 1.4,
+                WetEdge = 0.5,
+                TextureSurface = PaperKind.Plain, TextureScale = 8, TextureSettle = 0.4,
                 // Q232: a wash over a wash bleeds into it.
                 Mixing = new ColourMixing { Amount = 0.6, Length = 0.2, Reach = 0.9 },
-                Medium = new MediumSettings
-                {
-                    Kind = MediumKind.Ink,
-                    // Extremely fluid and strongly absorbed: it bleeds along
-                    // the fibres rather than pooling, and hardly granulates.
-                    Wetness = 0.9, Viscosity = 0.05, Drag = 0.15, FlowSteps = 18,
-                    Absorbency = 0.75, EdgePull = 0.3,
-                    PigmentDensity = 0.8, Granularity = 0.05, Hiding = 0.4,
-                    Paper = PaperKind.Smooth, PaperScale = 6, PaperInfluence = 0.25,
-                    PressureWater = 0.5, Rewetting = 0, // Q232: see Watercolor
-                },
+                Medium = new MediumSettings { PaintLoad = 0.7 },
             },
         },
         new()

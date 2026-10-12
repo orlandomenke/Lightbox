@@ -815,7 +815,7 @@ public static class BrushEngine
             // The wet edge is the ceiling's rim and a tooth is the ceiling
             // itself, both applied with the footprint above; an ungated paper
             // was laid by FinishBand when there was a plane.
-            if (plane is null && HasTexture(brush) && !NeedsToothCeiling(brush)) ApplyTexture(canvas, brush, rect, local);
+            if (plane is null && HasPaperStencil(brush)) ApplyTexture(canvas, brush, rect, local);
         }
         ApplyClip(canvas, stroke, local, dev, outputScale, origin);
         ApplyAlphaLock(canvas, stroke, targetPixels, dev);
@@ -1008,7 +1008,7 @@ public static class BrushEngine
         }
         else
         {
-            if (HasTexture(brush) && !NeedsToothCeiling(brush)) ApplyTexture(canvas, brush, rect, local);
+            if (HasPaperStencil(brush)) ApplyTexture(canvas, brush, rect, local);
         }
 
         return scratch.Snapshot();
@@ -2088,7 +2088,7 @@ public static class BrushEngine
         // silhouette never lays; and a grain or a paper is laid by the band
         // finish, which the silhouette's own route does not pass through.
         && !(brush.Medium.Kind == MediumKind.None
-             && (brush.WetEdge > 0 || HasGrain(brush) || HasUngatedPaper(brush)))
+             && (brush.WetEdge > 0 || HasGrain(brush) || HasPaperStencil(brush)))
         && Math.Clamp(brush.Medium.PaintLoad, 0, 1) >= 1;
 
     /// <summary>
@@ -2306,12 +2306,23 @@ public static class BrushEngine
     /// </summary>
     public static bool NeedsBandFinish(BrushSettings brush) =>
         brush.Medium.Kind == MediumKind.None
-        && (NeedsFootprintCap(brush) || HasGrain(brush) || HasUngatedPaper(brush));
+        && (NeedsFootprintCap(brush) || HasGrain(brush) || HasPaperStencil(brush));
 
     private static bool HasGrain(BrushSettings brush) => !HasTexture(brush) && brush.Granulation > 0;
 
     private static bool HasUngatedPaper(BrushSettings brush) =>
         HasTexture(brush) && brush.TextureDepth > 0 && !NeedsToothCeiling(brush);
+
+    /// <summary>Does thin paint settle into this brush's sheet (<see cref="BrushSettings.TextureSettle"/>)?</summary>
+    private static bool Settles(BrushSettings brush) => HasTexture(brush) && (brush.TextureSettle ?? 0) > 0;
+
+    /// <summary>
+    /// Whether the sheet is laid over this brush's mark as a stencil: an
+    /// ungated paper, which takes paint from the valleys, or paint that
+    /// settles, which takes it from the peaks - or both. A tooth is not a
+    /// stencil (it is a ceiling), but paint can settle on a brush that has one.
+    /// </summary>
+    private static bool HasPaperStencil(BrushSettings brush) => HasUngatedPaper(brush) || Settles(brush);
 
     /// <summary>
     /// Finish a band of a mark in place: cap it to its footprint and lay the
@@ -2335,7 +2346,7 @@ public static class BrushEngine
         }
 
         var grain = brush.Medium.Kind == MediumKind.None && HasGrain(brush);
-        var paper = brush.Medium.Kind == MediumKind.None && HasUngatedPaper(brush);
+        var paper = brush.Medium.Kind == MediumKind.None && HasPaperStencil(brush);
         if (!grain && !paper) return;
 
         using var canvas = new SKCanvas(mark);
@@ -5184,8 +5195,14 @@ public static class BrushEngine
         var imported = TextureRegistry.Resolve(brush.TextureId);
         if (imported is null && brush.TextureSurface is null) return;
 
-        var depth = (float)Math.Clamp(brush.TextureDepth, 0, 1);
-        if (depth <= 0) return;
+        // Two things a sheet does to paint laid over it, in one mask: an
+        // ungated paper takes paint out of the valleys, by Depth; thin paint
+        // that settles is thinner on the peaks, by TextureSettle. A tooth is
+        // neither - it is a ceiling, laid with the footprint - so a brush with
+        // one has no depth here and may still settle.
+        var depth = NeedsToothCeiling(brush) ? 0f : (float)Math.Clamp(brush.TextureDepth, 0, 1);
+        var settle = (float)Math.Clamp(brush.TextureSettle ?? 0, 0, 1);
+        if (depth <= 0 && settle <= 0) return;
 
         var w = Math.Max(1, rect.Width);
         var h = Math.Max(1, rect.Height);
@@ -5212,6 +5229,7 @@ public static class BrushEngine
                 // A' = 1 - depth * (1 - height): the tooth keeps paint, the
                 // valleys let it through, and depth decides how deep the bite.
                 var keep = 1f - depth * (1f - height[i]);
+                if (settle > 0f) keep *= 1f - (settle * height[i]);
                 var o = i * 4;
                 rgba[o] = 255;
                 rgba[o + 1] = 255;

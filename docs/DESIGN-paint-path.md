@@ -649,6 +649,37 @@ brush (so Watercolor does not yet answer pressure against the paper as Oil
 does); the rework brushes (Q245); wetting the page; shaping and moving a tip's
 hairs. None of phase 3 has been through the perf lab.
 
+### Gouache and Ink wash: the last two recipes (Q251)
+
+Ink wash is thin ink that covers the sheet and **settles** into it
+(`BrushSettings.TextureSettle`: denser in the valleys than on the peaks, no
+gaps), with a wet edge. Gouache is body colour that goes solid at a light
+press, with a little settling and bristles on the tip. Both chosen by the
+owner from sheets beside the simulated brushes. With them no shipped brush
+runs the simulation; what is left of phase 3's purpose is phase 4, deleting it.
+
+Lab, frozen baseline (simulated) against the branch, `paint-stroke` at 60, 150
+and 300 px and 900 and 3000 px/s, two runs each, then `long-stroke` at 240
+events a second. **All 100 strokes on the branch were kept at pen-up, none
+replayed.**
+
+| | Gouache | Ink wash |
+| --- | --- | --- |
+| pen-up (`stroke.commit` median), across the six variants | 147-226 ms to 16-44 ms | 96-383 ms to 18-57 ms |
+| pen-to-screen median | 37-43 ms to 37-48 ms | 41-44 ms to 41-48 ms |
+| worst pen-to-screen | 128-292 ms to 84-177 ms | 75-529 ms to 82-177 ms |
+| points the mark landed behind the pen, worst | 16-27 to 0 | 15-27 to 0 |
+| `stroke.move` median | 0.8-1.9 ms to 0.4-4.2 ms | 0.5-3.5 ms to 0.3-3.1 ms |
+| 12 s stroke at pen rate: pen-up, and total stalled | 134 to 31 ms; 319 to 139 ms | 269 to 54 ms; 649 to 155 ms |
+
+Two things that are not better. **Gouache costs more per pen event at 150 and
+300 px with a fast pen** (1.7 to 3.7 ms and 1.9 to 4.2 ms): the simulated brush
+did that work behind the pen and at pen-up, and this one does it under the pen,
+which is the trade the paint path makes; the median pen-to-screen moved by 3
+and 6 ms there. And **the longest stall in a stroke is still 100 to 250 ms**
+on both brushes, at the start of a stroke - the whole-frame copy a mixing brush
+takes of what is beneath it, already listed as open for Watercolor and Oil.
+
 ## What the paint path broke: long strokes (B449)
 
 The day after phases 1 to 3 merged, the owner drew a long line with Ink and it

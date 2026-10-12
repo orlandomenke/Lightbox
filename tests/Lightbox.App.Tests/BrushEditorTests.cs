@@ -80,6 +80,29 @@ public sealed class BrushEditorTests(ITestOutputHelper output) : BrushStateIsola
     }
 
     [AvaloniaFact]
+    public void SettlesTicksTextureOnlyWhenThereIsASurfaceToSettleInto()
+    {
+        // Paint settles into a sheet; with no sheet the value changes nothing,
+        // so it must not tick the option on its own - the rule the tooth
+        // already follows. With one, it is in use, and unticking zeroes it.
+        var (_, vm, editor) = Open();
+        vm.BrushTextureSurface = "None";
+        vm.BrushTextureDepth = 0;
+        vm.BrushTextureSettle = 0.4;
+        Pump();
+        Assert.False(editor.InUse(Option("Texture")));
+
+        vm.BrushTextureSurface = "Plain";
+        Pump();
+        Assert.True(editor.InUse(Option("Texture")));
+
+        editor.SetInUse(Option("Texture"), false);
+        Pump();
+        Assert.Equal(0, vm.BrushTextureSettle);
+        Assert.Null(vm.CurrentToolSettingsForTest.TextureSettle);
+    }
+
+    [AvaloniaFact]
     public void WhatAnUntickedOptionHeldSurvivesASwitchToTheEraserAndBack()
     {
         // Found by the adversary review: the first version dropped what it kept

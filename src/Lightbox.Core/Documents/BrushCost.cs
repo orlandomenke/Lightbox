@@ -101,7 +101,8 @@ public static class BrushCostOf
     /// one (2026-10-09): a brush with a paper and a depth wore no badge.
     /// </summary>
     private static bool HasPaper(BrushSettings brush) =>
-        brush.TextureDepth > 0 && (brush.TextureSurface is not null || brush.TextureId is not null);
+        (brush.TextureDepth > 0 || (brush.TextureSettle ?? 0) > 0)
+        && (brush.TextureSurface is not null || brush.TextureId is not null);
 
     /// <summary>
     /// The reason, for a tooltip — or null when there is nothing to say.
@@ -120,7 +121,20 @@ public static class BrushCostOf
         if (brush.SampleSource != SampleSource.ThisLayer) reasons.Add("blends the layers underneath");
         if (brush.WetEdge > 0) reasons.Add("darkens its own edge as you draw (wet edge)");
         if (brush.Granulation > 0) reasons.Add("settles pigment into the grain as you draw");
-        if (HasPaper(brush)) reasons.Add(brush.TexturePressure > 0 ? "catches graphite on the paper's tooth as you draw" : "presses the paper's texture in as you draw");
+        if (HasPaper(brush))
+        {
+            // What the surface does to this brush, in the brush's own terms: a
+            // pencil's tooth, paint that pressure pushes into a weave, a plain
+            // paper pressed in - and, beside any of them, thin paint settling.
+            if (brush.TextureDepth > 0)
+            {
+                reasons.Add(
+                    brush.TexturePressure > 0 && brush.TextureFill is not null ? "catches on the surface until pressure fills it, as you draw"
+                    : brush.TexturePressure > 0 ? "catches graphite on the paper's tooth as you draw"
+                    : "presses the paper's texture in as you draw");
+            }
+            if ((brush.TextureSettle ?? 0) > 0) reasons.Add("lets thin paint settle into the surface as you draw");
+        }
         return reasons.Count == 0 ? null : string.Join(", ", reasons);
     }
 
