@@ -178,7 +178,10 @@ public static class ImageResize
             symmetry.CenterY *= sy;
         }
 
-        if (doc.Armature is { } armature)
+        // Every rig, not `doc.Armature` — that is the first one, and a second
+        // character's skeleton was left at the old size under a drawing and a
+        // pose track that had both been rescaled (B447).
+        foreach (var armature in doc.Rigs)
             foreach (var bone in armature.Bones)
             {
                 bone.X *= sx;
@@ -190,6 +193,10 @@ public static class ImageResize
                 // uniform rescale (the linked default) is exact, because
                 // uniform scale commutes with rotation.
                 bone.Length *= mark;
+                // A joint zone the artist set is a distance along the limb
+                // like the length it is measured against (B447). The default
+                // is derived from the lengths and needs nothing.
+                if (bone.JointZone is { } zone) bone.JointZone = zone * mark;
             }
 
         // Pins are places on the drawing, on every rig that has any. A starch
@@ -235,6 +242,18 @@ public static class ImageResize
     private static void ScaleFrame(
         Frame frame, double sx, double sy, double mark, IPixelResampler resampler)
     {
+        // A drawn joint fix is offsets from a stroke's rest points — distances
+        // on the paper, one per control point. The points below are scaled; a
+        // fix left behind corrects the joint by the old amount (B447). The
+        // angle it belongs to is not a length.
+        if (frame.Correctives is { } correctives)
+            foreach (var corrective in correctives)
+                foreach (var stop in corrective.Stops)
+                    foreach (var correction in stop.Strokes)
+                        for (var i = 0; i < correction.Offsets.Count; i++)
+                            correction.Offsets[i] = new PointOffset(
+                                correction.Offsets[i].X * sx, correction.Offsets[i].Y * sy);
+
         foreach (var stroke in frame.Strokes)
         {
             ScalePoints(stroke.Points, sx, sy);
