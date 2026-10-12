@@ -649,6 +649,38 @@ brush (so Watercolor does not yet answer pressure against the paper as Oil
 does); the rework brushes (Q245); wetting the page; shaping and moving a tip's
 hairs. None of phase 3 has been through the perf lab.
 
+## What the paint path broke: long strokes (B449)
+
+The day after phases 1 to 3 merged, the owner drew a long line with Ink and it
+stopped appearing part way, then showed whole at pen-up. At any speed.
+
+The structural settle rule of phase 2 walks the stroke a second time, without
+its newest points, and compares the two walks. Both walks covered the whole
+stroke on every pointer event, and so did the comparison. The first walk had
+always done that (B189 measured it in August and named the fix); doubling it
+took an event on a ten-second Ink stroke from about 3 ms to about 6, and a pen
+sends one every 4 to 5.
+
+Every number this document reports came from strokes of 1.5 s. A cost that
+grows with the stroke has not grown yet when such a stroke ends, so every one
+of those numbers was green. **The lesson is about the instrument, not the
+rule:** a per-event path has to be measured on a stroke long enough for
+"proportional to the mark" to show, and the lab now has one (`long-stroke`,
+12 s, to be run at `--hz 240`).
+
+The fix keeps the walk between events (`LiveDabWalk`) and compares only what
+changed. Lab, Ink, 12 s strokes, main against the fix:
+
+| | main | fix |
+| --- | --- | --- |
+| `stroke.move` median, 120 events a second | 2.6 ms | 0.3 ms |
+| the same in the first and the twelfth second | 2.7 and 3.5 ms | 0.49 and 0.35 ms |
+| frames shown in the last full second of a stroke, 240 events a second | 18 | 54 |
+| worst pen-to-screen, 240 events a second | 354 ms | 78 ms |
+
+The live mark is still the replay: the kept walk is the reference walk to the
+bit, and every pen-up test passes unchanged.
+
 ## Order
 
 1. **Promote at pen-up**, for the brushes that are already dab-final (ink, soft
