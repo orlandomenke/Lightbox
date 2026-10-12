@@ -262,6 +262,22 @@ On the **Effects** page. Pick one of the built-in surfaces, or **Paper image…*
 to use a scan or photograph of the real thing — an imported paper takes over
 and the surface list goes quiet.
 
+The built-in surfaces are of two kinds. **Smooth**, **Cold press**, **Rough**
+and **Canvas** are constructed: clean, even, and the same at any grain size.
+**Plain**, **Kraft**, **Fibre**, **Linen** and **Plaster** are scans of real
+surfaces, with the irregularity real ones have:
+
+| Surface | What it is |
+| --- | --- |
+| **Plain** | White paper with a fine, even pebbled tooth. The Pencil's sheet. |
+| **Kraft** | Brown carton paper: short, dense fibres, a little coarser. |
+| **Fibre** | Paper with long visible fibres, the most open of the three. |
+| **Linen** | A tight plain weave. Coarse under a pencil; made for paint on a large canvas. |
+| **Plaster** | A trowelled ground with scratches and hollows, for heavy paint. |
+
+A scan is shown at its own size at a **Grain size** of 8; larger magnifies it
+and smaller makes it finer. `docs/CREDITS-papers.md` says where each came from.
+
 Two things worth knowing:
 
 - **The image goes into the drawing, not a path on disk.** A file pointing at
@@ -282,8 +298,11 @@ the tip presses least — shows more paper than its middle. It needs a paper and
 a Depth above zero, like everything on this option, and it follows the pen
 only when **Pen pressure** is on for the brush. Either way the paper lands
 under the pen as you draw and nothing changes at pen-lift. The shipped **Pencil**
-is a fine cold-press grain with this most of the way up; a mouse, which always
-presses fully, draws it at its darkest.
+is the scanned **Plain** sheet, a little finer than life, with this most of
+the way up. It is tuned to read as graphite rather than ink: it never reaches
+black, a light touch is several times lighter than a firm one, and going over
+a passage again builds its tone. A mouse, which always presses fully, draws it
+at its darkest.
 
 ## How the brush answers the pen
 

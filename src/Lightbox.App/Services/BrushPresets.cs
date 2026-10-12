@@ -147,14 +147,23 @@ public static class BuiltInPresets
             Id = "builtin-pencil",
             Name = "Pencil",
             // Graphite caught on the paper's tooth: a light touch marks the
-            // peaks, a hard press fills the valleys (TexturePressure), over a
-            // fine cold-press grain. docs/DESIGN-pencil-tooth.md has why.
+            // peaks, a hard press fills the valleys (TexturePressure).
+            // docs/DESIGN-pencil-tooth.md has why.
+            //
+            // Retuned 2026-10-10 on the owner's verdict that it was "too dark,
+            // too consistent" to be graphite. Three things, judged on a sheet:
+            // graphite is never black (Opacity 0.8), it builds with passes and
+            // answers pressure across its whole range rather than saturating
+            // at a medium press (Flow 0.5, gamma 1.2), and even a firm stroke
+            // leaves the deepest valleys of the sheet (TexturePressure 0.7 at
+            // Depth 0.9). And the sheet is a scanned one - Plain, a little
+            // finer than life - whose tooth is fibre, not noise.
             Settings = new BrushSettings
             {
-                Size = 4, Hardness = 0.7, Opacity = 1, Flow = 0.9, Spacing = 0.1,
-                PressureFlowGamma = 0.8,
-                TextureSurface = PaperKind.ColdPress, TextureScale = 2, TextureDepth = 0.8,
-                TexturePressure = 0.8,
+                Size = 4, Hardness = 0.7, Opacity = 0.8, Flow = 0.5, Spacing = 0.1,
+                PressureFlowGamma = 1.2,
+                TextureSurface = PaperKind.Plain, TextureScale = 5, TextureDepth = 0.9,
+                TexturePressure = 0.7,
             },
         },
         new()
