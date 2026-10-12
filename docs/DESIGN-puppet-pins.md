@@ -165,7 +165,7 @@ nothing can author a pin, and each must land with the branch named):
 | Deleting a bone, an IK target or a spline handle leaves a pin's `ParentId` naming it. The pin then reads as unparented and its keys, authored in the bone's frame, are read in document axes: it jumps on every keyed frame. Clear or re-parent in the same undo step and rebase the keys, as child bones are. | `MainViewModel.Armature.cs` bone deletion, `MainViewModel.Ik.cs`, `MainViewModel.Spline.cs` | the tool |
 | Pasting a single row's pose key skips any id that is not a bone of the first rig, so a pin's key would be dropped on paste. Whole-key paste refuses a rig of pins alone. | `MainViewModel.TimelineClipboard.cs` | the tool |
 | `ArmatureIsBound` knows layer bindings and stroke weights only. Once a layer can follow pins, pulling or rescaling a rig a drawing is pinned to passes the guard that exists to refuse exactly that. | `MainViewModel.RigSets.cs` | the render path |
-| Image resize rescales the *bones* of the first rig only (B-to-be-filed; found here, predates pins). Pins are rescaled on every rig, so on a second rig a pin would be carried about a bone standing at the old scale. | `ImageResize.cs` | its own branch, before the render path |
+| **Fixed as B447.** Image resize rescaled the *bones* of the first rig only (found here, predates pins). Pins are rescaled on every rig, so on a second rig a pin would be carried about a bone standing at the old scale. | `ImageResize.cs` | its own branch, before the render path |
 
 **What an older build does with a file that has pins.** A build from
 2026-10-09 on (Q230) carries `pins` as opaque JSON and writes it back, so the
