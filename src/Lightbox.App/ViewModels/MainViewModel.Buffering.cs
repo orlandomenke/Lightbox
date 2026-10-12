@@ -81,16 +81,21 @@ public partial class MainViewModel
     {
         if (_playWithoutBuffering || ThumbnailWorker.Post is null || PaperHasMoved) return false;
         var jobs = RangeStillToPrepare();
-        if (jobs.Count == 0) return false;
+        _prepareBlocked = false;
+        var frames = FramesToStartLeft(direction);
+        if (jobs.Count == 0 && frames == 0) return false;
 
         _bufferDirection = direction;
-        _bufferTotal = jobs.Count;
+        // Two halves of one bar: the drawings as tiles, then the first second of
+        // finished frames (prepared playback frames, step 6).
+        _bufferTotal = jobs.Count + Math.Max(frames, 1);
         _bufferLeft = jobs.Count;
         PlayBufferProgress = 0;
         IsBufferingPlay = true;
         _prewarm.Changed ??= OnPrewarmChanged;
         // Nothing is being shown, so every core but one is on the range.
-        _prewarm.Request(jobs, FramePrewarmer.IdleWorkers);
+        if (jobs.Count > 0) _prewarm.Request(jobs, FramePrewarmer.IdleWorkers);
+        else PrepareAheadWhilePlaying();
         return true;
     }
 
@@ -104,7 +109,18 @@ public partial class MainViewModel
     {
         if (!IsBufferingPlay) return false;
         var left = RangeStillToPrepare();
-        PlayBufferProgress = _bufferTotal == 0 ? 1 : Math.Clamp(1 - left.Count / (double)_bufferTotal, 0, 1);
+
+        // The tiles are in: now the first second of finished frames, so the
+        // first ticks are shown rather than built. A frame that cannot be
+        // prepared (not the tiled route, a camera) leaves the rest to the ticks.
+        var frames = left.Count == 0 && !_prepareBlocked ? FramesToStartLeft(_bufferDirection) : 0;
+        PlayBufferProgress = _bufferTotal == 0 ? 1
+            : Math.Clamp(1 - (left.Count + frames) / (double)_bufferTotal, 0, 1);
+        if (left.Count == 0 && frames > 0)
+        {
+            PrepareAheadWhilePlaying();
+            return true;
+        }
 
         // Ready; or the caches refuse what is left; or the workers finished a
         // round and nothing more came in — each of the last two means waiting

@@ -29,11 +29,26 @@ public partial class MainViewModel
     private sealed record PlaybackFrameWork(
         ComposeKey Key, DeferredCompose Work, int Width, int Height, SKRectI? Covers, Action Release);
 
+    /// <summary>The scale a composite is made at, at <paramref name="quality"/> and the current zoom.</summary>
+    private double ScaleFor(CanvasQuality quality) => WorthScaling(quality switch
+    {
+        CanvasQuality.Full => Math.Clamp(_displayScale * 2.0, 0.125, 1.0),
+        CanvasQuality.Half => Math.Clamp(_displayScale * 0.5, 0.125, 1.0),
+        _ => Math.Clamp(_displayScale, 0.125, 1.0),
+    });
+
+    /// <summary>
+    /// The scale a playing frame is made at — playback has a quality of its own,
+    /// so a frame prepared while buffering, before the clock runs, must be made at
+    /// the scale the tick will ask for, not the paused canvas's.
+    /// </summary>
+    private double PlayingScale => ScaleFor(PlaybackQuality ?? CanvasQuality);
+
     /// <summary>The key the tick will ask for frame <paramref name="index"/> with, as things stand.</summary>
     private ComposeKey PlaybackKeyFor(int index, Lightbox.Core.Documents.Scene scene) =>
         new(new FrameFingerprint(
-                index, ComposeScale, _publish.Viewport,
-                CameraViewTransform(ComposeScale),
+                index, PlayingScale, _publish.Viewport,
+                CameraViewTransform(PlayingScale),
                 UnchangedLayerRun.VisibleLayers(scene)),
             _publish.RenderEpoch, _editor.Revision, StackStamp(scene, index));
 
@@ -52,8 +67,8 @@ public partial class MainViewModel
         if (_strokeBuilder.IsActive || _live.Composite is not null || PaperHasMoved) return null;
         if (_publish.Viewport is not { Width: > 0, Height: > 0 } viewport) return null;
         // A camera maps the view itself; the tiled route is not what plays.
-        if (CameraViewTransform(ComposeScale) is not null) return null;
-        var renderScale = ComposeScale;
+        var renderScale = PlayingScale;
+        if (CameraViewTransform(renderScale) is not null) return null;
         // Every drawing at this frame held as tiles, or the flattening below
         // would render the missing ones here, on the UI thread.
         if (!coldTiles && PlaybackWarmJobs([index], tileNativeDoc: true, renderScale).Count > 0) return null;
@@ -126,22 +141,44 @@ public partial class MainViewModel
         return image is not null;
     }
 
-    /// <summary>The next frame within reach of the playhead that is not prepared, in play order; -1 if none.</summary>
-    private int NextFrameToPrepare()
+    /// <summary>Set when a frame could not be prepared: buffering stops waiting for frames and plays.</summary>
+    private bool _prepareBlocked;
+
+    /// <summary>The frames a play would show first, in order: the playhead's, then up to a second on.</summary>
+    private IEnumerable<int> FramesFromThePlayhead(int direction, bool includeCurrent)
     {
-        var scene = Scene;
         int start = EffectiveStartFrame, end = EffectiveEndFrame;
         var length = end - start + 1;
-        if (length <= 1) return -1;
-        var index = CurrentFrameIndex;
+        if (length < 1) yield break;
+        var index = Math.Clamp(CurrentFrameIndex, start, end);
+        if (includeCurrent) yield return index;
         for (var step = 0; step < Math.Min(PrepareAhead, length - 1); step++)
         {
-            index += _playDirection >= 0 ? 1 : -1;
+            index += direction >= 0 ? 1 : -1;
             if (index > end) index = start;
             if (index < start) index = end;
+            yield return index;
+        }
+    }
+
+    /// <summary>The next frame within reach of the playhead that is not prepared, in play order; -1 if none.</summary>
+    private int NextFrameToPrepare(bool includeCurrent = false)
+    {
+        var scene = Scene;
+        foreach (var index in FramesFromThePlayhead(_playDirection, includeCurrent))
+        {
             if (!PlaybackComposites.Holds(PlaybackKeyFor(index, scene))) return index;
         }
         return -1;
+    }
+
+    /// <summary>How many of the first frames a play would show are not prepared yet.</summary>
+    private int FramesToStartLeft(int direction)
+    {
+        if (Services.ThumbnailWorker.Post is null) return 0;
+        var scene = Scene;
+        return FramesFromThePlayhead(direction, includeCurrent: true)
+            .Count(index => !PlaybackComposites.Holds(PlaybackKeyFor(index, scene)));
     }
 
     /// <summary>
@@ -152,7 +189,7 @@ public partial class MainViewModel
     /// </summary>
     private void PrepareAheadWhilePlaying()
     {
-        if (_preparing || !IsPlaying) return;
+        if (_preparing || !(IsPlaying || IsBufferingPlay)) return;
         if (Services.ThumbnailWorker.Post is not { } post) return;
         var generation = _prepareGeneration;
         _preparing = true;
@@ -162,15 +199,23 @@ public partial class MainViewModel
 
     private void PrepareNext(int generation, Action<Action> post, Action<Action> later)
     {
-        if (generation != _prepareGeneration || !IsPlaying)
+        if (generation != _prepareGeneration || !(IsPlaying || IsBufferingPlay))
         {
             _preparing = false;
             return;
         }
-        var index = NextFrameToPrepare();
-        if (index < 0 || BuildPlaybackFrame(index) is not { } frame)
+        var index = NextFrameToPrepare(includeCurrent: IsBufferingPlay);
+        if (index < 0)
         {
             _preparing = false;
+            return;
+        }
+        if (BuildPlaybackFrame(index) is not { } frame)
+        {
+            // Cannot be prepared here: buffering stops waiting for frames.
+            _preparing = false;
+            _prepareBlocked = true;
+            ContinueBuffering(refused: false);
             return;
         }
         Task.Run(() =>
@@ -179,10 +224,19 @@ public partial class MainViewModel
             post(() =>
             {
                 Offer(frame, image);
-                if (generation != _prepareGeneration || !IsPlaying)
+                if (generation != _prepareGeneration || !(IsPlaying || IsBufferingPlay))
                 {
                     _preparing = false;
                     return;
+                }
+                if (IsBufferingPlay && FramesToStartLeft(_bufferDirection) == 0)
+                {
+                    // Ready: buffering starts the clock, and the chain goes on
+                    // ahead of the playhead from there.
+                    _preparing = false;
+                    ContinueBuffering(refused: false);
+                    if (!IsPlaying) return;
+                    _preparing = true;
                 }
                 later(() => PrepareNext(generation, post, later));
             });
