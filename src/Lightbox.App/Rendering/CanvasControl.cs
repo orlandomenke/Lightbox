@@ -1101,6 +1101,7 @@ public sealed partial class CanvasControl : Control
     public void SetPenPreview(IReadOnlyList<Core.Documents.StrokePoint>? points)
     {
         _penPreview = points is { Count: > 1 } ? points : null;
+        NoteOverlayChanged();
         InvalidateVisual();
     }
 
@@ -1120,6 +1121,7 @@ public sealed partial class CanvasControl : Control
     public void SetPathTrace(IReadOnlyList<Core.Documents.StrokePoint>? points)
     {
         _pathTrace = points is { Count: > 1 } ? points : null;
+        NoteOverlayChanged();
         InvalidateVisual();
     }
 
@@ -1149,6 +1151,7 @@ public sealed partial class CanvasControl : Control
     public void SetPathNodes(IReadOnlyList<PathNodeGlyph>? nodes)
     {
         _pathNodes = nodes is { Count: > 0 } ? nodes : null;
+        NoteOverlayChanged();
         InvalidateVisual();
     }
 
@@ -1879,7 +1882,7 @@ public sealed partial class CanvasControl : Control
 
         context.Custom(new DrawOp(
             new Rect(Bounds.Size), snapshot, view, cursor, ants, openPath, _antsPhase, lazy, txGizmo,
-            NoteRendered, ReportFrameTime, CameraFrame, GradientAxisPoints(),
+            NoteRendered, FrameTimeReporter(), CameraFrame, GradientAxisPoints(),
             ReferenceBoxes, _newBox, ReferenceSheetBox, EmphasisedGuides(), _draftGuide, WithRigPreview(RigMarks), _balanceDots,
             _selectionManager, _getPlacementsForSelection, _presented, gpuWork,
             _selectedLines, LineMarqueeRect(), LineDragOffset(), _pathNodes, _penPreview,

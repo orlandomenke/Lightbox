@@ -69,11 +69,23 @@ public partial class MainWindow : Window
         // The pen (vector phase 3). Same division as above: the canvas turns
         // pointer events into document coordinates and modifier flags, and every
         // decision about what those mean lives in the view model.
+        // Each timed for the perf lab, redraw request included: PenChanged is
+        // raised inside the call, so the span is everything one pointer event
+        // costs the UI thread before the canvas is asked to draw.
         Canvas.SetPenHandlers(
-            _vm.PenPress,
-            _vm.PenDrag,
+            (x, y, tolerance, shift, alt) =>
+            {
+                using (PerfLog.Begin("pen.press")) return _vm.PenPress(x, y, tolerance, shift, alt);
+            },
+            (x, y, shift, alt) =>
+            {
+                using (PerfLog.Begin("pen.drag")) _vm.PenDrag(x, y, shift, alt);
+            },
             _vm.PenRelease,
-            _vm.PenHover);
+            (x, y, tolerance, shift) =>
+            {
+                using (PerfLog.Begin("pen.hover")) _vm.PenHover(x, y, tolerance, shift);
+            });
         _vm.PenChanged += PublishPenPath;
         // The width tool (vector phase 4b). Same split again: the canvas turns
         // pointer events into document coordinates, and what they mean is the
