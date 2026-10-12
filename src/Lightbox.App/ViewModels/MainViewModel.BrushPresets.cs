@@ -627,6 +627,9 @@ public partial class MainViewModel
         // And naming what it ships with is saying nothing.
         if (value is not null && value == BuiltInPresets.ShippedAlternate(preset.Id, alternate)) value = null;
 
+        // Saying what is already so changes nothing - and must not shadow a shipped brush to say it.
+        if ((alternate == BrushAlternate.First ? preset.Alternate : preset.SecondAlternate) == value) return true;
+
         var target = preset;
         if (preset.IsBuiltIn && _brushes.UserPresets.All(p => p.Id != preset.Id))
         {
@@ -655,7 +658,8 @@ public partial class MainViewModel
         if (alternate == BrushAlternate.First) target.Alternate = value;
         else target.SecondAlternate = value;
         PersistBrushState();
-        OnPropertyChanged(nameof(CurrentTarget));
+        // Ctrl+Alt may have just become a stroke, or stopped being one.
+        OnPropertyChanged(nameof(PointerIntent));
         return true;
     }
 

@@ -228,6 +228,71 @@ public class ABrushHasAlternatesTests : BrushStateIsolated
         Assert.Equal("builtin-blot", MainViewModel.AlternateIdOf(mine, BrushAlternate.Second));
     }
 
+    /// <summary>
+    /// An alternate is put on the way picking it would put it on (review):
+    /// anti-aliasing is a preference stamped per stroke and never a preset's,
+    /// and a tip the other brush carries is in the document before a stroke
+    /// names it - but only then, because asking what a key would do must not
+    /// edit the document.
+    /// </summary>
+    [AvaloniaFact]
+    public void AnAlternateStrokeIsMadeLikeAnyStrokeOfThatBrush()
+    {
+        var (vm, main, first, _) = Setup();
+        using var tip = new SkiaSharp.SKBitmap(8, 8);
+        tip.Erase(SkiaSharp.SKColors.White);
+        using var png = tip.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+        first.TipPng = Convert.ToBase64String(png.ToArray());
+        first.Settings.Kind = BrushKind.Paint;
+        first.Settings.TipId = "tip_test_alternate";
+
+        var antiAliasing = vm.AntiAliasing;
+        vm.AntiAliasing = false;
+        try
+        {
+            // Hovering with the key held, and the canvas asking at the press, change nothing.
+            _ = vm.HasBrushAlternate(BrushAlternate.First);
+            _ = vm.BrushAlternateAtPress(BrushAlternate.First);
+            Assert.False(vm.Doc.BrushTips.ContainsKey("tip_test_alternate"));
+
+            var stroke = Draw(vm, BrushAlternate.First);
+            Assert.Equal("tip_test_alternate", stroke.Brush.TipId);
+            Assert.True(vm.Doc.BrushTips.ContainsKey("tip_test_alternate"), "the stroke names a tip the document does not have");
+            Assert.False(stroke.Brush.AntiAlias, "the alternate took its own anti-aliasing over the preference");
+            Assert.True(first.Settings.AntiAlias, "the preference was written into the other brush");
+        }
+        finally
+        {
+            vm.AntiAliasing = antiAliasing;
+        }
+        Assert.Equal(main.Id, vm.SelectedBrushPreset?.Id);
+    }
+
+    /// <summary>
+    /// The Blot picked from the list is the eraser, with the Blot's settings,
+    /// and the brush is left as it was. Picking an eraser preset used to write
+    /// its settings to the brush and erase with the stock eraser.
+    /// </summary>
+    [AvaloniaFact]
+    public void PickingTheBlotGivesTheEraserTheBlot()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-ink"));
+        var ink = vm.CurrentToolSettingsForTest.Clone();
+        var blot = vm.BrushPresetChoices.Single(p => p.Id == "builtin-blot");
+
+        vm.ApplyPreset(blot);
+        Assert.True(vm.IsEraser);
+        Assert.Equal(blot.Settings.Opacity, vm.CurrentToolSettingsForTest.Opacity);
+        Assert.Equal(blot.Settings.Hardness, vm.CurrentToolSettingsForTest.Hardness);
+        Assert.Equal(blot.Settings.TextureSurface, vm.CurrentToolSettingsForTest.TextureSurface);
+
+        vm.IsEraser = false;
+        Assert.Equal(ink.Size, vm.CurrentToolSettingsForTest.Size);
+        Assert.Equal(ink.Hardness, vm.CurrentToolSettingsForTest.Hardness);
+        Assert.Null(vm.CurrentToolSettingsForTest.TextureSurface);
+    }
+
     /// <summary>Absent from a preset that names none (the optional-settings rule).</summary>
     [Fact]
     public void APresetThatNamesNoAlternateWritesNoKey()

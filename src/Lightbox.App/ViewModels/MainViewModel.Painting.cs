@@ -2098,7 +2098,7 @@ public partial class MainViewModel
     /// The brush a held alternate key paints with, and the tool it paints as,
     /// or null when the key means what it always did (Q255).
     /// </summary>
-    private (BrushSettings Settings, ToolKind Tool)? AlternateBrush(BrushAlternate alternate)
+    private (BrushSettings Settings, ToolKind Tool)? AlternateBrush(BrushAlternate alternate, bool forAStroke = false)
     {
         if (alternate == BrushAlternate.None || IsEraser) return null;
         if (AlternateIdOf(SelectedBrushPreset, alternate) is not { } id
@@ -2107,8 +2107,16 @@ public partial class MainViewModel
             return null;
         }
         // The other brush, at the size in hand: it reworks what this brush laid.
+        // Put on the way picking it would put it on - anti-aliasing and the
+        // sample source are preferences stamped per stroke, never a preset's
+        // (invariant 4), and a tip it carries has to be in the document before
+        // a stroke names it, or the stroke replays without it (invariant 1).
         var settings = other.Settings.Clone();
         settings.Size = CurrentToolSettings.Size;
+        settings.AntiAlias = AntiAliasing;
+        settings.SampleSource = SmudgeSampleSource;
+        // Only when a stroke is about to be made: asking what a key would do must not edit the document.
+        if (forAStroke) EnsurePresetTip(other);
         return (settings, other.Tool);
     }
 
@@ -2161,8 +2169,8 @@ public partial class MainViewModel
     /// <param name="alternate">Which alternate key was held at the press, if any.</param>
     public void BeginStroke(double x, double y, double pressure, BrushAlternate alternate, bool joinFromLast)
     {
-        if (alternate == BrushAlternate.Second && AlternateBrush(alternate) is null) return;
-        _strokeAlternate = AlternateBrush(alternate);
+        _strokeAlternate = AlternateBrush(alternate, forAStroke: true);
+        if (alternate == BrushAlternate.Second && _strokeAlternate is null) return;
         try
         {
             BeginStroke(x, y, pressure, eraseWithCurrentBrush: alternate == BrushAlternate.First && _strokeAlternate is null, joinFromLast);
@@ -2309,7 +2317,7 @@ public partial class MainViewModel
         if (ActiveSymmetry is { IsIdentity: false } axis) _strokeBuilder.Current!.Symmetry = axis.Clone();
         // The page as it is NOW, recorded on the stroke (Q192): a canvas
         // resized later still renders this mark about the tile it wrapped.
-        if (WrapForNextStroke() is { } tile) _strokeBuilder.Current!.Wrap = tile;
+        if (WrapForNextStroke(strokeSettings) is { } tile) _strokeBuilder.Current!.Wrap = tile;
         // Stamped onto the stroke, not read from the layer at render time, so
         // unlocking the layer later cannot repaint what is already down.
         // The layer's alpha lock guards its content, not its mask — coverage

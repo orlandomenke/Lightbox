@@ -477,13 +477,17 @@ eraser.
 
 Any brush can name alternates, including ones you make or import. In the brush
 editor, open **More** (the three dots) and choose **Alternates (Alt,
-Ctrl+Alt)...**, then pick a brush for each key, or leave a key as it is. An
-alternate is simply another brush: a stroke made through one is recorded as a
-stroke of that brush, so a drawing made this way opens the same anywhere. If a
-brush you named is later deleted, the key goes back to what it did before.
+Ctrl+Alt)...**, then pick a brush for each key. The first entry in each list
+is what the key does with no alternate. An alternate is simply another brush:
+a stroke made through one is recorded as a stroke of that brush, with nothing
+in the drawing about how it was reached. Anti-aliasing and smoothing stay the
+ones you are working with. If a brush you named is later deleted, the key goes
+back to what it did before.
 
 With the **Eraser** tool in hand the two keys do nothing new: Alt has nothing
-to switch to, and Ctrl+Alt picks a colour.
+to switch to, and Ctrl+Alt picks a colour. And inside a selection Ctrl still
+takes hold of what is selected, so Ctrl+Alt there moves it and does not blot;
+Alt is unaffected.
 
 *Planned:* a damp brush for Gouache that drags and blends what is there.
 
