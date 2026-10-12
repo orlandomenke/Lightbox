@@ -337,6 +337,34 @@ The exception is anything that reaches **pixels in the document**. Paper, ink,
 swatches and every colour an artist picks are part of the record, governed by
 the invariants in `CLAUDE.md`, and have nothing to do with this section.
 
+## On the canvas
+
+What is drawn over the artwork — outlines, points, handles, gizmos — is chrome
+like any other, and until 2026-10-12 it was the one part of the application with
+no rules: thirty-two overlays, about ten blues, eight handle sizes, grab
+distances from five pixels to ten (Q249). The rules are in code, in
+`OverlayStyle`, because they are drawn on the render thread where the theme
+dictionary cannot be read; a test holds its accent to the palette's.
+
+- **One accent means "this is chrome you can edit": `AccentCyan`.** Colours that
+  carry a meaning of their own keep it — onion red and blue, the heat map, the
+  camera's orange, the brush ring's adaptive ink.
+- **Every line is cased**: the accent over a wider dark pass. An overlay has no
+  say in what it is drawn over, and one that vanishes on artwork of its own
+  colour cannot be trusted.
+- **Squares grab, dots steer.** Anything moved or resized is a nine-pixel square
+  grip; a smooth point is the same grip, round. What only steers a curve is a
+  small solid dot on a stem — a third of a grip's area, so a handle is never
+  read as a point.
+- **Selected is filled; unselected is white inside an accent outline.**
+- **Sizes are screen pixels at every zoom**, and one distance — ten pixels —
+  decides whether a press meant a grip.
+
+**Not every overlay is on it yet.** The pen and the white arrow are; the
+transform box, guides, selection outlines, crop, camera, symmetry and the rig
+are the next branch. A new overlay takes its pens from `OverlayStyle` and adds
+no colour of its own.
+
 ## Dockers
 
 **A sidebar never scrolls** — the owner's call, and a **reversal** of the
