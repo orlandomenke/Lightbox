@@ -868,7 +868,7 @@ which is a weak test and still far better than none.
 ### timeline
 
 - [ ] **B452** `P1` `timeline` A layer's opacity, blend, mask, effect or visibility changed between plays is not seen on the next play: the cache key did not cover them `evidence: AnOpacityChangedBetweenPlaysIsSeen, ABlendModeChangedBetweenPlaysIsSeen, HidingOneLayerAndShowingAnotherBetweenPlaysIsSeen, AReferenceChangedBetweenPlaysIsSeen`
-- [ ] **B451** `P2` `timeline` The playback composite cache switches off for the session at the first stroke: it waited for a scratch bitmap that is kept, not freed `evidence: TheSamePlayTwiceIsStillServedFromTheCache`
+- [ ] **B453** `P2` `timeline` The playback composite cache switches off for the session at the first stroke: it waited for a scratch bitmap that is kept, not freed `evidence: TheSamePlayTwiceIsStillServedFromTheCache`
 
 ### transform
 
