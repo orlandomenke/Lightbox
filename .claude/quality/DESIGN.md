@@ -360,9 +360,12 @@ dictionary cannot be read; a test holds its accent to the palette's.
   on a stem, about a quarter of a grip's area, so a handle is never read as a
   point. A ring around a grip means *the next click lands here*.
 - **Selected is filled; unselected is white inside an accent outline.**
-- **Sizes are screen pixels at every zoom**, and one distance — ten pixels —
-  decides whether a press meant a grip, on the overlays that are on the style
-  so far.
+- **Sizes are screen pixels at every zoom** — except the box round a placed
+  symbol, which stands for a thing with a size in the document. One distance,
+  ten pixels, decides whether a press meant a grip on a point or a line; guides
+  (six), the rig's handles (five) and the symmetry axis (nine) still measure
+  their own, which is a difference in behaviour and is not changed by a
+  restyle.
 - **Two colours here are literals on purpose**: the dark casing and the white
   inside an open grip. They are drawn over the artist's picture, not over the
   application's surfaces, so they do not follow the theme.
@@ -383,16 +386,24 @@ dictionary cannot be read; a test holds its accent to the palette's.
 - **A dashed line is a copy, not the thing**: the spokes of a rotational
   symmetry beside its mirror line. The casing under a dashed line stays whole.
 - **A guide at rest is one faint pass**, not a styled line: a perspective rig of
-  thirty lines must not read as thirty selections. It takes the style when the
-  Move tool has hold of it.
+  thirty lines must not read as thirty selections — lines in a quiet blue, a
+  guide's own marks and its label in the amber turned down. With the Move tool
+  in hand it is still quiet, a touch stronger; the guide the pointer is on and
+  the one that is selected are the styled line.
+- **A cross marks a point that is not a grip** — a pivot, a registration mark —
+  in a lighter weight than a line, because at that size a line's casing is most
+  of the mark. A ring marks a point too: where the next click lands, or a pivot.
 
 **What is not on it, and why.** The armature — bones are green at rest and
 violet when posed, and that difference is information — the motion trail's
 before and after, the balance arc, the heat map and the fill preview each carry
 a colour that means something, and are still drawn in their own. The pointer's
 own ink (the brush ring, its badge, the eyedropper's ring) adapts to the artwork
-and is not chrome you edit. Everything else on the canvas takes its pens from
-`OverlayStyle`, and `EveryCanvasOverlayTakesItsPensFromTheStyle` holds every
+and is not chrome you edit. The marching ants are black and white because they
+mean an area that confines paint, not an object; the crop frame's thirds are a
+composition aid in a faint white. The motion arc and the spacing intent are
+judged against rather than edited, and take the one amber. Everything else on
+the canvas takes its pens from `OverlayStyle`, and `EveryCanvasOverlayTakesItsPensFromTheStyle` holds every
 file under `Rendering` to the colour literals it has today — a file it does not
 list, to none.
 

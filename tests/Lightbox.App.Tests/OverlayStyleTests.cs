@@ -124,25 +124,19 @@ public class OverlayStyleTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A guide being drawn against is one quiet pass — no casing, nothing that
-    /// reads as selected. Thirty of them must not look like thirty selections.
+    /// A cross on a small mark is the stem's weight, so its colour is what is
+    /// seen rather than its casing.
     /// </summary>
     [Fact]
-    public void AQuietLineIsOneFaintPass()
+    public void ACrossIsMostlyItsOwnColourNotItsCasing()
     {
         var page = SKColors.White;
-        using var path = Level();
-        using var quiet = Render(page, (c, pens) => pens.Quiet(c, path));
-        using var full = Render(page, (c, pens) => pens.Line(c, path));
-
-        var quietHigh = Extent(quiet, page, 60, 40, across: false);
-        var fullHigh = Extent(full, page, 60, 40, across: false);
-        var quietStrength = Difference(quiet.GetPixel(60, 40), page);
-        var fullStrength = Difference(full.GetPixel(60, 40), page);
-        output.WriteLine($"quiet line {quietHigh} px high at strength {quietStrength}; styled line {fullHigh} px at {fullStrength}");
-        Assert.True(quietHigh < fullHigh);
-        Assert.True(quietStrength > 24, "it still has to be there to draw against");
-        Assert.True(quietStrength < fullStrength);
+        using var bmp = Render(page, (c, pens) => pens.Cross(c, 60.5f, 40.5f, OverlayStyle.Role.Reference));
+        var centre = Difference(bmp.GetPixel(64, 40), OverlayStyle.Reference);
+        var wide = Extent(bmp, page, 64, 40, across: false);
+        output.WriteLine($"on the cross's arm: {centre} from amber, {wide} px high with its casing");
+        Assert.True(centre < 12);
+        Assert.InRange(wide, 3, 3);
     }
 
     /// <summary>

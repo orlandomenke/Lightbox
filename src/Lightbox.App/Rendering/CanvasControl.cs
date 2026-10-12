@@ -4226,8 +4226,29 @@ public sealed partial class CanvasControl : Control
             }
 
             pens.Line(canvas, picked);
+
+            // Guides are not drawn here (B215). A gold line and a crosshair
+            // used to be laid over the rig from this block, which meant a
+            // selected guide was painted twice by two different pieces of code:
+            // GuidePainter drew the guide with its Emphasis, and this drew a
+            // second one on top. It could only draw two of the five kinds —
+            // anything without an Angles[0] became a crosshair, so a grid and a
+            // height scale were marked as if they were vanishing points — and
+            // it drew whatever tool was in hand, so the mark outlived the
+            // capability. Emphasis.Selected is the one route now, it knows
+            // every kind because it is the painter that draws them, and it is
+            // gated on GuideDragEnabled so it goes when the tool does.
         }
 
+        /// <summary>
+        /// The shot's framing, drawn over the world: the frame outlined, and
+        /// everything outside it dimmed so the artist can see at a glance what
+        /// the camera keeps. View-only chrome, exactly like the transform
+        /// gizmo — it never reaches a pixel of the document.
+        ///
+        /// Absent unless the document has a camera. A sprite document shows no
+        /// camera UI at all, which is what "optional" has to mean.
+        /// </summary>
         private void DrawCameraFrame(SKCanvas canvas)
         {
             if (cameraFrame is not { Length: 4 } corners) return;

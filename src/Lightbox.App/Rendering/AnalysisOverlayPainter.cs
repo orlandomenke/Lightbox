@@ -34,7 +34,7 @@ public static class AnalysisOverlayPainter
     private static readonly SKColor IntentColor = OverlayStyle.Reference;
 
     /// <summary>The offender ring — the same amber, full strength, doubled width.</summary>
-    private static readonly SKColor MissColor = new(0xff, 0xb0, 0x40);
+    private static readonly SKColor MissColor = OverlayStyle.Reference;
 
     /// <summary>
     /// One-entry caches, keyed by what actually changes: the dash effects by

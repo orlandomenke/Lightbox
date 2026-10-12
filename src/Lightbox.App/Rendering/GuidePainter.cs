@@ -142,14 +142,20 @@ public static class GuidePainter
     public static void Paint(
         SKCanvas canvas, IReadOnlyList<Line>? guides, Line? draft, float docW, float docH, float scale)
     {
+        // Before anything is made: this is called for every frame the canvas
+        // draws, and a document with no rig must pay nothing for one (the
+        // leak-hunter — the pens below were eleven paints an idle frame).
+        if (guides is not { Count: > 0 } && draft is null) return;
+
         scale = Math.Max(0.01f, scale);
         var reach = (docW + docH) * 2f;
 
         // Q252. A guide at rest is deliberately not on the canvas's overlay
         // style: it is something to draw against, and a rig of thirty styled
-        // lines would read as thirty selections. One faint pass. The style
-        // arrives with the Move tool — the hovered guide and the selected one
-        // are its cased accent line, and an anchor is its grip.
+        // lines would read as thirty selections. One faint pass — and still
+        // one with the Move tool merely in hand, a touch stronger. The style
+        // arrives for the one guide the pointer is on and the one that is
+        // selected: its cased accent line, and an anchor that is its grip.
         using var pens = new OverlayStyle.Pens(scale);
         using var thin = Stroke();
         using var mark = Stroke();
@@ -180,7 +186,7 @@ public static class GuidePainter
                 {
                     // Just above the anchor, so "Horizon" sits on its own line
                     // rather than being cut by it.
-                    Label(canvas, name, guide.X + 6f / scale, guide.Y - 6f / scale, scale);
+                    Label(canvas, name, guide.X + 6f / scale, guide.Y - 6f / scale, scale, mark.Color);
                 }
 
                 // The grab point, shown only while something is reaching for
@@ -281,19 +287,23 @@ public static class GuidePainter
         // Not on the casing pass, which would write the words twice.
         if (!label) return;
         var text = guide.Label is { Length: > 0 } name ? name : $"{divisions} heads";
-        Label(canvas, text, guide.X + arm * 2.2f, top + 4f / scale, scale);
+        Label(canvas, text, guide.X + arm * 2.2f, top + 4f / scale, scale, mark.Color);
     }
 
     /// <summary>
     /// A guide's name, drawn at a fixed size on screen like every other line
     /// of the rig — chrome, so it never scales with the zoom.
     /// </summary>
-    private static void Label(SKCanvas canvas, string text, float x, float y, float scale)
+    /// <param name="colour">
+    /// The guide's own mark colour, so a label is as quiet as the guide it
+    /// names and comes up with it.
+    /// </param>
+    private static void Label(SKCanvas canvas, string text, float x, float y, float scale, SKColor colour)
     {
         using var font = new SKFont(SKTypeface.Default, 12f / scale);
         using var paint = new SKPaint
         {
-            Color = OverlayStyle.Reference.WithAlpha(220),
+            Color = colour,
             IsAntialias = true,
         };
         canvas.DrawText(text, x, y, font, paint);

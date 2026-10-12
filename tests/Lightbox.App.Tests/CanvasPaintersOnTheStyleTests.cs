@@ -78,7 +78,7 @@ public class CanvasPaintersOnTheStyleTests(ITestOutputHelper output)
     [Fact]
     public void ASelectedReferenceBoxIsTheStyledLineWithOpenGripsAndAnAmberMark()
     {
-        var box = new CanvasControl.ReferenceBox(60, 40, 120, 80, 120, 80, Selected: true);
+        var box = new CanvasControl.ReferenceBox(60, 40, 120, 80, 120.5f, 80.5f, Selected: true);
         using var bmp = Render(c => ReferenceBoxPainter.Paint(c, [box], null, null, 1f));
 
         var edge = Nearest(bmp, 90, 40, OverlayStyle.Accent);

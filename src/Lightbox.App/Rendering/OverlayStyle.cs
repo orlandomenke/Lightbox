@@ -166,6 +166,12 @@ public static class OverlayStyle
 
     public const float StemWidth = 1f;
 
+    /// <summary>
+    /// The arm of a cross that marks a point — a pivot, a registration mark.
+    /// One length, where the painters had four.
+    /// </summary>
+    public const float CrossArm = 7f;
+
     /// <summary>How near a press has to land to have meant a grip.</summary>
     public const double GrabPixels = 10.0;
 
@@ -245,17 +251,6 @@ public static class OverlayStyle
         }
 
         /// <summary>
-        /// A line to draw against rather than to edit: one faint pass. See
-        /// <see cref="QuietLine"/>.
-        /// </summary>
-        public void Quiet(SKCanvas canvas, SKPath path)
-        {
-            _line.StrokeWidth = 1f / _scale;
-            _line.Color = QuietLine;
-            canvas.DrawPath(path, _line);
-        }
-
-        /// <summary>
         /// An area being dragged out — a marquee: a faint wash of the accent
         /// inside the styled line, so the box reads as a region and the artwork
         /// under it stays legible.
@@ -274,6 +269,23 @@ public static class OverlayStyle
         {
             canvas.DrawLine(x0, y0, x1, y1, _stemCasing);
             canvas.DrawLine(x0, y0, x1, y1, _stem);
+        }
+
+        /// <summary>
+        /// A cross on a point that is not a grip. In the stem's weight rather
+        /// than the line's: at this size the line's casing is most of the
+        /// mark, and an amber cross read as a dark one with a gold core (the
+        /// ui-critic, on the registration mark and the pivot).
+        /// </summary>
+        public void Cross(SKCanvas canvas, float x, float y, Role role = Role.Edit, float reach = 1f)
+        {
+            var arm = CrossArm * reach / _scale;
+            _stem.Color = ColourOf(role);
+            canvas.DrawLine(x - arm, y, x + arm, y, _stemCasing);
+            canvas.DrawLine(x, y - arm, x, y + arm, _stemCasing);
+            canvas.DrawLine(x - arm, y, x + arm, y, _stem);
+            canvas.DrawLine(x, y - arm, x, y + arm, _stem);
+            _stem.Color = Accent;
         }
 
         /// <summary>Something you take hold of: square, or round for a smooth point.</summary>

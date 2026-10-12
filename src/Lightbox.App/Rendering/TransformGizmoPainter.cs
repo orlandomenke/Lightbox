@@ -84,13 +84,9 @@ public static class TransformGizmoPainter
     /// <summary>The pivot alone: a ring and a crosshair, in the reference colour.</summary>
     public static void PaintPivot(SKCanvas canvas, OverlayStyle.Pens pens, SKPoint p, float scale)
     {
-        var reach = PivotRadius * PivotReach / Math.Max(0.01f, scale);
-        using var cross = new SKPath();
-        cross.MoveTo(p.X - reach, p.Y);
-        cross.LineTo(p.X + reach, p.Y);
-        cross.MoveTo(p.X, p.Y - reach);
-        cross.LineTo(p.X, p.Y + reach);
-        pens.Line(canvas, cross, role: OverlayStyle.Role.Reference);
+        pens.Cross(
+            canvas, p.X, p.Y, OverlayStyle.Role.Reference,
+            reach: PivotRadius * PivotReach / OverlayStyle.CrossArm);
         pens.Ring(canvas, p.X, p.Y, PivotRadius, OverlayStyle.Role.Reference);
     }
 }

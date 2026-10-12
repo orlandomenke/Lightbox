@@ -55,8 +55,6 @@ public static class ReferenceBoxPainter
         using var pens = new OverlayStyle.Pens(scale);
         using var plain = new SKPath();
         using var selected = new SKPath();
-        using var marks = new SKPath();
-        var arm = 6f / scale;
 
         foreach (var box in Boxes(referenceBoxes, sheetBox))
         {
@@ -65,17 +63,16 @@ public static class ReferenceBoxPainter
             // has no centre you can see once it is over a drawing. A whole
             // sheet has no mark of its own — registration belongs to the cell
             // — and says so with a pivot that is not a number.
-            if (float.IsNaN(box.PivotX) || float.IsNaN(box.PivotY)) continue;
-            marks.MoveTo(box.PivotX - arm, box.PivotY);
-            marks.LineTo(box.PivotX + arm, box.PivotY);
-            marks.MoveTo(box.PivotX, box.PivotY - arm);
-            marks.LineTo(box.PivotX, box.PivotY + arm);
         }
         if (newBox is { } drawing) selected.AddRect(drawing);
 
         pens.Outline(canvas, plain);
         pens.Line(canvas, selected);
-        pens.Line(canvas, marks, role: OverlayStyle.Role.Reference);
+        foreach (var box in Boxes(referenceBoxes, sheetBox))
+        {
+            if (float.IsNaN(box.PivotX) || float.IsNaN(box.PivotY)) continue;
+            pens.Cross(canvas, box.PivotX, box.PivotY, OverlayStyle.Role.Reference);
+        }
 
         foreach (var box in Boxes(referenceBoxes, sheetBox))
         {

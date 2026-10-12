@@ -43,7 +43,6 @@ public partial class OverlayColourRatchetTests(ITestOutputHelper output)
         ["FillPreviewPainter.cs"] = 2,
         ["CanvasControl.Selection.cs"] = 2,
         ["BalanceOverlayPainter.cs"] = 2,
-        ["AnalysisOverlayPainter.cs"] = 1,
 
         // The pointer's own ink, which adapts to the artwork and is not chrome
         // you edit: the brush ring, its badge and the eyedropper's ring.
