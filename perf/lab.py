@@ -293,13 +293,19 @@ class Pointer:
         _send(*[_key(c, True) for c in reversed(held)]) if held else None
 
     def drag(self, start: tuple[float, float], end: tuple[float, float], ms: float, hz: float,
-             legs: int = 1) -> None:
+             legs: int = 1, mods: str = "") -> None:
         """Press, move at `hz` events a second for `ms`, release — a hand's drag, paced.
 
         `legs` > 1 bounces between the two ends: start→end, end→start, ... within the
         same `ms`. That is how a speed sweep raises the pen's speed without shortening
         the stroke or thinning its samples — the September harness's trick, kept."""
         self.move(*start)
+        # Modifiers go down before the press and come up after the release, the way
+        # a hand holds them: the app reads them at pen-down (Alt and Ctrl+Alt are a
+        # brush's alternates).
+        held = [VK[m] for m in mods.lower().split("+") if m]
+        if held:
+            _send(*[_key(c, False) for c in held])
         time.sleep(0.05)
         _send(_mouse(MOUSEEVENTF_LEFTDOWN))
         steps = max(2, int(ms / 1000 * hz))
@@ -317,6 +323,9 @@ class Pointer:
             while time.perf_counter() - t0 < i / hz:
                 time.sleep(0.0005)
         _send(_mouse(MOUSEEVENTF_LEFTUP))
+        if held:
+            time.sleep(0.03)
+            _send(*[_key(c, True) for c in reversed(held)])
         # Where the cursor ended is the app's business if it was busy; the guard
         # starts again from the next deliberate move.
         self.expected = None
@@ -832,7 +841,7 @@ def do_step(step: dict, place: Placement, pointer: Pointer, log: Log, hwnd: int)
             a = place.at(*step["from"])
             b = place.at(step["from"][0] + step["by"][0], step["from"][1] + step["by"][1])
         pointer.drag(a, b, ms=float(step.get("ms", 1000)), hz=float(step.get("hz", 120)),
-                     legs=max(1, int(step.get("legs", 1))))
+                     legs=max(1, int(step.get("legs", 1))), mods=step.get("mods", ""))
         # A drag's moves are unguarded (a hung app may hold the cursor back, and that
         # is the stall being measured), so a session that locked mid-run swallowed the
         # whole gesture and the run still said "ok": two symbol-drag checks failed that
