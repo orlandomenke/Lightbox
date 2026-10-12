@@ -20,10 +20,12 @@ What it blocks: moving the transform box, bands and cage, guides, selection outl
 
 - **The transform's pivot, bands and cage change from `#E0A030` to `#FFB020`**, and every other amber on the canvas with them. A small shift for the transform; a larger one for the motion arc and the analysis marks if they are ruled to be reference marks too — they are judged against rather than edited, and are decided when reached.
 - **A selected reference box, anchor or rig shape loses its second outline.** Each keeps the selected state its own painter draws.
-- **Guides at rest lose their orange marks' distinction from their blue lines** unless the rest colour keeps two tones; one fixed quiet colour is what was chosen.
+- **Guides at rest keep two quiet tones, not one**: the lines are the faint blue, and a guide's own marks — a vanishing point's cross, a height scale's post — are the reference amber turned down. Built that way because the first answer makes a guide's anchor a reference mark, and a vanishing point that could not be told from the rays through it would have lost the reason it is marked.
 
 ## What turned out differently when it was built
 
 **The fourth answer was asked on a wrong premise, and was not carried out as asked.** The three coloured marks are not duplicates. A rig mark's own white *selected* look follows `SelectedRigMarkId` — the one mark the rig panel is pointed at — while the green, orange and magenta outlines follow the arrow's selection, which can hold several things and is what a drag then moves. Removing them would have left the arrow's selection of anchors, shapes and reference boxes with nothing on screen. The inventory that called them duplicates had read the two painters and not their sources.
 
 What was built instead keeps the intent — fewer colours, one meaning: all four kinds are drawn as **one styled outline**, the cased accent line, so the arrow's selection looks the same whatever it holds. `SelectionRenderer`, which had no callers, is deleted as asked. Whether the two selections should become one is a larger question about the rig panel and is not answered here.
+
+**The arrow's outline of a drawn line became a third kind of line, by a later ruling.** The first render put the cased line over a picked stroke and hid the stroke — a five-pixel line of ink under three and a half pixels of chrome. Shown it, the owner said: *"make the outline thinner so the ink shows."* So the outline of a picked or hovered drawn line is one pixel of the accent with no casing (two when hovered), and the cost was named before it was chosen: it can be lost on artwork of the accent's own colour. Everything that is not sitting on ink keeps the cased line.

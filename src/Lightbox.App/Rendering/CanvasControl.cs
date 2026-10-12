@@ -4165,7 +4165,7 @@ public sealed partial class CanvasControl : Control
                 for (var i = 1; i < line.Points.Length; i++) path.LineTo(line.Points[i]);
                 if (line.Closed) path.Close();
             }
-            pens.Line(canvas, path, hover);
+            pens.Outline(canvas, path, hover);
 
             if (dragging) canvas.Restore();
         }

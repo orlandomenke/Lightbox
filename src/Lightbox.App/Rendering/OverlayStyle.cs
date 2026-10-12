@@ -73,6 +73,21 @@ public static class OverlayStyle
     /// </summary>
     public static readonly SKColor QuietLine = new(0x50, 0x96, 0xF0, 110);
 
+    /// <summary>
+    /// A guide's own marks at rest — its vanishing point, its post — in the
+    /// reference colour, turned down to sit with <see cref="QuietLine"/>.
+    /// </summary>
+    public static readonly SKColor QuietMark = new(0xFF, 0xB0, 0x20, 150);
+
+    /// <summary>
+    /// The outline of a drawn line the arrow has picked or is over: one pixel,
+    /// uncased, so the ink shows either side of it. The owner's ruling on the
+    /// cased line over a picked stroke — <em>"make the outline thinner so the
+    /// ink shows"</em> — with its cost named: it can be lost on artwork of the
+    /// accent's own colour.
+    /// </summary>
+    public const float OutlineWidth = 1f;
+
     /// <summary>What a mark is, which decides its colour.</summary>
     public enum Role
     {
@@ -186,6 +201,17 @@ public static class OverlayStyle
             _line.StrokeWidth = LineWidth / _scale + gain;
             _line.Color = ColourOf(role);
             canvas.DrawPath(path, _casing);
+            canvas.DrawPath(path, _line);
+        }
+
+        /// <summary>
+        /// The outline of a drawn line: thin and uncased, so the line under it
+        /// is still the thing you see. See <see cref="OutlineWidth"/>.
+        /// </summary>
+        public void Outline(SKCanvas canvas, SKPath path, bool hover = false)
+        {
+            _line.StrokeWidth = (OutlineWidth + (hover ? HoverLineGain : 0f)) / _scale;
+            _line.Color = Accent;
             canvas.DrawPath(path, _line);
         }
 

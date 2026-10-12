@@ -43,6 +43,15 @@ public class OverlayStyleTests(ITestOutputHelper output)
         return count;
     }
 
+    /// <summary>The same line through the middle of a pixel row, for one-pixel marks.</summary>
+    private static SKPath Centred()
+    {
+        var path = new SKPath();
+        path.MoveTo(10, 40.5f);
+        path.LineTo(110, 40.5f);
+        return path;
+    }
+
     private static SKPath Level()
     {
         var path = new SKPath();
@@ -154,6 +163,57 @@ public class OverlayStyleTests(ITestOutputHelper output)
         Assert.InRange(inside, 8, 60);
         Assert.True(edge >= 90);
         Assert.Equal(0, outside);
+    }
+
+    /// <summary>
+    /// The outline of a line the arrow has picked is thin enough that the ink
+    /// shows either side of it.
+    /// </summary>
+    /// <remarks>
+    /// The owner's ruling on the first render of the cased line over a picked
+    /// stroke: <em>"make the outline thinner so the ink shows"</em>. At
+    /// fit-to-window a drawn line is two or three pixels on screen, and a
+    /// 3.5-pixel cased outline replaced it with chrome — the fault the white
+    /// arrow's retrace had. The cost was named and accepted: an uncased
+    /// hairline can be lost on artwork of the accent's own colour.
+    /// </remarks>
+    [Fact]
+    public void AnOutlineOverInkLeavesTheInkShowing()
+    {
+        var ink = new SKColor(0xC0, 0x20, 0x20);
+        SKBitmap Over(Action<SKCanvas, OverlayStyle.Pens, SKPath> draw) => Render(SKColors.White, (c, pens) =>
+        {
+            using var path = Centred();
+            using var paint = new SKPaint { Color = ink, StrokeWidth = 6, Style = SKPaintStyle.Stroke };
+            c.DrawPath(path, paint);
+            draw(c, pens, path);
+        });
+
+        using var outlined = Over((c, pens, path) => pens.Outline(c, path));
+        using var cased = Over((c, pens, path) => pens.Line(c, path));
+
+        // The row next to the centre row of a six-pixel line.
+        var beside = Difference(outlined.GetPixel(60, 39), ink);
+        var besideCased = Difference(cased.GetPixel(60, 39), ink);
+        var centre = Difference(outlined.GetPixel(60, 40), OverlayStyle.Accent);
+        output.WriteLine($"beside the outline the ink differs by {beside} (under the cased line: {besideCased}); the outline's centre is {centre} from the accent");
+        Assert.True(beside < 24, "the ink is still there beside the outline");
+        Assert.True(besideCased > 60, "which is what the cased line did not leave");
+        Assert.True(centre < 12, "and the outline is the accent");
+    }
+
+    [Fact]
+    public void AHoveredOutlineIsThickerAndStillLeavesInkAtTheEdge()
+    {
+        var page = SKColors.White;
+        using var path = Centred();
+        using var rest = Render(page, (c, pens) => pens.Outline(c, path));
+        using var hover = Render(page, (c, pens) => pens.Outline(c, path, hover: true));
+        var restHigh = Extent(rest, page, 60, 40, across: false);
+        var hoverHigh = Extent(hover, page, 60, 40, across: false);
+        output.WriteLine($"outline at rest {restHigh} px high, hovered {hoverHigh} px");
+        Assert.True(hoverHigh > restHigh);
+        Assert.True(hoverHigh <= 3, "a hovered outline is still narrower than a drawn line");
     }
 
     private static string RepoRoot()

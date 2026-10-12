@@ -145,30 +145,43 @@ public static class GuidePainter
         scale = Math.Max(0.01f, scale);
         var reach = (docW + docH) * 2f;
 
+        // Q252. A guide at rest is deliberately not on the canvas's overlay
+        // style: it is something to draw against, and a rig of thirty styled
+        // lines would read as thirty selections. One faint pass. The style
+        // arrives with the Move tool — the hovered guide and the selected one
+        // are its cased accent line, and an anchor is its grip.
+        using var pens = new OverlayStyle.Pens(scale);
+        using var thin = Stroke();
+        using var mark = Stroke();
+        using var casing = Stroke();
+        casing.Color = OverlayStyle.Casing;
+
         if (guides is { Count: > 0 } lines)
         {
-            using var thin = new SKPaint
-            {
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1f / scale,
-                Color = new SKColor(80, 150, 240, 110),
-                IsAntialias = true,
-            };
-            using var mark = new SKPaint
-            {
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.5f / scale,
-                Color = new SKColor(240, 120, 80, 200),
-                IsAntialias = true,
-            };
-
             foreach (var guide in lines)
             {
-                // One pair of paints, re-tinted per guide rather than one pair
-                // per emphasis: a document rarely has more than a handful of
-                // guides, and four sets of paints allocated per frame to save
-                // two field writes is the wrong trade.
-                Tint(thin, mark, guide.Emphasis, scale);
+                var emphasis = guide.Emphasis;
+                // The lattice itself brightens only when it is the one under
+                // the pointer or under the options. A whole-canvas grid lit up
+                // merely because the Move tool is in hand is a wash over the
+                // drawing, which is the opposite of what the ambient hint is
+                // for — its anchor is enough.
+                var forLines = guide.Kind == KindGrid && emphasis == Emphasis.Grabbable
+                    ? Emphasis.None
+                    : emphasis;
+                var styled = Tint(thin, mark, casing, forLines, scale);
+
+                // Casing first and for the whole guide, so no line's casing is
+                // drawn over another line's accent.
+                if (styled) Lines(canvas, guide, casing, casing, scale, reach, docW, docH);
+                Lines(canvas, guide, thin, mark, scale, reach, docW, docH);
+
+                if (guide.Kind is not (KindGrid or KindHeightScale) && guide.Label is { Length: > 0 } name)
+                {
+                    // Just above the anchor, so "Horizon" sits on its own line
+                    // rather than being cut by it.
+                    Label(canvas, name, guide.X + 6f / scale, guide.Y - 6f / scale, scale);
+                }
 
                 // The grab point, shown only while something is reaching for
                 // it. A grid and an isometric rig are picked up at their
@@ -176,115 +189,79 @@ public static class GuidePainter
                 // canvas in grab targets and nothing else could be picked up —
                 // and that anchor is an invisible point, on a grid usually the
                 // canvas corner. Without a mark, "you can drag this" is a
-                // sentence in the manual and a hunt on the screen.
-                if (guide.Emphasis != Emphasis.None
-                    && guide.Kind is KindGrid or KindIsometric)
+                // sentence in the manual and a hunt on the screen. Last, so the
+                // grip sits over the lines that cross it.
+                if (emphasis != Emphasis.None && guide.Kind is KindGrid or KindIsometric)
                 {
-                    Anchor(canvas, guide.X, guide.Y, mark, scale);
+                    pens.Grip(
+                        canvas, guide.X, guide.Y, round: false,
+                        selected: emphasis == Emphasis.Selected, hover: emphasis == Emphasis.Hover,
+                        role: OverlayStyle.Role.Reference);
                 }
-
-                if (guide.Kind == KindGrid)
-                {
-                    // The lattice itself brightens only when it is the one
-                    // under the pointer or under the options. A whole-canvas
-                    // grid lit up merely because the Move tool is in hand is a
-                    // wash over the drawing, which is the opposite of what the
-                    // ambient hint is for — its anchor above is enough.
-                    if (guide.Emphasis == Emphasis.Grabbable) Tint(thin, mark, Emphasis.None, scale);
-                    Grid(canvas, guide, thin, scale, docW, docH);
-                    continue;
-                }
-                if (guide.Kind == KindHeightScale)
-                {
-                    HeightScale(canvas, guide, thin, mark, scale);
-                    continue;
-                }
-                foreach (var angle in guide.Angles) Ray(canvas, guide.X, guide.Y, angle, reach, thin);
-                if (guide.Label is { Length: > 0 } name)
-                {
-                    // Just above the anchor, so "Horizon" sits on its own line
-                    // rather than being cut by it.
-                    Label(canvas, name, guide.X + 6f / scale, guide.Y - 6f / scale, scale);
-                }
-                if (guide.Kind != KindVanishingPoint) continue;
-                // A vanishing point is a place as well as a set of directions,
-                // and without a mark on it you cannot tell which of the rays
-                // meet where.
-                var arm = 7f / scale;
-                canvas.DrawLine(guide.X - arm, guide.Y, guide.X + arm, guide.Y, mark);
-                canvas.DrawLine(guide.X, guide.Y - arm, guide.X, guide.Y + arm, mark);
             }
         }
 
         if (draft is not { } pulled) return;
-        // Brighter than a placed guide, because it is the thing you are
-        // looking at: the whole gesture is aiming a line, and a draft drawn in
-        // the same faint blue as the rig behind it cannot be aimed.
-        using var drafting = new SKPaint
+        // The styled line, because it is the thing you are looking at: the
+        // whole gesture is aiming a line, and a draft drawn as faintly as the
+        // rig behind it cannot be aimed.
+        Tint(thin, mark, casing, Emphasis.Selected, scale);
+        foreach (var angle in pulled.Angles) Ray(canvas, pulled.X, pulled.Y, angle, reach, casing);
+        foreach (var angle in pulled.Angles) Ray(canvas, pulled.X, pulled.Y, angle, reach, thin);
+    }
+
+    private static SKPaint Stroke() => new() { Style = SKPaintStyle.Stroke, IsAntialias = true };
+
+    /// <summary>One guide's lines and its own marks, in the paints given.</summary>
+    private static void Lines(
+        SKCanvas canvas, Line guide, SKPaint thin, SKPaint mark, float scale,
+        float reach, float docW, float docH)
+    {
+        if (guide.Kind == KindGrid)
         {
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = 1f / scale,
-            Color = new SKColor(240, 160, 80, 220),
-            IsAntialias = true,
-        };
-        foreach (var angle in pulled.Angles) Ray(canvas, pulled.X, pulled.Y, angle, reach, drafting);
+            Grid(canvas, guide, thin, scale, docW, docH);
+            return;
+        }
+        if (guide.Kind == KindHeightScale)
+        {
+            HeightScale(canvas, guide, thin, mark, scale, label: !ReferenceEquals(thin, mark));
+            return;
+        }
+        foreach (var angle in guide.Angles) Ray(canvas, guide.X, guide.Y, angle, reach, thin);
+        if (guide.Kind != KindVanishingPoint) return;
+        // A vanishing point is a place as well as a set of directions, and
+        // without a mark on it you cannot tell which of the rays meet where.
+        var arm = 7f / scale;
+        canvas.DrawLine(guide.X - arm, guide.Y, guide.X + arm, guide.Y, mark);
+        canvas.DrawLine(guide.X, guide.Y - arm, guide.X, guide.Y + arm, mark);
     }
 
     /// <summary>
-    /// The handle a guide is picked up by: a small square on its anchor, at a
-    /// fixed size on screen like every other piece of the rig.
+    /// Set the paints for one emphasis. Returns whether it is one the overlay
+    /// style draws — cased — rather than a quiet pass.
     /// </summary>
-    private static void Anchor(SKCanvas canvas, float x, float y, SKPaint mark, float scale)
+    private static bool Tint(SKPaint thin, SKPaint mark, SKPaint casing, Emphasis emphasis, float scale)
     {
-        var arm = 5f / scale;
-        canvas.DrawRect(x - arm, y - arm, arm * 2, arm * 2, mark);
-    }
-
-    /// <summary>
-    /// Point the two paints at one guide's emphasis.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Both colour <i>and</i> weight change, deliberately: colour alone is not
-    /// enough to tell three states apart through a drawing, and a colour-only
-    /// scheme is the one that disappears for a colour-blind artist. The rig
-    /// stays translucent at every level — a selected guide is still something
-    /// you have to see the art through.
-    /// </para>
-    /// <para>
-    /// Line widths are divided by the zoom for the reason every other width
-    /// here is: the rig is chrome and must stay the same weight on screen at
-    /// 25% and at 800%.
-    /// </para>
-    /// </remarks>
-    private static void Tint(SKPaint thin, SKPaint mark, Emphasis emphasis, float scale)
-    {
+        var styled = emphasis is Emphasis.Hover or Emphasis.Selected;
         var (line, point, width) = emphasis switch
         {
-            Emphasis.Grabbable => (new SKColor(110, 175, 250, 150), new SKColor(245, 140, 95, 220), 1f),
-            Emphasis.Hover => (new SKColor(150, 205, 255, 205), new SKColor(255, 165, 110, 235), 1.5f),
-            Emphasis.Selected => (new SKColor(255, 200, 105, 240), new SKColor(255, 200, 105, 255), 2f),
-            _ => (new SKColor(80, 150, 240, 110), new SKColor(240, 120, 80, 200), 1f),
+            // A touch stronger than at rest: "anything here can be picked up".
+            Emphasis.Grabbable => (OverlayStyle.QuietLine.WithAlpha(170), OverlayStyle.Reference, 1f),
+            Emphasis.Hover => (
+                OverlayStyle.Accent, OverlayStyle.Reference, OverlayStyle.LineWidth + OverlayStyle.HoverLineGain),
+            Emphasis.Selected => (OverlayStyle.Accent, OverlayStyle.Reference, OverlayStyle.LineWidth),
+            _ => (OverlayStyle.QuietLine, OverlayStyle.QuietMark, 1f),
         };
         thin.Color = line;
         thin.StrokeWidth = width / scale;
         mark.Color = point;
         mark.StrokeWidth = (width + 0.5f) / scale;
+        casing.StrokeWidth = (width + (OverlayStyle.CasingWidth - OverlayStyle.LineWidth)) / scale;
+        return styled;
     }
 
-    /// <summary>
-    /// A character height chart: a post standing on its anchor, a rung per
-    /// head, and a count so it says what it is.
-    /// </summary>
-    /// <remarks>
-    /// The rungs are warm and finite where guide rays are cool and infinite,
-    /// because the whole point of a height scale is its <i>extent</i> — six
-    /// heads is a statement about where the top is, and rays with no ends
-    /// cannot make it. Snapping still reaches the full canvas width; what is
-    /// drawn is the chart, not the pull.
-    /// </remarks>
     private static void HeightScale(
-        SKCanvas canvas, Line guide, SKPaint thin, SKPaint mark, float scale)
+        SKCanvas canvas, Line guide, SKPaint thin, SKPaint mark, float scale, bool label)
     {
         var divisions = Math.Max(1, guide.Divisions);
         var unit = Math.Max(1e-3f, guide.Spacing);
@@ -301,6 +278,8 @@ public static class GuidePainter
             canvas.DrawLine(guide.X - reach, y, guide.X + reach, y, thin);
         }
 
+        // Not on the casing pass, which would write the words twice.
+        if (!label) return;
         var text = guide.Label is { Length: > 0 } name ? name : $"{divisions} heads";
         Label(canvas, text, guide.X + arm * 2.2f, top + 4f / scale, scale);
     }
@@ -314,7 +293,7 @@ public static class GuidePainter
         using var font = new SKFont(SKTypeface.Default, 12f / scale);
         using var paint = new SKPaint
         {
-            Color = new SKColor(240, 120, 80, 220),
+            Color = OverlayStyle.Reference.WithAlpha(220),
             IsAntialias = true,
         };
         canvas.DrawText(text, x, y, font, paint);

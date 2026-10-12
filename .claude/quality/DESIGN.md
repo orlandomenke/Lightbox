@@ -373,13 +373,17 @@ dictionary cannot be read; a test holds its accent to the palette's.
 - **One second colour, `AccentAmber`, for a reference mark** — a pivot, a warp
   band, a guide's anchor: the point something turns or is held about, not the
   thing itself.
+- **The outline of a drawn line is one uncased pixel** — two when hovered. It
+  sits on ink, and the ink has to stay the thing you see; the price, accepted,
+  is that it can be lost on artwork of the accent's colour.
 - **A guide at rest is one faint pass**, not a styled line: a perspective rig of
   thirty lines must not read as thirty selections. It takes the style when the
   Move tool has hold of it.
 
 **Not every overlay is on it yet.** The pen, the white arrow, the transform box
-with its bands and cage, the arrow's selection outlines and the marquee are;
-guides, crop, camera, symmetry, reference boxes and the rig are still to move.
+with its bands and cage, the arrow's selection outlines, the marquee and the
+guides are; crop, camera, symmetry, reference boxes and the rig are still to
+move.
 A new overlay takes its pens from `OverlayStyle` and adds no colour of its own:
 `EveryCanvasOverlayTakesItsPensFromTheStyle` holds every file under `Rendering`
 to the colour literals it has today, and a file it does not list to none.

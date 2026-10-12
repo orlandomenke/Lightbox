@@ -31,11 +31,11 @@ public partial class OverlayColourRatchetTests(ITestOutputHelper output)
     private static readonly Dictionary<string, int> Allowed = new()
     {
         // Where the style's own colours are defined.
-        ["OverlayStyle.cs"] = 5,
+        ["OverlayStyle.cs"] = 6,
 
         // Overlays still in colours of their own — the work that is left.
         ["CanvasControl.cs"] = 12,
-        ["GuidePainter.cs"] = 9,
+        ["GuidePainter.cs"] = 1,
         ["ArmatureOverlayPainter.cs"] = 8,
         ["CanvasControl.Symmetry.cs"] = 5,
         ["RigOverlayPainter.cs"] = 4,
