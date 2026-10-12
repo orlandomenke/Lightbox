@@ -1064,7 +1064,8 @@ The ruler decides the direction, not how far: the stroke still goes where your
 hand went. **⌗** in the shortcut bar turns snapping off without removing
 anything, and hiding a guide does *not* stop it snapping — those are two
 switches, because hiding a rig to look at the drawing under it is something you
-do constantly.
+do constantly. The snap switch is remembered: turn it off and it is still off
+the next time you open Lightbox, in every document, until you turn it back on.
 
 **What snaps: anything you aim, and nothing you trace.** A point you place
 deliberately goes to the guides — a stroke's start, a shape's corners, a

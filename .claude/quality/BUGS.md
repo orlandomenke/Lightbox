@@ -4015,6 +4015,13 @@ test reopens the bug.
   - Fix: `Grid.Column="4"`. The regression test asserts the canvas has real bounds and shares a column with neither strip.
   - Reported from a build after I dismissed the same symptom in a screenshot as an Xvfb artifact. It was not. Cost: S
 
+- [x] **B455** `P2` `ui` Snap to guides and View through the camera come back at their defaults on every launch `evidence: ShortcutBarTogglesRememberedTests`
+  - **The owner's report, 2026-10-12:** *"Shortcut bar's states are not saved on save. Giving me quite some annoyances. In this case specifically with the snap to guides."* Turn snapping off, close Lightbox, open it again: snapping is back on, and the next stroke near a ruler is straightened.
+  - **Cause: the switch was never written anywhere.** `MainViewModel.SnapToGuides` carried a comment saying it "survives the session through settings, not through the file", and `AppSettings` had no such property - the field was initialised to `true` and that was all. `ViewThroughCamera` was the same with `false`. Every other switch on the bar persists (show guides, lock guides and lock references in the workspace layout, onion skin on the layer), which is why these two read as the bar being unreliable and not as two missing lines.
+  - **Fix (Q250): both are app settings.** `AppSettings.SnapToGuides` (default on) and `AppSettings.ViewThroughCamera` (default off), written when the switch changes and read into the fields at construction, so reading them back neither publishes a frame nor rewrites the file. A settings file from before reads as the defaults.
+  - **Guard.** `ShortcutBarTogglesRememberedTests`: a second view model on the same settings file stands in for the next launch, and one test draws a stroke on a grid with the remembered switch off to show the stroke obeys it and not only the button. Three of the five fail on main.
+  - **A test hazard this created, closed here:** `CameraViewModelTests` flips the camera view and had no settings file of its own, so it would have handed "through the camera" to every view model constructed after it. It is `BrushStateIsolated` now, like the other classes that flip either switch.
+
 - [x] **B445** `P2` `ui` Every flip to a frame not seen before holds the UI thread 160-190 ms on a 30-layer document: the navigator composes the whole page to make a 256-pixel picture `evidence: ThePictureIsComposedAtItsOwnSize`
 
 - [x] **B438** `P2` `ui` The Symbols panel shows none of the artist's library until a project is opened or closed `evidence: TheLibraryIsOnShowFromLaunchWithNoProject`

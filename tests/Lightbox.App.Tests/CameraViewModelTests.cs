@@ -9,7 +9,13 @@ namespace Lightbox.App.Tests;
 /// optionality: until someone asks for a camera there is nothing to see, and
 /// removing one puts the document back exactly as it was.
 /// </summary>
-public class CameraViewModelTests
+/// <remarks>
+/// Isolated because "view through the camera" is remembered through settings
+/// now: without its own file, a test here that leaves it on hands it to every
+/// view model constructed afterwards.
+/// </remarks>
+[Collection("BrushState")]
+public class CameraViewModelTests : BrushStateIsolated
 {
     private static MainViewModel Vm()
     {
