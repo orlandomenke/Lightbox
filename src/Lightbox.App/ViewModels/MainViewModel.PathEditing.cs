@@ -62,6 +62,20 @@ public partial class MainViewModel
     public event Action? PathEditChanged;
 
     /// <summary>
+    /// The isolated line's shape while it differs from its ink, or null.
+    /// </summary>
+    /// <remarks>
+    /// <b>A preview of a change, so it exists only while there is one.</b> The
+    /// raster stroke cannot follow a drag until the commit (invariant 6), so
+    /// the canvas traces where the line is going. Once committed the ink is the
+    /// line, and tracing over it hid it: at fit-to-window a six-pixel line is
+    /// two pixels on screen, narrower than the trace, so the artwork being
+    /// reshaped disappeared under its own overlay.
+    /// </remarks>
+    public IReadOnlyList<StrokePoint>? PathEditTrace =>
+        _pathEdit is { Dirty: true } session ? session.Flatten() : null;
+
+    /// <summary>
     /// Enter isolation on the stroke under a point. Returns true if something
     /// was there.
     /// </summary>

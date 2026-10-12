@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4795
+budget: 4638
 
 ## Why it has moved
 
@@ -135,3 +135,8 @@ other's reason and leaves a number nobody can account for.
   Mirror and Reset moved to the new `CanvasControl.TransformSteps.cs` with
   the history they make steps in; what stayed here is four calls marking
   the moments a gizmo gesture ends, a capture loss among them.
+- **→ 4,638** (2026-10-12, Q249): −157. The path overlay — the pen's trace, the
+  white arrow's points and handles — went to `PathOverlayPainter`, drawn from
+  `OverlayStyle`. It left for `GuidePainter`'s reason rather than for the
+  number: nothing inside the nested `DrawOp` can be tested, and the overlay had
+  two faults on screen that no test could have seen.
