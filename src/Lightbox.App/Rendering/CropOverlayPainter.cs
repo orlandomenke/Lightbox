@@ -45,18 +45,18 @@ public static class CropOverlayPainter
 
         DrawDimOutside(canvas, rect, paper);
 
-        var line = new SKColor(0xf0, 0xf0, 0xf0, 235);
-        using var edge = new SKPaint
+        // The frame and its grips are the canvas's one overlay style (Q252).
+        // It used to be its own near-white, uncased: gone on a light drawing,
+        // which is most of what gets cropped.
+        using var pens = new OverlayStyle.Pens(s);
+        using (var edge = new SKPath())
         {
-            IsAntialias = true,
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = 1.4f / s,
-            Color = line,
-        };
-        canvas.DrawRect(rect, edge);
+            edge.AddRect(rect);
+            pens.Line(canvas, edge);
+        }
 
         DrawThirds(canvas, rect, s);
-        DrawHandles(canvas, rect, s, line);
+        DrawHandles(canvas, pens, rect);
     }
 
     /// <summary>
@@ -116,18 +116,8 @@ public static class CropOverlayPainter
     /// that it does, is the version of this that looks fine and feels broken —
     /// so the two lists are deliberately the same eight places.
     /// </remarks>
-    private static void DrawHandles(SKCanvas canvas, SKRect rect, float scale, SKColor line)
+    private static void DrawHandles(SKCanvas canvas, OverlayStyle.Pens pens, SKRect rect)
     {
-        using var fill = new SKPaint { IsAntialias = true, Color = line };
-        using var rim = new SKPaint
-        {
-            IsAntialias = true,
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = 1f / scale,
-            Color = new SKColor(20, 20, 20, 235),
-        };
-
-        var half = 4.5f / scale;
         var midX = (rect.Left + rect.Right) / 2f;
         var midY = (rect.Top + rect.Bottom) / 2f;
         Span<SKPoint> grips =
@@ -136,11 +126,7 @@ public static class CropOverlayPainter
             new(rect.Left, midY), new(rect.Right, midY),
             new(rect.Left, rect.Bottom), new(midX, rect.Bottom), new(rect.Right, rect.Bottom),
         ];
-        foreach (var g in grips)
-        {
-            var box = new SKRect(g.X - half, g.Y - half, g.X + half, g.Y + half);
-            canvas.DrawRect(box, fill);
-            canvas.DrawRect(box, rim);
-        }
+        // Square all round: every one of the eight is grabbed and pushed.
+        foreach (var g in grips) pens.Grip(canvas, g.X, g.Y, round: false, selected: false);
     }
 }

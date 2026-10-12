@@ -36,13 +36,8 @@ namespace Lightbox.App.Rendering;
 public static class RigOverlayPainter
 {
     /// <summary>Anchors: a socket is a point, and a point reads as a cross.</summary>
-    private static readonly SKColor AnchorColor = new(0x4d, 0xc4, 0xff);
-
-    /// <summary>Shapes: warm against the anchors' cold, so the two kinds never blur.</summary>
-    private static readonly SKColor ShapeColor = new(0xff, 0xa5, 0x3d);
-
-    /// <summary>Selection: white, because it must win over both.</summary>
-    private static readonly SKColor SelectedColor = new(0xff, 0xff, 0xff);
+    /// <summary>What a label is written in. Text over artwork of unknown colour: white on a shadow.</summary>
+    private static readonly SKColor LabelColor = new(0xff, 0xff, 0xff);
 
     /// <summary>Half-length of an anchor's cross arms, in screen pixels.</summary>
     public const float AnchorArmScreen = 7;
@@ -65,15 +60,16 @@ public static class RigOverlayPainter
 
         var px = 1f / Math.Max(0.01f, scale);
         var arm = AnchorArmScreen * px;
-        var handle = (float)RigOverlay.HandleScreenRadius * px;
 
-        using var stroke = new SKPaint
-        {
-            IsAntialias = true,
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = 1.5f * px,
-        };
-        using var fill = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
+        // The canvas's one overlay style (Q252). A mark that is not selected
+        // is the thin outline, so a rig of a dozen hitboxes does not crowd the
+        // drawing; the selected one is the styled line. An anchor is told from
+        // a shape by being a cross, where it used to be told by being blue
+        // beside the shape's orange — and selected was white, which is what an
+        // open grip is everywhere else.
+        using var pens = new OverlayStyle.Pens(scale);
+        using var plain = new SKPath();
+        using var selected = new SKPath();
 
         // Shapes first, anchors over them: an anchor is usually inside a shape, and
         // the hit-test already prefers the anchor — so drawing them the other way
@@ -83,58 +79,58 @@ public static class RigOverlayPainter
         foreach (var mark in marks)
         {
             if (mark.Kind != RigMarkKind.Shape) continue;
-            stroke.Color = mark.Selected ? SelectedColor : ShapeColor;
-            var rect = new SKRect((float)mark.X, (float)mark.Y, (float)mark.Right, (float)mark.Bottom);
-            canvas.DrawRect(rect, stroke);
-
-            // Handles only on the selected shape. Four filled squares on every box
-            // would turn a rig of a dozen hitboxes into confetti, and the hit-test
+            (mark.Selected ? selected : plain).AddRect(
+                new SKRect((float)mark.X, (float)mark.Y, (float)mark.Right, (float)mark.Bottom));
+        }
+        pens.Outline(canvas, plain);
+        pens.Line(canvas, selected);
+        foreach (var mark in marks)
+        {
+            // Handles only on the selected shape. Four grips on every box would
+            // turn a rig of a dozen hitboxes into confetti, and the hit-test
             // agrees — an unselected shape has no corners to grab.
-            if (!mark.Selected) continue;
-            fill.Color = SelectedColor;
-            foreach (var (hx, hy) in new (double, double)[]
-            {
-                (mark.X, mark.Y), (mark.Right, mark.Y),
-                (mark.X, mark.Bottom), (mark.Right, mark.Bottom),
-            })
-            {
-                canvas.DrawRect(
-                    new SKRect((float)hx - handle, (float)hy - handle, (float)hx + handle, (float)hy + handle),
-                    fill);
-            }
+            if (mark.Kind != RigMarkKind.Shape || !mark.Selected) continue;
+            pens.Grip(canvas, (float)mark.X, (float)mark.Y, round: false, selected: false);
+            pens.Grip(canvas, (float)mark.Right, (float)mark.Y, round: false, selected: false);
+            pens.Grip(canvas, (float)mark.X, (float)mark.Bottom, round: false, selected: false);
+            pens.Grip(canvas, (float)mark.Right, (float)mark.Bottom, round: false, selected: false);
         }
 
+        plain.Reset();
+        selected.Reset();
         foreach (var mark in marks)
         {
             if (mark.Kind != RigMarkKind.Anchor) continue;
-            stroke.Color = mark.Selected ? SelectedColor : AnchorColor;
+            var path = mark.Selected ? selected : plain;
             var x = (float)mark.X;
             var y = (float)mark.Y;
-            canvas.DrawLine(x - arm, y, x + arm, y, stroke);
-            canvas.DrawLine(x, y - arm, x, y + arm, stroke);
+            path.MoveTo(x - arm, y);
+            path.LineTo(x + arm, y);
+            path.MoveTo(x, y - arm);
+            path.LineTo(x, y + arm);
             // A ring on the selected one, so which socket is being dragged is
             // readable without reading the label.
-            if (mark.Selected) canvas.DrawCircle(x, y, arm * 0.6f, stroke);
+            if (mark.Selected) path.AddCircle(x, y, arm * 0.6f);
 
             // Q144: the direction stalk. An authored angle draws on every
             // anchor — a direction nobody can see without selecting is not a
-            // direction — and the selected anchor with none gets a dim ghost
-            // stub along +X, because grabbing the stub IS how an angle is
-            // given. The tip handle appears with the selection, matching what
-            // the hit-test will actually grab.
+            // direction — and the selected anchor with none gets a stub along
+            // +X, because grabbing the stub IS how an angle is given.
             if (!mark.HasAngle && !mark.Selected) continue;
             var (tx, ty) = RigOverlay.StalkTipOf(mark);
-            // Past the continue above, no angle implies selected — the ghost
-            // stub only exists on the anchor being worked on.
-            stroke.Color = mark.HasAngle
-                ? (mark.Selected ? SelectedColor : AnchorColor)
-                : SelectedColor.WithAlpha(90);
-            canvas.DrawLine(x, y, (float)tx, (float)ty, stroke);
-            if (mark.Selected)
-            {
-                fill.Color = mark.HasAngle ? SelectedColor : SelectedColor.WithAlpha(140);
-                canvas.DrawCircle((float)tx, (float)ty, handle, fill);
-            }
+            path.MoveTo(x, y);
+            path.LineTo((float)tx, (float)ty);
+        }
+        pens.Outline(canvas, plain);
+        pens.Line(canvas, selected);
+        foreach (var mark in marks)
+        {
+            // The tip handle appears with the selection, matching what the
+            // hit-test will actually grab. A dot, because it steers the
+            // socket's direction rather than being a place of its own.
+            if (mark.Kind != RigMarkKind.Anchor || !mark.Selected) continue;
+            var (tx, ty) = RigOverlay.StalkTipOf(mark);
+            pens.Dot(canvas, (float)tx, (float)ty);
         }
     }
 
@@ -154,7 +150,7 @@ public static class RigOverlayPainter
         var px = 1f / Math.Max(0.01f, scale);
 
         using var font = new SKFont(SKTypeface.Default, 11 * px);
-        using var text = new SKPaint { IsAntialias = true, Color = SelectedColor };
+        using var text = new SKPaint { IsAntialias = true, Color = LabelColor };
         using var shadow = new SKPaint { IsAntialias = true, Color = new SKColor(0, 0, 0, 190) };
 
         foreach (var mark in marks)
