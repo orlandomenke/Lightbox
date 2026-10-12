@@ -57,6 +57,43 @@ public sealed class StrokeBuilder
     /// </remarks>
     public Func<List<StrokePoint>, List<StrokePoint>>? Smoothing { get; set; }
 
+    /// <summary>
+    /// Which filter <see cref="Smoothing"/> currently is, and how many points
+    /// back a new sample can move a smoothed point. With it, a sample filters
+    /// the end of the stroke; without it, or when it changes while the pen is
+    /// down, the whole stroke is filtered, as it always was.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The filter used to run over every point on every sample: with the
+    /// default mode two new lists of the whole stroke per pen event, 430 KB of
+    /// large-object garbage an event at 3000 points. Found in review of B449,
+    /// the long line that stopped following the pen.
+    /// </para>
+    /// <para>
+    /// <b>The filter itself is not touched, and that is the point.</b> It is
+    /// run on a short run of raw points at the end of the stroke, and only the
+    /// outputs far enough from that run's own start are used: there the window
+    /// sees exactly the neighbours it would see in the whole stroke, summed in
+    /// the same order, so the points are the whole filter's to the bit
+    /// (SmoothingALongStrokeTests holds every sample of every mode to that).
+    /// The ends of a stroke are where each filter does something special -
+    /// shrinks its window, repeats the last point, pins the endpoint - and the
+    /// run's start is such an end where the stroke has none, which is why
+    /// its first outputs are thrown away.
+    /// </para>
+    /// </remarks>
+    public Func<(int Kind, int Reach)>? SmoothingShape { get; set; }
+
+    /// <summary>How many raw points the last sample ran the filter over, for the test that bounds it.</summary>
+    internal int LastSmoothedPoints { get; private set; }
+
+    /// <summary>The smoothed stroke, kept between samples so only its end is rewritten.</summary>
+    private List<StrokePoint>? _smooth;
+
+    /// <summary>The filter <see cref="_smooth"/> was made with.</summary>
+    private (int Kind, int Reach) _smoothShape;
+
     public bool IsActive => _stroke is not null;
 
     public Stroke? Current => _stroke;
@@ -79,6 +116,8 @@ public sealed class StrokeBuilder
         _keepTilt = alwaysRecordAxes || PenAxisUse.NeedsTilt(brush);
         _keepSpeed = alwaysRecordAxes || PenAxisUse.NeedsSpeed(brush);
         _raw = [new StrokePoint(x, y, pressure)];
+        _smooth = null;
+        LastSmoothedPoints = 0;
         _stroke = new Stroke
         {
             Tool = tool,
@@ -123,7 +162,49 @@ public sealed class StrokeBuilder
                 _keepTilt ? tiltY : null,
                 _keepSpeed ? speed : null)
             : new StrokePoint(x, y, pressure));
-        _stroke.Points = Smoothing?.Invoke(_raw) ?? _raw;
+        _stroke.Points = Smoothed(_raw);
+    }
+
+    /// <summary>The filter over every raw point so far, computed from the end of the stroke where it can be.</summary>
+    private List<StrokePoint> Smoothed(List<StrokePoint> raw)
+    {
+        if (Smoothing is not { } filter)
+        {
+            LastSmoothedPoints = 0;
+            return raw;
+        }
+
+        var shape = SmoothingShape?.Invoke() ?? default;
+        var reach = shape.Reach;
+        // The run of raw points the filter is given: what a new sample can
+        // change (the last `reach` outputs and the new one), the same again so
+        // those outputs see their neighbours on the near side, and a margin
+        // that is thrown away because it sits at the run's start.
+        var run = (3 * reach) + 6;
+        if (reach > 0 && _smooth is { } smooth && shape == _smoothShape
+            && smooth.Count == raw.Count - 1 && raw.Count > run)
+        {
+            var start = raw.Count - run;
+            var filtered = filter(raw.GetRange(start, run));
+            if (filtered.Count == run)
+            {
+                for (var j = reach + 1; j < run; j++)
+                {
+                    if (start + j < smooth.Count) smooth[start + j] = filtered[j];
+                    else smooth.Add(filtered[j]);
+                }
+                LastSmoothedPoints = run;
+                return smooth;
+            }
+        }
+
+        var whole = filter(raw);
+        LastSmoothedPoints = raw.Count;
+        // A filter that moves nothing hands the raw list back; there is then
+        // nothing to keep. Otherwise the list is the filter's own new one.
+        _smooth = ReferenceEquals(whole, raw) ? null : whole;
+        _smoothShape = shape;
+        return whole;
     }
 
     /// <summary>Finish and return the stroke (null if it was never started).</summary>
