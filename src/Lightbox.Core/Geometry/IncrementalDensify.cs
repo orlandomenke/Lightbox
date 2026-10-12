@@ -60,6 +60,20 @@ public sealed class IncrementalDensify(double maxChord = 2.0)
     public int LastRecomputedSpans { get; private set; }
 
     /// <summary>
+    /// The first span the last call recomputed: everything the output holds
+    /// before <see cref="SpanEnd"/> of the one before it is as it was. What
+    /// lets a walk along the output resume instead of starting over
+    /// (<c>LiveDabWalk</c>). Zero when the whole path was rebuilt.
+    /// </summary>
+    public int LastFirstSpan { get; private set; }
+
+    /// <summary>How many spans the output holds; zero while the path is too short to densify.</summary>
+    public int SpanCount => _spanEnds.Count;
+
+    /// <summary>How long the output was after span <paramref name="span"/>.</summary>
+    public int SpanEnd(int span) => _spanEnds[span];
+
+    /// <summary>
     /// The densified path, reusing whatever of the previous answer still applies.
     /// </summary>
     public IReadOnlyList<StrokePoint> Of(IReadOnlyList<StrokePoint> points)
@@ -70,6 +84,7 @@ public sealed class IncrementalDensify(double maxChord = 2.0)
         {
             Reset();
             LastRecomputedSpans = 0;
+            LastFirstSpan = 0;
             return points;
         }
 
@@ -99,6 +114,7 @@ public sealed class IncrementalDensify(double maxChord = 2.0)
         }
 
         LastRecomputedSpans = points.Count - 1 - firstSpan;
+        LastFirstSpan = firstSpan;
         _seen.Clear();
         _seen.AddRange(points);
         return _output;
@@ -118,14 +134,18 @@ public sealed class IncrementalDensify(double maxChord = 2.0)
     /// </summary>
     private int FirstDifference(IReadOnlyList<StrokePoint> points)
     {
-        // A shortened list invalidates from where it now ends: the last span's neighbours are gone.
-        if (points.Count < _seen.Count) return Math.Max(0, points.Count - 1);
-
+        // Look before trusting: a list that got shorter may have changed earlier on as well
+        // (a smoothing setting changed mid-stroke, or another stroke that happens to be
+        // shorter), and taking it for a prefix of the old one kept curves bent toward points
+        // that had moved.
         var shared = Math.Min(points.Count, _seen.Count);
         for (var i = 0; i < shared; i++)
         {
             if (points[i] != _seen[i]) return i;
         }
+
+        // A shortened list invalidates from where it now ends: the last span's neighbours are gone.
+        if (points.Count < _seen.Count) return Math.Max(0, points.Count - 1);
         // A pure append: the previously last point gains a neighbour, so the span behind it moves.
         return Math.Max(0, shared - 1);
     }
