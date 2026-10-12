@@ -125,6 +125,55 @@ public class GuideAndShapeTests(Xunit.ITestOutputHelper output) : BrushStateIsol
         Near(200, Last(vm).Points[^1].X);
     }
 
+    /// <summary>
+    /// B457, the owner's report: "strokes follow the guide even if not even near
+    /// the guide itself". A stroke drawn parallel to a ruler, 200 px from it,
+    /// keeps the hand's wobble.
+    /// </summary>
+    [AvaloniaFact]
+    public void AStrokeParallelToARulerButNowhereNearItIsLeftFreehand()
+    {
+        var vm = Vm();
+        vm.AddGuide(GuideKind.Line, 0, 100, angle: 0);
+
+        vm.BeginStroke(20, 300, 1);
+        vm.MoveStroke(60, 303, 1);
+        vm.MoveStroke(120, 297, 1);
+        vm.MoveStroke(200, 304, 1);
+        vm.EndStroke();
+
+        var ys = Last(vm).Points.Select(p => p.Y).ToList();
+        output.WriteLine($"y along the stroke: {string.Join(", ", ys.Select(v => v.ToString("0.#")))}");
+        Near(303, ys[1]);
+        Near(297, ys[2]);
+        Near(304, ys[^1]);
+    }
+
+    /// <summary>
+    /// A grid places the start of a stroke and then lets go: a line drawn along a
+    /// row of the grid is the hand's line, not a ruled one.
+    /// </summary>
+    [AvaloniaFact]
+    public void AStrokeAlongAGridRowStartsOnTheGridAndThenFollowsTheHand()
+    {
+        var vm = Vm();
+        vm.AddGuide(GuideKind.Grid, 0, 0, spacing: 20);
+
+        vm.BeginStroke(23, 17, 1);
+        vm.MoveStroke(64, 23, 1);
+        vm.MoveStroke(131, 16, 1);
+        vm.EndStroke();
+
+        var points = Last(vm).Points;
+        output.WriteLine(string.Join("  ", points.Select(p => $"({p.X:0.#}, {p.Y:0.#})")));
+        Near(20, points[0].X);             // the start is a placed point: it snaps
+        Near(20, points[0].Y);
+        Near(64, points[1].X);             // 4 px from (60, 20), and left alone
+        Near(23, points[1].Y);
+        Near(131, points[^1].X);
+        Near(16, points[^1].Y);
+    }
+
     [AvaloniaFact]
     public void AStrokeAcrossTheRulerIsLeftFreehand()
     {

@@ -81,6 +81,12 @@ public partial class MainViewModel
     [ObservableProperty]
     private bool _snapToGuides = true;
 
+    partial void OnSnapToGuidesChanged(bool value)
+    {
+        if (Settings.SnapToGuides == value) return;
+        Settings.SnapToGuides = value;
+        Settings.Save();
+    }
 
     partial void OnSnapToleranceChanged(double value)
     {

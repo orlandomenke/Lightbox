@@ -1055,6 +1055,14 @@ They do two different things, and knowing which is which is the whole trick:
   believed, it locks to the guide that matches and holds the rest of the stroke
   on that line. That is what you want when you are drawing *along* something.
 
+**A ruler only takes a stroke that starts on it.** Begin within the snap
+tolerance of a guide line and head along it, and the stroke is ruled onto that
+line. Begin anywhere else and the stroke is yours, however parallel to the ruler
+it runs — a ruler is a line in a place, not a direction the whole canvas obeys.
+A grid never rules a stroke at all: it puts the start on an intersection and
+lets go. Vanishing points and isometric rigs are the other kind — they have no
+single line to be near, so they constrain a stroke wherever it is drawn.
+
 Locking once is deliberate. Re-deciding every moment would mean a slightly
 wobbly hand flicking between two vanishing points mid-stroke and the line
 kinking. Draw across every guide and none of them takes it — a guide that grabs
@@ -1064,7 +1072,8 @@ The ruler decides the direction, not how far: the stroke still goes where your
 hand went. **⌗** in the shortcut bar turns snapping off without removing
 anything, and hiding a guide does *not* stop it snapping — those are two
 switches, because hiding a rig to look at the drawing under it is something you
-do constantly.
+do constantly. The snap switch is remembered: turn it off and it is still off
+the next time you open Lightbox, in every document, until you turn it back on.
 
 **What snaps: anything you aim, and nothing you trace.** A point you place
 deliberately goes to the guides — a stroke's start, a shape's corners, a

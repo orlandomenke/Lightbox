@@ -37,6 +37,14 @@ public sealed class StrokeStabilizer
         _ => 0,
     };
 
+    /// <summary>
+    /// Which filter <see cref="PostProcess"/> is and how far back it reaches,
+    /// for a caller that filters only the end of a growing stroke
+    /// (<c>StrokeBuilder.SmoothingShape</c>): two calls with the same shape
+    /// are the same filter, and a reach of zero is one that moves no point.
+    /// </summary>
+    public (int Kind, int Reach) Shape => (((int)Mode * 1000) + Window, SmoothingHorizon);
+
     /// <summary>Window size for moving average / Savitzky–Golay (odd, 3–25).</summary>
     public int Window
     {
