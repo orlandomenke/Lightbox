@@ -121,4 +121,26 @@ public sealed class PlaybackCacheSeesLayerEditsTests : BrushStateIsolated
 
         Assert.True(again.FromCache, "nothing changed and the second play composed again: the fix keyed too much");
     }
+
+    /// <summary>
+    /// A reference strip's dials are drawn in the playback composite and are not
+    /// undo steps, so the adversary review found them outside the key: change a
+    /// reference's opacity between plays and the next play showed the old one.
+    /// </summary>
+    [AvaloniaFact]
+    public void AReferenceChangedBetweenPlaysIsSeen()
+    {
+        var vm = Vm();
+        using (var bmp = new SKBitmap(160, 120, SKColorType.Rgba8888, SKAlphaType.Premul))
+        {
+            using (var canvas = new SKCanvas(bmp))
+            {
+                canvas.Clear(new SKColor(180, 160, 140));
+                using var paint = new SKPaint { Color = new SKColor(40, 60, 90) };
+                for (var i = 0; i < 6; i++) canvas.DrawRect(SKRect.Create(10 + i * 24, 15 + (i % 3) * 30, 18, 22), paint);
+            }
+            Assert.NotNull(vm.ImportReference("Photo", Lightbox.Raster.PngCodec.Encode(bmp)));
+        }
+        AssertNotServedStale(vm, () => vm.ReferenceOpacity = 0.9, "a reference opacity change");
+    }
 }

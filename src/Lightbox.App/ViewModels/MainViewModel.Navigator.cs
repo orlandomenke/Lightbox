@@ -182,7 +182,8 @@ public partial class MainViewModel
     /// composite without changing a drawing — for the playback cache's key
     /// (<see cref="Rendering.ComposeKey"/>): each layer in order with its
     /// visibility, opacity and blend, then the masks, clipping and effect values
-    /// <see cref="CarveStamp"/> already enumerates for the navigator.
+    /// <see cref="CarveStamp"/> already enumerates for the navigator, then the
+    /// reference strips drawn with them.
     /// </summary>
     internal static int StackStamp(Scene scene, int frame)
     {
@@ -198,6 +199,33 @@ public partial class MainViewModel
             hash.Add(layer.IsAdjustment);
         }
         hash.Add(CarveStamp(scene, frame));
+        // Reference strips are drawn in the composite and their dials are not
+        // undo steps (the adversary review, 2026-10-12): every field the pass
+        // builder reads, the cell at this frame, and the sheet itself, so a
+        // re-import under the same id is a different picture.
+        if (scene.References is { Count: > 0 } strips)
+        {
+            foreach (var strip in strips)
+            {
+                hash.Add(strip.Id);
+                hash.Add(strip.Visible);
+                hash.Add(strip.Opacity);
+                hash.Add(strip.Scale);
+                hash.Add(strip.OffsetX);
+                hash.Add(strip.OffsetY);
+                if (strip.CellAt(frame) is { } cell)
+                {
+                    hash.Add(cell.X);
+                    hash.Add(cell.Y);
+                    hash.Add(cell.Width);
+                    hash.Add(cell.Height);
+                    hash.Add(cell.Dx);
+                    hash.Add(cell.Dy);
+                }
+                hash.Add(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(
+                    Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id)));
+            }
+        }
         return hash.ToHashCode();
     }
 
