@@ -666,7 +666,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(CanRevertBrushPreset));
     }
 
-    /// <summary>Add imported presets (from .abr/.gbr/.gih/.kpp) and persist them.</summary>
+    /// <summary>Add imported presets (from .abr/.gbr/.gih/.kpp/.brushset/.brush) and persist them.</summary>
     public int AddImportedPresets(IEnumerable<BrushPreset> presets)
     {
         var added = 0;
@@ -681,7 +681,7 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Import brush files (.abr/.gbr/.gih/.kpp) into presets, on this thread.
+    /// Import brush files (.abr/.gbr/.gih/.kpp/.brushset/.brush) into presets, on this thread.
     /// </summary>
     /// <remarks>
     /// Kept for callers with a handful of files and no window to hold — the MCP surface and
