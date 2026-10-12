@@ -86,8 +86,8 @@ public partial class MainViewModel
         if (jobs.Count == 0 && frames == 0) return false;
 
         _bufferDirection = direction;
-        // Two halves of one bar: the drawings as tiles, then the first second of
-        // finished frames (prepared playback frames, step 6).
+        // Two halves of one bar: the drawings as tiles, then the frames a play
+        // shows first, finished (prepared playback frames).
         _bufferTotal = jobs.Count + Math.Max(frames, 1);
         _bufferLeft = jobs.Count;
         PlayBufferProgress = 0;
@@ -95,7 +95,7 @@ public partial class MainViewModel
         _prewarm.Changed ??= OnPrewarmChanged;
         // Nothing is being shown, so every core but one is on the range.
         if (jobs.Count > 0) _prewarm.Request(jobs, FramePrewarmer.IdleWorkers);
-        else PrepareAheadWhilePlaying();
+        else PrepareForPlay();
         return true;
     }
 
@@ -110,15 +110,15 @@ public partial class MainViewModel
         if (!IsBufferingPlay) return false;
         var left = RangeStillToPrepare();
 
-        // The tiles are in: now the first second of finished frames, so the
-        // first ticks are shown rather than built. A frame that cannot be
+        // The tiles are in: now the frames themselves, finished, so the first
+        // lap is shown rather than built on its ticks. A frame that cannot be
         // prepared (not the tiled route, a camera) leaves the rest to the ticks.
         var frames = left.Count == 0 && !_prepareBlocked ? FramesToStartLeft(_bufferDirection) : 0;
         PlayBufferProgress = _bufferTotal == 0 ? 1
             : Math.Clamp(1 - (left.Count + frames) / (double)_bufferTotal, 0, 1);
         if (left.Count == 0 && frames > 0)
         {
-            PrepareAheadWhilePlaying();
+            PrepareForPlay();
             return true;
         }
 
@@ -154,6 +154,7 @@ public partial class MainViewModel
         if (!IsBufferingPlay) return;
         IsBufferingPlay = false;
         PlayBufferProgress = 0;
+        StopPreparingFrames();
         // What is in hand finishes and is kept; nothing more is started.
         _prewarm.Request([], 1);
     }

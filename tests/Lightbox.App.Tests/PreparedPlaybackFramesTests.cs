@@ -154,25 +154,28 @@ public sealed class PreparedPlaybackFramesTests : BrushStateIsolated
         Assert.True(expected.AsSpan().SequenceEqual(pixels), "preparing frame 3 changed how frame 1 was composed");
     }
 
+    /// <summary>
+    /// While playing nothing is prepared: a frame's blend costs about 330 ms on
+    /// the lab's 30-layer document, and a worker doing that beside the tick took
+    /// cores from playback and dropped more frames than it saved (2026-10-12).
+    /// Frames are prepared while play buffers, on every spare core, and not after.
+    /// </summary>
     [AvaloniaFact]
-    public void WhilePlayingTheFramesAheadAreReadyBeforeTheirTick()
+    public void WhilePlayingNothingIsPrepared()
     {
         ThumbnailWorker.Post = _posted.Enqueue;
         var cache = new ComposeCache(256L * 1024 * 1024);
         var vm = Vm(cache);
         vm.TogglePlaybackCommand.Execute(null);
-        Settle(vm); // the playhead stays on 0; the frames ahead are prepared
+        Settle(vm); // buffers, prepares, starts
+        Assert.True(vm.IsPlaying);
+        var prepared = vm.FramesPrepared;
 
-        var shown = new List<RenderSnapshot>();
-        void Take(RenderSnapshot s) => shown.Add(s);
-        vm.SnapshotChanged += Take;
         vm.CurrentFrameIndex = 1;
         vm.CurrentFrameIndex = 2;
-        vm.CurrentFrameIndex = 3;
-        vm.SnapshotChanged -= Take;
+        Settle(vm);
         vm.TogglePlaybackCommand.Execute(null);
 
-        Assert.Equal(3, shown.Count);
-        Assert.All(shown, s => Assert.True(s.FromCache, "a frame ahead of the playhead was not ready by its tick"));
+        Assert.Equal(prepared, vm.FramesPrepared);
     }
 }

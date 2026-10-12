@@ -2546,9 +2546,6 @@ public partial class MainViewModel
     /// </remarks>
     private void RequestPlaybackPrewarm(bool tileNativeDoc, double renderScale)
     {
-        // And the frames ahead, finished: the tiles above are what a frame is
-        // built from; a prepared frame is the frame itself.
-        PrepareAheadWhilePlaying();
         if (!IsPlaying) return;
 
         var ahead = FramePrewarmer.Upcoming(

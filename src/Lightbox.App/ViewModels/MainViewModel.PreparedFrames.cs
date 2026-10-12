@@ -13,16 +13,12 @@ namespace Lightbox.App.ViewModels;
 /// </remarks>
 public partial class MainViewModel
 {
-    /// <summary>How many frames ahead of the playhead are kept prepared while playing: a second at 24 fps.</summary>
-    internal const int PrepareAhead = 24;
-
     /// <summary>Whether a frame is being prepared now — for tests that wait on it.</summary>
-    internal bool IsPreparingFrames => _preparing;
+    internal bool IsPreparingFrames => _preparingNow.Count > 0;
 
     /// <summary>Frames prepared ahead and offered to the cache — for tests and the lab.</summary>
     internal int FramesPrepared { get; private set; }
 
-    private bool _preparing;
     private int _prepareGeneration;
 
     /// <summary>A frame built for preparing: its blend still to do, and what to let go of after.</summary>
@@ -144,15 +140,32 @@ public partial class MainViewModel
     /// <summary>Set when a frame could not be prepared: buffering stops waiting for frames and plays.</summary>
     private bool _prepareBlocked;
 
-    /// <summary>The frames a play would show first, in order: the playhead's, then up to a second on.</summary>
-    private IEnumerable<int> FramesFromThePlayhead(int direction, bool includeCurrent)
+    /// <summary>Frames being prepared now, by index — built, their blend on a worker.</summary>
+    private readonly HashSet<int> _preparingNow = [];
+
+    /// <summary>
+    /// How many frames a play prepares before it starts: the whole range, or as
+    /// much of it as the composite cache can hold with room to spare. A range
+    /// larger than that plays its first lap's later frames from their ticks.
+    /// </summary>
+    private int FramesToPrepareBeforePlay()
+    {
+        int length = EffectiveEndFrame - EffectiveStartFrame + 1;
+        if (length < 1 || _publish.Viewport is not { Width: > 0, Height: > 0 } viewport) return 0;
+        var scale = PlayingScale;
+        var bytes = Math.Max(1L, (long)Math.Ceiling(viewport.Width * scale) * (long)Math.Ceiling(viewport.Height * scale) * 4);
+        var fits = (int)Math.Min(int.MaxValue, PlaybackComposites.BudgetBytes * 9 / 10 / bytes);
+        return Math.Max(1, Math.Min(length, fits));
+    }
+
+    /// <summary>The frames a play shows first, in order: the playhead's, then on round the range.</summary>
+    private IEnumerable<int> FramesFromThePlayhead(int direction, int count)
     {
         int start = EffectiveStartFrame, end = EffectiveEndFrame;
-        var length = end - start + 1;
-        if (length < 1) yield break;
+        if (end < start || count < 1) yield break;
         var index = Math.Clamp(CurrentFrameIndex, start, end);
-        if (includeCurrent) yield return index;
-        for (var step = 0; step < Math.Min(PrepareAhead, length - 1); step++)
+        yield return index;
+        for (var step = 1; step < count; step++)
         {
             index += direction >= 0 ? 1 : -1;
             if (index > end) index = start;
@@ -161,92 +174,75 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>The next frame within reach of the playhead that is not prepared, in play order; -1 if none.</summary>
-    private int NextFrameToPrepare(bool includeCurrent = false)
-    {
-        var scene = Scene;
-        foreach (var index in FramesFromThePlayhead(_playDirection, includeCurrent))
-        {
-            if (!PlaybackComposites.Holds(PlaybackKeyFor(index, scene))) return index;
-        }
-        return -1;
-    }
-
-    /// <summary>How many of the first frames a play would show are not prepared yet.</summary>
+    /// <summary>How many of the frames a play prepares before it starts are not prepared yet.</summary>
     private int FramesToStartLeft(int direction)
     {
         if (Services.ThumbnailWorker.Post is null) return 0;
         var scene = Scene;
-        return FramesFromThePlayhead(direction, includeCurrent: true)
+        return FramesFromThePlayhead(direction, FramesToPrepareBeforePlay())
             .Count(index => !PlaybackComposites.Holds(PlaybackKeyFor(index, scene)));
     }
 
     /// <summary>
-    /// Keep the frames ahead of the playhead prepared, one at a time: built at
-    /// Background priority — behind every refresh and every input — blended on a
-    /// worker, offered back here, then the next. Called after each playing
-    /// publish; a chain already running is left to run.
+    /// Prepare the frames a play will show first, while it buffers: built here
+    /// (about a millisecond each on the lab's 30-layer document), blended on
+    /// every spare core at once (about 330 ms each, which no single worker beside
+    /// a playing tick could keep up with — measured 2026-10-12). Never while
+    /// playing: then the cores are playback's.
     /// </summary>
-    private void PrepareAheadWhilePlaying()
+    private void PrepareForPlay()
     {
-        if (_preparing || !(IsPlaying || IsBufferingPlay)) return;
-        if (Services.ThumbnailWorker.Post is not { } post) return;
-        var generation = _prepareGeneration;
-        _preparing = true;
-        var later = Services.ThumbnailWorker.PostAtRest ?? post;
-        later(() => PrepareNext(generation, post, later));
+        if (!IsBufferingPlay || Services.ThumbnailWorker.Post is null) return;
+        FillPreparing(_prepareGeneration);
     }
 
-    private void PrepareNext(int generation, Action<Action> post, Action<Action> later)
+    private void FillPreparing(int generation)
     {
-        if (generation != _prepareGeneration || !(IsPlaying || IsBufferingPlay))
+        if (generation != _prepareGeneration || !IsBufferingPlay) return;
+        if (Services.ThumbnailWorker.Post is not { } post) return;
+        var scene = Scene;
+        var workers = Services.FramePrewarmer.IdleWorkers;
+        foreach (var index in FramesFromThePlayhead(_bufferDirection, FramesToPrepareBeforePlay()))
         {
-            _preparing = false;
-            return;
-        }
-        var index = NextFrameToPrepare(includeCurrent: IsBufferingPlay);
-        if (index < 0)
-        {
-            _preparing = false;
-            return;
-        }
-        if (BuildPlaybackFrame(index) is not { } frame)
-        {
-            // Cannot be prepared here: buffering stops waiting for frames.
-            _preparing = false;
-            _prepareBlocked = true;
-            ContinueBuffering(refused: false);
-            return;
-        }
-        Task.Run(() =>
-        {
-            var image = Blend(frame);
-            post(() =>
+            if (_preparingNow.Count >= workers) return;
+            if (_preparingNow.Contains(index) || PlaybackComposites.Holds(PlaybackKeyFor(index, scene))) continue;
+            PlaybackFrameWork? built;
+            using (Services.PerfLog.Begin("prepare.build", index.ToString(System.Globalization.CultureInfo.InvariantCulture)))
             {
-                Offer(frame, image);
-                if (generation != _prepareGeneration || !(IsPlaying || IsBufferingPlay))
+                built = BuildPlaybackFrame(index);
+            }
+            if (built is not { } frame)
+            {
+                // Cannot be prepared here: buffering stops waiting for frames.
+                _prepareBlocked = true;
+                if (_preparingNow.Count == 0) ContinueBuffering(refused: false);
+                return;
+            }
+            _preparingNow.Add(index);
+            Task.Run(() =>
+            {
+                SKImage? image;
+                using (Services.PerfLog.Begin("prepare.blend")) image = Blend(frame);
+                post(() =>
                 {
-                    _preparing = false;
-                    return;
-                }
-                if (IsBufferingPlay && FramesToStartLeft(_bufferDirection) == 0)
-                {
-                    // Ready: buffering starts the clock, and the chain goes on
-                    // ahead of the playhead from there.
-                    _preparing = false;
-                    ContinueBuffering(refused: false);
-                    if (!IsPlaying) return;
-                    _preparing = true;
-                }
-                later(() => PrepareNext(generation, post, later));
+                    _preparingNow.Remove(index);
+                    Offer(frame, image);
+                    if (generation != _prepareGeneration || !IsBufferingPlay) return;
+                    if (_prepareBlocked || FramesToStartLeft(_bufferDirection) == 0)
+                    {
+                        if (_preparingNow.Count == 0) ContinueBuffering(refused: false);
+                        return;
+                    }
+                    FillPreparing(generation);
+                });
             });
-        });
+        }
     }
 
     /// <summary>Stop preparing: playback stopped, or what would be prepared changed.</summary>
     private void StopPreparingFrames()
     {
+        // What is in hand finishes and is still offered; nothing more starts.
         _prepareGeneration++;
-        _preparing = false;
     }
 }
