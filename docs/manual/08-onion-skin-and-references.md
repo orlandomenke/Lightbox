@@ -496,7 +496,8 @@ That matters because Lightbox has two output targets and neither is the default:
   deliverable is what the camera saw.
 
 Add one from the timeline bar. Pan, zoom and roll are keyframed and interpolated;
-set a key at the playhead, or clear it. **Through camera** previews the framing.
+set a key at the playhead, or clear it. **Through camera** previews the framing,
+and is remembered between sessions like the other switches on the shortcut bar.
 
 With a camera, the canvas shows its frame in orange with everything outside
 dimmed — and the frame is a gizmo. Drag the square on its top edge to pan, a

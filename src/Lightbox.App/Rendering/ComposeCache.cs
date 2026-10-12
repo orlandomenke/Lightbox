@@ -18,7 +18,20 @@ namespace Lightbox.App.Rendering;
 /// a question about two adjacent moments, and a cache asks a question about two
 /// moments a lap apart. Between them an artist can have drawn.
 /// </param>
-internal readonly record struct ComposeKey(FrameFingerprint Frame, int Epoch);
+/// <param name="History">
+/// The document's edit history at the time — its top revision. A drawing
+/// committed by appending into its bitmap, or any other step, moves it; undoing
+/// back to a revision is the state that revision showed.
+/// </param>
+/// <param name="Stack">
+/// What the layers above the drawings are doing at this frame: each layer's
+/// visibility, opacity and blend, and its masks, clipping and effect values.
+/// None of these are drawing edits — the opacity slider is not even an undo
+/// step — so neither the epoch nor the history sees them, and before this the
+/// second play after changing one was served the frame composed before it
+/// (found 2026-10-12).
+/// </param>
+internal readonly record struct ComposeKey(FrameFingerprint Frame, int Epoch, long History = 0, int Stack = 0);
 
 /// <summary>
 /// Finished composites, kept so that going round a loop a second time is free.

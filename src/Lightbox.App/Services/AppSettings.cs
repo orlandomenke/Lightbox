@@ -218,6 +218,25 @@ public sealed class AppSettings
     /// <summary>How close a point must be to a guide to be pulled onto it, in document pixels.</summary>
     public double SnapTolerance { get; set; } = 12;
 
+    /// <summary>Whether guides constrain what is drawn — the shortcut bar's snap switch.</summary>
+    /// <remarks>
+    /// A working state, kept here rather than in the document for the reason onion
+    /// skin is: the guides are authored and saved, and whether you are drawing
+    /// against them this minute is not part of the drawing. It was documented as
+    /// surviving the session through settings long before anything wrote it, so it
+    /// came back on at every launch.
+    /// </remarks>
+    public bool SnapToGuides { get; set; } = true;
+
+    /// <summary>Whether the canvas is shown through the camera rather than as the world.</summary>
+    /// <remarks>
+    /// Remembered beside <see cref="SnapToGuides"/> so the shortcut bar comes back
+    /// the way it was left. It means nothing on a document with no camera, which
+    /// is why it can be app-wide: a document that never adds one is not looked
+    /// through anything, whatever this says.
+    /// </remarks>
+    public bool ViewThroughCamera { get; set; }
+
     /// <summary>How many rays a new vanishing point is drawn with.</summary>
     /// <inheritdoc cref="GridSpacing" path="/remarks"/>
     public int VanishingPointRays { get; set; } = Lightbox.Core.Documents.Guide.DefaultRays;

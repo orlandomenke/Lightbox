@@ -155,11 +155,11 @@ public class CanvasCursorTests(ITestOutputHelper output) : BrushStateIsolated
     [Fact]
     public void AlphaLockRefusesOnlyWhereThereIsNothingToPaintOn()
     {
-        var overPaint = new CanvasTarget(AlphaLocked: true, NothingUnderPointer: false);
-        var overNothing = new CanvasTarget(AlphaLocked: true, NothingUnderPointer: true);
+        var hasPaint = new CanvasTarget(AlphaLocked: true, NothingToPaintOn: false);
+        var empty = new CanvasTarget(AlphaLocked: true, NothingToPaintOn: true);
 
-        Assert.Null(CanvasCursor.Refusal(ToolId.Brush, overPaint));
-        Assert.NotNull(CanvasCursor.Refusal(ToolId.Brush, overNothing));
+        Assert.Null(CanvasCursor.Refusal(ToolId.Brush, hasPaint));
+        Assert.NotNull(CanvasCursor.Refusal(ToolId.Brush, empty));
     }
 
     /// <summary>
@@ -176,7 +176,7 @@ public class CanvasCursorTests(ITestOutputHelper output) : BrushStateIsolated
     {
         var hostile = new CanvasTarget(
             LayerHidden: true, LayerLocked: true, AlphaLocked: true,
-            NothingUnderPointer: true, OutsideSelection: true);
+            NothingToPaintOn: true, OutsideSelection: true);
 
         foreach (var tool in Enum.GetValues<ToolId>().Where(t => !CanvasCursor.Paints(t)))
         {
@@ -408,35 +408,70 @@ public class CanvasCursorTests(ITestOutputHelper output) : BrushStateIsolated
     }
 
     /// <summary>
-    /// Alpha lock refuses over bare canvas and allows over paint — the second
-    /// fact that needs a position.
+    /// B456: on a drawing that has paint, alpha lock never forbids — wherever
+    /// the pointer is.
     /// </summary>
     /// <remarks>
-    /// The one refusal that changes within a single layer, so it is the one a
-    /// per-layer answer gets most wrong: stated as "this layer is alpha locked"
-    /// it would forbid everywhere, including the places the brush works
-    /// perfectly.
+    /// <para>
+    /// <b>The rule this replaces looked at one pixel</b>, the one under the
+    /// pointer's centre, and forbade when it was empty. The owner's report:
+    /// <em>"When I lock transparency on a layer, I am able to paint but forces
+    /// to only paint over existing ink. But the block/forbidden icon is
+    /// presented."</em> A brush is wider than a pixel and a stroke is longer
+    /// than a press: a 24-pixel brush beside a line paints its edge, and a
+    /// press on bare paper dragged onto ink paints from where it arrives. The
+    /// pointer was refusing marks the application then made.
+    /// </para>
+    /// <para>
+    /// The three places asked here are the three ways it was wrong: on the
+    /// paint, beside it within the brush's reach, and far from it where a drag
+    /// would still get there.
+    /// </para>
     /// </remarks>
     [AvaloniaFact]
-    public void AlphaLockRefusesOverBareCanvasAndAllowsOverPaint()
+    public void AnAlphaLockedDrawingWithPaintNeverForbids()
     {
         var vm = VmLayers.PaperVm();
         vm.SelectToolCommand.Execute(ToolId.Brush);
-        // Something to paint on, laid down through the real path so the cached
-        // pixels are the ones the pointer will actually read.
         vm.BrushSize = 24;
         vm.BeginStroke(30, 30, 1);
         vm.MoveStroke(70, 30, 1);
         vm.EndStroke();
         vm.PaintLayer().AlphaLocked = true;
 
-        vm.UpdatePointerContext(50, 30, KeyModifiers.None);
-        output.WriteLine($"over paint: {vm.PointerRefusal ?? "(allowed)"}");
-        Assert.Null(vm.PointerRefusal);
+        foreach (var (x, y, where) in new[]
+                 {
+                     (50.0, 30.0, "on the paint"),
+                     (50.0, 46.0, "beside it, inside the brush"),
+                     (50.0, 200.0, "far from it"),
+                 })
+        {
+            vm.UpdatePointerContext(x, y, KeyModifiers.None);
+            output.WriteLine($"{where}: {vm.PointerIntent}, {vm.PointerRefusal ?? "(allowed)"}");
+            Assert.Null(vm.PointerRefusal);
+            Assert.NotEqual(CanvasCursorKind.Forbidden, vm.PointerIntent);
+        }
+    }
 
-        vm.UpdatePointerContext(50, 200, KeyModifiers.None);
-        output.WriteLine($"over bare canvas: {vm.PointerRefusal ?? "(allowed)"}");
-        Assert.NotNull(vm.PointerRefusal);
+    /// <summary>
+    /// The one place alpha lock does forbid: a drawing with no paint on it at
+    /// all, where nothing the brush does can leave a mark.
+    /// </summary>
+    /// <remarks>
+    /// Kept because it is the case the refusal was added for — painting that
+    /// silently does nothing — and here it is true of the whole drawing rather
+    /// than guessed from a pixel.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AnAlphaLockedDrawingWithNoPaintStillForbids()
+    {
+        var vm = VmLayers.PaperVm();
+        vm.SelectToolCommand.Execute(ToolId.Brush);
+        vm.PaintLayer().AlphaLocked = true;
+
+        vm.UpdatePointerContext(50, 30, KeyModifiers.None);
+        output.WriteLine($"empty drawing: {vm.PointerIntent}, {vm.PointerRefusal ?? "(allowed)"}");
+        Assert.Equal(CanvasCursorKind.Forbidden, vm.PointerIntent);
         Assert.Contains("Alpha lock", vm.PointerRefusal!, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -507,7 +542,7 @@ public class CanvasCursorTests(ITestOutputHelper output) : BrushStateIsolated
             new(LayerHidden: true),
             new(LayerLocked: true),
             new(OutsideSelection: true),
-            new(AlphaLocked: true, NothingUnderPointer: true),
+            new(AlphaLocked: true, NothingToPaintOn: true),
         ];
 
         foreach (var target in refusals)
