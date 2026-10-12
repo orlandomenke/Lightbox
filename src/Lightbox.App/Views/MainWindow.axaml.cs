@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = _vm;
+        HandPlaybackTheScreen();
         Canvas.SetSelectionManager(_vm.Selection);
         Canvas.SetLinePicker(_vm.PickStrokeAt);
         _vm.SelectedLinesChanged += Canvas.SetSelectedLines;
