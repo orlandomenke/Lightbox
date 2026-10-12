@@ -2298,6 +2298,10 @@ public partial class MainViewModel
         _live.TailOwed = null;
         _live.TailRegion = null;
         _live.Dabs = null;
+        _live.Walk.Reset();
+        _live.HorizonWalk.Reset();
+        _live.HorizonAgreed = 0;
+        _live.WalkWork = 0;
         _live.EffectDabs = null;
         _live.EffectSettled = 0;
         _live.SmudgeCarry = default;
@@ -2976,16 +2980,41 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Make <paramref name="into"/> the first <paramref name="keep"/> of
+    /// <paramref name="points"/>. A copy of every point an event, into a list
+    /// the session keeps: linear in the stroke like the densify cache's own
+    /// scan for what changed, and like it a few microseconds at 3000 points -
+    /// kept whole because smoothing may move any of the newest points and a
+    /// list that missed one would walk a stroke nobody drew.
+    /// </summary>
+    private static void TrimmedInto(List<StrokePoint> into, IReadOnlyList<StrokePoint> points, int keep)
+    {
+        into.Clear();
+        for (var i = into.Count; i < keep; i++) into.Add(points[i]);
+    }
+
+    /// <summary>What the last pointer event did to find the stroke's dabs, for the test that bounds it.</summary>
+    internal int LiveWalkWorkForTest => _live.WalkWork;
+
     private void StampLiveDabs(Stroke live, SKImageInfo info)
     {
         if (_live.ScratchCanvas is null) return;
 
         // One walk, then every question answered from its result.
-        // The walk reuses the densified prefix rather than rebuilding it, which is B46: the whole
-        // stroke has to be walked every pointer event (BR1) and re-densifying it was 0.84 ms of a
-        // 1.15 ms walk at 600 points, all but a fraction of it recomputing spans that cannot have
-        // changed.
-        var dabs = BrushEngine.WalkDabs(live, _live.Densify);
+        //
+        // The walk is kept from the last event and resumed where the stroke
+        // stopped changing (LiveDabWalk). It used to be the whole stroke every
+        // pointer event, on a densify cache (B46) - and then twice, for the
+        // settle rule below, with both lists compared from their first dab.
+        // On a line drawn for ten seconds that was most of what an event cost
+        // and it kept growing: the mark stopped following the pen part way and
+        // appeared whole at pen-up. The dabs are the reference walk's to the
+        // bit (LiveDabWalkTests); what changed is that the work is the tail's.
+        var firstWalk = _live.Dabs is null;
+        var walk = _live.Walk;
+        var dabs = walk.Of(live);
+        var work = walk.LastWalked;
         // <b>A silhouette brush is now incremental, and B299 is why it had to
         // be.</b> Its coverage is accumulated as a running maximum rather than
         // unioned as a path (B311), and max is order-independent and idempotent
@@ -3013,23 +3042,24 @@ public partial class MainViewModel
         // brush where that is not true, which is B45's rule kept rather than
         // relaxed.
         var settleTolerance = BrushEngine.SettleTolerance(live.Brush);
-        var dabsBefore = _live.Dabs;
-        var stable = BrushEngine.StableCount(dabs, _live.Dabs, settleTolerance, out var exactStable);
-        if (settleTolerance <= 0)
-        {
-            // With nothing forgiven, settled means the whole dab stopped
-            // changing, not only its place: a tip that follows the stroke turns
-            // where it stands (BrushEngine.SettledCount).
-            stable = Math.Min(stable, BrushEngine.SettledCount(dabs, _live.Dabs));
-            exactStable = stable;
-        }
+        // Asked of the tail: the walk says how many leading dabs are the very
+        // same as last time, so only what follows them is compared. With
+        // nothing forgiven, settled means the whole dab stopped changing, not
+        // only its place - a tip that follows the stroke turns where it stands
+        // (BrushEngine.SettledCount) - and the tail overload applies that rule
+        // when the tolerance is zero.
+        int stable, exactStable;
+        if (firstWalk) stable = exactStable = dabs.Count == 0 ? 0 : 1;
+        else stable = BrushEngine.StableCount(dabs, walk.Kept, walk.Replaced, settleTolerance, out exactStable);
+        work += Math.Max(0, dabs.Count - walk.Kept);
 
         // And never past what is final by construction: the dabs that come out
         // the same with the newest few points taken away, which no point still
         // to come can reach (BrushEngine.SettledPrefix). Agreeing with the last
         // walk is not that - the perf lab had a dab three from the tip stamped
         // for good and then changed, and the stroke rendered again at pen-up.
-        // One more walk of the stroke an event, on its own curve cache.
+        // A second walk, of the stroke without those points, kept and resumed
+        // the same way as the first.
         //
         // Only for a stroke whose live mark can be kept. A mirrored or wrapped
         // stroke is rendered from its record at pen-up whatever happens here,
@@ -3038,32 +3068,37 @@ public partial class MainViewModel
         // the pen for nothing (SymmetryLiveRegionTests).
         var points = live.Points;
         if (BrushEngine.PromotesAtPenUp(live))
-        stable = Math.Min(stable, BrushEngine.SettledPrefix(
-            dabs,
-            drop =>
+        {
+            var keep = points.Count - (BrushEngine.SettleHorizonPoints + Math.Max(0, _stabilizer.SmoothingHorizon));
+            if (keep <= 0)
             {
-                var keep = points.Count - drop;
-                if (keep <= 0) return [];
-                // Into a list the session keeps, not a new one an event: a long
-                // stroke's points are past the large-object threshold, and a
-                // fresh copy of them per pointer event is the expensive kind of
-                // garbage (leak-hunter).
+                stable = 0;
+                _live.HorizonAgreed = 0;
+            }
+            else
+            {
+                // Into lists the session keeps, not new ones an event: a long
+                // stroke's points are past the large-object threshold (leak-hunter).
                 var shorter = _live.HorizonPoints;
-                shorter.Clear();
-                for (var i = 0; i < keep; i++) shorter.Add(points[i]);
+                TrimmedInto(shorter, points, keep);
                 List<StrokePoint>? shorterRest = null;
                 if (live.RestPoints is { } rest && rest.Count == points.Count)
                 {
                     shorterRest = _live.HorizonRestPoints;
-                    shorterRest.Clear();
-                    for (var i = 0; i < keep; i++) shorterRest.Add(rest[i]);
+                    TrimmedInto(shorterRest, rest, keep);
                 }
-                return BrushEngine.WalkDabs(
-                    new Stroke { Tool = live.Tool, Brush = live.Brush, Points = shorter, RestPoints = shorterRest },
-                    _live.HorizonDensify);
-            },
-            _stabilizer.SmoothingHorizon));
+                var horizon = _live.HorizonWalk;
+                var without = horizon.Of(
+                    new Stroke { Tool = live.Tool, Brush = live.Brush, Points = shorter, RestPoints = shorterRest });
+                // Dabs both walks kept and that agreed last time still agree.
+                var known = firstWalk ? 0 : Math.Min(_live.HorizonAgreed, Math.Min(walk.Kept, horizon.Kept));
+                stable = Math.Min(stable, BrushEngine.SettledPrefix(dabs, without, known, out var agreed));
+                _live.HorizonAgreed = agreed;
+                work += horizon.LastWalked + Math.Max(0, agreed - known);
+            }
+        }
         exactStable = Math.Min(exactStable, stable);
+        _live.WalkWork = work;
 
         // **The arm, in the file, while the stroke is happening.** B322 cost a
         // whole round of captures because the tip's arm only appeared in a block
@@ -3271,10 +3306,10 @@ public partial class MainViewModel
         if (stable < _live.StableDabs && !_live.SettledDabChanged)
         {
             _live.SettledDabChanged = true;
-            _live.WhySettledDabChanged = dabsBefore is null
+            _live.WhySettledDabChanged = firstWalk
                 ? "no earlier walk"
                 : $"{_live.StableDabs - stable} back from {_live.StableDabs} of {dabs.Count} at {live.Points.Count} points, "
-                    + $"tolerance {settleTolerance:0.##}: {DescribeDifference(dabsBefore, dabs)}";
+                    + $"tolerance {settleTolerance:0.##}: {DescribeDifference([.. dabs.Take(walk.Kept), .. walk.Replaced], dabs)}";
         }
         // A mixing brush reads the ground as it goes: the scratch so far through
         // a view of its own memory, over the frame's cached bitmap (Q232). The

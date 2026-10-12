@@ -133,6 +133,28 @@ public class IncrementalDensifyTests(ITestOutputHelper output)
         for (var i = 0; i < otherReference.Count; i++) Assert.Equal(otherReference[i], otherIncremental[i]);
     }
 
+    /// <summary>
+    /// Shorter AND different earlier on: the points that survive are not the
+    /// ones that were cached. Found by review of B449 - a shortened list was
+    /// taken to be a prefix of the old one without looking, so the spans before
+    /// its end kept curves bent toward points that had moved.
+    /// </summary>
+    [Fact]
+    public void AShorterListThatAlsoChangedIsDensifiedAsItself()
+    {
+        var cache = new IncrementalDensify();
+        var first = Zigzag(14);
+        cache.Of(first);
+
+        var shorter = first.Take(9).ToList();
+        var moved = shorter[3];
+        shorter[3] = new StrokePoint(moved.X + 37, moved.Y - 21, moved.Pressure);
+        var reference = GeometryOps.Densify(shorter);
+        var incremental = cache.Of(shorter);
+        Assert.Equal(reference.Count, incremental.Count);
+        for (var i = 0; i < reference.Count; i++) Assert.Equal(reference[i], incremental[i]);
+    }
+
     [Fact]
     public void UnderThreePointsBehavesLikeDensify()
     {

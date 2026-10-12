@@ -288,10 +288,31 @@ sealed class LivePaintSession
     internal Lightbox.Core.Geometry.IncrementalDensify Densify { get; } = new();
 
     /// <summary>
-    /// The same cache for the stroke without its newest few points, which is
-    /// walked beside the whole one to find the dabs that are final.
+    /// The stroke's dabs, kept from one pointer event to the next so an event
+    /// walks the end of the stroke and not the stroke
+    /// (<see cref="Lightbox.Raster.LiveDabWalk"/>). The effect draft still
+    /// walks whole, on <see cref="Densify"/>.
     /// </summary>
-    internal Lightbox.Core.Geometry.IncrementalDensify HorizonDensify { get; } = new();
+    internal Lightbox.Raster.LiveDabWalk Walk { get; } = new();
+
+    /// <summary>
+    /// The same for the stroke without its newest few points, which is walked
+    /// beside the whole one to find the dabs that are final.
+    /// </summary>
+    internal Lightbox.Raster.LiveDabWalk HorizonWalk { get; } = new();
+
+    /// <summary>
+    /// How many leading dabs the two walks shared at the last event, so the
+    /// next compares from there and not from the first dab.
+    /// </summary>
+    internal int HorizonAgreed { get; set; }
+
+    /// <summary>
+    /// What the last pointer event did to find out where the dabs are:
+    /// densified points walked by both walks and dabs compared. The unit a
+    /// test bounds a long stroke in (ALongStrokeKeepsUpWithThePenTests).
+    /// </summary>
+    internal int WalkWork { get; set; }
 
     /// <summary>The stroke's points without its newest few, refilled each event rather than allocated.</summary>
     internal List<Lightbox.Core.Documents.StrokePoint> HorizonPoints { get; } = [];
