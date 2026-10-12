@@ -639,12 +639,14 @@ bottom of the window. It means one of:
 - the layer is **hidden**. Turn its eye back on in the Layers panel.
 - the layer is **locked**. Unlock it with the padlock.
 - you are **outside the selection**. Strokes only land inside it.
-- the layer is **alpha locked** and there is no paint under the brush. Alpha lock
-  means "only draw where I have already drawn", so bare canvas is off limits —
-  move over existing paint and the pointer allows it again.
+- the layer is **alpha locked** and this drawing has no paint on it at all. Alpha
+  lock means "only draw where I have already drawn", so on an empty drawing
+  there is nowhere a mark could land. On a drawing that has paint the pointer
+  never refuses, wherever it is: the brush only colours the paint it crosses,
+  and a stroke that starts on bare paper still paints once it reaches some.
 
-The last two change as you move, because they are about *where you are* rather
-than about the layer. Before, all four did nothing and said nothing, which is
+The selection one changes as you move, because it is about *where you are*
+rather than about the layer. Before, all four did nothing and said nothing, which is
 hard to tell apart from the application being broken.
 
 **Hold `Ctrl` and the brush becomes an eyedropper** for as long as you hold it —
