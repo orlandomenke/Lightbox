@@ -2063,7 +2063,7 @@ public partial class MainViewModel
     /// </remarks>
     private void WarmAtIdle()
     {
-        if (IsPlaying || _strokeBuilder.IsActive || _prewarm.IsBusy) return;
+        if (IsPlaying || IsBufferingPlay || _strokeBuilder.IsActive || _prewarm.IsBusy) return;
         _prewarm.Changed ??= OnPrewarmChanged;
 
         var jobs = StrokeWarmJobs() ?? [];
@@ -2111,6 +2111,11 @@ public partial class MainViewModel
             var refusedBefore = _prewarm.Refused;
             var installedBefore = _prewarm.Installed;
             TakeWarmedFrames();
+            if (ContinueBuffering(
+                    _prewarm.Installed == installedBefore && _prewarm.Refused > refusedBefore))
+            {
+                return;
+            }
             if (ReleaseHeldTilesIfStillsReady()) PublishSnapshot();
             // A drain that installed nothing and was refused never asks again on
             // its own: asking again is how a refusal became a loop (B408). The

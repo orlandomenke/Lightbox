@@ -59,6 +59,8 @@
   <x:Double x:Key="SizeDockerLabel">90</x:Double>
   <!-- A busy bar's height, and its length on the canvas's opening cover (Q229). -->
   <x:Double x:Key="SizeBusyBar">4</x:Double>
+  <!-- The buffering bar's length in the transport: a bar, not a label column. -->
+  <x:Double x:Key="SizeBufferBar">90</x:Double>
   <x:Double x:Key="SizeOpeningBar">240</x:Double>
   <!-- A tab label's inset: the tab's 2 and its button's 11 either side, as one. -->
   <Thickness x:Key="TabLabelPadding">13,2</Thickness>

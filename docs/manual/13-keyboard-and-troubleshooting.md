@@ -160,6 +160,16 @@ little memory it prepares only as much of the range as fits, nearest the playhea
 first. The cost is the processor working for a few seconds after each change —
 turn it off on a laptop running on battery.
 
+**If you press play before the range is ready, playback waits for it.** The
+playhead stays where it is, **Preparing loop** and a progress bar appear at the
+end of the transport, and every core but one works on the range. Playback starts on its
+own, at full speed, the moment the range is ready — so the first loop plays on
+time rather than stuttering through drawings that are still being painted.
+Press play again, or start drawing, to cancel. A range too large to hold in
+memory at once plays straight away as before, preparing what it can as it goes.
+This happens whether or not *Prepare playback while idle* is on; idle preparation
+only means the wait is usually already over.
+
 **Stopping is instant too.** The frame you stop on stays on screen as playback
 showed it, while the still canvas prepares its own copy in the background, and
 then quietly takes over. At 50% zoom or closer the two are identical. Zoomed

@@ -17,7 +17,7 @@
     <controls:ScaledChrome HorizontalAlignment="Center" VerticalAlignment="Center"><StackPanel Spacing="{StaticResource Space10}">
       <TextBlock Text="{Binding OpeningTitle, StringFormat='Opening {0}…'}" FontSize="{StaticResource TypeDisplay}"
                  HorizontalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
-      <ProgressBar IsIndeterminate="True" Width="{StaticResource SizeOpeningBar}" Height="{StaticResource SizeBusyBar}"
+      <ProgressBar Classes="busy" IsIndeterminate="True" Width="{StaticResource SizeOpeningBar}"
                    HorizontalAlignment="Center" />
     </StackPanel></controls:ScaledChrome>
   </Border>

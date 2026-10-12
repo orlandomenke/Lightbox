@@ -286,6 +286,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void Pause()
     {
+        CancelBuffering();
         if (!IsPlaying) return;
         _clock.Stop();
         IsPlaying = false;
@@ -301,7 +302,8 @@ public partial class MainViewModel
     {
         PerfLog.Mark("play.start");
         _playDirection = direction;
-        if (IsPlaying) return;
+        if (IsPlaying || IsBufferingPlay) return;
+        if (BufferBeforePlaying(direction)) return;
         // A stroke cut off by playback records nothing, so a key its press
         // made on a hold goes back with it (Q197: a blank key left behind
         // would play as an empty frame).
@@ -318,7 +320,8 @@ public partial class MainViewModel
     [RelayCommand]
     private void TogglePlayback()
     {
-        if (IsPlaying) Pause();
+        if (IsBufferingPlay) CancelBuffering();
+        else if (IsPlaying) Pause();
         else Play();
     }
 

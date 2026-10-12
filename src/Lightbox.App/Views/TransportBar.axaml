@@ -52,5 +52,17 @@
                      FormatString="0" Width="50" VerticalAlignment="Center"
                      ToolTip.Tip="Playback speed as a percentage of real time" />
     </StackPanel>
+    <!--
+      Buffering before play (Q214): the playhead holds while the loop is
+      prepared, so it starts at full speed and plays on time. Shown only then,
+      and last in the row, so appearing moves nothing the artist may reach for.
+    -->
+    <StackPanel x:Name="PlayBuffering" Orientation="Horizontal" Spacing="{StaticResource Space4}"
+                VerticalAlignment="Center" IsVisible="{Binding IsBufferingPlay}"
+                ToolTip.Tip="Preparing the loop so it plays at full speed. Press play again to cancel.">
+      <TextBlock Text="Preparing loop" VerticalAlignment="Center" />
+      <ProgressBar Classes="busy" Minimum="0" Maximum="1" Value="{Binding PlayBufferProgress}"
+                   Width="{StaticResource SizeBufferBar}" VerticalAlignment="Center" />
+    </StackPanel>
   </StackPanel>
 </UserControl>

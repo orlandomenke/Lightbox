@@ -484,6 +484,14 @@
     It was declared inline on the control in `MainWindow.axaml`, which made it
     the one height in the application that no reader of the scale could find.
   -->
+  <!--
+    A busy bar - opening a document, preparing a loop - is one height wherever
+    it appears, so the two cannot drift apart. Each use sets its own length.
+  -->
+  <Style Selector="ProgressBar.busy">
+    <Setter Property="Height" Value="{StaticResource SizeBusyBar}" />
+    <Setter Property="MinHeight" Value="{StaticResource SizeBusyBar}" />
+  </Style>
   <Style Selector="controls|OverflowBar">
     <Setter Property="Height" Value="{StaticResource SizeBar}" />
   </Style>
