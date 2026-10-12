@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.Input;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Geometry;
 
 namespace Lightbox.App.ViewModels;
 
@@ -317,6 +318,21 @@ public partial class MainViewModel
         var afterPath = session.Path.Clone();
         if (afterPoints.Count < 2) return false;
 
+        // B448. Where the line was and where it now is, as one rectangle: every
+        // pixel this step can change, so the commit — and its undo, and its
+        // redo — repaints that much of the drawing instead of rebuilding all of
+        // it. The whole line on both sides rather than the segments that moved,
+        // because a dab's place along the line is walked from the start: pull
+        // one point and every dab after it may land somewhere new.
+        var reshaped = stroke.Clone(newId: false);
+        reshaped.Points = afterPoints;
+        reshaped.Path = afterPath;
+        var repaint = RepaintBoundsOf(stroke) is { } was && RepaintBoundsOf(reshaped) is { } now
+            ? new GeometryOps.BBox(
+                Math.Min(was.MinX, now.MinX), Math.Min(was.MinY, now.MinY),
+                Math.Max(was.MaxX, now.MaxX), Math.Max(was.MaxY, now.MaxY))
+            : (GeometryOps.BBox?)null;
+
         var frameId = frame.Id;
         _editor.PerformDelta(
             apply: doc =>
@@ -331,7 +347,8 @@ public partial class MainViewModel
                 s.Points = [.. beforePoints];
                 s.Path = beforePath?.Clone();
             },
-            affectedFrameId: frameId);
+            affectedFrameId: frameId,
+            repaintBounds: repaint);
 
         // The session's Original becomes what was just committed, so a later
         // Escape restores this rather than the state the session opened in —
@@ -340,7 +357,7 @@ public partial class MainViewModel
         // and then be un-done by an Escape that never named it.
         session.Keep(afterPath);
 
-        AfterStrokeEdit(frameId);
+        AfterStrokeEdit(frameId, repaint);
         PathEditChanged?.Invoke();
         return true;
     }
