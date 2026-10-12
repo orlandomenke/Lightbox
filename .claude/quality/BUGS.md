@@ -873,6 +873,7 @@ which is a weak test and still far better than none.
 
 ### ui
 
+- [ ] **B458** `P3` `ui` Building a view model resets the still budget to the brokered share even when the limit is unchanged, so tests that set a budget fail at random in a full run `evidence: BuildingAnotherViewModelLeavesTheStillBudgetAsSet`
 - [ ] **B254** `P2` `ui` Hover flyouts ignore the pen and collapse as soon as they open on a Huion tablet `evidence: manual`
   - Reported 2026-08-17, same machine and same pen as **B126**: hover-opened flyouts are "not responsive to the pen and often times collapse as soon as they open". Mouse: fine.
   - **Almost certainly B126 seen from a second place, and that is the useful thing about it.** B126's working hypothesis is that something in the hover path alternates state — the cursor flips between the canvas's `None` and the default arrow. The same two candidate mechanisms would produce *this* symptom too: enter/leave churn would light-dismiss a fresh popup, and a second (driver-emulated mouse) device alternating with the pen stream would put pointer events *outside* the flyout the instant it opens. A cause that explains both symptoms and the mouse being clean on the same machine is a much narrower target than either bug alone — which is exactly the test B126's first wrong cause failed.

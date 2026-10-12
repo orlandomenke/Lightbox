@@ -536,11 +536,24 @@ public partial class MainViewModel
     /// the broker's decision, by least recent use, not a fixed split. Held to
     /// the range here, so a figure from the settings file is too.
     /// </summary>
+    /// <remarks>
+    /// Only when the limit changes: every view model applies it as it is built,
+    /// and writing the still budget back each time reset one somebody had set —
+    /// in the suite, a test's small budget the moment a test in another
+    /// collection built a view model (NeighbourStillWarmTests failed that way in
+    /// two full runs and never alone).
+    /// </remarks>
     internal static void ApplyPictureLimit(long bytes)
     {
-        Lightbox.Raster.PictureMemory.Limit = MemoryBudget.ClampPictures(bytes);
+        var limit = MemoryBudget.ClampPictures(bytes);
+        if (limit == Lightbox.Raster.PictureMemory.Limit && _pictureLimitApplied) return;
+        _pictureLimitApplied = true;
+        Lightbox.Raster.PictureMemory.Limit = limit;
         FrameBitmapCache.ByteBudget = Lightbox.Raster.PictureMemory.Brokered;
     }
+
+    /// <summary>Whether a limit has been applied in this process yet: the first always takes.</summary>
+    private static bool _pictureLimitApplied;
 
     /// <summary>
     /// Whether a save stores a rendering beside a big drawing's strokes (B30).
