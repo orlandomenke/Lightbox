@@ -184,11 +184,13 @@ public partial class MainViewModel
                 LayerHidden: !ActiveLayer.Visible,
                 LayerLocked: ActiveLayer.Locked,
                 AlphaLocked: alphaLocked,
-                // The two that need a place. With the pointer off the canvas
-                // there is no place, so both stay permissive — the cursor
+                // B456: asked of the drawing, not of the pixel under the
+                // pointer — alpha lock stops nothing while there is paint
+                // anywhere a brush or a drag could reach.
+                NothingToPaintOn: alphaLocked && _hoverPoint is not null && !DrawingHasPaint(),
+                // The one that needs a place. With the pointer off the canvas
+                // there is no place, so it stays permissive — the cursor
                 // under-reports rather than inventing a refusal.
-                NothingUnderPointer:
-                    alphaLocked && _hoverPoint is { } a && !PaintUnder(a.X, a.Y),
                 OutsideSelection:
                     _hoverPoint is { } b && !InsideSelection(b.X, b.Y),
                 // Q104: what makes Ctrl mean "take hold of this" rather than
@@ -421,29 +423,27 @@ public partial class MainViewModel
         return inside;
     }
 
-    /// <summary>Whether the active layer has any paint at a stroke coordinate.</summary>
+    /// <summary>Whether the drawing under the playhead on the active layer has any paint.</summary>
     /// <remarks>
+    /// <para>
     /// Only asked when the layer is alpha-locked, because that is the only time
-    /// the answer changes what the pointer says — and it costs a bitmap read, so
-    /// asking it otherwise would be paying per pointer event for nothing.
+    /// the answer changes what the pointer says.
+    /// </para>
+    /// <para>
+    /// <b>Read off the record, not off the pixels</b> (B456). The pixel under
+    /// the pointer's centre was the wrong question, and asking it cost a lookup
+    /// in the frame cache on every pointer move — a whole-drawing render on the
+    /// UI thread whenever that missed. A drawing with a stroke, stored pixels
+    /// or a placed symbol has something to paint on; a stroke that erased
+    /// everything is the one case this over-allows, and allowing is the side
+    /// to be wrong on.
+    /// </para>
     /// </remarks>
-    private bool PaintUnder(double x, double y)
-    {
-        var px = (int)Math.Round(x - Scene.Left);
-        var py = (int)Math.Round(y - Scene.Top);
-        if (px < 0 || py < 0 || px >= Scene.Width || py >= Scene.Height) return false;
-        if (ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is not { } frame) return false;
-        try
-        {
-            return _cache.Get(frame, Scene.Width, Scene.Height).GetPixel(px, py).Alpha > 0;
-        }
-        catch
-        {
-            // A cache miss mid-resize is not worth a crash on a hover; assume
-            // paint, which is the permissive answer and never forbids wrongly.
-            return true;
-        }
-    }
+    private bool DrawingHasPaint() =>
+        ExposureSheet.ExposedFrame(ActiveLayer, CurrentFrameIndex) is { } frame
+        && (frame.Strokes.Count > 0
+            || !string.IsNullOrEmpty(frame.PngBase64)
+            || frame.Placements is { Count: > 0 });
 
     /// <summary>
     /// Tell the view the paper moved, after a resize changed the origin.

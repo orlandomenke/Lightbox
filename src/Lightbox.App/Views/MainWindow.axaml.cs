@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = _vm;
+        HandPlaybackTheScreen();
         Canvas.SetSelectionManager(_vm.Selection);
         Canvas.SetLinePicker(_vm.PickStrokeAt);
         _vm.SelectedLinesChanged += Canvas.SetSelectedLines;
@@ -69,11 +70,7 @@ public partial class MainWindow : Window
         // The pen (vector phase 3). Same division as above: the canvas turns
         // pointer events into document coordinates and modifier flags, and every
         // decision about what those mean lives in the view model.
-        Canvas.SetPenHandlers(
-            _vm.PenPress,
-            _vm.PenDrag,
-            _vm.PenRelease,
-            _vm.PenHover);
+        WirePen();
         _vm.PenChanged += PublishPenPath;
         // The width tool (vector phase 4b). Same split again: the canvas turns
         // pointer events into document coordinates, and what they mean is the

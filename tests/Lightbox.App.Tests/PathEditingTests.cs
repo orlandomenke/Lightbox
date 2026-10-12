@@ -1144,6 +1144,41 @@ public class PathEditingTests(ITestOutputHelper output)
         Assert.Null(vm.PathHover);
     }
 
+    /// <summary>
+    /// The retrace is a preview of a change, so it is there only while there
+    /// is one.
+    /// </summary>
+    /// <remarks>
+    /// It used to be drawn for as long as the line was open, over the ink — and
+    /// at fit-to-window a six-pixel line is two pixels on screen, so the
+    /// overlay covered the artwork it was describing and a black line turned
+    /// blue for as long as you were inside it (perf lab screenshots,
+    /// 2026-10-12). The ink is the line; the points mark it. The retrace is for
+    /// the moment the two disagree, which is a drag in flight.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheRetraceIsShownOnlyWhileTheLineDiffersFromItsInk()
+    {
+        var line = Drawn();
+        var vm = WithStrokes(line);
+        vm.ActiveTool = ToolId.DirectSelect;
+        Assert.True(vm.BeginPathEdit(line.Id));
+        Assert.Null(vm.PathEditTrace);
+
+        var node = vm.PathEdit!.Path.Nodes[1];
+        var grabbed = vm.GrabPathPart(node.X, node.Y, 6);
+        Assert.True(grabbed.IsHit);
+        vm.DragPathPart(grabbed, node.X + 20, node.Y + 30, 20, 30);
+        Assert.NotNull(vm.PathEditTrace);
+        Assert.True(vm.PathEditTrace!.Count > 1);
+
+        Assert.True(vm.CommitPathEdit());
+        Assert.Null(vm.PathEditTrace);
+        // And nothing is left waiting: a click that moves nothing after this
+        // must not write a second, empty step into the history.
+        Assert.False(vm.CommitPathEdit());
+    }
+
     [AvaloniaFact]
     public void LeavingTheWhiteArrowDropsThePreview()
     {

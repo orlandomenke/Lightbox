@@ -72,6 +72,9 @@ can see.
 | `live.behind.median` / `.worst` | when that pass landed, how many stroke points the pen had added since it started — the trailing you see. Points, not ms: at the drag's `hz` one point is one event, give or take the near-duplicate samples the stroke drops |
 | `stroke.commit.median_ms` / `.worst_ms` | the pen-up hitch: append, probe, undo record |
 | stalls overlapped | which actions were running during the stalls — nested actions both count, so these overlap. `pen.screen` and `tip.screen` are left out: they are how long ink waited, not what the app was doing |
+| `pen.press` / `pen.drag` / `pen.hover` `.median_ms` / `.worst_ms` | what one pointer event costs the UI thread with the pen: the node, the preview's flatten, the redraw request |
+| `overlay.shown.median_ms` / `.worst_ms` | a change to the path overlay (the pen's rubber band and nodes, the white arrow's retrace) → the frame carrying it drawn. The oldest unshown change, so events coalesced into one redraw report the first one's wait |
+| `overlay.draw.median_ms` / `.worst_ms` | what that canvas redraw cost: the whole canvas, artwork included, because the overlay has no cheaper way onto the screen |
 
 The paint metrics are **upper bounds**: while the log is on, every pointer batch and every
 drawn ink frame writes a line, and that write sits inside the very numbers it reports.
@@ -99,9 +102,11 @@ need no handling here.
 | `{"do": "key", "keys": "ctrl+t"}` | a shortcut — use the defaults in `ShortcutMap` |
 | `{"do": "click", "at": [x, y]}` | |
 | `{"do": "drag", "from": [x, y], "by": [dx, dy], "ms": 1500, "hz": 120, "legs": 1}` | a paced drag, real mouse events; `legs` > 1 bounces between the ends within the same `ms` |
-| `{"do": "hover", "at": [x, y]}` | |
+| `{"do": "hover", "at": [x, y]}` | one jump to a point |
+| `{"do": "glide", "from": [x, y], "by": [dx, dy], "ms": 600, "hz": 120}` | a paced move with no button held — what a rubber band or a hover preview is drawn against |
 | `{"do": "settle", "quiet_s": 1.0}` | wait for the app to answer and go quiet |
 | `{"do": "wait", "ms": 200}` | |
+| `{"do": "shot", "name": "rubber-band"}` | the lab's own window as `<name>-<round>.png` in the run folder — asked of the window, not copied off the screen, so nothing else on the desktop is in it |
 
 Before every step the runner waits for the app to answer; nothing is queued into a
 frozen app. Each layer's first drawing in a generated fixture is centred, so a gesture
@@ -116,6 +121,7 @@ start a move drag a little off it (`transform-undo` uses `[0.53, 0.53]`).
 | `pose-drag` | posing the bone rig: take the Bone tool, switch to posing, swing a wrist through a wide arc twice, undo — `pose.drag` per pointer event, `pose.reach` inside it, `pose.frame` per posed drawing, `pose.commit` on release. `--fixture rigged-heavy` for five times the lines |
 | `paint-stroke` | four strokes across a blank canvas with the brush in `brush`, swept over `sizes` (60, 150, 300 px) and `speeds` (900 and 3000 px/s of document), size outermost — large brushes and a fast pen are where drawing falls over. A faster variant bounces the same 1.5 s drag across the canvas more times (whole legs, so the speed reached is the nearest the drag allows), keeping the stroke's duration and sample count. `--sizes 60,300` and `--speeds 900,6000` replace the lists, `--hz 240` the event rate, `--brush builtin-ink` is the control (a `--brush id:size` runs that one size), `--fixture blank-4k` puts it on a 4K canvas. Sizes are 1–500; above that the app clamps and the run is refused |
 | `long-stroke` | two strokes that do not stop: 12 s each without lifting, back and forth across a blank canvas with the brush in `brush` (Ink unless `--brush` says otherwise). What `paint-stroke` cannot see, because its strokes are 1.5 s and a cost that grows with the stroke has not grown yet when they end (B449: a long line stopped appearing part way and showed whole at pen-up, with every `paint-stroke` number green). Read `pen.screen` and `stalls` first, then `stroke.move`, which should cost the same in the last second of a stroke as in the first. `--hz 240` is a pen's event rate and the run that matters: the mouse's 120 leaves twice the time between events, and hid the fault |
+| `pen-path` | the pen and the white arrow on the owner-shaped document: eight points placed by click-and-drag (`pen.drag`), the pointer carried between them with the rubber band following (`pen.hover`), Enter, then a point of the finished line dragged with the white arrow, and both undone. `overlay.shown` and `overlay.draw` are the numbers an artist feels. `--fixture blank-1080p` is the control: the same overlay over nothing |
 
 Planned, from the owner's list: first playback, adding a frame, click-to-jump on the
 timeline (scrubbing is fine; jumping is not), and the X-sheet operations that lag.

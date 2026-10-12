@@ -80,6 +80,29 @@ public partial class MainWindow
         }, handledEventsToo: true);
     }
 
+    /// <summary>
+    /// The pen's four handlers, each timed for the perf lab.
+    /// </summary>
+    /// <remarks>
+    /// Redraw request included: <c>PenChanged</c> is raised inside the call, so
+    /// a span is everything one pointer event costs the UI thread before the
+    /// canvas is asked to draw. A span is free when the log is off.
+    /// </remarks>
+    private void WirePen() => Canvas.SetPenHandlers(
+        (x, y, tolerance, shift, alt) =>
+        {
+            using (PerfLog.Begin("pen.press")) return _vm.PenPress(x, y, tolerance, shift, alt);
+        },
+        (x, y, shift, alt) =>
+        {
+            using (PerfLog.Begin("pen.drag")) _vm.PenDrag(x, y, shift, alt);
+        },
+        _vm.PenRelease,
+        (x, y, tolerance, shift) =>
+        {
+            using (PerfLog.Begin("pen.hover")) _vm.PenHover(x, y, tolerance, shift);
+        });
+
     private int _labInputs;
 
     /// <summary>
