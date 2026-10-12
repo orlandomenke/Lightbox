@@ -5,7 +5,7 @@ namespace Lightbox.App.Tests;
 
 /// <summary>
 /// The overlay style's own vocabulary — the states and the second colour every
-/// painter on the canvas draws with (Q249, Q250) — rendered and read back.
+/// painter on the canvas draws with (Q249, Q252) — rendered and read back.
 /// </summary>
 /// <remarks>
 /// The pen's painter is tested where it lives; this is the part the rest of the

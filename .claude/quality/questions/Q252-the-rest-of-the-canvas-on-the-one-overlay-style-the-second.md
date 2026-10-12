@@ -1,4 +1,4 @@
-# Q250 · The rest of the canvas on the one overlay style: the second colour, hover, guides and the duplicate marks — **answered 2026-10-12**
+# Q252 · The rest of the canvas on the one overlay style: the second colour, hover, guides and the duplicate marks — **answered 2026-10-12**
 
 **Answered: amber `#FFB020` is the style's one second colour; hover grows and thickens without changing colour; guides stay quiet at rest and take the style when grabbed; the duplicate selection marks go.** All four as recommended.
 

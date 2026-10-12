@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4638
+budget: 4581
 
 ## Why it has moved
 
@@ -140,3 +140,6 @@ other's reason and leaves a number nobody can account for.
   `OverlayStyle`. It left for `GuidePainter`'s reason rather than for the
   number: nothing inside the nested `DrawOp` can be tested, and the overlay had
   two faults on screen that no test could have seen.
+- **→ 4,581** (2026-10-12, Q250): −57. The transform box and its pivot went to
+  `TransformGizmoPainter`, the second overlay onto `OverlayStyle` and for the
+  same reason as the first: it could not be tested where it was.

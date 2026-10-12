@@ -61,14 +61,14 @@ public static class OverlayStyle
     /// <summary>
     /// The style's one second colour: a mark that is a reference point rather
     /// than the thing being edited — a pivot, a warp band, a guide's anchor.
-    /// The palette's <c>AccentAmber</c> (Q250), in place of the dozen ambers
+    /// The palette's <c>AccentAmber</c> (Q252), in place of the dozen ambers
     /// those marks had each picked.
     /// </summary>
     public static readonly SKColor Reference = new(0xFF, 0xB0, 0x20);
 
     /// <summary>
     /// A guide being drawn against, at rest: one faint pass, no casing. Thirty
-    /// of them must not read as thirty selections (Q250); a guide takes the
+    /// of them must not read as thirty selections (Q252); a guide takes the
     /// full style only once the Move tool has hold of it.
     /// </summary>
     public static readonly SKColor QuietLine = new(0x50, 0x96, 0xF0, 110);
@@ -85,7 +85,7 @@ public static class OverlayStyle
 
     /// <summary>
     /// How much a hovered line thickens. Hover grows and thickens in the same
-    /// colours (Q250): bigger says "a press takes this one", and it cannot be
+    /// colours (Q252): bigger says "a press takes this one", and it cannot be
     /// read as selected, which is filled.
     /// </summary>
     public const float HoverLineGain = 1f;

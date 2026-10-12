@@ -4437,75 +4437,18 @@ public sealed partial class CanvasControl : Control
         }
 
         /// <summary>
-        /// The Ctrl+T gizmo: the transformed quad with corner (and, in affine
-        /// mode, edge) handles, plus the draggable pivot — cyan so it never
-        /// reads as a selection or a brush cursor.
+        /// The Ctrl+T gizmo. The box and its pivot are
+        /// <see cref="TransformGizmoPainter"/>'s; the warp bands and the cage
+        /// stand in the pivot's place when one of them is the mode.
         /// </summary>
         private void DrawTransformGizmo(SKCanvas canvas)
         {
             if (txGizmo is not { } g) return;
             var scale = Math.Max(0.01f, view.Scale);
-            var line = new SKColor(0x40, 0xc4, 0xd4, 235);
-
-            using var outline = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.4f / scale,
-                Color = line,
-                PathEffect = SKPathEffect.CreateDash([6f / scale, 4f / scale], 0),
-            };
-            using var quad = new SKPath();
-            quad.MoveTo(g.C0);
-            quad.LineTo(g.C1);
-            quad.LineTo(g.C2);
-            quad.LineTo(g.C3);
-            quad.Close();
-            canvas.DrawPath(quad, outline);
-
-            using var handleFill = new SKPaint { IsAntialias = true, Color = line };
-            using var handleRim = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1f / scale,
-                Color = new SKColor(10, 30, 34, 235),
-            };
-            var half = 4.5f / scale;
-            SKPoint[] corners = [g.C0, g.C1, g.C2, g.C3];
-            foreach (var c in corners)
-            {
-                var r = new SKRect(c.X - half, c.Y - half, c.X + half, c.Y + half);
-                canvas.DrawRect(r, handleFill);
-                canvas.DrawRect(r, handleRim);
-            }
-            if (!g.Perspective)
-            {
-                for (var i = 0; i < 4; i++)
-                {
-                    var a = corners[i];
-                    var b = corners[(i + 1) % 4];
-                    var mx = (a.X + b.X) / 2;
-                    var my = (a.Y + b.Y) / 2;
-                    canvas.DrawCircle(mx, my, half * 0.9f, handleFill);
-                    canvas.DrawCircle(mx, my, half * 0.9f, handleRim);
-                }
-            }
-
+            using var pens = new OverlayStyle.Pens(scale);
+            TransformGizmoPainter.Paint(canvas, pens, g.C0, g.C1, g.C2, g.C3, null, g.Perspective, scale);
             if (DrawGridModeInstead(canvas, g, scale)) return;
-
-            // Pivot: ring + crosshair, clearly grabbable.
-            using var pivotPaint = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.6f / scale,
-                Color = new SKColor(0xe0, 0xa0, 0x30, 240),
-            };
-            var pr = 7f / scale;
-            canvas.DrawCircle(g.Pivot, pr, pivotPaint);
-            canvas.DrawLine(g.Pivot.X - pr * 1.6f, g.Pivot.Y, g.Pivot.X + pr * 1.6f, g.Pivot.Y, pivotPaint);
-            canvas.DrawLine(g.Pivot.X, g.Pivot.Y - pr * 1.6f, g.Pivot.X, g.Pivot.Y + pr * 1.6f, pivotPaint);
+            TransformGizmoPainter.PaintPivot(canvas, pens, g.Pivot, scale);
         }
 
         /// <summary>
