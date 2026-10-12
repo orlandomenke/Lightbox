@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4638
+budget: 4460
 
 ## Why it has moved
 
@@ -140,3 +140,17 @@ other's reason and leaves a number nobody can account for.
   `OverlayStyle`. It left for `GuidePainter`'s reason rather than for the
   number: nothing inside the nested `DrawOp` can be tested, and the overlay had
   two faults on screen that no test could have seen.
+- **→ 4,581** (2026-10-12, Q252): −57. The transform box and its pivot went to
+  `TransformGizmoPainter`, the second overlay onto `OverlayStyle` and for the
+  same reason as the first: it could not be tested where it was.
+- **→ 4,483** (2026-10-12, Q252): −98. The arrow's selection outlines, the
+  hovered line and the marquee draw with `OverlayStyle`'s pens instead of
+  building a paint each; four coloured blocks became one path.
+- **→ 4,439** (2026-10-12, Q252): −44. The camera frame, the gradient axis
+  and the lazy-brush gizmo draw with `OverlayStyle`'s pens; each had built its
+  own paints, casing included.
+- **→ 4,460** (2026-10-12, Q252): +21, inside the same branch that had
+  just lowered it. The selection rewrite had cut two comments that were not
+  its to cut — why guides are not drawn from the selection block (B215) and
+  why the camera frame is absent without a camera — and the ui-critic caught
+  it. They are back; the number is what the file is with its reasons in it.

@@ -1,3 +1,4 @@
+using Lightbox.Core.Documents;
 using System.Text.Json;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -30,13 +31,16 @@ public sealed class PaintStrokePerfLogTests : BrushStateIsolated
         base.Dispose();
     }
 
-    private static MainViewModel Vm(string presetId)
+    private static MainViewModel Vm(string presetId, BrushSettings? simulated = null)
     {
         var vm = new MainViewModel(null);
         vm.LivePostRunner = work => { work(); return Task.CompletedTask; };
         vm.NewDocument(new NewDocumentSettings("Log", 240, 160, 12, 72, "#ffffff", false));
         vm.SmoothStrokes = false;
         vm.ApplyPreset(vm.BrushPresetChoices.First(p => p.Id == presetId));
+        // A medium switched on by hand, as an artist would in the editor: no
+        // shipped brush runs the simulation any more (Q251).
+        if (simulated is not null) vm.CurrentToolSettingsForTest.Medium = simulated.Medium.Clone();
         vm.BrushSize = 28;
         return vm;
     }
@@ -54,9 +58,9 @@ public sealed class PaintStrokePerfLogTests : BrushStateIsolated
         Dispatcher.UIThread.RunJobs();
     }
 
-    private List<JsonElement> Record(Action<MainViewModel> draw, string presetId)
+    private List<JsonElement> Record(Action<MainViewModel> draw, string presetId, BrushSettings? simulated = null)
     {
-        var vm = Vm(presetId);
+        var vm = Vm(presetId, simulated);
         var path = Path.Combine(_dir, $"{Guid.NewGuid():N}.jsonl");
         PerfLog.StartForTests(path);
         try
@@ -76,9 +80,10 @@ public sealed class PaintStrokePerfLogTests : BrushStateIsolated
     [AvaloniaFact]
     public void AStrokeWithAMediumLogsItsBatchesItsPassesHowFarBehindTheyLandedAndItsCommit()
     {
-        // Gouache: a medium that is still simulated, so still has passes to
-        // log. Watercolor was the subject until it became a recipe (Q244).
-        var lines = Record(Draw, "builtin-gouache-body");
+        // A brush with the simulated gouache switched on, so there are passes
+        // to log. Shipped brushes were the subject until the last of them
+        // became a recipe (Q244, Q246, Q251).
+        var lines = Record(Draw, "builtin-soft-round", SimulatedBrushes.Gouache());
         var events = Events(lines);
 
         Assert.Contains("stroke.move", events);

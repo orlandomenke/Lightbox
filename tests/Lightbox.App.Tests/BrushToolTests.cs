@@ -83,44 +83,56 @@ public class BrushPresetTests : BrushStateIsolated
         vm.SelectedBrushPreset = restore;
     }
 
-    [AvaloniaFact]
-    public void EachSimulatedMedium_ReachesTheStrokeRecord_WithItsOwnPhysics()
+    /// <summary>
+    /// No shipped brush runs the fluid simulation: the four media are brushes
+    /// built from parts that land under the pen (Q244, Q246, Q251), so what is
+    /// drawn with them is what is kept at pen-up.
+    /// </summary>
+    [Fact]
+    public void NoShippedBrushRunsTheSimulation()
     {
-        // The presets still simulated must differ by physics, not just by
-        // colour. If two of them ever collapse onto the same numbers, the
-        // distinction the artist picked between them has quietly stopped
-        // existing. Four until 2026-10-11: Watercolor (Q244) and Oil (Q246) are
-        // recipes now, and the last two follow them one sheet at a time.
+        var simulated = BuiltInPresets.Create()
+            .Where(p => p.Settings.Medium.Kind != MediumKind.None)
+            .Select(p => p.Name)
+            .ToList();
+        Assert.True(simulated.Count == 0, $"shipped brushes that run the simulation: {string.Join(", ", simulated)}");
+    }
+
+    [AvaloniaFact]
+    public void AMediumSwitchedOnByHand_ReachesTheStrokeRecord_WithItsOwnPhysics()
+    {
+        // The simulation is still in the editor until phase 4 of the paint
+        // path deletes it, and a brush an artist makes with it has to reach
+        // the record as that medium, with that medium's numbers - or old
+        // drawings and made brushes would quietly render as something else.
         var vm = new MainViewModel(null) { SmoothStrokes = false };
         var seen = new List<(MediumKind Kind, double Wetness, double Viscosity, double Hiding)>();
-        // The brush store is shared across tests, and a medium brush now
-        // actually changes how strokes render — leaving one selected quietly
-        // changes what later tests paint with.
+        // The brush store is shared across tests, and a medium brush changes
+        // how strokes render - leaving one selected quietly changes what later
+        // tests paint with.
         var restore = vm.SelectedBrushPreset;
+        var before = vm.CurrentToolSettingsForTest.Medium;
 
-        foreach (var name in new[] { "Gouache", "Ink wash" })
+        foreach (var made in new[] { SimulatedBrushes.Gouache(), SimulatedBrushes.InkWash() })
         {
-            vm.SelectedBrushPreset = vm.BrushPresetChoices.First(p => p.Name == name);
+            vm.CurrentToolSettingsForTest.Medium = made.Medium.Clone();
             vm.BeginStroke(10, 10, 0.7);
             vm.MoveStroke(40, 40, 0.7);
             vm.EndStroke();
 
             var brush = (vm.PaintedCel()).Strokes[^1].Brush;
-            Assert.NotEqual(MediumKind.None, brush.Medium.Kind);
+            Assert.Equal(made.Medium.Kind, brush.Medium.Kind);
             seen.Add((brush.Medium.Kind, brush.Medium.Wetness, brush.Medium.Viscosity, brush.Medium.Hiding));
         }
 
-        Assert.Equal(2, seen.Select(m => m.Kind).Distinct().Count());
         Assert.Equal(2, seen.Distinct().Count());
-
-        // And the physics must be the right way round: ink is the wetter and
-        // less hiding, gouache the more viscous and more hiding.
         var water = seen.Single(m => m.Kind == MediumKind.Ink);
         var body = seen.Single(m => m.Kind == MediumKind.Gouache);
         Assert.True(water.Wetness > body.Wetness, "ink should be wetter than gouache");
         Assert.True(body.Viscosity > water.Viscosity, "gouache should be more viscous than ink");
         Assert.True(body.Hiding > water.Hiding, "gouache should hide more than ink");
 
+        vm.CurrentToolSettingsForTest.Medium = before;
         vm.SelectedBrushPreset = restore;
     }
 

@@ -96,6 +96,7 @@ public partial class BrushEditor : UserControl
                 [nameof(MainViewModel.BrushWetEdge)] = 0.0,
                 [nameof(MainViewModel.BrushTexturePressure)] = 0.0,
                 [nameof(MainViewModel.BrushTextureFill)] = 0.0,
+                [nameof(MainViewModel.BrushTextureSettle)] = 0.0,
             },
             [], Group: OptionGroup.Dynamics),
         new("Colour dynamics", "OptionColour", false,
@@ -216,6 +217,7 @@ public partial class BrushEditor : UserControl
             // The tooth gates a paper; with no paper it changes nothing, so it
             // must not tick the box on its own (ui-critic).
             if (name is nameof(MainViewModel.BrushTexturePressure) or nameof(MainViewModel.BrushTextureFill)
+                    or nameof(MainViewModel.BrushTextureSettle)
                 && _vm.BrushTextureSurface == "None" && !_vm.HasImportedTexture)
             {
                 continue;

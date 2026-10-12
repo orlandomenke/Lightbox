@@ -297,6 +297,14 @@ through. At zero it is off and the tooth never quite fills, which is how
 graphite behaves and paint does not. It needs **Tooth** above zero. The shipped
 **Oil** fills at about a third of full pressure.
 
+**Settles** is for thin, runny paint. The mark covers the whole surface and is
+denser in its valleys than on its peaks, so the paper or canvas shows as tone
+*inside* the mark, with no gaps - the way a thin ink or a wash reads on real
+paper. It is the opposite of what Tooth and Fills at do, where thick or dry
+paint catches the peaks and leaves the valleys bare, and a brush can have
+both: a little of each is a mid-bodied paint. It needs a surface, and nothing
+else.
+
 **Tooth** is what makes a pencil a pencil. At zero the bite is the same
 however hard you press, the way a texture overlay is. Turn it up and the bite
 becomes something pressure fills in: a light touch catches only the peaks of
@@ -347,22 +355,31 @@ same curves, when it does.
 
 ## Physical media
 
-**Watercolor and Oil are no longer simulated.** Oil is thick paint on linen:
-pressure pushes it into the weave until the mark is solid, and the canvas
-shows only where your touch is light or the brush is running dry — as streaks,
-because the tip has hairs and each lifts on its own.
+**None of the four shipped media is simulated any more.** Each is a brush
+built from parts that are finished under the pen, so what you see while
+drawing is what is kept when you lift:
 
-**Watercolor** It is a wash built from parts that are
-finished under the pen: a crisp-edged, thin layer of paint, a **wet edge** that
-gathers its pigment at the rim and thins the middle, the scanned **Fibre**
-sheet, colour picked up from what it is laid over, and paint that runs out
-along the stroke. What you see while drawing is what is kept when you lift.
-Gouache and ink wash are being rebuilt the same way; until then the
-rest of this section describes them, and the Medium option, as they are.
+| Brush | What it is |
+| --- | --- |
+| **Watercolor** | A crisp-edged, thin wash. A **wet edge** gathers its pigment at the rim and thins the middle, on the scanned **Fibre** sheet. |
+| **Ink wash** | Thin ink that covers the paper and **settles** into it, so the sheet shows as tone inside the mark, with a wet edge. |
+| **Gouache** | Opaque body colour that goes solid at a light press (**Fills at**), with a little paper tone inside it, breaking into streaks as the brush empties. |
+| **Oil** | Thick paint on linen. Pressure pushes it into the weave until it is solid; the canvas shows where your touch is light or the brush runs dry, as streaks, because the tip has **bristles**. |
 
-*Planned:* gouache and ink wash without the simulation.
+All four pick up colour from what they are laid over and run out of paint
+along the stroke. Every one of those parts is an ordinary brush option - on
+**Texture**, **Tip** and **Colour mixing** - so you can build your own from a
+plain round brush, or change these.
 
-Gouache and ink are simulated, not imitated with a texture:
+The **Medium** option and its simulation are still in the editor, and a brush
+you make can still switch a simulated medium on. The rest of this section
+describes it. It is slower, it finishes behind the pen, and the stroke is
+redrawn when you lift; it is kept for drawings made with it.
+
+*Planned:* removing the simulation, with old strokes redrawn by the brushes
+above.
+
+A simulated medium is not imitated with a texture:
 wetness, viscosity, absorbency, edge pull, pigment density, granulation, paper
 grain. The simulation is **deterministic** — the same stroke always produces
 the same mark, on reload, after undo, and when the inbetweener replays it.
