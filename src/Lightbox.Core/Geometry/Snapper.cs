@@ -190,7 +190,7 @@ public static class Snapper
     /// rather than on the jitter of the first few samples.
     /// </para>
     /// <para>
-    /// <b>A guide only takes a stroke it can reach (B457, Q252).</b> A ruler is
+    /// <b>A guide only takes a stroke it can reach (B457, Q253).</b> A ruler is
     /// a line in a place, so it takes a stroke that starts within
     /// <paramref name="tolerance"/> of that line and no other: it used to take
     /// any stroke heading its way anywhere on the canvas, and one horizontal

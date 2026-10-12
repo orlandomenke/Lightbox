@@ -1,4 +1,4 @@
-# Q252 · How far does a ruler reach, and does a grid straighten strokes? — **answered 2026-10-12: a ruler only near its line, a grid never**
+# Q253 · How far does a ruler reach, and does a grid straighten strokes? — **answered 2026-10-12: a ruler only near its line, a grid never**
 
 Raised by: the owner's report, 2026-10-12, alongside **B455** — *"The annoyance
 could in part be caused by the fact that strokes follow the guide even if not even

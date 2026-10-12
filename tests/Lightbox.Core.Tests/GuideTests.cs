@@ -173,7 +173,7 @@ public class GuideTests
         Assert.Same(iso, Snapper.Lock([iso], 0, 0, 1, 40, tolerance: 12));
     }
 
-    // ---- how far a guide reaches (B457, Q252) -------------------------------------
+    // ---- how far a guide reaches (B457, Q253) -------------------------------------
 
     /// <summary>
     /// A ruler takes a stroke that starts on it, and leaves one drawn parallel to
