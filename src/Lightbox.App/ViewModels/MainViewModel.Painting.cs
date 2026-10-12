@@ -2193,6 +2193,7 @@ public partial class MainViewModel
         // A stroke draws on the still canvas: no held tiles under it.
         _holdTilesAfterStop = false;
         _strokeBuilder.Smoothing ??= points => _stabilizer.PostProcess(points);
+        _strokeBuilder.SmoothingShape ??= () => _stabilizer.Shape;
         _strokeBuilder.Begin(
             IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,
             ColorHex,
