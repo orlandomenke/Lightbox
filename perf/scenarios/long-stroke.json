@@ -1,0 +1,16 @@
+{
+  "name": "long-stroke",
+  "about": "Two strokes that do not stop: each 12 s without lifting, at 120 events a second, back and forth across a blank 1080p canvas with the brush named in `brush`. The gesture paint-stroke cannot see - its strokes are 1.5 s, and a cost that grows with the length of the stroke has not grown yet when they end. That is how a build went out on which a long line stopped appearing part way and came back whole at pen-up, with every paint-stroke number green. Read pen.screen and stalls first: a mark that stops following the pen is a pen-to-screen time that grows through the stroke, so its worst is seconds and its median is not small either. Then stroke.move, which should cost the same at the end of the stroke as at the start. --brush builtin-ink is the plain case and the one the report was about; run a textured brush as well, because a band finish and a silhouette settle differently.",
+  "fixture": "blank-1080p",
+  "brush": "builtin-ink",
+  "speeds": [900],
+  "repeat": 1,
+  "steps": [
+    {"do": "hover", "at": [0.5, 0.5]},
+    {"do": "key", "keys": "b", "after_ms": 200},
+    {"do": "drag", "from": [0.15, 0.35], "by": [0.70, 0.10], "ms": 12000, "hz": 120},
+    {"do": "settle", "quiet_s": 1.0},
+    {"do": "drag", "from": [0.15, 0.60], "by": [0.70, 0.10], "ms": 12000, "hz": 120},
+    {"do": "settle", "quiet_s": 1.0}
+  ]
+}
