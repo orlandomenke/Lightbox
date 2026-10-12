@@ -472,7 +472,12 @@ public class DrawingCostBaselineTests(ITestOutputHelper output)
     /// </remarks>
     private const string Baseline =
         "plain=47DB12B7FC30F519880B60C6034518789E6AD87995448FB954C52DECB4468CB3\n"
-        + "scatter=9642CD508E471E8A7A8D3BFB0EC64E221ADA02F517A7B2B805E2BC65B6403523\n"
+        // scatter re-recorded 2026-10-10: one pixel of 3123, by one level. A
+        // document-scale render stamps its dabs in document coordinates now
+        // (docs/DESIGN-paint-path.md, phase 1), and Skia's gradient arithmetic
+        // is not translation-invariant. Measured against the commit before
+        // that change rather than assumed; plain and soft did not move.
+        + "scatter=906CAE908589F87D525E97ECF9C0F4C73450F6C13A869AA3F1822C217D498EEB\n"
         + "soft=76583F6762F80DAC19D635CF19CE01DC736DBA683296DB29D569537BD4011C45";
 
     private static Stroke PlainStroke() => new()

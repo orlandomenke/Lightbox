@@ -52,6 +52,9 @@ public class LivePostKeepsUpWithABurstTests(ITestOutputHelper output) : BrushSta
             BrushSpacing = 0.12,
             BrushWetEdge = 0.15,
             BrushGranulation = 0.25,
+            // What still queues a pass: wet edge and grain finish under the pen
+            // since the paint path's phase 2, a simulated medium does not yet.
+            BrushMedium = Lightbox.Core.Documents.MediumKind.Watercolour,
             LivePostRunner = work => { work(); return Task.CompletedTask; },
         };
         vm.NewDocument(new NewDocumentSettings("flat", 1920, 1080, 12, 72, "#ffffff", false));

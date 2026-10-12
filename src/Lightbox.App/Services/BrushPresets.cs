@@ -75,7 +75,7 @@ public sealed class BrushPreset
         BrushCost.Expressive =>
             $"Expressive — {BrushCostOf.Why(Settings)}. Slower on a large canvas; worth it when the mark matters.",
         BrushCost.Textured =>
-            $"Textured — {BrushCostOf.Why(Settings)}. Drawing stays light; the pen-lift pays for the finish.",
+            $"Textured — {BrushCostOf.Why(Settings)}. Finished under the pen; a little more work per stroke than a plain brush.",
         _ => "Stamps dabs and stops. Predictable cost at any canvas size.",
     };
 

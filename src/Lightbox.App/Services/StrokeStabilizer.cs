@@ -25,6 +25,18 @@ public sealed class StrokeStabilizer
         set => Settings.Mode = value;
     }
 
+    /// <summary>
+    /// How many points back a new sample can still move a point of the stroke:
+    /// one for the default neighbour average, the window for the filters that
+    /// have one, none for the filters that only follow the pen.
+    /// </summary>
+    public int SmoothingHorizon => Mode switch
+    {
+        SmoothingMode.Laplacian => 1,
+        SmoothingMode.MovingAverage or SmoothingMode.SavitzkyGolay => Math.Max(1, Window),
+        _ => 0,
+    };
+
     /// <summary>Window size for moving average / Savitzky–Golay (odd, 3–25).</summary>
     public int Window
     {

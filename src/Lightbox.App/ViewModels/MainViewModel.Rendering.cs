@@ -996,7 +996,8 @@ public partial class MainViewModel
     /// into the cached tiles when playback holds this frame as tiles. Both
     /// are invariant 6's shape: work proportional to the stroke.
     /// </summary>
-    private void AppendToFrameRender(Lightbox.Core.Documents.Frame target, Stroke stroke)
+    private void AppendToFrameRender(
+        Lightbox.Core.Documents.Frame target, Stroke stroke, LiveMark? promoted = null)
     {
         if (PaperHasMoved)
         {
@@ -1048,7 +1049,20 @@ public partial class MainViewModel
         {
             using (Services.PerfLog.Begin("append.hold")) _markSnapshots.Hold(_cache, target, RegionOf(footprint));
         }
-        using (Services.PerfLog.Begin("append.raster")) FrameRasterizer.Append(bitmap, stroke);
+        if (promoted is not null)
+        {
+            // One mark, made once: the pixels the artist drew, not a second
+            // rendering of them (docs/DESIGN-paint-path.md).
+            using (Services.PerfLog.Begin("append.promote"))
+            {
+                FrameRasterizer.Promote(bitmap, promoted.Pixels, promoted.Region, stroke);
+            }
+            PromotedStrokes++;
+        }
+        else
+        {
+            using (Services.PerfLog.Begin("append.raster")) FrameRasterizer.Append(bitmap, stroke);
+        }
         // After the bitmap, because the tiles take the mark from it (B424): one
         // stamp for the frame, a copy for the tiles, not a stamp per tile.
         using (Services.PerfLog.Begin("append.tiles")) _tileFrames.Append(target, stroke, bitmap, Scene.Width, Scene.Height);

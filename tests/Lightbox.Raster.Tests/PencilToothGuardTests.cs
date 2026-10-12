@@ -39,7 +39,19 @@ public class PencilToothGuardTests(ITestOutputHelper output)
     /// BrushEngine.cs stashed), so this is the render every saved textured
     /// stroke without a <c>texturePressure</c> key had and must keep.
     /// </summary>
-    private const string UngatedFingerprint = "E9BD4D831D658EE2808A23A85975EBF137E3563123AC51F5F7FD52EA04BB3507";
+    // First recorded on the engine before the gate existed (E9BD4D83…), and
+    // re-recorded 2026-10-10 for the paint path's first rule
+    // (docs/DESIGN-paint-path.md): a document-scale render now stamps its dabs
+    // in document coordinates through a pooled plane, where it stamped them
+    // into a stroke-sized scratch under a translation, so that replaying a
+    // stroke is the same arithmetic as drawing it and pen-up need not render
+    // the stroke a second time. Skia's gradient arithmetic is not
+    // translation-invariant, so the same mark comes out a level different on
+    // a scattering of edge pixels — measured at 3 to 35 of ~42,000 inked
+    // pixels, worst 1 level, on the shipped soft brushes — and identical
+    // everywhere else. An existing drawing therefore moves by an amount no eye
+    // can find; what it buys is that live and replay are now the same bytes.
+    private const string UngatedFingerprint = "4561D665D52BD7E6E217F2835292941A58646AA7BA5131919981FD7D2EA8E3F6";
 
     [Fact]
     public void AnUngatedTextureRendersExactlyAsItDidBeforeTheGateExisted()
@@ -51,73 +63,59 @@ public class PencilToothGuardTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The live pass over a fixed band, with the press map carried in: four
-    /// times the dabs behind the band must not cost the band more. Minimum of
-    /// repeats, ratio asserted, absolutes printed.
+    /// B437: a gated texture is a ceiling applied in place as the pen moves,
+    /// never a pass. The engine's own predicates say so for the brush under
+    /// test, and the shipped pencil is pinned the same way in the App suite.
     /// </summary>
     [Fact]
-    [Trait("Category", "Performance")]
-    public void TheLivePassOverAGatedBrushIsBoundedByTheBandNotTheStroke()
+    public void AGatedTextureIsACeilingNotAPass()
     {
-        double Pass(int points)
-        {
-            var stroke = Textured(points, gate: 0.8);
-            var info = new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Premul);
-            var dabs = BrushEngine.WalkDabs(stroke);
+        var brush = Textured(10, gate: 0.8).Brush;
+        Assert.True(BrushEngine.NeedsToothCeiling(brush), "the gated texture is not a tooth ceiling");
+        Assert.True(BrushEngine.NeedsFootprintCap(brush), "the tooth ceiling does not ride the footprint cap");
+        Assert.Equal(0, BrushEngine.CeilingReachPx(brush, 1.0));
+        Assert.False(BrushEngine.LiveTipWouldDivergeTooFar(brush), "a capped-in-place brush must show its mark live");
+        var ungated = Textured(10, gate: null).Brush;
+        Assert.False(BrushEngine.NeedsToothCeiling(ungated));
+        // Phase 2 of the paint path: an ungated paper is a stencil applied to
+        // the band under the pen, so it too shows its own mark while drawing.
+        Assert.True(BrushEngine.NeedsBandFinish(ungated), "the ungated paper is not finished under the pen");
+        Assert.False(BrushEngine.LiveTipWouldDivergeTooFar(ungated), "a brush finished in place must show its mark live");
+    }
 
-            using var stamped = new SKBitmap(info);
-            using (var canvas = new SKCanvas(stamped))
-            {
-                BrushEngine.StampDabRange(canvas, stroke, dabs, 0, dabs.Count);
-                canvas.Flush();
-            }
+    /// <summary>
+    /// A live mark may only be kept where a replay shares its frame of
+    /// reference: above the document plane's limit a replay stamps into a
+    /// stroke-sized scratch under a translation, a level away on a scattering
+    /// of pixels. Asked of the size alone, so it is pinned without rendering a
+    /// document that large on a test runner.
+    /// </summary>
+    [Fact]
+    public void ADocumentTooLargeForThePlaneIsNotReplayedInDocumentSpace()
+    {
+        Assert.True(BrushEngine.ReplaysInDocumentSpace(1920, 1080));
+        Assert.True(BrushEngine.ReplaysInDocumentSpace(8000, 8000));
+        Assert.False(BrushEngine.ReplaysInDocumentSpace(8192, 8193));
+        Assert.False(BrushEngine.ReplaysInDocumentSpace(0, 1080));
+    }
 
-            // Carried by the caller: accumulated once, outside the timed region.
-            using var press = new SKBitmap(new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Opaque));
-            using (var canvas = new SKCanvas(press))
-            {
-                canvas.Clear(SKColors.Black);
-                BrushEngine.AccumulatePress(canvas, stroke, dabs, 0, dabs.Count);
-                canvas.Flush();
-            }
-
-            // The footprint ceiling is carried by the app too (B293); without
-            // it the live pass rebuilds the ceiling from the whole stroke, which
-            // is the fallback this test is not about.
-            using var footprint = new SKBitmap(new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Opaque));
-            using (var canvas = new SKCanvas(footprint))
-            {
-                canvas.Clear(SKColors.Black);
-                BrushEngine.AccumulateFootprint(canvas, stroke, dabs, 0, dabs.Count);
-                canvas.Flush();
-            }
-
-            // The band: the last stretch of the mark, the same size for both.
-            var band = new SKRectI(700, 120, 940, 420);
-            using var dabsCrop = Copy(stamped, band);
-            using var pressCrop = Copy(press, band);
-            using var footprintCrop = Copy(footprint, band);
-
-            var best = double.MaxValue;
-            for (var i = 0; i < 5; i++)
-            {
-                var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
-                using var processed = BrushEngine.PostProcessRegion(
-                    dabsCrop, stroke, band, null, band.Location, default,
-                    footprintCrop, Lightbox.Raster.FootprintSpace.Document,
-                    pressCrop, Lightbox.Raster.FootprintSpace.Document);
-                Assert.NotNull(processed);
-                var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-                best = Math.Min(best, ms);
-            }
-            return best;
-        }
-
-        var shortMs = Pass(600);
-        var longMs = Pass(2400);
-        output.WriteLine($"live pass over a 240x300 band: {shortMs:F2} ms behind 600 points, {longMs:F2} ms behind 2400");
-        Assert.True(longMs < shortMs * 2.0 + 2.0,
-            $"the live pass grew with the stroke: {shortMs:F2} ms at 600 points, {longMs:F2} ms at 2400");
+    /// <summary>
+    /// How far a later dab can change a finished pixel it does not touch: a
+    /// falloff's width for the ceiling, further for a wet edge, nothing for a
+    /// brush with no ceiling or a tooth (which is read as it was laid).
+    /// </summary>
+    [Fact]
+    public void TheFinishReachesAsFarAsTheEdgeItReads()
+    {
+        var plain = new BrushSettings { Size = 100, Hardness = 1 };
+        var soft = new BrushSettings { Size = 100, Hardness = 0.2, Flow = 1 };
+        var wet = new BrushSettings { Size = 100, Hardness = 0.9, Flow = 1, WetEdge = 0.6 };
+        Assert.Equal(0, BrushEngine.FinishReachPx(plain));
+        Assert.Equal(0, BrushEngine.FinishReachPx(Textured(100, gate: 0.8).Brush));
+        Assert.True(BrushEngine.NeedsFootprintCap(soft), "the control has no ceiling, so its reach says nothing");
+        Assert.True(BrushEngine.FinishReachPx(soft) >= 40, $"soft: {BrushEngine.FinishReachPx(soft)} px for a 40 px falloff");
+        Assert.True(BrushEngine.FinishReachPx(wet) >= 13, $"wet edge: {BrushEngine.FinishReachPx(wet)} px for a 12 px rim");
+        Assert.True(BrushEngine.FinishReachPx(soft) <= 60 && BrushEngine.FinishReachPx(wet) <= 30, "a reach this generous is paid for on every pointer event");
     }
 
     private static SKBitmap Copy(SKBitmap src, SKRectI r)

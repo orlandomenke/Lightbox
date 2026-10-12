@@ -76,6 +76,33 @@ public static class PaperField
     /// </summary>
     public static int TilePeriod(PaperKind kind, double scale) => GetTile(kind, scale).Size;
 
+    private static readonly ConcurrentDictionary<(PaperKind Kind, int ScaleKey), SkiaSharp.SKImage> Images = new();
+
+    /// <summary>
+    /// The tile as an 8-bit grey image, one texel per document pixel, for a
+    /// Skia shader to repeat (the pencil's tooth ceiling). Same cache key and
+    /// bound as the float tile, built from it, so the ceiling and
+    /// <see cref="Fill"/> read the same paper to the quantum.
+    /// </summary>
+    public static SkiaSharp.SKImage TileImage(PaperKind kind, double scale)
+    {
+        var clamped = Math.Clamp(double.IsFinite(scale) ? scale : MinScale, MinScale, MaxScale);
+        var key = (kind, (int)Math.Round(clamped / ScaleQuantum, MidpointRounding.AwayFromZero));
+        if (Images.TryGetValue(key, out var hit)) return hit;
+        if (Images.Count >= MaxCachedTiles) Images.Clear();
+        return Images.GetOrAdd(key, static k =>
+        {
+            var tile = GetTile(k.Kind, k.ScaleKey * ScaleQuantum);
+            var n = tile.Size;
+            var bmp = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(n, n, SkiaSharp.SKColorType.Gray8, SkiaSharp.SKAlphaType.Opaque));
+            var px = bmp.GetPixelSpan();
+            for (var i = 0; i < n * n; i++) px[i] = (byte)Math.Clamp((int)MathF.Round(tile.Data[i] * 255f), 0, 255);
+            var image = SkiaSharp.SKImage.FromBitmap(bmp);
+            bmp.Dispose();
+            return image;
+        });
+    }
+
     // ---- tile cache -----------------------------------------------------------
 
     private sealed class Tile

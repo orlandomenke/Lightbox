@@ -75,7 +75,18 @@ public class PreMergeDocumentTests(ITestOutputHelper output)
     // dab does there. Along a capped stroke that flattens the dab-pitch ripple,
     // and it can only ever raise a pixel; SweptCeilingTests counts the pixels
     // that went down and finds none. Same standing as the entries above.
-    private const string PaintedFingerprint = "0089FA22053D9314E47DC731FC528DFCAC215AC6C966783E91DA2C148AF92EC2";
+    // Re-recorded 2026-10-10 for the paint path's first rule
+    // (docs/DESIGN-paint-path.md): a document-scale render now stamps its dabs
+    // in document coordinates through a pooled plane, where it stamped them
+    // into a stroke-sized scratch under a translation, so that replaying a
+    // stroke is the same arithmetic as drawing it and pen-up need not render
+    // the stroke a second time. Skia's gradient arithmetic is not
+    // translation-invariant, so the same mark comes out a level different on
+    // a scattering of edge pixels — measured at 3 to 35 of ~42,000 inked
+    // pixels, worst 1 level, on the shipped soft brushes — and identical
+    // everywhere else. An existing drawing therefore moves by an amount no eye
+    // can find; what it buys is that live and replay are now the same bytes.
+    private const string PaintedFingerprint = "E8AF310B0701F3A5236CC7A8AC5C812399555ECA9504111500558C51BF2BBF43";
     private const string VectorFingerprint = "E0B24E9D7D1CA6627AEB7FA71D131F62839A579038AAA9FFE1D1AB1A32EAB06E";
 
     private static Doc Load() => DocJson.Deserialize(

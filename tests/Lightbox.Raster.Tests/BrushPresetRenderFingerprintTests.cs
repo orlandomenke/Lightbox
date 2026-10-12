@@ -114,10 +114,24 @@ public class BrushPresetRenderFingerprintTests(ITestOutputHelper output)
     // coverage the 2026-08-24 entry did — and, by the note's argument, never
     // lowers a pixel: SweptCeilingTests counts the pixels that went down and
     // finds none.
-    [InlineData("plain", 0, 0, "21724733AC182E55")]
-    [InlineData("granulation", 0.35, 0, "AE467679339148C5")]
-    [InlineData("wet edge", 0, 0.7, "D7590BD1759815F2")]
-    [InlineData("both", 0.35, 0.7, "1B613354D6026991")]
+    // Re-recorded 2026-10-10, all four together: a document-scale render now
+    // stamps its dabs in document coordinates through a pooled plane, so that
+    // replaying a stroke is the same arithmetic as drawing it live
+    // (docs/DESIGN-paint-path.md). Skia's gradient arithmetic is not
+    // translation-invariant, so every shape moved by a level on a scattering
+    // of edge pixels and nowhere else — the dabs under all four are the same
+    // dabs, which is why they move together once more.
+    // Re-recorded 2026-10-10, the two with a wet edge: the wet edge is no
+    // longer a blur of the whole mark subtracted from itself after the dabs,
+    // it is the rim of the ceiling, read off the distance to the edge of the
+    // mark's support and laid under the pen (docs/DESIGN-paint-path.md, phase
+    // 2). A new formulation of the same look, so these two move and the two
+    // without a wet edge do not - which is the evidence that grain, now also
+    // laid by the band finish, is the same grain to the byte.
+    [InlineData("plain", 0, 0, "9BCFD3D92A8A3F92")]
+    [InlineData("granulation", 0.35, 0, "7BC9E543177AD6E5")]
+    [InlineData("wet edge", 0, 0.7, "B198EB0DF8F929A9")]
+    [InlineData("both", 0.35, 0.7, "CC0C7F32911B08E3")]
     public void AShapeStillRendersWhatItDidBefore(
         string name, double granulation, double wetEdge, string expected)
     {

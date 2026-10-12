@@ -280,8 +280,9 @@ becomes something pressure fills in: a light touch catches only the peaks of
 the paper, a firm stroke reaches the valleys, and the edge of a mark — where
 the tip presses least — shows more paper than its middle. It needs a paper and
 a Depth above zero, like everything on this option, and it follows the pen
-only when **Pen pressure** is on for the brush. The shipped **Pencil** is a
-fine cold-press grain with this most of the way up; a mouse, which always
+only when **Pen pressure** is on for the brush. Either way the paper lands
+under the pen as you draw and nothing changes at pen-lift. The shipped **Pencil**
+is a fine cold-press grain with this most of the way up; a mouse, which always
 presses fully, draws it at its darkest.
 
 ## How the brush answers the pen
@@ -479,39 +480,33 @@ Brushes come in three kinds, and the picker tells them apart:
 
 - **Fast** — stamps dabs and stops. Predictable cost at any canvas size, and
   what almost every brush is. Ink, soft round, airbrush.
-- **Textured ◇** — stamps dabs and then finishes the mark: a wet edge or
-  granulation pass runs over the whole stroke when the pen lifts. Drawing
-  stays light; the finish is a beat at pen-lift, longer on a big stroke.
-  Pencil and the paper-grain brushes live here — a pencil's tooth is a paper
-  texture that pressure fills in, so it pays what a textured brush pays.
+- **Textured ◇** — stamps dabs and finishes them as it goes: a wet edge, a
+  grain or a paper is laid on the part of the mark the pen just touched. Each
+  moment of drawing costs a little more than a fast brush, and nothing is left
+  to do when the pen lifts. Pencil and the paper-grain brushes live here — a
+  pencil's tooth is a paper texture that pressure fills in.
 - **Expressive ◈** — reads the canvas back, simulates a medium, or blends the
   layers underneath. The mark behaves like a material instead of like paint
   being placed. Slower, particularly on a large canvas.
 
 The glyphs mark the two paid kinds, and the list is grouped so they sit apart
 from the fast ones. Hover a brush and the tooltip names what it is paying for —
-"reads the canvas back as it goes", "settles pigment into the grain at
-pen-lift" — because that is the thing you can turn off if you want the speed
-back.
+"reads the canvas back as it goes", "darkens its own edge as you draw" — because that is
+the thing you can turn off if you want the speed back.
 
 ### What a textured brush shows you while you draw
 
-A wet edge or a grain pass runs a little behind your hand, so the newest part of
-the mark reaches the screen before the finish does. You see the ink land under
-the nib and then settle into its texture a moment later.
+The finished mark. A wet edge, a grain and a paper texture are laid under the
+pen, on the part of the stroke each movement touched, and what you see while
+drawing is what is kept when you lift — to the pixel. The wet edge's dark rim
+follows the outline of the stroke so far, so at the very tip it moves forward
+with the pen; behind the tip it does not change again.
 
-**On a fast stroke the newest part can drop out entirely** — the mark stops
-under your pen and catches up when you slow down or lift. The faster you go the
-more of the mark this affects. It is not lost: everything you drew is there the
-instant the pen stops, and the committed stroke is unaffected. It is the preview
-falling behind, not the drawing.
+A **simulated medium** is the exception, for now. Its simulation still runs
+just behind your hand and once more at pen-lift, so on a fast stroke the newest
+part can trail the pen and the mark can shift a little when you lift.
 
-Slower and shorter strokes show the mark the whole way. Smaller brushes hold up
-better than large ones, because the finish has less to compute.
-
-*Planned:* keeping the preview under the pen at any speed. The passes that fake
-a medium — wet edge and grain — currently do this; a **simulated medium** or a
-**paper texture** does not, and shows the mark as of its last finished pass.
+*Planned:* the simulated media finishing under the pen as well.
 
 It is a price tag, not a warning. These brushes exist because the coupling is
 what makes a mark expressive, and an artist reaching for one has decided the
@@ -521,11 +516,11 @@ discovered at frame 180.
 Nothing about a brush *declares* which kind it is — it is worked out from the
 brush's own settings, so turning the medium off moves it to the fast group and
 turning it on moves it back. Every simulated medium also has a **(flat)**
-counterpart that gets close to the look without running the simulation — but
-the flat pair lean on the wet edge and grain passes to fake it, so today they
-are textured rather than free, and a flat brush with both turned up can cost as
-much at pen-lift as the medium it stands in for. The tooltip tells the truth
-per brush.
+counterpart that gets close to the look without running the simulation. The
+flat ones lean on the wet edge and grain to do it, so they are textured rather
+than fast — but they finish under the pen and cost nothing at pen-lift, which
+their simulated originals do not yet manage. The tooltip tells the truth per
+brush.
 
 ## The brush library
 
