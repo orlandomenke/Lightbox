@@ -357,10 +357,17 @@ public partial class MainViewModel
         var reshaped = stroke.Clone(newId: false);
         reshaped.Points = afterPoints;
         reshaped.Path = afterPath;
-        var repaint = RepaintBoundsOf(stroke) is { } was && RepaintBoundsOf(reshaped) is { } now
+        //
+        // CommitRegion rather than CommitBounds (the adversary): a line drawn
+        // under symmetry is stamped once per mirrored copy, and the copies
+        // move when the line does. The authored copy's rectangle alone would
+        // leave the old reflection standing.
+        var page = new SkiaSharp.SKImageInfo(Scene.Width, Scene.Height);
+        var repaint = Lightbox.Raster.BrushEngine.CommitRegion(stroke, page) is { } was
+            && Lightbox.Raster.BrushEngine.CommitRegion(reshaped, page) is { } now
             ? new GeometryOps.BBox(
-                Math.Min(was.MinX, now.MinX), Math.Min(was.MinY, now.MinY),
-                Math.Max(was.MaxX, now.MaxX), Math.Max(was.MaxY, now.MaxY))
+                Math.Min(was.Left, now.Left), Math.Min(was.Top, now.Top),
+                Math.Max(was.Right, now.Right), Math.Max(was.Bottom, now.Bottom))
             : (GeometryOps.BBox?)null;
         if (repaint is { } rectangle && !ReplayingBeatsRebuilding(frame, rectangle)) repaint = null;
 

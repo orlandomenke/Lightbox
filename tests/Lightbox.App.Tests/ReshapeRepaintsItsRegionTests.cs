@@ -225,6 +225,44 @@ public sealed class ReshapeRepaintsItsRegionTests(ITestOutputHelper output) : Br
         Assert.Equal(0, differing);
     }
 
+    /// <summary>
+    /// A line drawn under symmetry takes its reflection with it.
+    /// </summary>
+    /// <remarks>
+    /// The adversary's refutation of the first cut: the rectangle was the
+    /// authored copy's alone, so the mirrored copy's old position was outside
+    /// it and stayed on the page. Both the patch and its undo are compared
+    /// against the record, because both repaint the same rectangle.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AMirroredLineTakesItsReflectionWithIt()
+    {
+        var (vm, lineId) = Crossed();
+        var line = vm.PaintedCel().Strokes.First(s => s.Id == lineId);
+        var w = vm.Doc.Scene.Width;
+        line.Symmetry = new SymmetryAxis { CenterX = w / 2.0, CenterY = vm.Doc.Scene.Height / 2.0, Mirror = true };
+        vm.FrameCache.Invalidate(vm.PaintedCel().Id);
+        using var before = Cached(vm);
+        var repaintsBefore = vm.FrameRegionRepaints;
+
+        Reshape(vm, lineId);
+
+        using var cached = Cached(vm);
+        using var rebuilt = Rebuilt(vm);
+        var (differing, worst) = Compare(cached, rebuilt);
+        var (moved, _) = Compare(cached, before);
+        output.WriteLine(
+            $"repaints {repaintsBefore} → {vm.FrameRegionRepaints}; cache vs record: differing {differing}, "
+            + $"worst {worst}; pixels moved {moved}");
+        Assert.Equal(0, differing);
+
+        vm.UndoCommand.Execute(null);
+        using var undone = Cached(vm);
+        var (left, _) = Compare(undone, before);
+        output.WriteLine($"after undo: differing {left}");
+        Assert.Equal(0, left);
+    }
+
     [AvaloniaFact]
     public void UndoingAReshapePutsEveryPixelBack()
     {
