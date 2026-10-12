@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.Input;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Geometry;
 
 namespace Lightbox.App.ViewModels;
 
@@ -279,6 +280,36 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// Whether repainting a rectangle is the cheaper way to bring a drawing up
+    /// to date, or dropping it and rendering it again is (B448).
+    /// </summary>
+    /// <remarks>
+    /// <b>A region repaint is priced by the strokes it replays, not by the
+    /// pixels it covers.</b> Every stroke whose reach touches the rectangle is
+    /// stamped in full and Skia throws away what falls outside — measured on
+    /// the owner-shaped fixture, a 200 px square that touched all twenty
+    /// strokes of a drawing cost 204 ms against 221 ms for the whole drawing,
+    /// and a quarter of the page touching eleven cost 106 ms. So a long line
+    /// across a busy drawing gains nothing from the patch, and in the lab it
+    /// lost: 360 ms from release to screen against 240 ms for the drop. Half
+    /// the drawing's points is where the patch is still clearly ahead.
+    /// </remarks>
+    private static bool ReplayingBeatsRebuilding(Frame frame, GeometryOps.BBox bounds)
+    {
+        var region = RegionOf(bounds);
+        long replayed = 0, all = 0;
+        foreach (var stroke in frame.Strokes)
+        {
+            all += stroke.Points.Count;
+            if (Lightbox.Raster.BrushEngine.ReachBounds(stroke) is { } reach && reach.IntersectsWith(region))
+            {
+                replayed += stroke.Points.Count;
+            }
+        }
+        return replayed * 2 <= all;
+    }
+
+    /// <summary>
     /// Write the reshaped line into the document as one undo step.
     /// </summary>
     /// <remarks>
@@ -317,6 +348,29 @@ public partial class MainViewModel
         var afterPath = session.Path.Clone();
         if (afterPoints.Count < 2) return false;
 
+        // B448. Where the line was and where it now is, as one rectangle: every
+        // pixel this step can change, so the commit — and its undo, and its
+        // redo — repaints that much of the drawing instead of rebuilding all of
+        // it. The whole line on both sides rather than the segments that moved,
+        // because a dab's place along the line is walked from the start: pull
+        // one point and every dab after it may land somewhere new.
+        var reshaped = stroke.Clone(newId: false);
+        reshaped.Points = afterPoints;
+        reshaped.Path = afterPath;
+        //
+        // CommitRegion rather than CommitBounds (the adversary): a line drawn
+        // under symmetry is stamped once per mirrored copy, and the copies
+        // move when the line does. The authored copy's rectangle alone would
+        // leave the old reflection standing.
+        var page = new SkiaSharp.SKImageInfo(Scene.Width, Scene.Height);
+        var repaint = Lightbox.Raster.BrushEngine.CommitRegion(stroke, page) is { } was
+            && Lightbox.Raster.BrushEngine.CommitRegion(reshaped, page) is { } now
+            ? new GeometryOps.BBox(
+                Math.Min(was.Left, now.Left), Math.Min(was.Top, now.Top),
+                Math.Max(was.Right, now.Right), Math.Max(was.Bottom, now.Bottom))
+            : (GeometryOps.BBox?)null;
+        if (repaint is { } rectangle && !ReplayingBeatsRebuilding(frame, rectangle)) repaint = null;
+
         var frameId = frame.Id;
         _editor.PerformDelta(
             apply: doc =>
@@ -331,7 +385,8 @@ public partial class MainViewModel
                 s.Points = [.. beforePoints];
                 s.Path = beforePath?.Clone();
             },
-            affectedFrameId: frameId);
+            affectedFrameId: frameId,
+            repaintBounds: repaint);
 
         // The session's Original becomes what was just committed, so a later
         // Escape restores this rather than the state the session opened in —
@@ -340,7 +395,7 @@ public partial class MainViewModel
         // and then be un-done by an Escape that never named it.
         session.Keep(afterPath);
 
-        AfterStrokeEdit(frameId);
+        AfterStrokeEdit(frameId, repaint);
         PathEditChanged?.Invoke();
         return true;
     }
