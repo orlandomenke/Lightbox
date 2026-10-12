@@ -11,7 +11,7 @@ namespace Lightbox.App.Rendering;
 /// <para>
 /// Out of <c>CanvasControl.DrawOp</c> for <see cref="GuidePainter"/>'s reason —
 /// nothing in a draw operation can be tested — and onto
-/// <see cref="OverlayStyle"/> (Q249, Q250). It had a cyan of its own, a dashed
+/// <see cref="OverlayStyle"/> (Q249, Q252). It had a cyan of its own, a dashed
 /// uncased outline that vanished on cyan artwork, and a pivot in an amber of
 /// its own.
 /// </para>

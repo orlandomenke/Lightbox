@@ -367,13 +367,22 @@ dictionary cannot be read; a test holds its accent to the palette's.
   inside an open grip. They are drawn over the artist's picture, not over the
   application's surfaces, so they do not follow the theme.
 
-**Not every overlay is on it yet.** The pen and the white arrow are; the
-transform box, guides, selection outlines, crop, camera, symmetry and the rig
-are the next branch. A new overlay takes its pens from `OverlayStyle` and adds
-no colour of its own — by convention for now; the next branch is where a check
-that enforces it belongs, along with the two things the style does not have yet
-and those overlays will need: a hover state, and a second colour for a mark
-that means something other than "editable" (a pivot, a guide's states).
+- **Hover grows and thickens, in the same colours** (Q252): a grip two pixels
+  bigger, a line a pixel thicker. It says *a press takes this one* and cannot
+  be read as selected, which is filled.
+- **One second colour, `AccentAmber`, for a reference mark** — a pivot, a warp
+  band, a guide's anchor: the point something turns or is held about, not the
+  thing itself.
+- **A guide at rest is one faint pass**, not a styled line: a perspective rig of
+  thirty lines must not read as thirty selections. It takes the style when the
+  Move tool has hold of it.
+
+**Not every overlay is on it yet.** The pen, the white arrow, the transform box
+with its bands and cage, the arrow's selection outlines and the marquee are;
+guides, crop, camera, symmetry, reference boxes and the rig are still to move.
+A new overlay takes its pens from `OverlayStyle` and adds no colour of its own:
+`EveryCanvasOverlayTakesItsPensFromTheStyle` holds every file under `Rendering`
+to the colour literals it has today, and a file it does not list to none.
 
 ## Dockers
 

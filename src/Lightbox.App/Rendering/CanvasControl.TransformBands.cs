@@ -373,7 +373,7 @@ public partial class CanvasControl
     private static bool DrawBandsInstead(SKCanvas canvas, TxGizmoData g, float scale)
     {
         if (g.Bands is not { } b) return false;
-        // The style's reference colour (Q250): a divider is where the warp is
+        // The style's reference colour (Q252): a divider is where the warp is
         // held, not part of the box, which is what the pivot it replaces was.
         using var pens = new OverlayStyle.Pens(scale);
         using var path = new SKPath();

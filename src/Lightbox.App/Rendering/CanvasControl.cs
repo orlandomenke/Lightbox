@@ -4132,7 +4132,7 @@ public sealed partial class CanvasControl : Control
             // The hover goes underneath, so a line that is both hovered and
             // picked reads as picked. B217: one painter for both, because two
             // would be the divergence B215 spent a branch removing one object
-            // along. Q250: a hovered line is the styled line a pixel thicker —
+            // along. Q252: a hovered line is the styled line a pixel thicker —
             // "a press takes this one" — where it used to be a dimmer copy.
             DrawLineOutlines(canvas, hoveredLines, hover: true, dragging: false);
             DrawLineOutlines(canvas, selectedLines, hover: false, dragging: lineDrag != default);
@@ -4178,7 +4178,7 @@ public sealed partial class CanvasControl : Control
             if (selectionManager is null || !selectionManager.HasSelection) return;
 
             // What the arrow has picked that is not a line. One styled outline
-            // for all four kinds (Q250): they used to be cyan, green, orange
+            // for all four kinds (Q252): they used to be cyan, green, orange
             // and magenta, which said four things about one state. Not folded
             // into the marks' own "selected" look, because that one follows the
             // rig panel's single choice and this follows the arrow's selection,

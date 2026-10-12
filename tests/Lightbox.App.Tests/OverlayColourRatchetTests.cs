@@ -4,7 +4,7 @@ namespace Lightbox.App.Tests;
 
 /// <summary>
 /// Canvas chrome takes its colour from <c>OverlayStyle</c>, and the files that
-/// do not yet may not add to what they have (Q249, Q250).
+/// do not yet may not add to what they have (Q249, Q252).
 /// </summary>
 /// <remarks>
 /// <para>
