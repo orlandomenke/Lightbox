@@ -60,6 +60,59 @@ public static class BrushEngine
         return cut.Width <= 0 || cut.Height <= 0 ? 0 : (long)cut.Width * cut.Height;
     }
 
+    /// <summary>
+    /// The runs of a stroke's dabs that can reach a rectangle, as index ranges;
+    /// all of them when there is no rectangle to keep to (B450).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Runs, not a filtered list</b>, so whatever stamps them still sees
+    /// each dab beside its real neighbours. A dab is kept when the box round
+    /// it and the dabs either side of it touches the rectangle — its
+    /// neighbours too, because a mark can be joined from one dab to the next
+    /// and a join between two dabs that both miss the rectangle can still
+    /// cross it.
+    /// </para>
+    /// <para>
+    /// The rectangle is already grown by the brush's reach, so a dab's centre
+    /// is all that is asked about here.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<(int From, int To)> RunsReaching(IReadOnlyList<Dab> dabs, SKRect? keep)
+    {
+        if (keep is not { } box)
+        {
+            yield return (0, dabs.Count);
+            yield break;
+        }
+
+        var start = -1;
+        for (var i = 0; i < dabs.Count; i++)
+        {
+            var a = dabs[Math.Max(0, i - 1)].Pos;
+            var b = dabs[i].Pos;
+            var c = dabs[Math.Min(dabs.Count - 1, i + 1)].Pos;
+            var reaches =
+                Math.Min(a.X, Math.Min(b.X, c.X)) <= box.Right && Math.Max(a.X, Math.Max(b.X, c.X)) >= box.Left
+                && Math.Min(a.Y, Math.Min(b.Y, c.Y)) <= box.Bottom && Math.Max(a.Y, Math.Max(b.Y, c.Y)) >= box.Top;
+            if (reaches)
+            {
+                if (start < 0) start = i;
+            }
+            else if (start >= 0)
+            {
+                yield return (start, i);
+                start = -1;
+            }
+        }
+        if (start >= 0) yield return (start, dabs.Count);
+    }
+
+    private static long _dabsStamped;
+
+    /// <summary>How many dabs the paint path has been asked to stamp. See <see cref="ScratchPixels"/>.</summary>
+    public static long DabsStamped => System.Threading.Interlocked.Read(ref _dabsStamped);
+
     private static long _scratchPixels;
 
     /// <summary>
@@ -690,6 +743,7 @@ public static class BrushEngine
         // a few bytes came out a level different at 2x (the test that found
         // it is APatchAtTwiceTheResolutionIsTheWholeRender). Those renders are
         // stamped whole, as they always were.
+        SKRect? keep = null;
         if (window is { } wanted
             && outputScale == 1.0 && origin.X == 0 && origin.Y == 0
             && ReplaysInDocumentSpace(info.Width, info.Height)
@@ -700,6 +754,16 @@ public static class BrushEngine
             var cut = SKRectI.Intersect(rect, grown);
             if (cut.Width <= 0 || cut.Height <= 0) return;
             rect = cut;
+            // And only the dabs that can reach it. The scratch was the smaller
+            // half of the cost: on the owner-shaped fixture a 120-pixel patch
+            // with the scratch cut and every dab still stamped took half the
+            // whole render's time. Not under symmetry, where a dab's position
+            // is the drawn copy's and this rectangle is the reflected one's.
+            if (symmetry is null)
+            {
+                keep = SKRect.Create(cut.Left, cut.Top, cut.Width, cut.Height);
+                keep = SKRect.Inflate(keep.Value, margin + 2, margin + 2);
+            }
         }
 
         // Bigger surface, same geometry. The scratch is allocated at output
@@ -825,7 +889,11 @@ public static class BrushEngine
                 }
                 else
                 {
-                    StampDabRange(dabCanvas, stroke, WalkDabs(stroke), 0, int.MaxValue, fp, false, deposits);
+                    var walked = WalkDabs(stroke);
+                    foreach (var (from, to) in RunsReaching(walked, keep))
+                    {
+                        StampDabRange(dabCanvas, stroke, walked, from, to, fp, false, deposits);
+                    }
                 }
             }
 
@@ -845,7 +913,11 @@ public static class BrushEngine
                 cover.Clear(SKColors.Black);
                 InDocumentSpace(
                     cover, dabSpace, outputScale, origin,
-                    () => AccumulateCoverage(cover, brush, all, 0, all.Count), symmetry);
+                    () =>
+                    {
+                        foreach (var (from, to) in RunsReaching(all, keep)) AccumulateCoverage(cover, brush, all, from, to);
+                    },
+                    symmetry);
                 cover.Restore();
                 cover.Flush();
                 var held = dabCanvas.Save();
@@ -3515,6 +3587,7 @@ public static class BrushEngine
         to = Math.Min(to, dabs.Count);
         from = Math.Max(0, from);
         if (from >= to) return;
+        System.Threading.Interlocked.Add(ref _dabsStamped, to - from);
 
         var m = coverage.TotalMatrix;
         var deviceScale = (float)Math.Sqrt(m.ScaleX * m.ScaleX + m.SkewY * m.SkewY);
@@ -3687,6 +3760,8 @@ public static class BrushEngine
         var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
         var tipImage = brush.TipId is null ? null : BrushTipRegistry.ResolveImage(brush.TipId);
 
+        System.Threading.Interlocked.Add(
+            ref _dabsStamped, Math.Max(0, Math.Min(to, dabs.Count) - Math.Max(0, from)));
         for (var i = Math.Max(0, from); i < Math.Min(to, dabs.Count); i++)
         {
             var dab = dabs[i];

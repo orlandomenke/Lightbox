@@ -375,14 +375,26 @@ public sealed class RegionRepaintWindowTests(ITestOutputHelper output) : BrushSt
         var frame = Drawing(preset.Settings);
 
         var before = BrushEngine.ScratchPixels;
+        var dabsBefore = BrushEngine.DabsStamped;
         using var whole = FrameRasterizer.Materialize(frame, W, H);
         var forWhole = BrushEngine.ScratchPixels - before;
+        var dabsForWhole = BrushEngine.DabsStamped - dabsBefore;
 
         var square = Regions[0].Rect;
         using var patched = whole.Copy();
         before = BrushEngine.ScratchPixels;
+        dabsBefore = BrushEngine.DabsStamped;
         Assert.True(FrameRasterizer.RepaintRegion(patched, frame, square, W, H));
         var forPatch = BrushEngine.ScratchPixels - before;
+        var dabsForPatch = BrushEngine.DabsStamped - dabsBefore;
+
+        // The dabs are the other half, and the larger one: the first cut of
+        // this fix shrank the scratch and still stamped every dab, and on the
+        // owner-shaped fixture a 120-pixel patch took half the whole render.
+        var dabShare = (double)dabsForPatch / dabsForWhole;
+        output.WriteLine($"dabs: whole drawing {dabsForWhole:N0}, the patch {dabsForPatch:N0} ({dabShare:P1})");
+        Assert.True(dabsForWhole > 0);
+        Assert.True(dabShare < 0.5, $"the patch stamped {dabShare:P1} of the drawing's dabs");
 
         var share = (double)forPatch / forWhole;
         var area = (double)square.Width * square.Height / (W * H);
