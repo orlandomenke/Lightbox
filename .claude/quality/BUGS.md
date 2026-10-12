@@ -865,6 +865,11 @@ which is a weak test and still far better than none.
   - Found 2026-08-17: `freeid question` returned Q110 while `src/` already cites Q101–Q110 in comments — the questions *directory* tops out at Q99, and the scan reads it (plus refs) but not code citations, so every question decided in-conversation and cited in code without a file is invisible to it. The collision the issuer exists to prevent, one layer up. Q111 was taken by hand for the playhead decision after grepping the tree for the true ceiling.
   - Filed rather than fixed, and the reason is the moment: this branch's objective is the bone system, and changing the id-issuing script mid-branch while depending on it is how a renumber goes wrong. The fix is one grep over the tree in `freeid`'s scan — small, its own branch.
 
+### timeline
+
+- [ ] **B452** `P1` `timeline` A layer's opacity, blend, mask, effect or visibility changed between plays is not seen on the next play: the cache key did not cover them `evidence: AnOpacityChangedBetweenPlaysIsSeen,ABlendModeChangedBetweenPlaysIsSeen,HidingOneLayerAndShowingAnotherBetweenPlaysIsSeen`
+- [ ] **B451** `P2` `timeline` The playback composite cache switches off for the session at the first stroke: it waited for a scratch bitmap that is kept, not freed `evidence: TheSamePlayTwiceIsStillServedFromTheCache`
+
 ### transform
 
 - [ ] **B280** `P2` `transform` Transform preview drags a layer's mask along with the content `evidence: ATransformPreviewLeavesTheMaskWhereItIs`

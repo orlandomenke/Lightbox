@@ -177,6 +177,30 @@ public partial class MainViewModel
     /// one in the same gesture) heals on the next edit, which a navigator
     /// thumbnail can afford.
     /// </summary>
+    /// <summary>
+    /// Everything about the layer stack at <paramref name="frame"/> that changes a
+    /// composite without changing a drawing — for the playback cache's key
+    /// (<see cref="Rendering.ComposeKey"/>): each layer in order with its
+    /// visibility, opacity and blend, then the masks, clipping and effect values
+    /// <see cref="CarveStamp"/> already enumerates for the navigator.
+    /// </summary>
+    internal static int StackStamp(Scene scene, int frame)
+    {
+        var hash = new HashCode();
+        hash.Add(scene.BackgroundColor);
+        hash.Add(scene.TransparentBackground);
+        foreach (var layer in scene.Layers)
+        {
+            hash.Add(layer.Id);
+            hash.Add(scene.IsLayerVisible(layer));
+            hash.Add(layer.Opacity);
+            hash.Add(layer.BlendMode);
+            hash.Add(layer.IsAdjustment);
+        }
+        hash.Add(CarveStamp(scene, frame));
+        return hash.ToHashCode();
+    }
+
     private static string CarveStamp(Scene scene, int frame)
     {
         var sb = new System.Text.StringBuilder();
