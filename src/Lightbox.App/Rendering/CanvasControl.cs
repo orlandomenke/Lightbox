@@ -4257,49 +4257,21 @@ public sealed partial class CanvasControl : Control
 
             // Camera orange — the same colour the timeline gives the camera
             // track, so "this is the camera" is one colour everywhere.
-            using var edge = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.6f / scale,
-                Color = new SKColor(0xff, 0x9f, 0x45, 240),
-            };
-            canvas.DrawPath(frame, edge);
-
-            // The gizmo's handles: corner squares zoom, the top-edge grip
-            // pans, and the circle pushed out from the grip rotates. Small
-            // targets on purpose — everywhere else on the canvas still paints.
-            using var fill = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Fill,
-                Color = new SKColor(0xff, 0x9f, 0x45, 255),
-            };
-            using var casing = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.2f / scale,
-                Color = new SKColor(0x26, 0x29, 0x2f, 220),
-            };
-
-            var half = 4f / scale;
+            // The camera's own orange, in the canvas's one set of shapes (Q252):
+            // the cased line, a square grip at each corner and to pan by, and a
+            // round one on a stalk to roll it.
+            using var pens = new OverlayStyle.Pens(scale);
+            var grip = PanGrip(corners);
+            var rotate = RotateHandle(corners, 26f / scale);
+            frame.MoveTo(grip);
+            frame.LineTo(rotate);
+            pens.Line(canvas, frame, role: OverlayStyle.Role.Camera);
             foreach (var corner in corners)
             {
-                var box = new SKRect(corner.X - half, corner.Y - half, corner.X + half, corner.Y + half);
-                canvas.DrawRect(box, fill);
-                canvas.DrawRect(box, casing);
+                pens.Grip(canvas, corner.X, corner.Y, round: false, selected: false, role: OverlayStyle.Role.Camera);
             }
-
-            var grip = PanGrip(corners);
-            var gripBox = new SKRect(grip.X - half, grip.Y - half, grip.X + half, grip.Y + half);
-            canvas.DrawRect(gripBox, fill);
-            canvas.DrawRect(gripBox, casing);
-
-            var rotate = RotateHandle(corners, 26f / scale);
-            canvas.DrawLine(grip, rotate, edge);
-            canvas.DrawCircle(rotate, 4.5f / scale, fill);
-            canvas.DrawCircle(rotate, 4.5f / scale, casing);
+            pens.Grip(canvas, grip.X, grip.Y, round: false, selected: false, role: OverlayStyle.Role.Camera);
+            pens.Grip(canvas, rotate.X, rotate.Y, round: true, selected: false, role: OverlayStyle.Role.Camera);
         }
 
         /// <summary>
@@ -4314,28 +4286,16 @@ public sealed partial class CanvasControl : Control
             var (from, to) = axis;
             var scale = Math.Max(0.01f, view.Scale);
 
-            // Drawn twice: a dark casing under a light line, so it reads on
-            // top of whatever the gradient itself is painting.
-            using (var casing = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 3.2f / scale,
-                Color = new SKColor(0, 0, 0, 150),
-            })
-            {
-                canvas.DrawLine(from, to, casing);
-            }
-            using var line = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.2f / scale,
-                Color = new SKColor(0xff, 0xff, 0xff, 235),
-            };
-            canvas.DrawLine(from, to, line);
-            canvas.DrawCircle(from, 4f / scale, line);
-            canvas.DrawCircle(to, 4f / scale, line);
+            // The styled line, cased, so it reads on top of whatever the
+            // gradient itself is painting; each end is a grip, round because
+            // it is a point on a line rather than a corner of a box.
+            using var pens = new OverlayStyle.Pens(scale);
+            using var path = new SKPath();
+            path.MoveTo(from);
+            path.LineTo(to);
+            pens.Line(canvas, path);
+            pens.Grip(canvas, from.X, from.Y, round: true, selected: false);
+            pens.Grip(canvas, to.X, to.Y, round: true, selected: false);
         }
 
         /// <summary>
@@ -4362,23 +4322,19 @@ public sealed partial class CanvasControl : Control
         {
             if (lazy is not { } g) return;
             var scale = Math.Max(0.01f, view.Scale);
-            using var rope = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.2f / scale,
-                Color = new SKColor(0xe0, 0xa0, 0x30, 170),
-            };
-            canvas.DrawCircle(g.CursorX, g.CursorY, g.Radius, rope);
-            canvas.DrawLine(g.CursorX, g.CursorY, g.AnchorX, g.AnchorY, rope);
-            using var anchor = new SKPaint
-            {
-                IsAntialias = true,
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = 1.6f / scale,
-                Color = new SKColor(0x4a, 0x9d, 0xe0, 220),
-            };
-            canvas.DrawCircle(g.AnchorX, g.AnchorY, g.BrushRadius, anchor);
+            // Thin and uncased, like the outline of a picked line: this follows
+            // the brush across the drawing and must not sit on it. The dead
+            // zone and the string are reference marks; where paint lands is
+            // the accent.
+            using var pens = new OverlayStyle.Pens(scale);
+            using var rope = new SKPath();
+            rope.AddCircle(g.CursorX, g.CursorY, g.Radius);
+            rope.MoveTo(g.CursorX, g.CursorY);
+            rope.LineTo(g.AnchorX, g.AnchorY);
+            pens.Outline(canvas, rope, role: OverlayStyle.Role.Reference);
+            using var lands = new SKPath();
+            lands.AddCircle(g.AnchorX, g.AnchorY, g.BrushRadius);
+            pens.Outline(canvas, lands);
         }
 
         /// <summary>Marching ants for the selection + in-progress shapes (drawn in doc space).</summary>

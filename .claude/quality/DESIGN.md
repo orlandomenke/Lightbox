@@ -376,17 +376,25 @@ dictionary cannot be read; a test holds its accent to the palette's.
 - **The outline of a drawn line is one uncased pixel** — two when hovered. It
   sits on ink, and the ink has to stay the thing you see; the price, accepted,
   is that it can be lost on artwork of the accent's colour.
+- **The camera keeps its orange** — the palette's `CameraTrack`, the colour it
+  has on the timeline — and takes its casing and its grips from the style. It
+  is the one overlay with a colour of its own, because the colour is the
+  camera's name.
+- **A dashed line is a copy, not the thing**: the spokes of a rotational
+  symmetry beside its mirror line. The casing under a dashed line stays whole.
 - **A guide at rest is one faint pass**, not a styled line: a perspective rig of
   thirty lines must not read as thirty selections. It takes the style when the
   Move tool has hold of it.
 
-**Not every overlay is on it yet.** The pen, the white arrow, the transform box
-with its bands and cage, the arrow's selection outlines, the marquee and the
-guides are; crop, camera, symmetry, reference boxes and the rig are still to
-move.
-A new overlay takes its pens from `OverlayStyle` and adds no colour of its own:
-`EveryCanvasOverlayTakesItsPensFromTheStyle` holds every file under `Rendering`
-to the colour literals it has today, and a file it does not list to none.
+**What is not on it, and why.** The armature — bones are green at rest and
+violet when posed, and that difference is information — the motion trail's
+before and after, the balance arc, the heat map and the fill preview each carry
+a colour that means something, and are still drawn in their own. The pointer's
+own ink (the brush ring, its badge, the eyedropper's ring) adapts to the artwork
+and is not chrome you edit. Everything else on the canvas takes its pens from
+`OverlayStyle`, and `EveryCanvasOverlayTakesItsPensFromTheStyle` holds every
+file under `Rendering` to the colour literals it has today — a file it does not
+list, to none.
 
 ## Dockers
 

@@ -31,21 +31,19 @@ public partial class OverlayColourRatchetTests(ITestOutputHelper output)
     private static readonly Dictionary<string, int> Allowed = new()
     {
         // Where the style's own colours are defined.
-        ["OverlayStyle.cs"] = 6,
+        ["OverlayStyle.cs"] = 7,
 
         // Overlays still in colours of their own — the work that is left.
-        ["CanvasControl.cs"] = 12,
+        ["CanvasControl.cs"] = 5,
         ["GuidePainter.cs"] = 1,
         ["ArmatureOverlayPainter.cs"] = 8,
-        ["CanvasControl.Symmetry.cs"] = 5,
         ["RigOverlayPainter.cs"] = 2,
         ["CropOverlayPainter.cs"] = 2,
         ["MotionTrailPainter.cs"] = 3,
         ["FillPreviewPainter.cs"] = 2,
         ["CanvasControl.Selection.cs"] = 2,
         ["BalanceOverlayPainter.cs"] = 2,
-        ["AnalysisOverlayPainter.cs"] = 2,
-        ["MotionArcPainter.cs"] = 1,
+        ["AnalysisOverlayPainter.cs"] = 1,
 
         // The pointer's own ink, which adapts to the artwork and is not chrome
         // you edit: the brush ring, its badge and the eyedropper's ring.

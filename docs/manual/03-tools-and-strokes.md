@@ -99,8 +99,8 @@ afterwards. The Width tool previews the same way, for the same reason.
 **Drag from empty canvas** to sweep up everything the box touches — touched, not
 enclosed, so a box across a limb takes its lines without your having to draw one
 round the whole character. Hold **Shift** as you start the drag to add to what
-you already have. The box is cyan and dashed rather than the marching ants of an
-area selection, because it is doing a different job.
+you already have. The box is a solid cyan line round a faint cyan wash rather
+than the marching ants of an area selection, because it is doing a different job.
 
 It picks what you can see. Where two lines cross you get the one on top.
 Clicking inside a filled shape picks the fill; clicking in a hole in that shape

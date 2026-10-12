@@ -1,6 +1,6 @@
 # src/Lightbox.App/Rendering/CanvasControl.cs
 
-budget: 4483
+budget: 4439
 
 ## Why it has moved
 
@@ -146,3 +146,6 @@ other's reason and leaves a number nobody can account for.
 - **→ 4,483** (2026-10-12, Q252): −98. The arrow's selection outlines, the
   hovered line and the marquee draw with `OverlayStyle`'s pens instead of
   building a paint each; four coloured blocks became one path.
+- **→ 4,439** (2026-10-12, Q252): −44. The camera frame, the gradient axis
+  and the lazy-brush gizmo draw with `OverlayStyle`'s pens; each had built its
+  own paints, casing included.

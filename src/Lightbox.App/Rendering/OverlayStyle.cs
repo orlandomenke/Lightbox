@@ -66,6 +66,9 @@ public static class OverlayStyle
     /// </summary>
     public static readonly SKColor Reference = new(0xFF, 0xB0, 0x20);
 
+    /// <summary>The camera's colour. The palette's <c>CameraTrack</c>.</summary>
+    public static readonly SKColor CameraOrange = new(0xFF, 0x9F, 0x45);
+
     /// <summary>
     /// A guide being drawn against, at rest: one faint pass, no casing. Thirty
     /// of them must not read as thirty selections (Q252); a guide takes the
@@ -96,6 +99,13 @@ public static class OverlayStyle
 
         /// <summary>A reference point, not the thing itself: amber.</summary>
         Reference,
+
+        /// <summary>
+        /// The camera's frame and its handles. The camera keeps the orange it
+        /// has on the timeline (Q249: a colour that carries a meaning keeps
+        /// it) and takes everything else — the casing, the grips — from here.
+        /// </summary>
+        Camera,
     }
 
     /// <summary>
@@ -191,16 +201,35 @@ public static class OverlayStyle
             IsAntialias = true,
         };
 
-        private static SKColor ColourOf(Role role) => role == Role.Reference ? Reference : Accent;
+        private static SKColor ColourOf(Role role) => role switch
+        {
+            Role.Reference => Reference,
+            Role.Camera => CameraOrange,
+            _ => Accent,
+        };
 
         /// <summary>A line: the casing, then the role's colour over it.</summary>
-        public void Line(SKCanvas canvas, SKPath path, bool hover = false, Role role = Role.Edit)
+        /// <param name="dashed">
+        /// A line that is a copy of another rather than the thing itself — the
+        /// spokes of a rotational symmetry beside its mirror line. The casing
+        /// stays whole, so the dashes are legible on anything.
+        /// </param>
+        public void Line(
+            SKCanvas canvas, SKPath path, bool hover = false, Role role = Role.Edit, bool dashed = false)
         {
             var gain = hover ? HoverLineGain / _scale : 0f;
             _casing.StrokeWidth = CasingWidth / _scale + gain;
             _line.StrokeWidth = LineWidth / _scale + gain;
             _line.Color = ColourOf(role);
             canvas.DrawPath(path, _casing);
+            if (dashed)
+            {
+                using var dash = SKPathEffect.CreateDash([6f / _scale, 5f / _scale], 0);
+                _line.PathEffect = dash;
+                canvas.DrawPath(path, _line);
+                _line.PathEffect = null;
+                return;
+            }
             canvas.DrawPath(path, _line);
         }
 
@@ -208,10 +237,10 @@ public static class OverlayStyle
         /// The outline of a drawn line: thin and uncased, so the line under it
         /// is still the thing you see. See <see cref="OutlineWidth"/>.
         /// </summary>
-        public void Outline(SKCanvas canvas, SKPath path, bool hover = false)
+        public void Outline(SKCanvas canvas, SKPath path, bool hover = false, Role role = Role.Edit)
         {
             _line.StrokeWidth = (OutlineWidth + (hover ? HoverLineGain : 0f)) / _scale;
-            _line.Color = Accent;
+            _line.Color = ColourOf(role);
             canvas.DrawPath(path, _line);
         }
 

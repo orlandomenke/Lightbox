@@ -342,8 +342,10 @@ Sockets and collision rectangles are placed on the canvas, with one set of
 gestures for both — an anchor is a point and a shape is a rectangle, and the
 overlay treats a point as a rectangle with no size.
 
-Anchors draw as blue crosses and shapes as orange rectangles, so the two kinds
-never blur together; the selected one turns white. An anchor inside a shape is
+Anchors draw as crosses and shapes as rectangles, in the same thin cyan as the
+rest of the canvas's handles, so the two kinds are told apart by shape; the
+selected one is drawn heavier, with a dark edge, and a selected shape gets a
+square grip at each corner. An anchor inside a shape is
 drawn on top of it, which matches what a click picks up.
 
 - **Click** a mark to select it. A selected rectangle grows corner handles.

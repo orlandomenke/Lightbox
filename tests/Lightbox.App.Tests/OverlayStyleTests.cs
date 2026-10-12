@@ -216,6 +216,47 @@ public class OverlayStyleTests(ITestOutputHelper output)
         Assert.True(hoverHigh <= 3, "a hovered outline is still narrower than a drawn line");
     }
 
+    /// <summary>
+    /// The camera keeps its orange and takes its shapes from the style: a
+    /// colour that carries a meaning keeps it (Q249), and it is the palette's.
+    /// </summary>
+    [Fact]
+    public void TheCameraRoleIsThePalettesCameraOrangeInTheStylesShapes()
+    {
+        var palette = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Lightbox.App", "Styles", "Palette.axaml"));
+        var o = OverlayStyle.CameraOrange;
+        Assert.Contains($"<Color x:Key=\"CameraTrack\">#{o.Red:X2}{o.Green:X2}{o.Blue:X2}</Color>", palette);
+
+        var page = new SKColor(0x80, 0x80, 0x80);
+        using var bmp = Render(page, (c, pens) =>
+            pens.Grip(c, 60, 40, round: false, selected: false, role: OverlayStyle.Role.Camera));
+        var nearest = 255;
+        for (var x = 50; x < 70; x++) nearest = Math.Min(nearest, Difference(bmp.GetPixel(x, 40), o));
+        output.WriteLine($"camera grip: centre {bmp.GetPixel(60, 40)}, outline {nearest} from the camera's orange");
+        Assert.True(Difference(bmp.GetPixel(60, 40), SKColors.White) < 12, "open, like every grip at rest");
+        Assert.True(nearest < 40);
+    }
+
+    /// <summary>A dashed line keeps a whole casing, so its dashes read on anything.</summary>
+    [Fact]
+    public void ADashedLineIsBrokenAccentOverAWholeCasing()
+    {
+        var page = SKColors.White;
+        using var path = Centred();
+        using var bmp = Render(page, (c, pens) => pens.Line(c, path, dashed: true));
+        int accent = 0, casingOnly = 0, bare = 0;
+        for (var x = 20; x < 100; x++)
+        {
+            var p = bmp.GetPixel(x, 40);
+            if (Difference(p, OverlayStyle.Accent) < 40) accent++;
+            else if (Difference(p, page) > 60) casingOnly++;
+            else bare++;
+        }
+        output.WriteLine($"along the line: {accent} px accent, {casingOnly} px casing alone, {bare} px bare");
+        Assert.True(accent > 20 && casingOnly > 10, "dashes of accent, gaps of casing");
+        Assert.Equal(0, bare);
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
