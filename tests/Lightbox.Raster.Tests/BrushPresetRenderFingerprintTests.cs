@@ -128,10 +128,14 @@ public class BrushPresetRenderFingerprintTests(ITestOutputHelper output)
     // 2). A new formulation of the same look, so these two move and the two
     // without a wet edge do not - which is the evidence that grain, now also
     // laid by the band finish, is the same grain to the byte.
+    // Re-recorded 2026-10-11, the two with a wet edge again: the wet edge
+    // now gathers paint at the rim and thins the middle instead of darkening
+    // the rim's colour (Q244, chosen from a sheet). The two without one did
+    // not move.
     [InlineData("plain", 0, 0, "9BCFD3D92A8A3F92")]
     [InlineData("granulation", 0.35, 0, "7BC9E543177AD6E5")]
-    [InlineData("wet edge", 0, 0.7, "B198EB0DF8F929A9")]
-    [InlineData("both", 0.35, 0.7, "CC0C7F32911B08E3")]
+    [InlineData("wet edge", 0, 0.7, "D2FF7658D2A9F308")]
+    [InlineData("both", 0.35, 0.7, "599981F2B4715069")]
     public void AShapeStillRendersWhatItDidBefore(
         string name, double granulation, double wetEdge, string expected)
     {

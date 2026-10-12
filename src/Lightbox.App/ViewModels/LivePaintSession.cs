@@ -254,6 +254,19 @@ sealed class LivePaintSession
     internal SKRectI? FinishedBand { get; set; }
 
     /// <summary>
+    /// Everything the pen has touched since the live mark was last finished:
+    /// the bands of the pointer events since, as one rectangle. Null when the
+    /// finished mark is up to date.
+    /// </summary>
+    internal SKRectI? FinishPending { get; set; }
+
+    /// <summary>
+    /// Where the stroke's unsettled tail will be stamped when the mark is next
+    /// looked at; null when there is none or it is already down.
+    /// </summary>
+    internal SKRectI? TailOwed { get; set; }
+
+    /// <summary>
     /// The dab walk from the previous pointer event.
     /// </summary>
     /// <remarks>
@@ -279,6 +292,12 @@ sealed class LivePaintSession
     /// walked beside the whole one to find the dabs that are final.
     /// </summary>
     internal Lightbox.Core.Geometry.IncrementalDensify HorizonDensify { get; } = new();
+
+    /// <summary>The stroke's points without its newest few, refilled each event rather than allocated.</summary>
+    internal List<Lightbox.Core.Documents.StrokePoint> HorizonPoints { get; } = [];
+
+    /// <summary>The same for a posed stroke's rest points.</summary>
+    internal List<Lightbox.Core.Documents.StrokePoint> HorizonRestPoints { get; } = [];
 
     /// <summary>The effect draft's own dab bookkeeping, mirroring <see cref="Dabs"/>.</summary>
     /// <remarks>
@@ -645,6 +664,8 @@ sealed class LivePaintSession
         DabCount = 0;
         StableDabs = 0;
         SettledDabChanged = false;
+        FinishPending = null;
+        TailOwed = null;
         TailRegion = null;
         Dabs = null;
         EffectDabs = null;

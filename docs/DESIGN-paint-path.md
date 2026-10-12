@@ -494,6 +494,161 @@ harder edge), which is where to look first. This is the open item phase 2
 leaves. If one point is ever too few, the live mark is drawn and not kept,
 so the price is a stall at pen-up and never a wrong pixel.
 
+## Phase 3, so far: the media as recipes
+
+The owner's brief, once the first sheets were on the table (2026-10-11): no
+physics, *"but visually I would like to come really close with how pigment and
+water/oil interact with the paper/surface"* — pressure that decides how the
+paint meets the sheet, on every medium; paint that can be reworked; and, later,
+paper that can be wetted first. Each medium is judged on a sheet beside the
+simulated brush it replaces before it ships.
+
+| | what it is now | decided in |
+| --- | --- | --- |
+| **Watercolor** | a crisp thin wash; a wet edge that *gathers* paint at the rim and thins the middle; the scanned Fibre sheet; colour picked up from beneath; paint that runs out | Q244 |
+| **Oil** | paint that a press of a third pushes into linen until it is solid (*Fills at*); the canvas showing as the brush empties; a tip with hairs, each with its own contact, so the dry end is streaks | Q246 |
+| Gouache, Ink wash | still simulated | — |
+
+Three pieces of engine carry it, all ceilings or stencils laid under the pen:
+
+- **The wet edge gathers.** It used to darken the rim's colour and leave the
+  middle alone, which on a pale wash cannot be seen. It replaces the old one
+  for every brush.
+- **Paint fills; graphite does not.** With a fill pressure the tooth's
+  threshold runs down past the deepest valley, and how hard the paint is
+  pressed is pressure times the paint left on the brush.
+- **A hair is a contact, not a shade.** `BrushSettings.Bristles`, on the tip
+  and for any brush. The first version made each hair a level and got a ribbon
+  with faint stripes; gating the sheet hair by hair gets streaks.
+
+**A mixing stroke is kept at pen-up.** Both recipes mix colour with what is
+under them, and a mixing dab's colour depends on the pixels of every dab before
+it — so a level's difference in how one dab is rasterised is carried down the
+stroke. The replay stamped a mixing stroke into a stroke-sized scratch under a
+translation while the live path stamps in the document's own coordinates. It
+now goes through the document plane like every other brush, reading the stroke
+so far from the plane and the layer beneath at the same pixels, and
+`AMixingStrokeAcrossPaintIsKept` holds Watercolor and Oil to byte-exact and
+kept across existing paint. No fingerprint moved. (A brush that mixes with a
+composite of the layers beneath is still replayed: the two paths are handed
+that composite differently, and it is not yet held to be the same.)
+
+Krita does not have this problem, and it is worth saying why: its document is
+the pixels. A dab is painted into the layer once, undo restores saved tiles,
+and nothing is ever replayed. Here the record is the document (invariant 1),
+which is what gives resolution-independent output and strokes an inbetweener
+can read — and the price is that the mark drawn live has to be shown to be the
+mark a replay makes. That proof, brush family by brush family, is what this
+note has been.
+
+### What the lab said about the two recipes
+
+Oil and Watercolor as they ship now, against the frozen baseline where both
+are still simulated; 60, 150 and 300 px at 900 and 3000 px/s, median ms.
+
+| | Oil | Watercolor |
+| --- | --- | --- |
+| pen-up (`stroke.commit`), baseline | 63–181 | 69–178 |
+| pen-up, branch | **11–20** | **12–15** |
+| strokes kept at pen-up | 48 of 48 | 48 of 48 |
+| finish behind the pen, events, baseline | 7–14 | 9–20 |
+| finish behind the pen, branch | 0 | 0 |
+| a pointer event at 60 px, 900 / 3000 px/s | 0.4→1.4 / 0.8→3.5 | 0.3→1.4 / 0.7→2.4 |
+| a pointer event at 150 px | 0.5→3.1 / 1.2→6.6 | 0.4→3.2 / 0.8→4.5 |
+| a pointer event at 300 px | 0.8→6.3 / 1.7→**25.0** | 0.7→8.1 / 1.2→**11.8** |
+| pen → screen at 300 px | 40→46 / 41→**1532** | 41→**126** / 43→**1412** |
+
+**What it bought:** the mark under the pen is the finished mark, and pen-up
+is one refresh instead of four to eleven. At 60 and 150 px both brushes hold
+the pacing floor (34 to 45 ms pen to screen).
+
+**What it did not:** at 300 px a fast pen leaves the screen a second and a half
+behind on both, and Watercolor trails at the slower speed as well. It is the
+same shape as phase 2's open item and for the same reason: everything the
+simulation used to compute on a worker, behind the pen, is now paid in the
+pointer event, and at 300 px one dab is seventy thousand pixels through a
+ceiling, a rim or a hair-gated sheet. Oil is the worst because its dabs are the
+dearest (an image shader, two colour filters and two composes each, plus the
+ground it reads to mix) and the unsettled tail stamps each of them again every
+event.
+
+**This is the next piece of work, ahead of more recipes.** The rule this
+note answers to is "no stalls, no delays", and a recipe that falls a second
+behind at a size artists use is not done. Where to look, in order of what the
+numbers suggest: the tail - stamping its dabs once into a layer of their own
+that is composed, rather than stamped and taken back each event; the cost of
+one large dab; and whether the finish of a band can run off the UI thread and
+still land before the frame it belongs to.
+
+### Large brushes: the finish is done when the mark is looked at
+
+The first answer to that lab run, and it is a change of shape rather than a
+faster loop. Profiled at 300 px on the lab's stroke, a Watercolor event was
+mostly its finish (the distance transform under the rim, at the document's
+scale, 170,000 cells) and an Oil event was mostly footprint dabs - 1.6 ms
+each, and three of every four of them were the unsettled tail, stamped on
+every event and taken back on the next.
+
+Both are now done **when the mark is looked at** - a frame being composed, a
+worker pass about to read the dabs, the pen lifting - and not on the pointer
+event (`PrepareLiveMark`: `StampLiveTail`, then `FinishLiveMark`). An event
+stamps its newly settled dabs and notes what it touched. A pen reports about
+twice as often as a screen refreshes, so two or more events usually share
+one finish; consecutive bands of a broad brush are nearly the same pixels,
+so their union costs little more than one; and when the app is behind, the
+events that queue share a finish instead of each making the queue longer -
+which is the loop that put the screen a second and a half behind.
+
+Per event at 300 px and 25 px a step, headless with no frame composed
+between events, so this is what is left *on the event*: Oil 9.5 → 2.2 ms,
+Watercolor 7.0 → 0.7, the simulated Gouache 5.6 → 0.6, the soft round
+2.4 → 0.4. The finish is still paid, per frame; what that comes to in the
+application is the lab's to say and has not been measured.
+
+Nothing about the pixels changes, and three things hold it to that: the band
+is copied afresh from the raw dabs at each finish, so finishing a union once
+is what finishing each band in turn came to; `LiveFinishIsPerLookTests` draws
+one stroke looked at once after thirty events and again looked at after each,
+and gets the same bytes; and every pen-up test is unchanged.
+
+**The lab on it** (five brushes against the frozen baseline, 60 / 150 /
+300 px at 900 and 3000 px/s, median ms; 240 strokes, all kept at pen-up):
+
+| | Oil | Watercolor | Gouache (flat) | Watercolor (flat) | soft round |
+| --- | --- | --- | --- | --- | --- |
+| a pointer event at 300 px, slow / fast, before this | 6.3 / 25.0 | 8.1 / 11.8 | 17.4 / 19.4 | 6.8 / 9.0 | 3.2 / 4.3 |
+| a pointer event at 300 px, slow / fast, now | 0.4 / 5.2 | 0.2 / 1.3 | 0.3 / 1.0 | 0.6 / 1.2 | 0.2 / 0.8 |
+| pen → screen at 300 px, fast pen, before | 1532 | 1412 | 1529 | 536 | 40 |
+| pen → screen at 300 px, fast pen, now | 42 | 38 | 40 | 38 | 42 |
+| pen → screen, worst frame anywhere, baseline | 63–164 | 98–199 | 124–325 | 69–360 | 92–182 |
+| pen → screen, worst frame anywhere, now | 63–114 | 60–73 | 59–65 | 60–79 | 62–66 |
+| pen-up, baseline | 67–180 | 74–181 | 80–304 | 81–338 | 64–226 |
+| pen-up, now | 12–24 | 13–29 | 13–22 | 12–26 | 13–17 |
+
+Every brush at every size and speed now holds the pacing floor - 34 to 43 ms
+pen to screen at the median - including the 300 px fast-pen cases that were a
+second and a half behind, and a pointer event costs less than it does on the
+baseline, or the same, for all but the Oil. That closes the open item phase 2 left and the
+one phase 3 opened.
+
+What the table does not show, and is still open: the **longest stall in a
+stroke** is 91 to 141 ms on the two brushes that mix colour (Oil, Watercolor)
+against 52 to 74 on the others. A mixing brush copies the whole frame at
+pen-down to have a ground to read (`_live.MixBeneath`), which predates this
+work and is paid once per stroke; at 4K it is thirty megabytes. It wants a
+copy of what the stroke can reach, made as it reaches it.
+
+Beside it: the cap's strips share one window (each used to build its own,
+halo and all, which made the dearest part dearer), and the distance
+transform's lines run side by side. A coarser ceiling was measured and not
+taken - eight samples across a soft edge instead of sixteen moved a quarter to
+a third of a soft brush's pixels by two or three levels, up to forty-six.
+
+**Not done in phase 3:** gouache and ink wash; a tooth and a wet edge on one
+brush (so Watercolor does not yet answer pressure against the paper as Oil
+does); the rework brushes (Q245); wetting the page; shaping and moving a tip's
+hairs. None of phase 3 has been through the perf lab.
+
 ## Order
 
 1. **Promote at pen-up**, for the brushes that are already dab-final (ink, soft

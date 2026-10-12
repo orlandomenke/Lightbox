@@ -81,8 +81,12 @@ public class MediumPresetTests
     /// showed on the flanks was the spacing. Guarded rather than merely set: a
     /// preset quietly losing its tip would look like nothing in any other test.
     /// </remarks>
+    // Watercolor left this list on 2026-10-11 and is round and even on
+    // purpose (Q244): its wet edge is measured from the outline of the whole
+    // stroke, and a tip that varies in size breaks that rim into dashes. Its
+    // flanks no longer show the dab interval for a different reason - the
+    // ceiling flattens them.
     [Theory]
-    [InlineData("Watercolor")]
     [InlineData("Gouache")]
     [InlineData("Oil")]
     public void EveryMediumPresetHasATipAndSomeVariation(string name)

@@ -1531,6 +1531,7 @@ public partial class MainViewModel
             if (_strokeBuilder.IsActive) NoteStrokeInkShown();
         if (InkAudit && _strokeBuilder.IsActive)
         {
+            PrepareLiveMark();
             AuditInk(_live.PostStampedPoints > 0 ? _live.PostScratch : _live.Scratch, _live.TipUsed);
         }
 
@@ -1624,6 +1625,9 @@ public partial class MainViewModel
             // composite is about to be drawn under the camera's matrix.
             ThroughCamera: ViewThroughCamera,
             GhostsLater: _holdTilesAfterStop);
+        // The frame is about to read the live mark: finish what the pen has
+        // touched since the last one did.
+        PrepareLiveMark();
         var live = new ScenePassBuilder.LiveEdit(
             _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedPoints,
             _liveShape, _liveGradient, LiveTextPaint, _strokeBuilder.Current,

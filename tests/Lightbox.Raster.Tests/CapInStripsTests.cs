@@ -108,7 +108,9 @@ public class CapInStripsTests(ITestOutputHelper output)
     public void ASmallBandIsNotSplit()
     {
         Assert.Equal(1, BrushEngine.CapStrips(new SKRectI(0, 0, 200, 200), 20));
-        // And never into strips thinner than the halo each has to carry.
-        Assert.Equal(1, BrushEngine.CapStrips(new SKRectI(0, 0, 2000, 300), 160));
+        // And not a band too short to share out. (It used to refuse strips
+        // thinner than the halo each carried; the strips share one window
+        // now and carry none.)
+        Assert.Equal(1, BrushEngine.CapStrips(new SKRectI(0, 0, 2000, 40), 160));
     }
 }

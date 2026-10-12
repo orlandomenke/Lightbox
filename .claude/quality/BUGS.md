@@ -836,6 +836,10 @@ which is a weak test and still far better than none.
 
 ### project
 
+- [ ] **B446** `P2` `project` A frame checkpoint outlives a change to how the engine renders `evidence: ACheckpointMadeByAnOlderEngineIsNotTrusted, RenderVersion`
+  - **Found by the adversary reviewing phase 3 of the paint path, 2026-10-11**, and older than it. A frame with 250 or more strokes carries a checkpoint: a PNG of its first strokes, trusted when `CheckpointFingerprint` - a hash of the document's own bytes - still matches. Nothing in that hash says which engine drew the PNG. So when the engine changes what a stroke looks like, the checkpoint's strokes keep the old look and every stroke after it gets the new one, in one frame, until something edits a covered stroke.
+  - **Why it matters now:** this branch changed the wet edge for every brush (Q244), and its commit says strokes drawn with one "re-render with the gathered rim". For a long frame with a checkpoint that is false. The same was true, less visibly, of every fingerprint re-recorded before - phase 1 of the paint path moved a level on a scattering of pixels, and old checkpoints kept the old level.
+  - **The fix is small and is not in this branch on purpose:** a render version, a constant bumped with every re-recorded fingerprint, hashed into the fingerprint so an older engine's checkpoint is recomputed once. It is one objective and this branch's is the media; it gets its own branch next, per the fix-rather-than-file rule. What needs care is the cost it moves: every long frame replays once on first open after an engine change (the note on `CheckpointFingerprint` measured twenty-one seconds for a 2,000-stroke painting).
 - [ ] **B295** `P1` `project` `ids --fix` renumbers both entries of a duplicate filed inside this branch's own range, so the duplicate survives at the new number `evidence: _keeping_spots,cmd_selftest`
 
 - [ ] **B300** `P2` `project` `ids` counts the branch's own remote ref as another branch, so rewriting a ledger entry you already pushed reads as a collision with yourself `evidence: cmd_ids,_ids_created_here`

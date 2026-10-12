@@ -216,6 +216,31 @@ public sealed class BrushSettings
     /// </summary>
     public bool AngleFollowsDirection { get; set; }
 
+    /// <summary>
+    /// The tip's hairs: 0..1, how unevenly they carry paint. Null - absent
+    /// from the record - is a tip with none, one even pad. Above zero each
+    /// hair has its own share of the pressure, so the thin ones stop reaching
+    /// the surface first as the brush lifts or empties, and the mark opens
+    /// into streaks along the stroke.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Part of the tip, not of a medium</b> (the owner, 2026-10-11): any
+    /// brush can have hairs, and they are customised where the tip is. This
+    /// is the base - one number. What a tip's hairs are (how many, how wide,
+    /// which are thin) and how they move when the brush is pressed and dragged
+    /// are meant to grow from here.
+    /// </para>
+    /// <para>
+    /// Read by <c>BrushEngine.HairContact</c>, and only for a brush whose
+    /// paper is gated by pressure (a tooth): the hairs work by pressing the
+    /// paint into the sheet unevenly, so without a sheet there is nothing for
+    /// them to do. They run with the stroke, so they want
+    /// <see cref="AngleFollowsDirection"/>.
+    /// </para>
+    /// </remarks>
+    public double? Bristles { get; set; }
+
     // ---- transfer --------------------------------------------------------------
 
     /// <summary>0..1: how much per-dab paint amount varies, giving wash variation.</summary>
@@ -262,6 +287,24 @@ public sealed class BrushSettings
     /// field, where an unknown property is simply skipped.
     /// </remarks>
     public double? TexturePressure { get; set; }
+
+    /// <summary>
+    /// The pressure at which the paint covers the sheet completely, for a
+    /// brush whose paint has body: below it the tooth shows, more the lighter
+    /// the touch and the emptier the brush; at it and above the mark is solid.
+    /// Null - absent from the record - for a brush without one, whose tooth
+    /// follows <see cref="TexturePressure"/> alone and never quite fills.
+    /// </summary>
+    /// <remarks>
+    /// The difference between graphite and paint. A pencil at full pressure
+    /// still leaves the deepest valleys of the paper; a loaded brush pressed
+    /// at all firmly leaves none, and shows the canvas only where it skims or
+    /// runs dry. Without this an oil on linen was held to the weave at every
+    /// pressure and read as a halftone - "it looks like a stamp, or that it
+    /// only skims the paper surface instead of flowing into the crevices with
+    /// pressure" (the owner, 2026-10-11).
+    /// </remarks>
+    public double? TextureFill { get; set; }
 
     // ---- colour dynamics -------------------------------------------------------
 
@@ -463,12 +506,14 @@ public sealed class BrushSettings
         RoundnessJitter = RoundnessJitter,
         Roundness = Roundness,
         AngleFollowsDirection = AngleFollowsDirection,
+        Bristles = Bristles,
         FlowJitter = FlowJitter,
         TextureSurface = TextureSurface,
         TextureId = TextureId,
         TextureScale = TextureScale,
         TextureDepth = TextureDepth,
         TexturePressure = TexturePressure,
+        TextureFill = TextureFill,
         SecondaryColor = SecondaryColor,
         ColorJitter = ColorJitter,
         HueJitter = HueJitter,

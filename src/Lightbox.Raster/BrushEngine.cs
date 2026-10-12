@@ -680,11 +680,23 @@ public static class BrushEngine
                 {
                     // Flushed per dab inside; the pixmap is a view of the raster
                     // surface's own memory, so it sees every dab laid before.
-                    using var scratchPixels = scratch.PeekPixels();
+                    //
+                    // With a plane the dabs and the ground they read are in
+                    // document coordinates, as they are while drawing: the
+                    // stroke so far is the plane itself and the layer beneath
+                    // lines up with it pixel for pixel. A mixing dab's colour
+                    // depends on the pixels of every dab before it, so the two
+                    // paths have to agree on each one exactly for the live
+                    // mark to be the replay - under a translation they were a
+                    // level apart on a scattering of pixels, and that was
+                    // carried down the whole stroke.
+                    using var scratchPixels = plane is null ? scratch.PeekPixels() : plane.Ink.PeekPixels();
                     using var beneathPixels = targetPixels?.PeekPixels();
                     var ground = new MixGround(
-                        scratchPixels, beneathPixels, new SKPointI(dev.Left, dev.Top), canvas.TotalMatrix);
-                    StampMixedDabRange(canvas, stroke, WalkDabs(stroke), 0, int.MaxValue, ground, default, deposits, fp);
+                        scratchPixels, beneathPixels,
+                        plane is null ? new SKPointI(dev.Left, dev.Top) : default,
+                        dabCanvas.TotalMatrix);
+                    StampMixedDabRange(dabCanvas, stroke, WalkDabs(stroke), 0, int.MaxValue, ground, default, deposits, fp);
                 }
                 else
                 {
@@ -1072,7 +1084,11 @@ public static class BrushEngine
         return stroke.Tool == ToolKind.Brush
             && brush.Kind == BrushKind.Paint
             && brush.Medium.Kind == MediumKind.None
-            && brush.Mixing is null
+            // A mixing brush reads the ground under each dab. Its own layer is
+            // the same pixels while drawing as on replay; a composite of the
+            // layers beneath is handed over differently by the two, and is not
+            // yet held to be.
+            && (brush.Mixing is null || brush.SampleSource == SampleSource.ThisLayer)
             && stroke.ClipId is null
             && !stroke.AlphaLocked
             && stroke.Points.Count > 0
@@ -1154,14 +1170,11 @@ public static class BrushEngine
 
         /// <summary>
         /// A plane for this render, or null when the render is not the
-        /// document's own — another scale, a tile's origin — or the brush reads
-        /// its ground through the scratch (colour mixing, until that route is
-        /// moved too).
+        /// document's own: another scale, a tile's origin, a document too large.
         /// </summary>
         public static DocPlane? Rent(SKImageInfo info, SKRectI dev, double scale, SKPointI origin, BrushSettings brush)
         {
             if (scale != 1.0 || origin.X != 0 || origin.Y != 0) return null;
-            if (brush.Mixing is not null) return null;
             if (!ReplaysInDocumentSpace(info.Width, info.Height)) return null;
             if (dev.Width <= 0 || dev.Height <= 0
                 || dev.Left < 0 || dev.Top < 0 || dev.Right > info.Width || dev.Bottom > info.Height)
@@ -1419,7 +1432,7 @@ public static class BrushEngine
                 travelled += step;
                 // A stationary dab keeps the last heading; recomputing from a
                 // zero-length step would snap the tip to zero degrees.
-                if (brush.AngleFollowsDirection && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
+                if (CarriesAHeading(brush) && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
             }
             dabs.Add(new Dab(pos, pressure, heading, LoadAt(travelled, brush)) { Fidelity = fidelity });
             previous = pos;
@@ -1450,6 +1463,14 @@ public static class BrushEngine
     /// than hashing from it.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Whether a brush's dabs record which way the stroke is running: a tip
+    /// that turns with it, or a tip with hairs - which run with the stroke
+    /// whatever the tip itself does, round and unturned included.
+    /// </summary>
+    private static bool CarriesAHeading(BrushSettings brush) =>
+        brush.AngleFollowsDirection || (brush.Bristles ?? 0) > 0;
+
     private static List<Dab> WalkPosedDabs(Stroke stroke, List<StrokePoint> rest)
     {
         var brush = stroke.Brush;
@@ -1465,7 +1486,7 @@ public static class BrushEngine
                 float dx = pos.X - from.X, dy = pos.Y - from.Y;
                 var step = Math.Sqrt(dx * dx + dy * dy);
                 travelled += step;
-                if (brush.AngleFollowsDirection && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
+                if (CarriesAHeading(brush) && step > 0.01) heading = Math.Atan2(dy, dx) * 180 / Math.PI;
             }
             dabs.Add(new Dab(pos, pressure, heading, LoadAt(travelled, brush))
             {
@@ -2467,20 +2488,49 @@ public static class BrushEngine
             return;
         }
 
-        var rows = (band.Height + strips - 1) / strips;
-        Parallel.For(0, strips, new ParallelOptions { MaxDegreeOfParallelism = strips }, i =>
+        // One window for all of them. Each strip used to build its own, halo
+        // and all, and the distance transform under it is the dearest thing
+        // here: on a 300 px wash four strips measured 244,000 cells an event
+        // where one window over the band is 170,000 - the strips made the
+        // slowest part slower. Built once on this thread, read by every strip.
+        var chunk = Math.Max(CapChunk, reachPx * 4);
+        CapWindow? shared = null;
+        if (reachPx > 0 && band.Width <= chunk && band.Height <= chunk)
         {
-            var top = band.Top + (i * rows);
-            var strip = new SKRectI(band.Left, top, band.Right, Math.Min(band.Bottom, top + rows));
-            if (strip.Height <= 0) return;
-            // Spans are made here, per strip: one cannot cross into a lambda.
-            // The strips write disjoint rows of the mark and only read the
-            // footprint.
-            CapCore(
-                markPix.GetPixelSpan<byte>(), markPix.RowBytes, strip,
-                capPix.GetPixelSpan<byte>(), capPix.RowBytes, capPix.Width, capPix.Height,
-                space, reachPx, rim);
-        });
+            var win = CapWindowOf(band, space, reachPx, capPix.Width, capPix.Height);
+            if (win.Width > 0 && win.Height > 0)
+            {
+                var ceiling = SweptCeilingOver(
+                    capPix.GetPixelSpan<byte>(), capPix.RowBytes, win, reachPx, rim.WidthPx, out var rimWindow, pooled: true);
+                shared = new CapWindow(win, ceiling, rimWindow);
+            }
+        }
+
+        try
+        {
+            var rows = (band.Height + strips - 1) / strips;
+            Parallel.For(0, strips, new ParallelOptions { MaxDegreeOfParallelism = strips }, i =>
+            {
+                var top = band.Top + (i * rows);
+                var strip = new SKRectI(band.Left, top, band.Right, Math.Min(band.Bottom, top + rows));
+                if (strip.Height <= 0) return;
+                // Spans are made here, per strip: one cannot cross into a lambda.
+                // The strips write disjoint rows of the mark and only read the
+                // footprint and the shared window.
+                CapCore(
+                    markPix.GetPixelSpan<byte>(), markPix.RowBytes, strip,
+                    capPix.GetPixelSpan<byte>(), capPix.RowBytes, capPix.Width, capPix.Height,
+                    space, reachPx, rim, shared);
+            });
+        }
+        finally
+        {
+            if (shared is not null)
+            {
+                System.Buffers.ArrayPool<byte>.Shared.Return(shared.Ceiling);
+                if (shared.Rim is not null) System.Buffers.ArrayPool<byte>.Shared.Return(shared.Rim);
+            }
+        }
     }
 
     /// <summary>
@@ -2493,16 +2543,16 @@ public static class BrushEngine
     {
         const int WorthSplitting = 48_000;
         if ((long)band.Width * band.Height < WorthSplitting) return 1;
-        var byHalo = band.Height / Math.Max(32, reachPx * 2);
+        var byRows = band.Height / 32;
         var byCores = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
-        return Math.Clamp(Math.Min(byHalo, byCores), 1, 4);
+        return Math.Clamp(Math.Min(byRows, byCores), 1, 4);
     }
 
     /// <summary>
     /// The wet edge, as the cap applies it: how dark, and how far in from the
     /// mark's edge, in the footprint buffer's own pixels.
     /// </summary>
-    /// <param name="Strength">0..1: the most a pixel's colour is darkened, right at the edge.</param>
+    /// <param name="Strength">0..1: the brush's wet edge - how far the paint is gathered to the rim.</param>
     /// <param name="WidthPx">How far inside the edge the darkening reaches. Zero is no rim.</param>
     public readonly record struct Rim(float Strength, float WidthPx);
 
@@ -2510,7 +2560,7 @@ public static class BrushEngine
     public static Rim RimOf(BrushSettings brush, double bufferScale) =>
         NeedsRim(brush)
             ? new Rim(
-                (float)(Math.Clamp(brush.WetEdge, 0, 1) * 150.0 / 255.0),
+                (float)Math.Clamp(brush.WetEdge, 0, 1),
                 (float)Math.Max(0.5, RimWidth(brush) * bufferScale))
             : default;
 
@@ -2527,17 +2577,49 @@ public static class BrushEngine
     /// The cap itself: every ink pixel in <paramref name="band"/> held down to
     /// its ceiling, read either index-for-index or through the scaled lookup.
     /// </summary>
+    /// <summary>How much of the middle of a mark a full wet edge carries away.</summary>
+    private const float RimThinsTheMiddle = 0.35f;
+
+    /// <summary>How much denser than laid the paint is at the rim of a full wet edge.</summary>
+    private const float RimGathersAtTheEdge = 0.9f;
+
+    /// <summary>How much darker the gathered paint is, on top of there being more of it.</summary>
+    private const float RimDarkens = 0.25f;
+
     public static void CapCore(
         Span<byte> ink, int inkRow, SKRectI band,
         ReadOnlySpan<byte> cap, int capRow, int capW, int capH,
-        FootprintSpace space, int reachPx, Rim rim = default)
+        FootprintSpace space, int reachPx, Rim rim = default) =>
+        CapCore(ink, inkRow, band, cap, capRow, capW, capH, space, reachPx, rim, null);
+
+    /// <summary>The ceiling and rim over one window of the footprint, built once and read by several strips.</summary>
+    private sealed record CapWindow(SKRectI Win, byte[] Ceiling, byte[]? Rim);
+
+    /// <summary>The window of the footprint buffer the cap of a band reads: the band there, and the reach around it.</summary>
+    private static SKRectI CapWindowOf(SKRectI band, FootprintSpace space, int reachPx, int capW, int capH)
+    {
+        var win = space.IsDocument
+            ? band
+            : new SKRectI(
+                (int)Math.Floor((band.Left * space.Scale) + space.OffsetX) - 1,
+                (int)Math.Floor((band.Top * space.Scale) + space.OffsetY) - 1,
+                (int)Math.Ceiling((band.Right * space.Scale) + space.OffsetX) + 1,
+                (int)Math.Ceiling((band.Bottom * space.Scale) + space.OffsetY) + 1);
+        win.Inflate(reachPx, reachPx);
+        return SKRectI.Intersect(win, new SKRectI(0, 0, capW, capH));
+    }
+
+    private static void CapCore(
+        Span<byte> ink, int inkRow, SKRectI band,
+        ReadOnlySpan<byte> cap, int capRow, int capW, int capH,
+        FootprintSpace space, int reachPx, Rim rim, CapWindow? shared)
     {
         // A tile carries a halo of the reach on every side, so a tile much
         // smaller than the reach is mostly halo: at four reaches a side the
         // halo is a little over half the work, where a fixed 384 under a
         // 250 px reach made it eight parts in nine.
         var chunk = Math.Max(CapChunk, reachPx * 4);
-        if (reachPx > 0 && (band.Width > chunk || band.Height > chunk))
+        if (shared is null && reachPx > 0 && (band.Width > chunk || band.Height > chunk))
         {
             for (var top = band.Top; top < band.Bottom; top += chunk)
             {
@@ -2560,17 +2642,15 @@ public static class BrushEngine
         // buffer, exactly as before B349.
         byte[]? window = null;
         var win = default(SKRectI);
-        if (reachPx > 0)
+        if (shared is not null)
         {
-            win = direct
-                ? band
-                : new SKRectI(
-                    (int)Math.Floor((band.Left * space.Scale) + space.OffsetX) - 1,
-                    (int)Math.Floor((band.Top * space.Scale) + space.OffsetY) - 1,
-                    (int)Math.Ceiling((band.Right * space.Scale) + space.OffsetX) + 1,
-                    (int)Math.Ceiling((band.Bottom * space.Scale) + space.OffsetY) + 1);
-            win.Inflate(reachPx, reachPx);
-            win = SKRectI.Intersect(win, new SKRectI(0, 0, capW, capH));
+            win = shared.Win;
+            window = shared.Ceiling;
+            rimWindow = shared.Rim;
+        }
+        else if (reachPx > 0)
+        {
+            win = CapWindowOf(band, space, reachPx, capW, capH);
             if (win.Width > 0 && win.Height > 0)
             {
                 window = SweptCeilingOver(cap, capRow, win, reachPx, rim.WidthPx, out rimWindow, pooled: true);
@@ -2658,11 +2738,13 @@ public static class BrushEngine
                     alpha = ceiling;
                 }
 
-                // The wet edge: pigment pooled where the wash stops. Darker
-                // toward the mark's edge, by how far inside it this pixel sits,
-                // and weighted by how much paint is there at all so the faint
-                // skirt of a soft brush does not turn into a dark halo. Colour
-                // only — this is paint that moved, not more of it.
+                // The wet edge: pigment carried to where the wash stops. The
+                // middle of the mark is thinned, its rim is denser and a little
+                // darker - more paint there and less behind it, which is what a
+                // drying wash does and what makes one read as water rather
+                // than as a soft brush (Q244). It was a darkening of the colour
+                // alone, on the argument that the paint only moved; on a pale
+                // wash that could not be seen at all.
                 if (rimWindow is null || alpha == 0) continue;
                 byte edge;
                 if (direct)
@@ -2679,11 +2761,16 @@ public static class BrushEngine
                     var bottom = c01 + ((c11 - c01) * tx);
                     edge = (byte)Math.Clamp(top + ((bottom - top) * ty) + 0.5, 0, 255);
                 }
-                if (edge == 0) continue;
-                var keep = 1f - (rim.Strength * (edge / 255f) * MathF.Min(1f, alpha * (4f / 255f)));
-                ink[i] = (byte)((ink[i] * keep) + 0.5f);
-                ink[i + 1] = (byte)((ink[i + 1] * keep) + 0.5f);
-                ink[i + 2] = (byte)((ink[i + 2] * keep) + 0.5f);
+                var e = edge / 255f;
+                var inside = 1f - (RimThinsTheMiddle * rim.Strength);
+                var atRim = 1f + (RimGathersAtTheEdge * rim.Strength);
+                var pooled = MathF.Min(255f, alpha * (inside + ((atRim - inside) * e)));
+                var gain = (pooled / alpha) * (1f - (RimDarkens * rim.Strength * e));
+                // Premultiplied: a colour channel can never pass the alpha.
+                ink[i] = (byte)MathF.Min(pooled, (ink[i] * gain) + 0.5f);
+                ink[i + 1] = (byte)MathF.Min(pooled, (ink[i + 1] * gain) + 0.5f);
+                ink[i + 2] = (byte)MathF.Min(pooled, (ink[i + 2] * gain) + 0.5f);
+                ink[i + 3] = (byte)(pooled + 0.5f);
             }
         }
         }
@@ -2692,8 +2779,9 @@ public static class BrushEngine
             // Rented, because this runs per pointer event and a window of a
             // large brush is hundreds of kilobytes - the large-object heap, per
             // event, which is the expensive kind of garbage.
-            if (window is not null) System.Buffers.ArrayPool<byte>.Shared.Return(window);
-            if (rimWindow is not null) System.Buffers.ArrayPool<byte>.Shared.Return(rimWindow);
+            // A shared window is its builder's to return, once every strip is done.
+            if (shared is null && window is not null) System.Buffers.ArrayPool<byte>.Shared.Return(window);
+            if (shared is null && rimWindow is not null) System.Buffers.ArrayPool<byte>.Shared.Return(rimWindow);
             if (colA is not null) ints.Return(colA);
             if (colB is not null) ints.Return(colB);
             if (colT is not null) doubles.Return(colT);
@@ -2890,6 +2978,24 @@ public static class BrushEngine
                 var row = y * w;
                 for (var x = 0; x < w; x++) t[(x * h) + y] = f[row + x];
             }
+            // Every column, then every row, is its own one-dimensional problem,
+            // so a large grid is worked through side by side: the same sums in
+            // the same order within each line, and so the same floats. This is
+            // the dearest single thing a pointer event does on a broad brush
+            // with a ceiling at the document's scale - 170,000 cells and 3 ms
+            // an event on a 300 px wash, one thread.
+            if ((long)w * h >= ParallelEdtAbove)
+            {
+                Lines(t, w, h);
+                for (var x = 0; x < w; x++)
+                {
+                    var col = x * h;
+                    for (var y = 0; y < h; y++) f[(y * w) + x] = t[col + y];
+                }
+                Lines(f, h, w);
+                return;
+            }
+
             for (var x = 0; x < w; x++)
             {
                 var col = x * h;
@@ -2915,6 +3021,30 @@ public static class BrushEngine
             pool.Return(z);
             vPool.Return(v);
         }
+    }
+
+    /// <summary>Cells above which the distance transform's lines are worked through in parallel.</summary>
+    private const long ParallelEdtAbove = 40_000;
+
+    /// <summary>
+    /// The one-dimensional pass over <paramref name="count"/> lines of
+    /// <paramref name="length"/> cells laid end to end in <paramref name="data"/>,
+    /// in parallel. Each worker has its own scratch; lines do not overlap.
+    /// </summary>
+    private static void Lines(float[] data, int count, int length)
+    {
+        var workers = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
+        Parallel.For(
+            0, count, new ParallelOptions { MaxDegreeOfParallelism = workers },
+            () => (Out: new float[length], V: new int[length], Z: new float[length + 1]),
+            (line, _, scratch) =>
+            {
+                var at = line * length;
+                LowerEnvelope(data.AsSpan(at, length), length, scratch.Out, scratch.V, scratch.Z);
+                scratch.Out.AsSpan(0, length).CopyTo(data.AsSpan(at, length));
+                return scratch;
+            },
+            _ => { });
     }
 
     /// <summary>Felzenszwalb and Huttenlocher's one-dimensional squared-distance pass.</summary>
@@ -4174,7 +4304,7 @@ public static class BrushEngine
             {
                 // The tip's bounding disc, under the tip's own transform: close
                 // enough for a gate whose grain is the paper's, not the tip's.
-                StampTooth(footprint, pos, radius, HardnessAt(brush, pressure), (float)rotation, (float)roundness, brush, PressFor(brush, pressure));
+                StampTooth(footprint, pos, radius, HardnessAt(brush, pressure), (float)rotation, (float)roundness, brush, ToothPress(brush, pressure, load), directionDeg);
             }
             else if (footprint is not null)
             {
@@ -4224,7 +4354,7 @@ public static class BrushEngine
             {
                 if (NeedsToothCeiling(brush))
                 {
-                    StampTooth(footprint, pos, radius, hardness, (float)rotation, (float)roundness, brush, PressFor(brush, pressure));
+                    StampTooth(footprint, pos, radius, hardness, (float)rotation, (float)roundness, brush, ToothPress(brush, pressure, load), directionDeg);
                 }
                 else
                 {
@@ -4247,7 +4377,7 @@ public static class BrushEngine
         }
         if (footprint is not null)
         {
-            if (NeedsToothCeiling(brush)) StampTooth(footprint, pos, radius, hardness, 0f, 1f, brush, PressFor(brush, pressure));
+            if (NeedsToothCeiling(brush)) StampTooth(footprint, pos, radius, hardness, 0f, 1f, brush, ToothPress(brush, pressure, load), directionDeg);
             else StampFootprint(footprint, pos, radius, hardness, brush.AntiAlias);
         }
     }
@@ -4259,6 +4389,27 @@ public static class BrushEngine
     /// </summary>
     private static double PressFor(BrushSettings brush, double pressure) =>
         brush.PressureEnabled ? pressure : 1.0;
+
+    /// <summary>
+    /// How hard the paint is pressed into the sheet at this dab: the pen's
+    /// pressure, and for a brush whose paint has body
+    /// (<see cref="BrushSettings.TextureFill"/>) also how much paint is left
+    /// on it - a brush running dry skims however hard it is pressed, which is
+    /// the ragged, canvas-showing end of a real stroke - scaled so that the
+    /// brush's fill pressure is full.
+    /// </summary>
+    private static double ToothPress(BrushSettings brush, double pressure, double load)
+    {
+        var press = PressFor(brush, pressure);
+        if (brush.TextureFill is not { } fill) return press;
+        // Not clamped to one: a loaded brush pressed past its fill point has
+        // pressure to spare, and that is what keeps its thinner hairs on the
+        // surface until the paint runs down.
+        return Math.Clamp(press * load / Math.Max(0.05, fill), 0, MaxToothPress);
+    }
+
+    /// <summary>The most pressure-to-spare a brush is credited with; past this every hair is down.</summary>
+    private const double MaxToothPress = 4;
 
     /// <summary>
     /// Record this dab's tooth: the paper's keep value at this dab's pressure,
@@ -4288,7 +4439,7 @@ public static class BrushEngine
     /// </remarks>
     private static void StampTooth(
         SKCanvas footprint, SKPoint pos, float radius, float hardness, float rotation, float roundness,
-        BrushSettings brush, double pressure)
+        BrushSettings brush, double pressure, double headingDeg = double.NaN)
     {
         var tile = ToothTile(brush);
         if (tile is null) return;
@@ -4304,7 +4455,38 @@ public static class BrushEngine
         using var paper = SKShader.CreateImage(tile, SKShaderTileMode.Repeat, SKShaderTileMode.Repeat, toPaper);
         using var gated = paper.WithColorFilter(table);
         var falloff = TwoStopRadial(SKPoint.Empty, radius, new SKColor(255, 255, 255), new SKColor(0, 0, 0), hardness);
-        using var tooth = SKShader.CreateCompose(falloff, gated, SKBlendMode.Modulate);
+        // A brush with hairs presses each of them into the sheet by its own
+        // amount, so the paper is gated hair by hair (HairContact); one
+        // without is gated by the one table for this pressure.
+        //
+        // Each step named and disposed: the two in the middle were temporaries
+        // in one expression, and so two native shaders leaked per dab of every
+        // bristle brush until a finalizer got to them (leak-hunter).
+        var contact = HairContact(brush, pressure);
+        // The hairs run with the stroke, not with the tip: the dab is drawn
+        // under the tip's own rotation and squash, so the stripes are turned
+        // back out of that and into the stroke's heading. Without this a round
+        // tip, which is never turned, kept its hairs level whichever way the
+        // stroke ran, and a tip with a little rotation jitter shook them from
+        // dab to dab - and overlapping dabs laid at different angles fill
+        // each other's streaks in (adversary). Until the stroke has a
+        // direction - its first dab - they sit as the tip does.
+        //
+        // Never asked for with nothing to turn: Skia answers an identity
+        // local matrix with the shader itself, and disposing that answer
+        // destroyed the cached gradient under every later dab - an access
+        // violation in the next call, found by the suite the first time a
+        // round, level stroke was drawn with hairs.
+        var turn = contact is null || double.IsNaN(headingDeg)
+            ? SKMatrix.Identity
+            : SKMatrix.CreateScale(1f, 1f / Math.Max(0.05f, roundness))
+                .PreConcat(SKMatrix.CreateRotationDegrees((float)headingDeg - rotation));
+        var made = contact is null || turn.IsIdentity ? null : contact.WithLocalMatrix(turn);
+        using var turned = ReferenceEquals(made, contact) ? null : made;
+        using var hairPaper = contact is null ? null : paper.WithColorFilter(PaperForHairs);
+        using var hairSum = contact is null ? null : SKShader.CreateCompose(hairPaper!, turned ?? contact, SKBlendMode.Plus);
+        using var haired = hairSum?.WithColorFilter(HairGate());
+        using var tooth = SKShader.CreateCompose(falloff, haired ?? gated, SKBlendMode.Modulate);
 
         var paint = DabPaint(ref t_toothPaint, brush.AntiAlias);
         paint.BlendMode = SKBlendMode.Lighten;
@@ -4315,6 +4497,139 @@ public static class BrushEngine
         footprint.Restore();
         paint.Shader = null;
         falloff.Dispose();
+    }
+
+    /// <summary>Document pixels one hair is wide.</summary>
+    private const float HairWidthPx = 3f;
+
+    /// <summary>Never more hairs than this across a brush, whatever its size.</summary>
+    private const int MaxHairs = 64;
+
+    /// <summary>
+    /// The paper's height and a hair's contact are added in one byte before the
+    /// gate reads them, each scaled by this so the sum cannot pass one.
+    /// </summary>
+    private const float HairSumScale = 2.5f;
+
+    [ThreadStatic] private static SKShader?[]? t_hairShaders;
+    [ThreadStatic] private static (double Size, double Drag, double Depth, double Gate, bool Fills) t_hairKey;
+    [ThreadStatic] private static SKColorFilter? t_hairGate;
+
+    /// <summary>The paper's height scaled into the lower part of the byte, leaving room for a hair's contact to be added.</summary>
+    private static readonly SKColorFilter PaperForHairs = SKColorFilter.CreateColorMatrix(
+    [
+        1f / HairSumScale, 0, 0, 0, 0,
+        0, 1f / HairSumScale, 0, 0, 0,
+        0, 0, 1f / HairSumScale, 0, 0,
+        0, 0, 0, 1, 0,
+    ]);
+
+    /// <summary>
+    /// How hard each of the brush's hairs is pressed into the sheet at this
+    /// dab, as stripes across the dab, or null for a brush with no hairs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A hair is a contact, not a shade.</b> The first version made each
+    /// hair a level - a thin hair let 60% of the paint through - and the mark
+    /// came out as a ribbon with faint stripes in it, while the dry end of the
+    /// stroke broke up into the weave's own dots. What a brush leaves when it
+    /// lifts or empties is streaks: its thin hairs stop reaching the surface
+    /// while the thick ones still lay paint. So each hair gets its own share
+    /// of the dab's pressure, and the paper is gated by that - where a hair is
+    /// barely down the sheet shows through along its whole length, and where
+    /// it is down the valleys fill.
+    /// </para>
+    /// <para>
+    /// The hairs are the brush's: a weight per hair hashed from its index
+    /// (invariant 2), laid out across the brush at its full size so a dab made
+    /// narrower by pressure shows the middle ones and does not shuffle them,
+    /// and in the dab's own frame so every dab on a run lays hair seven on the
+    /// same pixels. That is what survives the dozen dabs that overlap every
+    /// pixel, and what a textured tip cannot do (docs/DESIGN-oil-hairs.md).
+    /// </para>
+    /// <para>
+    /// The value is <c>(1 - threshold) / HairSumScale</c> for the hair, so that
+    /// added to the scaled paper height one fixed table (<see cref="HairGate"/>)
+    /// is the gate for every hair and every pressure. One gradient per pressure
+    /// step, kept per thread, rebuilt when the brush changes.
+    /// </para>
+    /// </remarks>
+    private static SKShader? HairContact(BrushSettings brush, double pressure)
+    {
+        var drag = Math.Clamp(brush.Bristles ?? 0, 0, 1);
+        if (drag <= 0) return null;
+        var size = Math.Max(1, brush.Size);
+        var depth = Math.Clamp(brush.TextureDepth, 0, 1);
+        var gate = Math.Clamp(brush.TexturePressure ?? 0, 0, 1);
+        var fills = brush.TextureFill is not null;
+        var key = (size, drag, depth, gate, fills);
+        if (t_hairShaders is null || t_hairKey != key)
+        {
+            if (t_hairShaders is not null) foreach (var old in t_hairShaders) old?.Dispose();
+            t_hairShaders = new SKShader?[HairPressSteps + 1];
+            t_hairKey = key;
+        }
+        var step = (int)Math.Round(Math.Clamp(pressure, 0, MaxToothPress) / MaxToothPress * HairPressSteps);
+        if (t_hairShaders[step] is { } cached) return cached;
+
+        var press = (float)(step * MaxToothPress / HairPressSteps);
+        var radius = (float)(size * 0.5);
+        var count = Math.Clamp((int)MathF.Round(radius * 2f / HairWidthPx), 4, MaxHairs);
+        var colors = new SKColor[count * 2];
+        var positions = new float[count * 2];
+        for (var i = 0; i < count; i++)
+        {
+            // An even spread from the thinnest hair to the fullest. Skewed
+            // toward full - mostly hairs that are down, a few that lift early -
+            // was the first try, and the streaks only showed at the strongest
+            // setting; chosen from a sheet (Q246).
+            var weight = (float)Hash01(i * 7.31f, 13.7f, 200u);
+            var share = 1f - ((float)drag * (1f - weight));
+            var down = MathF.Pow(Math.Clamp(press * share, 0f, 1f), ToothPressureGamma);
+            var threshold = fills
+                ? (float)depth + ((-ToothSoftness - (float)depth) * down)
+                : (float)depth * (1f - ((float)gate * down));
+            var v = (byte)Math.Clamp((int)MathF.Round((1f - threshold) / HairSumScale * 255f), 0, 255);
+            var colour = new SKColor(v, v, v);
+            colors[i * 2] = colour;
+            colors[(i * 2) + 1] = colour;
+            positions[i * 2] = i / (float)count;
+            positions[(i * 2) + 1] = (i + 1) / (float)count;
+        }
+        var shader = SKShader.CreateLinearGradient(
+            new SKPoint(0, -radius), new SKPoint(0, radius), colors, positions, SKShaderTileMode.Clamp);
+        t_hairShaders[step] = shader;
+        return shader;
+    }
+
+    /// <summary>How finely a hair brush's pressure is stepped: one cached gradient each.</summary>
+    private const int HairPressSteps = 256;
+
+    /// <summary>
+    /// The gate for a hair brush: the sum of the scaled paper height and the
+    /// hair's contact, turned into what the paper keeps there. The same curve
+    /// as <see cref="ToothTable"/>, read off the sum instead of off the height.
+    /// </summary>
+    private static SKColorFilter HairGate()
+    {
+        if (t_hairGate is { } made) return made;
+        var r = new byte[256];
+        var g = new byte[256];
+        var b = new byte[256];
+        var a = new byte[256];
+        for (var i = 0; i < 256; i++)
+        {
+            // sum = (height + 1 - threshold) / scale, so height - threshold is:
+            var over = ((i / 255f) * HairSumScale) - 1f;
+            var e = Math.Clamp((over + ToothSoftness) / (2f * ToothSoftness), 0f, 1f);
+            var keep = e * e * (3f - (2f * e));
+            r[i] = (byte)Math.Round(keep * 255f);
+            g[i] = 255;
+            b[i] = 0;
+            a[i] = 255;
+        }
+        return t_hairGate = SKColorFilter.CreateTable(a, r, g, b);
     }
 
     /// <summary>The paper as an image in document pixels, one texel per pixel at the brush's grain size.</summary>
@@ -4376,6 +4691,9 @@ public static class BrushEngine
     {
         var depth = Math.Clamp(brush.TextureDepth, 0, 1);
         var gate = Math.Clamp(brush.TexturePressure ?? 0, 0, 1);
+        // A brush that fills is a different curve: keyed apart from any gate.
+        var fills = brush.TextureFill is not null;
+        if (fills) gate = -1;
         if (t_toothTables is null || t_toothTableDepth != depth || t_toothTableGate != gate)
         {
             if (t_toothTables is not null) foreach (var f in t_toothTables) f?.Dispose();
@@ -4387,7 +4705,12 @@ public static class BrushEngine
         if (t_toothTables[pressByte] is { } cached) return cached;
 
         var press = MathF.Pow(pressByte / 255f, ToothPressureGamma);
-        var threshold = (float)depth * (1f - (float)gate * press);
+        // With a fill pressure the threshold runs all the way down past the
+        // deepest valley, so a full press keeps every height whole; without
+        // one it stops where the gate leaves it and the valleys stay lighter.
+        var threshold = fills
+            ? (float)depth + ((-ToothSoftness - (float)depth) * press)
+            : (float)depth * (1f - (float)gate * press);
         var r = new byte[256];
         var g = new byte[256];
         var b = new byte[256];
