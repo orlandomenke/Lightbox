@@ -114,6 +114,21 @@ public class BrushCostTests
         var pencil = new BrushSettings { TextureSurface = PaperKind.ColdPress, TextureDepth = 0.9, TexturePressure = 0.8 };
         Assert.Contains("tooth", BrushCostOf.Why(pencil));
 
+        // Paint is not graphite: a tooth that pressure fills is named as that,
+        // and thin paint that settles is its own reason - alone it still puts
+        // the brush in this tier, since the sheet is laid over the mark.
+        var oil = new BrushSettings
+        {
+            TextureSurface = PaperKind.Linen, TextureDepth = 0.9, TexturePressure = 1, TextureFill = 0.35,
+        };
+        Assert.DoesNotContain("graphite", BrushCostOf.Why(oil));
+        Assert.Contains("fills", BrushCostOf.Why(oil));
+        var wash = new BrushSettings { TextureSurface = PaperKind.Plain, TextureSettle = 0.4 };
+        Assert.Equal(BrushCost.Textured, BrushCostOf.Settings(wash));
+        Assert.Contains("settle", BrushCostOf.Why(wash));
+        Assert.DoesNotContain("presses", BrushCostOf.Why(wash));
+        Assert.Null(BrushCostOf.Why(new BrushSettings { TextureSettle = 0.4 }));
+
         // A medium outranks the texture pass: the brush already carries the
         // heavier badge, and two badges would be noise.
         var both = new BrushSettings
