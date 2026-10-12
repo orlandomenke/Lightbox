@@ -1081,7 +1081,13 @@ public static class BrushEngine
     public static bool PromotesAtPenUp(Stroke stroke)
     {
         var brush = stroke.Brush;
-        return stroke.Tool == ToolKind.Brush
+        // An eraser is the same mark taken out of the layer where a brush lays
+        // it on: the dabs, the finish and the last draw are the brush's own,
+        // with the other blend (BlendModes.ForStroke). It was left off this
+        // list for no reason of its own, and every eraser stroke was rendered
+        // again at pen-up - 111 to 177 ms for a towel at 60 to 300 px in the
+        // perf lab (PenUpChangesNothingTests.AnEraserStrokeAcrossPaintIsKept).
+        return stroke.Tool is ToolKind.Brush or ToolKind.Eraser
             && brush.Kind == BrushKind.Paint
             && brush.Medium.Kind == MediumKind.None
             // A mixing brush reads the ground under each dab. Its own layer is
