@@ -3464,6 +3464,8 @@ test reopens the bug.
 
 ### timeline
 
+- [x] **B452** `P1` `timeline` A layer's opacity, blend, mask, effect or visibility changed between plays is not seen on the next play: the cache key did not cover them `evidence: AnOpacityChangedBetweenPlaysIsSeen, ABlendModeChangedBetweenPlaysIsSeen, HidingOneLayerAndShowingAnotherBetweenPlaysIsSeen, AReferenceChangedBetweenPlaysIsSeen`
+
 - [x] **B398** `P1` `timeline` Delete and pull on trailing empty cells does nothing in a multi-layer document: the row is padded back with the same empties `evidence: DeleteAndPullTrailingTests, ATrailingEmptyTrimsTheSceneToItsLastDrawing, AHoldBetweenDrawingsStillOnlyPulls, WhenAnotherLayerDrawsOnTheLastFrameNothingIsTrimmedAndTheLayerIsNamed, OneUndoPutsTheTrimmedFramesBack`
   - **The owner's report, 2026-10-07, after earlier fixes:** *"Delete and pull does not delete an empty cell … was told it was fixed, but the issue still persists."* Every route (the cel's menu, Shift+Delete over the X-sheet, a selected block), at the end of the scene and after a drawing: *"nothing moves"*.
   - **Cause, found by a headless probe:** on a document with more than one drawing layer, empty cells after a row's last drawing are pulled back and padded back as the very same empties (Q206: every row runs to the end of the scene), so the sheet came out identical and the status line said nothing. The tests behind the earlier fixes used one drawing layer, where every selection is a column and the scene shortens, or a hold between drawings, which does pull — both pass, which is how "fixed" and "nothing moves" were both true.
@@ -3558,6 +3560,8 @@ test reopens the bug.
   - Cause: `MainViewModel.PublishSnapshot` queues **every** onion pass first and then composites every layer over them. The paper is opaque and at the bottom of the stack, so it paints over all the ghosts. Before the paper existed the ghosts showed through a transparent stack.
   - Fix: interleave — for each layer, its own ghosts, then the layer. That is also what makes multi-layer onion read correctly.
   - Regression I introduced with the paper layer. Cost: S
+
+- [x] **B453** `P2` `timeline` The playback composite cache switches off for the session at the first stroke: it waited for a scratch bitmap that is kept, not freed `evidence: TheSamePlayTwiceIsStillServedFromTheCache`
 
 - [x] **B417** `P2` `timeline` Arrow keys do nothing on the canvas, and a focused docker tab swallows them `evidence: ArrowKeyScrubTests`
   - **Reported 2026-10-08: "Arrow keys do not work to scrub the timeline."** Reproduced through the headless keyboard, three causes: (1) with the pointer on the canvas — where it is while drawing — Left/Right resolved to `canvas.nudge*` and nudged a selection that was not there; (2) a docker's tab strip is a ListBox, and a clicked tab took Left/Right for itself (switching the docker's panel instead); (3) with nothing focused at all, Avalonia's keyboard navigation spent the first arrow moving focus to a button and marked it handled. Fixed: on the canvas an arrow with nothing to nudge flips the animation — Left/Right a frame, Up/Down the neighbouring drawing (the owner's answer); the tab strip cannot take focus and still selects on click; and with nothing focused, arrows reach the shortcuts first.

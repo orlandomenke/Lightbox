@@ -1939,9 +1939,14 @@ public partial class MainViewModel
                 // nothing — the failure this codebase keeps finding. The ring
                 // route publishes an image; the tiled route playback takes does
                 // not, which is where the saving is.
+                // No stroke in flight, rather than "no scratch": the scratch is
+                // allocated by the first stroke and kept for the session, so
+                // testing it switched the cache off for good the moment
+                // anything was drawn (found 2026-10-12).
                 CacheKey = deferred is not null && IsPlaying
-                    && _live.Composite is null && _live.Scratch is null
-                    ? new Rendering.ComposeKey(fingerprint, _publish.RenderEpoch)
+                    && _live.Composite is null && !_strokeBuilder.IsActive
+                    ? new Rendering.ComposeKey(
+                        fingerprint, _publish.RenderEpoch, _editor.Revision, StackStamp(scene, CurrentFrameIndex))
                     : null,
             };
             // B321: the last unmeasured box in the chain from pen to screen.
