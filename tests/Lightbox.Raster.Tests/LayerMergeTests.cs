@@ -142,6 +142,30 @@ public class LayerMergeTests
     }
 
     [Fact]
+    public void PixelsOverNothing_ArriveWithTheirStrokes()
+    {
+        // B470. The lower layer has no drawing at this cel, so the upper
+        // drawing "carries over as-is" — and what carried over was its
+        // strokes without the pixels under them: an imported picture merged
+        // onto an empty cel vanished, with nothing said.
+        var scene = TestScene();
+        using var imported = FrameRasterizer.Rasterize([Bar(60, "#806020")], W, H);
+        var lower = LayerOf(Hold());
+        var upper = LayerOf(Key(Bar(100, "#c02040")));
+        ((Frame)upper.Cels[0].Frame!).PngBase64 = PngCodec.Encode(imported);
+        using var expected = Composite(lower, upper, 0);
+
+        LayerMerge.MergeDown(scene, upper, lower);
+
+        var frame = (Frame)lower.Cels[0].Frame!;
+        Assert.True(frame.HasBaseline, "the upper drawing's pixels were dropped");
+        Assert.Single(frame.Strokes);
+        AssertRendersIdentically(expected, lower, 0);
+        using var merged = FrameRasterizer.Materialize(frame, W, H);
+        Assert.True(merged.GetPixel(100, 60).Alpha > 200, "the imported picture is not on the merged drawing");
+    }
+
+    [Fact]
     public void EraserOverNothing_StaysLossless()
     {
         var scene = TestScene();
