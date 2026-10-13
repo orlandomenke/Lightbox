@@ -1328,7 +1328,14 @@ public static class BrushEngine
         // function a replay calls, rectangle for rectangle (WetBleed). It reads
         // its own layer only - a composite of the layers beneath is handed over
         // differently by the live path and by a replay.
-        if (stroke.Tool == ToolKind.Brush && brush.Kind == BrushKind.Blur && brush.Wet is not null)
+        //
+        // And a smudge: the live path writes it into the same working copy of
+        // the layer, dab range by dab range from the same carry a replay
+        // starts from, and that copy at pen-up is the replay to the byte in
+        // both its modes (PenUpChangesNothingTests.ASmudgeStrokeIsKept). Every
+        // smudge stroke used to be rendered again at pen-up for nothing - 20
+        // to 68 ms for the Damp brush at 60 to 300 px in the perf lab.
+        if (WritesTheLayerItself(stroke))
         {
             return brush.SampleSource == SampleSource.ThisLayer
                 && stroke.ClipId is null
@@ -1363,14 +1370,25 @@ public static class BrushEngine
     /// stroke <see cref="PromotesAtPenUp"/> says is the replay to the byte —
     /// invariant 1 is kept by that equality, not waived.
     /// </summary>
+    /// <summary>
+    /// A stroke whose live result is the layer's own pixels, in a working copy
+    /// of the layer, and not paint in a scratch to be laid over it: a
+    /// rewetting brush and a smudge. Kept at pen-up by copying those pixels in
+    /// place.
+    /// </summary>
+    public static bool WritesTheLayerItself(Stroke stroke) =>
+        stroke.Tool == ToolKind.Brush
+        && (stroke.Brush.Kind == BrushKind.Smudge
+            || (stroke.Brush.Kind == BrushKind.Blur && stroke.Brush.Wet is not null));
+
     public static void PromoteMark(SKCanvas target, SKBitmap mark, SKRectI region, Stroke stroke)
     {
         using var pixels = mark.PeekPixels();
         using var image = pixels is null ? null : SKImage.FromPixels(pixels);
         if (image is null) return;
-        if (stroke.Brush.Kind == BrushKind.Blur && stroke.Brush.Wet is not null)
+        if (WritesTheLayerItself(stroke))
         {
-            // A rewetting mark is the layer's final pixels there, not paint to lay over them.
+            // A rewetting or smudged mark is the layer's final pixels there, not paint to lay over them.
             using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
             target.DrawImage(image, region.Left, region.Top, replace);
             return;

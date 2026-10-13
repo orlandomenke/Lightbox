@@ -1589,15 +1589,19 @@ public partial class MainViewModel
         // A document too large for the replay's plane is replayed in another
         // frame of reference, and the live mark is then not the replay.
         if (!BrushEngine.ReplaysInDocumentSpace(Scene.Width, Scene.Height)) return No("document too large for the plane");
-        if (stroke.Brush.Kind == BrushKind.Blur && stroke.Brush.Wet is not null)
+        if (BrushEngine.WritesTheLayerItself(stroke))
         {
-            // A rewetting stroke: the working copy of the layer holds the result,
-            // rendered rectangle by rectangle from the layer as it was (Q255).
+            // A rewetting stroke or a smudge: the working copy of the layer holds
+            // the result - rendered rectangle by rectangle from the layer as it
+            // was (Q255), or smeared dab range by dab range as a replay smears it.
             if (_live.Composite is not { } composite || _live.EffectDabs is not { Count: > 0 } wetDabs)
             {
-                return No("nothing was rewetted live");
+                return No("nothing was worked into the layer live");
             }
-            var wetRegion = WetBleed.Bounds(wetDabs, 0, wetDabs.Count, stroke.Brush, composite.Width, composite.Height);
+            var layerInfo = new SKImageInfo(composite.Width, composite.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            var wetRegion = stroke.Brush.Kind == BrushKind.Smudge
+                ? BrushEngine.RangeBounds(wetDabs, 0, stroke.Brush, layerInfo) ?? SKRectI.Empty
+                : WetBleed.Bounds(wetDabs, 0, wetDabs.Count, stroke.Brush, composite.Width, composite.Height);
             if (wetRegion.Width <= 0 || wetRegion.Height <= 0) return No("the stroke is off the paper");
             return CopyRegion(composite, wetRegion) is { } wet ? new LiveMark(wet, wetRegion, [.. wetDabs]) : No("the copy failed");
         }

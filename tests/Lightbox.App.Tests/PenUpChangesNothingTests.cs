@@ -637,4 +637,85 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
         Assert.True(live.Differing == 0,
             $"lifting the pen changed {live.Differing} pixels (worst {live.Worst}): what was on screen is not what was kept");
     }
+    public static IEnumerable<object[]> Smudging() =>
+        // The last one is the Smudge brush adding some of the colour in hand as it goes.
+        from id in new[] { "builtin-smudge", "builtin-blender", "builtin-damp-brush", "builtin-smudge+colour" }
+        from size in new[] { 0, 40, 150 }
+        from smooth in new[] { false, true }
+        select new object[] { id, size, smooth };
+
+    /// <summary>
+    /// A smudge stroke is kept at pen-up, like paint, erasers and Water: the
+    /// working copy of the layer the pen leaves is the committed frame, with
+    /// nothing rendered again.
+    /// </summary>
+    /// <remarks>
+    /// Found by the perf lab on the Damp brush, 2026-10-13: every smudge stroke
+    /// logged "not a kind of stroke that is kept" and was rendered from its
+    /// record at pen-up - 20, 35 and 68 ms at 60, 150 and 300 px. The pixels
+    /// were already the right ones; this holds them to it for both smudge
+    /// modes, a tipped brush, a stroke that crosses itself, and smoothing.
+    /// </remarks>
+    [AvaloniaTheory]
+    [MemberData(nameof(Smudging))]
+    public void ASmudgeStrokeIsKept(string presetId, int size, bool smooth)
+    {
+        var vm = Vm(smooth);
+        var scene = vm.Doc.Scene;
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-ink"));
+        vm.BrushSize = 60;
+        foreach (var (x, hex) in new[] { (300.0, "#c8301c"), (370.0, "#e2a11c"), (440.0, "#1c7a3a") })
+        {
+            vm.ColorHex = hex;
+            vm.BeginStroke(x, 150, 1);
+            for (var i = 1; i <= 12; i++) vm.MoveStroke(x + (i * 2), 150 + (i * 25), 1);
+            vm.EndStroke();
+            for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        using var painted = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height).Copy();
+
+        var preset = vm.BrushPresetChoices.Single(p => p.Id == presetId.Split('+')[0]);
+        vm.ApplyPreset(preset);
+        if (size > 0) vm.BrushSize = size;
+        if (presetId.EndsWith("+colour", StringComparison.Ordinal))
+        {
+            vm.CurrentToolSettingsForTest.ColorRate = 0.3;
+            vm.ColorHex = "#7030c0";
+        }
+        var before = vm.PromotedStrokes;
+
+        // Out across the bars, round, and back over its own path.
+        vm.BeginStroke(240, 260, 0.7);
+        for (var i = 1; i <= 70; i++)
+        {
+            var back = i > 45;
+            var t = back ? 45 - ((i - 45) * 1.5) : i;
+            vm.MoveStroke(240 + (t * 6.0), (back ? 300 : 250) + (Math.Sin(i * 0.25) * 45), 0.5 + (0.4 * i / 70.0));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        using var underThePen = vm.LiveCompositeForTests!.Copy();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        vm.EndStroke();
+        var penUp = clock.Elapsed.TotalMilliseconds;
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var live = Compare(underThePen, kept);
+        var record = Compare(kept, replay);
+        var did = Compare(kept, painted);
+        var promoted = vm.PromotedStrokes - before == 1;
+        output.WriteLine(
+            $"SMUDGE {preset.Name,-11} size {vm.BrushSize,4:0} {(smooth ? "smooth" : "raw"),-6} {(promoted ? "kept" : "REPLAYED: " + vm.WhyReplayed)}  "
+            + $"changed {did.Differing} pixels; under the pen vs kept {live.Differing} (worst {live.Worst}), kept vs replay {record.Differing} (worst {record.Worst}); pen-up {penUp:0.0} ms");
+
+        Assert.True(did.Differing > 300, $"{preset.Name} changed almost nothing ({did.Differing} pixels) - nothing was tested");
+        Assert.True(record.Differing == 0,
+            $"{preset.Name}: the committed frame is not what its record renders ({record.Differing} pixels, worst {record.Worst}) - invariant 1");
+        Assert.True(live.Differing == 0,
+            $"{preset.Name}: lifting the pen changed {live.Differing} pixels (worst {live.Worst})");
+        Assert.True(promoted, $"{preset.Name} at {vm.BrushSize:0}: a smudge stroke was rendered again at pen-up - {vm.WhyReplayed}");
+    }
 }
