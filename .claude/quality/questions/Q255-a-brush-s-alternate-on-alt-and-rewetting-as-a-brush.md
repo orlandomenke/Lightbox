@@ -25,3 +25,13 @@ What it blocks: the rework brushes on the roadmap (water, blot, damp brush), and
 - A new kind of brush in the engine for the bleed: no existing one spreads paint with a soft edge, thins it and shows the paper in it. It has to land under the pen and be what is kept at pen-up, like every other mark.
 - Two more keys on the preset record, absent unless a brush names an alternate.
 - Alt-erase is no longer universal, which the manual has to say.
+
+## Later the same thread, 2026-10-13
+
+**The water brush's look.** Rendered by the engine this time, six cells. **Answered: cell 2, as built** - spreads about half a brush width, thins a fifth, cloudy pools, a moderate line where the water stopped.
+
+**Push and pull.** The owner asked whether rewetting also means pushing and pulling the paint. It does not: the bleed is even in every direction. A strength for dragging paint in the direction of travel is planned on the same brush, not built.
+
+**The damp brush for Gouache.** "2 with 5 combined" cannot be one brush as asked - a smudge brush either drags or blends - so a second sheet showed the two rows again and three ways of combining them. **Answered: "the same but gentler"** (blends through the tip, short reach, soft edge, a few passes to blend fully). It goes pale where it runs onto bare paper, which was said before the choice.
+
+**The Blot on Gouache.** **Answered: yes, the same Blot on Ctrl+Alt** (recommended).

@@ -580,4 +580,61 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
         Assert.True(record.Differing == 0,
             $"the committed frame is not what its record renders ({record.Differing} pixels, worst {record.Worst}) - invariant 1");
     }
+    /// <summary>
+    /// The Damp brush on Alt (Q255): Gouache in hand, dried bars of colour
+    /// worked again without putting the brush down. What is on screen at the
+    /// end of the stroke is what is kept, and what the record renders.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(40, false)]
+    [InlineData(40, true)]
+    [InlineData(120, true)]
+    public void TheDampBrushUnderThePenIsTheReplay(int size, bool smooth)
+    {
+        var vm = Vm(smooth);
+        var scene = vm.Doc.Scene;
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-ink"));
+        vm.BrushSize = 60;
+        foreach (var (x, hex) in new[] { (300.0, "#c8301c"), (370.0, "#e2a11c"), (440.0, "#1c7a3a") })
+        {
+            vm.ColorHex = hex;
+            vm.BeginStroke(x, 150, 1);
+            for (var i = 1; i <= 12; i++) vm.MoveStroke(x + (i * 2), 150 + (i * 25), 1);
+            vm.EndStroke();
+            for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        using var painted = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height).Copy();
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-gouache-body"));
+        vm.BrushSize = size;
+        vm.ColorHex = "#00ff00";
+
+        vm.BeginStroke(240, 260, 0.7, BrushAlternate.First, joinFromLast: false);
+        for (var i = 1; i <= 60; i++)
+        {
+            vm.MoveStroke(240 + (Math.Sin(i * 0.3) * 30) + (i * 5.0), 260 + (Math.Sin(i * 0.2) * 50), 0.5 + (0.4 * i / 60.0));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        using var underThePen = vm.LiveCompositeForTests!.Copy();
+        vm.EndStroke();
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var recorded = vm.PaintedCel().Strokes[^1];
+        Assert.Equal(BrushKind.Smudge, recorded.Brush.Kind);
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var live = Compare(underThePen, kept);
+        var record = Compare(kept, replay);
+        var did = Compare(kept, painted);
+        output.WriteLine(
+            $"DAMP size {size,4} {(smooth ? "smooth" : "raw"),-6} changed {did.Differing,6} pixels; under the pen vs kept {live.Differing} (worst {live.Worst}), kept vs replay {record.Differing}");
+
+        Assert.True(did.Differing > 1000, $"the damp brush changed almost nothing ({did.Differing} pixels) - nothing was tested");
+        Assert.True(record.Differing == 0,
+            $"the committed frame is not what its record renders ({record.Differing} pixels, worst {record.Worst}) - invariant 1");
+        Assert.True(live.Differing == 0,
+            $"lifting the pen changed {live.Differing} pixels (worst {live.Worst}): what was on screen is not what was kept");
+    }
 }

@@ -314,6 +314,10 @@ public static class BuiltInPresets
         {
             Id = "builtin-gouache-body",
             Name = "Gouache",
+            // Rework without putting the brush down (Q255): Alt works the dried
+            // paint again with the Damp brush, Ctrl+Alt lifts with the Blot.
+            Alternate = "builtin-damp-brush",
+            SecondAlternate = "builtin-blot",
             // Opaque body colour, without the simulation it used to run (Q240,
             // Q251): it goes solid at a light press, carries a little of the
             // paper's tone inside it, and breaks into streaks as the brush
@@ -401,6 +405,23 @@ public static class BuiltInPresets
                 Size = 44, Hardness = 0.6, Opacity = 0.8, Flow = 0.6, Spacing = 0.1,
                 PressureFlowGamma = 1.2,
                 TextureSurface = PaperKind.Fibre, TextureScale = 6, TextureDepth = 0.6,
+            },
+        },
+        new()
+        {
+            Id = "builtin-damp-brush",
+            Name = "Damp brush",
+            // A damp bristle brush through dried body colour (Q255): the colours
+            // under it blend into each other, laid in the gouache brush's tip, a
+            // short way along the stroke. No colour of its own. Gentle - a pass
+            // moves a little, and going over it does more. Chosen by the owner
+            // from a sheet: "the same but gentler", of the ones that blend
+            // through the tip.
+            Settings = new BrushSettings
+            {
+                Size = 26, Hardness = 0.5, Flow = 0.3, Spacing = 0.08, Kind = BrushKind.Smudge,
+                SmudgeMode = SmudgeMode.Dulling, SmudgeLength = 0.45, SmudgeRadius = 0.7, ColorRate = 0,
+                TipId = "tip-builtin-paintbrush", AngleFollowsDirection = true,
             },
         },
         new()
