@@ -192,15 +192,6 @@ public static class Prompts
         "what is drawn.";
 
     /// <summary>
-    /// For text placed in a prompt: escapes what would break out of the
-    /// string and nothing else, so "Zoë" stays readable.
-    /// </summary>
-    private static readonly JsonSerializerOptions NameOnly = new()
-    {
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
-
-    /// <summary>
     /// What was wrong with the last answer, and the answer itself, appended for
     /// a repair re-ask.
     /// </summary>
