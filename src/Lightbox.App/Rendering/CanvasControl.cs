@@ -814,7 +814,7 @@ public sealed partial class CanvasControl : Control
     /// stroke erases with the current brush rather than switching tools — and
     /// whether Shift was, which joins this stroke to the last one's end.
     /// </summary>
-    public event Action<double, double, double, bool, bool>? PaintStarted;
+    public event Action<double, double, double, Services.BrushAlternate, bool>? PaintStarted;
 
     /// <summary>
     /// Extend the live stroke with ALL coalesced samples of one pointer event
@@ -2467,8 +2467,9 @@ public sealed partial class CanvasControl : Control
             // Ctrl is a held eyedropper while painting or filling: the colour
             // you want is almost always already on the canvas, and reaching
             // for a tool to fetch it breaks the stroke you were about to make.
+            // Except Ctrl+Alt on a brush with a second alternate, which paints (Q255).
             if (ToolMode is CanvasToolMode.Paint or CanvasToolMode.Fill
-                && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+                && e.KeyModifiers.HasFlag(KeyModifiers.Control) && !CtrlAltPaints(e.KeyModifiers))
             {
                 PickClicked?.Invoke(x, y);
                 e.Handled = true;
@@ -2780,11 +2781,9 @@ public sealed partial class CanvasControl : Control
             _strokeSawRealPressure = false;
             _penAxes.Begin();
             _lastAxisSample = null;
-            // Alt turns the brush in your hand into an eraser without
-            // swapping tools, so it keeps its size, shape and dynamics. That
-            // is different from E, which switches to the dedicated eraser and
-            // its own settings.
-            _erasingThisStroke = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+            // Alt paints with the brush's alternate, Ctrl+Alt with its second
+            // (Q255); a brush that names none erases with itself on Alt.
+            var alternate = AlternateAtPress(e.KeyModifiers);
             // Shift at the press is Photoshop's straight segment: the stroke
             // runs from wherever the last one ended to here, and the drag that
             // follows carries on from that point. It is how a hard edge or a
@@ -2793,7 +2792,7 @@ public sealed partial class CanvasControl : Control
             _paintAnchor = (x, y);
             ReportInputDiagnostic(e.Pointer.Type, pp.Properties.Pressure);
             ReportCursorPressure(PressureOf(pp), penDown: true);
-            PaintStarted?.Invoke(x, y, PressureOf(pp), _erasingThisStroke, _straightFromLast);
+            PaintStarted?.Invoke(x, y, PressureOf(pp), alternate, _straightFromLast);
             e.Handled = true;
         }
         catch (Exception ex)

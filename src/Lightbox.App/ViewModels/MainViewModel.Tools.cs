@@ -197,7 +197,8 @@ public partial class MainViewModel
                 // "fetch that colour". Not a place, so no hover point is
                 // needed — and false without a selection, which is the state
                 // that leaves the eyedropper exactly as it was.
-                SelectionToMove: HasSelection);
+                SelectionToMove: HasSelection,
+                CtrlAltPaints: ActiveTool == ToolId.Brush && HasBrushAlternate(Services.BrushAlternate.Second));
         }
     }
 

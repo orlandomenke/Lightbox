@@ -36,7 +36,8 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
     ];
 
     public static IEnumerable<object[]> Shipped() =>
-        BuiltInPresets.Create().Where(p => p.Settings.Kind == BrushKind.Paint).SelectMany(p => new[]
+        // Brushes, not erasers: on the blank sheet this draws on, an eraser (the Blot) has nothing to take.
+        BuiltInPresets.Create().Where(p => p.Settings.Kind == BrushKind.Paint && p.Tool == ToolKind.Brush).SelectMany(p => new[]
             {
                 // The stabiliser's default smoothing on, which is how the app draws;
                 // and off, the mode most pixel tests use.

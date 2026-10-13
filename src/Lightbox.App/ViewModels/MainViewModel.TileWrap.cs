@@ -59,13 +59,13 @@ public partial class MainViewModel
     /// The tile the next stroke records, or null when tiling is off or the
     /// page cannot wrap (a zero-sized scene).
     /// </summary>
-    private TileWrap? WrapForNextStroke() =>
+    private TileWrap? WrapForNextStroke(BrushSettings? brush = null) =>
         TileWrapEnabled
         // Blur and smudge read pixels, which a canvas translation does not
         // carry, so the engine ignores a tile on them (Q185's reason). A
         // stroke must not record what will not be honoured — and a recorded
         // tile is what tells the export the document wraps.
-        && CurrentToolSettings.Kind is not (BrushKind.Blur or BrushKind.Smudge)
+        && (brush ?? CurrentToolSettings).Kind is not (BrushKind.Blur or BrushKind.Smudge)
         && TileWrap.OfScene(Scene) is { IsIdentity: false } tile
             ? tile
             : null;

@@ -2094,6 +2094,102 @@ public partial class MainViewModel
     public void BeginStroke(double x, double y, double pressure, bool eraseWithCurrentBrush) =>
         BeginStroke(x, y, pressure, eraseWithCurrentBrush, joinFromLast: false);
 
+    /// <summary>
+    /// The brush a held alternate key paints with, and the tool it paints as,
+    /// or null when the key means what it always did (Q255).
+    /// </summary>
+    private (BrushSettings Settings, ToolKind Tool)? AlternateBrush(BrushAlternate alternate, bool forAStroke = false)
+    {
+        if (alternate == BrushAlternate.None || IsEraser) return null;
+        if (AlternateIdOf(SelectedBrushPreset, alternate) is not { } id
+            || BrushPresetChoices.FirstOrDefault(p => p.Id == id) is not { } other)
+        {
+            return null;
+        }
+        // The other brush, at the size in hand: it reworks what this brush laid.
+        // Put on the way picking it would put it on - anti-aliasing and the
+        // sample source are preferences stamped per stroke, never a preset's
+        // (invariant 4), and a tip it carries has to be in the document before
+        // a stroke names it, or the stroke replays without it (invariant 1).
+        var settings = other.Settings.Clone();
+        settings.Size = CurrentToolSettings.Size;
+        settings.AntiAlias = AntiAliasing;
+        settings.SampleSource = SmudgeSampleSource;
+        // Only when a stroke is about to be made: asking what a key would do must not edit the document.
+        if (forAStroke) EnsurePresetTip(other);
+        return (settings, other.Tool);
+    }
+
+    /// <summary>
+    /// Whether holding the key at pen-down starts a stroke at all. Alt always
+    /// does - it erases with the brush in hand when the brush names nothing.
+    /// Ctrl+Alt does only for a brush with a second alternate; otherwise Ctrl
+    /// is the eyedropper, as it is without Alt.
+    /// </summary>
+    public bool HasBrushAlternate(BrushAlternate alternate) => alternate switch
+    {
+        BrushAlternate.None => true,
+        BrushAlternate.First => true,
+        _ => AlternateBrush(alternate) is not null,
+    };
+
+    /// <summary>
+    /// The brush a preset names for a key: its own choice, or the shipped
+    /// brush's when it shadows one and says nothing. Empty means "none".
+    /// </summary>
+    internal static string? AlternateIdOf(BrushPreset? preset, BrushAlternate alternate)
+    {
+        if (preset is null || alternate == BrushAlternate.None) return null;
+        var own = alternate == BrushAlternate.First ? preset.Alternate : preset.SecondAlternate;
+        if (own is not null) return own.Length == 0 ? null : own;
+        return BuiltInPresets.ShippedAlternate(preset.Id, alternate);
+    }
+
+    /// <summary>
+    /// What the canvas needs to know at a press with an alternate key held:
+    /// whether a stroke starts, and whether it erases.
+    /// </summary>
+    public (bool Starts, bool Erases) BrushAlternateAtPress(BrushAlternate alternate)
+    {
+        if (alternate == BrushAlternate.None) return (true, IsEraser);
+        if (AlternateBrush(alternate) is { } other) return (true, other.Tool == ToolKind.Eraser);
+        // No alternate named: Alt erases with the brush in hand, Ctrl+Alt is not a stroke.
+        return (alternate == BrushAlternate.First, alternate == BrushAlternate.First);
+    }
+
+    /// <summary>What a held alternate key will do with the brush in hand, for the cursor and the status line.</summary>
+    public string DescribeBrushAlternate(BrushAlternate alternate)
+    {
+        if (alternate == BrushAlternate.None) return string.Empty;
+        var id = IsEraser ? null : AlternateIdOf(SelectedBrushPreset, alternate);
+        if (id is not null && BrushPresetChoices.FirstOrDefault(p => p.Id == id) is { } other) return other.Name;
+        return alternate == BrushAlternate.First ? "Erase with this brush" : string.Empty;
+    }
+
+    /// <param name="alternate">Which alternate key was held at the press, if any.</param>
+    public void BeginStroke(double x, double y, double pressure, BrushAlternate alternate, bool joinFromLast)
+    {
+        _strokeAlternate = AlternateBrush(alternate, forAStroke: true);
+        if (alternate == BrushAlternate.Second && _strokeAlternate is null) return;
+        try
+        {
+            BeginStroke(x, y, pressure, eraseWithCurrentBrush: alternate == BrushAlternate.First && _strokeAlternate is null, joinFromLast);
+        }
+        finally
+        {
+            _strokeAlternate = null;
+        }
+    }
+
+    /// <summary>The alternate brush the stroke being begun paints with; set only for the length of <see cref="BeginStroke(double, double, double, BrushAlternate, bool)"/>.</summary>
+    private (BrushSettings Settings, ToolKind Tool)? _strokeAlternate;
+
+    /// <summary>Add presets to the picker, for tests that need brushes that name each other.</summary>
+    internal void AddPresetsForTest(params BrushPreset[] presets)
+    {
+        foreach (var preset in presets) BrushPresetChoices.Add(preset);
+    }
+
     /// <param name="joinFromLast">
     /// Shift was held at the press. The stroke starts at the previous one's
     /// end and runs straight to here, which is how Photoshop draws a long
@@ -2136,7 +2232,11 @@ public partial class MainViewModel
         // whole layer pass live — and during a mask edit the "layer" on
         // screen is content carved by coverage, which is not the surface the
         // effect would be redoing. Refused out loud rather than misdrawn.
-        if (EditingLayerMask && CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
+        // The settings this stroke is made with: the brush in hand, or the one
+        // it names for the key that was held (Q255). Everything below asks
+        // this, never the tool, so an alternate is set up as the brush it is.
+        var strokeSettings = _strokeAlternate?.Settings ?? CurrentToolSettings;
+        if (EditingLayerMask && strokeSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
         {
             AiStatus = "Blur and smudge don't work on a layer mask — paint or erase its coverage instead.";
             return;
@@ -2150,7 +2250,7 @@ public partial class MainViewModel
         // alpha-locked layer paints only where there is paint — on a blank
         // page each would do nothing and leave the frame empty. Both act on
         // what the hold shows, so both start from a copy.
-        var reworksWhatIsThere = CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge
+        var reworksWhatIsThere = strokeSettings.Kind is BrushKind.Blur or BrushKind.Smudge
             || ActiveLayer is { AlphaLocked: true };
         if (PaintTargetOrKey(editsWhatTheHoldShows: reworksWhatIsThere) is not { } target) return;
         // A press in a neighbour of the tiled preview is a press on the page,
@@ -2195,9 +2295,9 @@ public partial class MainViewModel
         _strokeBuilder.Smoothing ??= points => _stabilizer.PostProcess(points);
         _strokeBuilder.SmoothingShape ??= () => _stabilizer.Shape;
         _strokeBuilder.Begin(
-            IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush,
+            _strokeAlternate?.Tool ?? (IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush),
             ColorHex,
-            CurrentToolSettings.Clone(),
+            strokeSettings.Clone(),
             startX, startY, pressure,
             ActiveSwatchId,
             AlwaysRecordPenAxes);
@@ -2217,7 +2317,7 @@ public partial class MainViewModel
         if (ActiveSymmetry is { IsIdentity: false } axis) _strokeBuilder.Current!.Symmetry = axis.Clone();
         // The page as it is NOW, recorded on the stroke (Q192): a canvas
         // resized later still renders this mark about the tile it wrapped.
-        if (WrapForNextStroke() is { } tile) _strokeBuilder.Current!.Wrap = tile;
+        if (WrapForNextStroke(strokeSettings) is { } tile) _strokeBuilder.Current!.Wrap = tile;
         // Stamped onto the stroke, not read from the layer at render time, so
         // unlocking the layer later cannot repaint what is already down.
         // The layer's alpha lock guards its content, not its mask — coverage
@@ -2230,7 +2330,7 @@ public partial class MainViewModel
         _live.EffectBase = null;
         _live.MixBeneath?.Dispose();
         _live.MixBeneath = null;
-        if (CurrentToolSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
+        if (strokeSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
         {
             // Blur and smudge read the pixels they sit on, so they need a real
             // copy of the layer to work into. Without this a smudge preview
@@ -2253,7 +2353,7 @@ public partial class MainViewModel
             // The ground a mixing brush reads under its dabs, taken once: the
             // committed frame is fixed until pen-up, and the cache may evict
             // its own bitmap between events (Q232; the smudge's base above).
-            if (CurrentToolSettings.Mixing is not null)
+            if (strokeSettings.Mixing is not null)
             {
                 _live.MixBeneath = _cache.Get(target, Scene.Width, Scene.Height).Copy();
             }
@@ -2265,8 +2365,8 @@ public partial class MainViewModel
             // exclusive by construction - NeedsFootprintCap requires
             // !DrawsAsOneSilhouette - so one buffer with one lifetime serves
             // them, and only the shader that fills it differs (B293).
-            if (BrushEngine.DrawsAsOneSilhouette(CurrentToolSettings)
-                || BrushEngine.NeedsFootprintCap(CurrentToolSettings))
+            if (BrushEngine.DrawsAsOneSilhouette(strokeSettings)
+                || BrushEngine.NeedsFootprintCap(strokeSettings))
             {
                 // B189: the footprint route's coverage is a ceiling nobody
                 // looks at, so it may follow the compose scale; the silhouette
@@ -2284,9 +2384,9 @@ public partial class MainViewModel
                 // silhouette's coverage is the mark itself and stays at 1.
                 _live.BeginCoverage(
                     Scene.Width, Scene.Height,
-                    BrushEngine.DrawsAsOneSilhouette(CurrentToolSettings)
+                    BrushEngine.DrawsAsOneSilhouette(strokeSettings)
                         ? 1.0
-                        : BrushEngine.CeilingScale(CurrentToolSettings));
+                        : BrushEngine.CeilingScale(strokeSettings));
                 LiveFootprintScaleUsed = _live.CoverageScale;
             }
         }

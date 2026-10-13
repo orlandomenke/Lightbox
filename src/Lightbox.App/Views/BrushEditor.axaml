@@ -83,6 +83,7 @@
           <Button.Flyout>
             <MenuFlyout>
               <MenuItem x:Name="TagsMenuItem" Header="Tags…" Click="OnTagsClicked" />
+              <MenuItem x:Name="AlternatesMenuItem" Header="Alternates (Alt, Ctrl+Alt)…" Click="OnAlternatesClicked" />
               <MenuItem x:Name="DeletePresetMenuItem" Header="Delete this brush" Click="OnDeletePresetClicked" />
               <Separator />
               <MenuItem Header="Brush library…" Click="OnBrushLibraryClicked" />

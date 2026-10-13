@@ -149,7 +149,8 @@ public readonly record struct CanvasTarget(
     bool AlphaLocked = false,
     bool NothingToPaintOn = false,
     bool OutsideSelection = false,
-    bool SelectionToMove = false);
+    bool SelectionToMove = false,
+    bool CtrlAltPaints = false);
 
 /// <summary>
 /// One place that decides what the pointer shows, and why.
@@ -232,6 +233,11 @@ public static class CanvasCursor
         // the pointer inside it — so the eyedropper keeps every other place on
         // the canvas, which is nearly all of it.
         if (target.SelectionToMove && !target.OutsideSelection) return ToolId.Move;
+        // Ctrl+Alt paints with the brush's second alternate when it names one
+        // (Q255), and the pointer must not promise an eyedropper then. Granted
+        // by the target, like the selection above: default is "it picks a
+        // colour, as it always did".
+        if (target.CtrlAltPaints && tool == ToolId.Brush && modifiers.HasFlag(KeyModifiers.Alt)) return tool;
         return HeldPickerApplies(tool) ? ToolId.Picker : tool;
     }
 

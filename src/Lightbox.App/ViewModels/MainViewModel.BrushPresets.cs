@@ -445,6 +445,8 @@ public partial class MainViewModel
             Settings = CurrentToolSettings.Clone(),
             TipPng = preset.TipPng,
             Tags = preset.Tags is null ? null : [.. preset.Tags],
+            Alternate = preset.Alternate,
+            SecondAlternate = preset.SecondAlternate,
         };
 
         _brushes.UserPresets.RemoveAll(p => p.Id == preset.Id);
@@ -586,6 +588,8 @@ public partial class MainViewModel
                 Settings = preset.Settings.Clone(),
                 TipPng = preset.TipPng,
                 Tags = cleaned,
+                Alternate = preset.Alternate,
+                SecondAlternate = preset.SecondAlternate,
             };
             _brushes.UserPresets.Add(shadow);
             ReplaceInChoices(preset, shadow);
@@ -606,6 +610,62 @@ public partial class MainViewModel
         PersistBrushState();
         return true;
     }
+
+    // ---- alternates ---------------------------------------------------------------
+
+    /// <summary>
+    /// Name the brush a preset paints with on Alt or Ctrl+Alt, or none (Q255).
+    /// A shipped brush is changed by shadowing it, like a tag.
+    /// </summary>
+    /// <param name="otherId">The other brush's id, or null for none: Alt erases with this brush, Ctrl+Alt picks a colour.</param>
+    public bool SetPresetAlternate(BrushPreset preset, BrushAlternate alternate, string? otherId)
+    {
+        if (alternate == BrushAlternate.None || otherId == preset.Id) return false;
+        // "None" on a brush whose shipped self names one has to be said out
+        // loud, or the shadow would inherit it straight back.
+        var value = otherId ?? (BuiltInPresets.ShippedAlternate(preset.Id, alternate) is null ? null : string.Empty);
+        // And naming what it ships with is saying nothing.
+        if (value is not null && value == BuiltInPresets.ShippedAlternate(preset.Id, alternate)) value = null;
+
+        // Saying what is already so changes nothing - and must not shadow a shipped brush to say it.
+        if ((alternate == BrushAlternate.First ? preset.Alternate : preset.SecondAlternate) == value) return true;
+
+        var target = preset;
+        if (preset.IsBuiltIn && _brushes.UserPresets.All(p => p.Id != preset.Id))
+        {
+            target = new BrushPreset
+            {
+                Id = preset.Id,
+                Name = preset.Name,
+                Tool = preset.Tool,
+                Settings = preset.Settings.Clone(),
+                TipPng = preset.TipPng,
+                Tags = preset.Tags is null ? null : [.. preset.Tags],
+                Alternate = preset.Alternate,
+                SecondAlternate = preset.SecondAlternate,
+            };
+            _brushes.UserPresets.Add(target);
+            ReplaceInChoices(preset, target);
+            if (SelectedBrushPreset?.Id == preset.Id)
+            {
+                _brushes.Applying(() =>
+                {
+                    SelectedBrushPreset = target;
+                });
+            }
+        }
+
+        if (alternate == BrushAlternate.First) target.Alternate = value;
+        else target.SecondAlternate = value;
+        PersistBrushState();
+        // Ctrl+Alt may have just become a stroke, or stopped being one.
+        OnPropertyChanged(nameof(PointerIntent));
+        return true;
+    }
+
+    /// <summary>The brushes a preset could name as an alternate: every other one, by name.</summary>
+    public IReadOnlyList<BrushPreset> AlternateChoicesFor(BrushPreset preset) =>
+        [.. BrushPresetChoices.Where(p => p.Id != preset.Id).OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)];
 
     private static List<string>? CleanTags(IEnumerable<string>? tags)
     {
