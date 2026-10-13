@@ -718,4 +718,70 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
             $"{preset.Name}: lifting the pen changed {live.Differing} pixels (worst {live.Worst})");
         Assert.True(promoted, $"{preset.Name} at {vm.BrushSize:0}: a smudge stroke was rendered again at pen-up - {vm.WhyReplayed}");
     }
+    /// <summary>
+    /// A smudge dab that keeps its place and changes its pressure after it was
+    /// stamped must not be frozen into the frame. With smoothing on, a new
+    /// sample moves the pressure of the points before it; on a dead-straight,
+    /// evenly spaced line that moves no dab, so the position rule the smudge
+    /// settles by sees nothing change - and the stroke that was stamped is not
+    /// quite the stroke that was recorded. Such a stroke is rendered from its
+    /// record at pen-up, as every smudge used to be.
+    /// </summary>
+    /// <remarks>
+    /// Found by review of B472, reading the code: the 24 cases above all draw
+    /// a wavy path, where a change of pressure comes with a change of place.
+    /// A hand cannot draw this line; synthetic input and a ruler can.
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData("builtin-smudge", SmoothingMode.Laplacian)]
+    [InlineData("builtin-blender", SmoothingMode.Laplacian)]
+    // A window of nine reaches four points back: further than the tail the smudge still re-stamps.
+    [InlineData("builtin-smudge", SmoothingMode.MovingAverage)]
+    [InlineData("builtin-blender", SmoothingMode.MovingAverage)]
+    [InlineData("builtin-smudge", SmoothingMode.SavitzkyGolay)]
+    public void ASmudgeWhoseStampedDabsChangedIsRenderedFromItsRecord(string presetId, SmoothingMode smoothing)
+    {
+        var vm = Vm(smooth: true);
+        vm.SmoothingMode = smoothing;
+        vm.SmoothingWindow = 9;
+        var scene = vm.Doc.Scene;
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-ink"));
+        vm.BrushSize = 60;
+        foreach (var (x, hex) in new[] { (300.0, "#c8301c"), (370.0, "#e2a11c"), (440.0, "#1c7a3a") })
+        {
+            vm.ColorHex = hex;
+            vm.BeginStroke(x, 150, 1);
+            for (var i = 1; i <= 12; i++) vm.MoveStroke(x + (i * 2), 150 + (i * 25), 1);
+            vm.EndStroke();
+            for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == presetId));
+        vm.BrushSize = 50;
+        // Pressure sets how wide each dab is - which is what a smudge reads of it.
+        var brush = vm.CurrentToolSettingsForTest;
+        brush.PressureEnabled = true;
+        brush.PressureSizeGamma = 1;
+        brush.Curves = null;
+
+        // Dead straight, a whole number of pixels apart, pressure jumping about.
+        var pressures = new[] { 0.2, 0.95, 0.3, 0.8, 0.15, 1.0, 0.5, 0.25, 0.9, 0.4 };
+        vm.BeginStroke(240, 300, pressures[0]);
+        for (var i = 1; i <= 50; i++)
+        {
+            vm.MoveStroke(240 + (i * 6.0), 300, pressures[i % pressures.Length]);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        vm.EndStroke();
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var record = Compare(kept, replay);
+        output.WriteLine($"STALE {presetId} {smoothing}: {(vm.WhyReplayed is null ? "kept" : "rendered from the record: " + vm.WhyReplayed)}; kept vs replay {record.Differing} (worst {record.Worst})");
+        Assert.True(record.Differing == 0,
+            $"{presetId}: the committed frame is not what its record renders ({record.Differing} pixels, worst {record.Worst}) - invariant 1");
+    }
 }
