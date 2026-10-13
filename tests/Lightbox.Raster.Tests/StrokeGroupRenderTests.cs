@@ -470,6 +470,53 @@ public class StrokeGroupRenderTests(ITestOutputHelper output)
     }
 
     [Fact]
+    [Trait("Category", "Performance")]
+    public void RepaintingARegionThroughAMaskedGroupDoesNotRepaintTheWholeMask()
+    {
+        // Measured by the perf-warden: the mask was rendered whole on every
+        // repaint, so an 80 px undo through a group with a 400-stroke mask
+        // cost 965 ms — the mask's size, not the rectangle's (invariant 6).
+        const int w = 960, h = 540;
+        Stroke Mark(int i, string color, double size) => new()
+        {
+            Color = color,
+            Points = [new StrokePoint(20 + (i % 40) * 23, 20 + (i / 40) * 50, 1), new StrokePoint(35 + (i % 40) * 23, 50 + (i / 40) * 50, 0.7)],
+            Brush = new BrushSettings { Size = size, Hardness = 0.5, Opacity = 1, Flow = 1, Spacing = 0.1 },
+        };
+        var mask = new LayerMask { Frame = new Frame { Strokes = [.. Enumerable.Range(0, 400).Select(i => Mark(i, "#000000", 40))] } };
+        var frame = new Frame
+        {
+            Strokes =
+            [
+                Bar(80, "#2040c0"),
+                Group(new StrokeGroup { Strokes = [.. Enumerable.Range(0, 40).Select(i => Mark(i * 10, "#c02040", 12))], Mask = mask }),
+            ],
+        };
+        using var full = FrameRasterizer.Materialize(frame, w, h);
+        using var patched = full.Copy();
+        var region = new SKRectI(40, 40, 120, 120);
+
+        double Best(Action work)
+        {
+            var best = double.MaxValue;
+            for (var i = 0; i < 4; i++)
+            {
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                work();
+                best = Math.Min(best, clock.Elapsed.TotalMilliseconds);
+            }
+            return best;
+        }
+
+        var whole = Best(() => FrameRasterizer.Materialize(frame, w, h).Dispose());
+        var part = Best(() => Assert.True(FrameRasterizer.RepaintRegion(patched, frame, region, w, h)));
+
+        output.WriteLine($"whole drawing {whole:F1} ms, one 80 px rectangle {part:F1} ms, ratio {whole / part:F1}x");
+        AssertSame(full, patched, "region repaint through a masked group");
+        Assert.True(part * 4 < whole, $"repainting a rectangle cost {part:F1} ms against {whole:F1} ms for the whole drawing");
+    }
+
+    [Fact]
     public void AGroupReachesAsFarAsItsStrokesDo()
     {
         var info = new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Premul);

@@ -254,9 +254,21 @@ Recorded because each was green before it was found.
   only the visible ink means cutting lines by a mask, which is its own branch.
 - **A rig does not pose strokes inside a group.** The flattened merge froze the
   rest pose too, so nothing is lost, but nothing is gained either.
-- **The cost of a group is a full-surface scratch per render**, and a mask is
-  rendered whole each time. Sizing the scratch to the window being repainted is
-  the first thing to do if a merged drawing is felt on undo at 4K.
+- **The cost of a group is a full-surface scratch per render.** Measured
+  (perf-warden, 2026-10-13): allocating and clearing it is 1.3 ms at 1080p and
+  5.5 ms at 4K, the composite about as much again; an undo through one group is
+  14 ms at 1080p and 21 ms at 4K against 9–10 ms for the same strokes loose, 62 ms
+  through three sibling groups at 4K and 97 ms through three nested. Sizing the
+  scratch to the window being repainted removes most of that and is the next
+  thing to do for 4K. A mask *was* rendered whole on every repaint — 965 ms for
+  an 80 px rectangle through a 400-stroke mask — and is now stamped over the
+  window only.
+- **A cache miss on a merged drawing costs its strokes, not a decode.** 0.3 s
+  for one 400-stroke group at 1080p, 1 s for four, against 9 ms to decode the
+  picture the old merge left. That is what keeping strokes costs, and it is
+  what the same strokes cost on separate layers; the group itself adds 2–10%.
+  A cached frame is free either way. If first visits to merged frames are felt
+  while flipping, the cure is a rasterised group kept beside its strokes.
 
 ## Steps
 

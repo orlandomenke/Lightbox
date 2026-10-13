@@ -68,8 +68,7 @@ internal static class StrokeGroupRenderer
         LayerMerge.ApplyFilter(scratch, Effects.EffectRegistry.FilterFor(effects, frameIndex, (float)outputScale));
         if (group.Mask is { Applies: true } mask)
         {
-            using var coverage = FrameRasterizer.Materialize(
-                mask.Frame, info.Width, info.Height, outputScale, origin: origin);
+            using var coverage = Coverage(mask.Frame, info, outputScale, origin, window);
             LayerMerge.Carve(scratch, coverage, mask.IsInverted);
         }
         var clipped = group.Clip == true;
@@ -102,6 +101,50 @@ internal static class StrokeGroupRenderer
             Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(group.Opacity ?? 1, 0, 1) * 255)),
         };
         target.DrawBitmap(scratch, 0, 0, paint);
+    }
+
+    /// <summary>
+    /// A mask's painted coverage — whole, or over the window being repainted.
+    /// </summary>
+    /// <remarks>
+    /// A region repaint must not pay for the whole mask (invariant 6): 965 ms
+    /// for an 80 px rectangle through a 400-stroke mask, measured. Under a
+    /// window only the mask strokes that reach it are stamped, clipped to it,
+    /// by the same rules <see cref="FrameRasterizer.RepaintRegion"/> repaints a
+    /// drawing by — and a mask those rules refuse is rendered whole, which is
+    /// always right. Outside the window the coverage is empty, and nothing
+    /// outside the window is read: the caller's clip is the same rectangle.
+    /// </remarks>
+    private static SKBitmap Coverage(
+        Frame mask, SKImageInfo info, double outputScale, SKPointI origin, SKRectI? window)
+    {
+        if (window is not { } wanted || origin != default || !FrameRasterizer.CanRepaintRegion(mask))
+        {
+            return FrameRasterizer.Materialize(mask, info.Width, info.Height, outputScale, origin: origin);
+        }
+        var replay = new List<Stroke>();
+        foreach (var stroke in mask.Strokes)
+        {
+            if (BrushEngine.CommitRegion(stroke, info) is not { } reach || !reach.IntersectsWith(wanted)) continue;
+            if (ReadsPixels(stroke))
+            {
+                return FrameRasterizer.Materialize(mask, info.Width, info.Height, outputScale, origin: origin);
+            }
+            replay.Add(stroke);
+        }
+
+        var coverage = new SKBitmap(FrameRasterizer.Scaled(info, outputScale));
+        using var canvas = new SKCanvas(coverage);
+        canvas.Clear(SKColors.Transparent);
+        canvas.ClipRect(new SKRect(
+            (float)(wanted.Left * outputScale), (float)(wanted.Top * outputScale),
+            (float)(wanted.Right * outputScale), (float)(wanted.Bottom * outputScale)));
+        foreach (var stroke in replay)
+        {
+            BrushEngine.StampStroke(canvas, stroke, info, coverage, outputScale: outputScale, window: wanted);
+        }
+        canvas.Flush();
+        return coverage;
     }
 
     private static EffectStack? LiveEffects(StrokeGroup group) =>
