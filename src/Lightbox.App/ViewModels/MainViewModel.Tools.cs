@@ -477,6 +477,17 @@ public partial class MainViewModel
     /// </remarks>
     public bool ApplyResize(ResizeDialogViewModel choice)
     {
+        // An open pen-path edit and a text block being typed each hold a
+        // working copy of what they edit. Left open across an image resize,
+        // the next node drag or keystroke wrote that copy back at the old size
+        // (B462's review). The path edit ends — every node drag was already
+        // its own undo step — and the type is set, so what was typed is in
+        // the document before the resize walks it rather than lost.
+        if (choice.IsImage)
+        {
+            EndPathEdit();
+            CommitText();
+        }
         var changed = false;
         _editor.Perform(doc => changed = choice.Apply(doc, new Lightbox.Raster.PixelResampler()));
         if (!changed) return false;

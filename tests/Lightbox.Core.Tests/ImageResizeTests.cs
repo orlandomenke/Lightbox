@@ -211,8 +211,10 @@ public class ImageResizeTests
         Assert.Equal(200, doc.Scene.Guides![0].X);
         Assert.Equal(64, doc.Scene.Guides[0].Spacing);
         Assert.Equal(600, doc.Scene.Camera!.Keys[0].X);
-        // Zoom is a ratio against a scene that scaled with it, so the shot
-        // frames the same part of the drawing.
+        // Zoom is left alone, by the owner's decision (Q257) and against the
+        // recommendation. It maps document pixels to output pixels, so after
+        // a doubling the same shot frames half the width of the drawing it
+        // did; the shots of a resized document are re-keyed by hand.
         Assert.Equal(2, doc.Scene.Camera.Keys[0].Zoom);
         Assert.Equal(960, doc.Scene.Pivot!.X);
         Assert.Equal(20, doc.ClipRegions["c"].Contours[0][0].X);
@@ -620,6 +622,105 @@ public class ImageResizeTests
     }
 
     [Fact]
+    public void AnEffectWithNoPenOfItsOwnIsGivenOneAtTheSizeItDrew()
+    {
+        // Q257. An effect with no outline pen draws with the default brush,
+        // which is six pixels at any size of document. Its outlines on the
+        // paper were scaled with everything else; a re-bake would draw them
+        // at six again. So the resize gives it the pen it had been using, at
+        // the size the drawing now has.
+        var doc = DocWithAStroke(out _);
+        doc.Sims = new Dictionary<string, SimElement> { ["s"] = new() { Id = "s", Scale = 10 } };
+        var usual = new BrushSettings();
+        Assert.Null(doc.Sims["s"].OutlineBrush);
+
+        ImageResize.Apply(doc, 1920, 1080, new FakeResampler());
+
+        var pen = doc.Sims["s"].OutlineBrush;
+        Assert.NotNull(pen);
+        Assert.Equal(usual.Size * 2, pen.Size, 9);
+        Assert.Equal(usual.TextureScale * 2, pen.TextureScale, 9);
+        // Otherwise it is the default brush, exactly: the bake draws with
+        // what it drew with before.
+        pen.Size = usual.Size;
+        pen.TextureScale = usual.TextureScale;
+        Assert.Equal(
+            System.Text.Json.JsonSerializer.Serialize(usual, Lightbox.Core.Serialization.DocJson.Options),
+            System.Text.Json.JsonSerializer.Serialize(pen, Lightbox.Core.Serialization.DocJson.Options));
+    }
+
+    [Fact]
+    public void AnEffectThatIsNeverResizedKeepsNoPen()
+    {
+        // The pen is written because a resize made the default wrong, and
+        // only then: optional still means absent.
+        var doc = DocWithAStroke(out _);
+        doc.Sims = new Dictionary<string, SimElement> { ["s"] = new() { Id = "s" } };
+
+        var json = Lightbox.Core.Serialization.DocJson.Serialize(doc);
+
+        Assert.DoesNotContain("\"outlineBrush\"", json);
+    }
+
+    [Theory]
+    [InlineData(1920, 1080)]
+    [InlineData(1920, 540)]
+    public void APaintedStrokesPaperGrainGrowsWithTheMark(int width, int height)
+    {
+        // Q257. The grain of a simulated medium is in document pixels and is
+        // read every time the stroke renders. Left alone, an enlarged
+        // painting re-rendered with a finer tooth than it was painted on.
+        // It is a size of a mark, so it takes the mark's one factor, as the
+        // brush's texture scale does.
+        var doc = DocWithAStroke(out var stroke);
+        stroke.Brush.Medium = new MediumSettings { Kind = MediumKind.Watercolour, PaperScale = 12 };
+        var markBefore = stroke.Brush.Size;
+
+        ImageResize.Apply(doc, width, height, new FakeResampler());
+
+        var grew = stroke.Brush.Size / markBefore;
+        Assert.Equal(12 * grew, stroke.Brush.Medium.PaperScale, 9);
+    }
+
+    [Fact]
+    public void AStrokeWithNoMediumIsNotGivenOneByAResize()
+    {
+        // Scaling the grain of an untouched medium would touch it, and an
+        // untouched medium is what keeps twenty-one keys off every stroke.
+        var doc = DocWithAStroke(out var stroke);
+        Assert.True(stroke.Brush.Medium.IsUntouched());
+
+        ImageResize.Apply(doc, 1920, 1080, new FakeResampler());
+
+        Assert.True(stroke.Brush.Medium.IsUntouched());
+        Assert.Null(stroke.Brush.MediumOnDisk);
+    }
+
+    [Fact]
+    public void AReferenceNudgeMovesWithTheDrawing()
+    {
+        // A cell's nudge registers one frame of a reference against the
+        // drawing, in document pixels, outside the strip's own scale. The
+        // cell's place on the sheet does not move; the nudge does.
+        var doc = DocWithAStroke(out _);
+        doc.Scene.References =
+        [
+            new ReferenceStrip
+            {
+                Scale = 1,
+                Cells = [new ReferenceCell { X = 10, Y = 20, Width = 30, Height = 40, Dx = 4, Dy = -3, PivotX = 5, PivotY = 6 }],
+            },
+        ];
+
+        ImageResize.Apply(doc, 1920, 540, new FakeResampler());   // twice as wide, the same height
+
+        var cell = doc.Scene.References[0].Cells[0];
+        Assert.Equal((8.0, -3.0), (cell.Dx, cell.Dy));
+        Assert.Equal((10, 20, 30, 40), (cell.X, cell.Y, cell.Width, cell.Height));
+        Assert.Equal((5.0, 6.0), (cell.PivotX, cell.PivotY));
+    }
+
+    [Fact]
     public void WhatUndoKeptFromBeforeTheResizeIsNotResizedWithIt()
     {
         // The resize writes in place, and undo holds a copy of the document
@@ -738,6 +839,50 @@ public class ImageResizeTests
                 nameof(TextElement.Align),
                 // Thousandths of an em.
                 nameof(TextElement.Tracking),
+            }],
+        [typeof(MediumSettings),
+            new[] { nameof(MediumSettings.PaperScale) },
+            new[]
+            {
+                nameof(MediumSettings.Unknown), nameof(MediumSettings.Kind), nameof(MediumSettings.Wetness),
+                nameof(MediumSettings.Viscosity), nameof(MediumSettings.Drag), nameof(MediumSettings.FlowSteps),
+                nameof(MediumSettings.Absorbency), nameof(MediumSettings.EdgePull), nameof(MediumSettings.PigmentDensity),
+                nameof(MediumSettings.Granularity), nameof(MediumSettings.Hiding), nameof(MediumSettings.PhysicalMixing),
+                nameof(MediumSettings.Paper), nameof(MediumSettings.PaperInfluence), nameof(MediumSettings.Body),
+                nameof(MediumSettings.Relief), nameof(MediumSettings.BristleDrag), nameof(MediumSettings.PaintLoad),
+                nameof(MediumSettings.Pickup), nameof(MediumSettings.PressureWater), nameof(MediumSettings.PressureMix),
+                nameof(MediumSettings.Rewetting),
+            }],
+        [typeof(ReferenceCell),
+            new[] { nameof(ReferenceCell.Dx), nameof(ReferenceCell.Dy) },
+            new[]
+            {
+                nameof(ReferenceCell.Unknown),
+                // Places on the source sheet, not on the paper.
+                nameof(ReferenceCell.X), nameof(ReferenceCell.Y), nameof(ReferenceCell.Width), nameof(ReferenceCell.Height),
+                nameof(ReferenceCell.PivotX), nameof(ReferenceCell.PivotY),
+            }],
+        [typeof(CameraKey),
+            new[] { nameof(CameraKey.X), nameof(CameraKey.Y) },
+            new[]
+            {
+                nameof(CameraKey.Unknown), nameof(CameraKey.Frame), nameof(CameraKey.RotationDeg), nameof(CameraKey.Ease),
+                // Document pixels to output pixels — and left alone by the
+                // owner's decision (Q257), not because it holds no size.
+                nameof(CameraKey.Zoom),
+            }],
+        [typeof(Emitter),
+            Array.Empty<string>(),
+            new[]
+            {
+                nameof(Emitter.Unknown), nameof(Emitter.Id), nameof(Emitter.Shape), nameof(Emitter.Density),
+                nameof(Emitter.Heat), nameof(Emitter.Burst), nameof(Emitter.EmitFrom), nameof(Emitter.EmitUntil),
+                nameof(Emitter.MaskLayerId),
+                // Cells, and cells per step: the grid's own units, which the
+                // effect's cell size turns into pixels.
+                nameof(Emitter.X), nameof(Emitter.Y), nameof(Emitter.X2), nameof(Emitter.Y2), nameof(Emitter.Radius),
+                nameof(Emitter.VelocityX), nameof(Emitter.VelocityY), nameof(Emitter.MotionX), nameof(Emitter.MotionY),
+                nameof(Emitter.Scatter),
             }],
         [typeof(SimElement),
             new[]
