@@ -1580,9 +1580,49 @@ public partial class MainViewModel
     [RelayCommand]
     private void ClearActiveLayer() => ClearLayerContent(ActiveLayer);
 
-    /// <summary>Merge the active layer into the one below it (Ctrl+E).</summary>
+    /// <summary>
+    /// Merge the active layer into the one below it (Ctrl+E). A remembered
+    /// answer about erasers applies here too; with none, it flattens — the
+    /// window is what asks, and this is the path with no window.
+    /// </summary>
     [RelayCommand]
-    private void MergeActiveLayerDown() => MergeLayerDown(ActiveLayer);
+    private void MergeActiveLayerDown() =>
+        MergeLayerDown(ActiveLayer, MergeErasersPreference ?? Lightbox.Raster.EraserMerge.Flatten);
+
+    /// <summary>
+    /// What to do with a drawing whose erasers would reach the layer below,
+    /// when the artist has asked not to be asked again; null to ask (Q264).
+    /// Persisted, and shown in Configure so it can be taken back.
+    /// </summary>
+    public Lightbox.Raster.EraserMerge? MergeErasersPreference
+    {
+        // IsDefined as well: TryParse accepts any number, and a stored "7"
+        // would otherwise be a remembered answer that is neither choice.
+        get => Settings.MergeEraserChoice is { } stored
+            && Enum.TryParse<Lightbox.Raster.EraserMerge>(stored, out var parsed)
+            && Enum.IsDefined(parsed)
+                ? parsed
+                : null;
+        set
+        {
+            var text = value?.ToString();
+            if (Settings.MergeEraserChoice == text) return;
+            Settings.MergeEraserChoice = text;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Is the eraser choice one this merge actually has — a drawing that would
+    /// flatten for its erasers and nothing else? The window asks only then.
+    /// </summary>
+    public bool MergeErasersDecide(Layer? layer)
+    {
+        layer ??= ActiveLayer;
+        return MergeTargetOf(layer) is { } below
+            && Lightbox.Raster.LayerMerge.ErasersDecide(layer, below, Scene);
+    }
 
     /// <summary>
     /// The layer a merge-down would land on, or null when nothing is below.
@@ -1603,11 +1643,12 @@ public partial class MainViewModel
     /// <see cref="MergeLayerDown"/> — and only when AI is enabled, because
     /// "the inbetweener cannot read pixels" is noise to an artist without one.
     /// </summary>
-    public bool MergeWouldBake(Layer? layer)
+    public bool MergeWouldBake(
+        Layer? layer, Lightbox.Raster.EraserMerge erasers = Lightbox.Raster.EraserMerge.Flatten)
     {
         layer ??= ActiveLayer;
         return MergeTargetOf(layer) is { } below
-            && Lightbox.Raster.LayerMerge.WouldBakePixels(layer, below, Scene);
+            && Lightbox.Raster.LayerMerge.WouldBakePixels(layer, below, Scene, erasers);
     }
 
     /// <summary>
@@ -1615,7 +1656,12 @@ public partial class MainViewModel
     /// exposure sheet. One undo step; the merged layer keeps the lower
     /// layer's name, opacity, blend mode and folder.
     /// </summary>
-    public void MergeLayerDown(Layer? layer)
+    /// <param name="erasers">
+    /// Flatten a drawing whose erasers would reach the lower layer, or cut its
+    /// strokes and keep them. Everything else that flattens still does.
+    /// </param>
+    public void MergeLayerDown(
+        Layer? layer, Lightbox.Raster.EraserMerge erasers = Lightbox.Raster.EraserMerge.Flatten)
     {
         layer ??= ActiveLayer;
         if (MergeTargetOf(layer) is not { } below)
@@ -1631,7 +1677,7 @@ public partial class MainViewModel
             var upperIndex = scene.Layers.FindIndex(l => l.Id == layer.Id);
             if (upperIndex <= 0) return;
             Lightbox.Raster.LayerMerge.MergeDown(
-                scene, scene.Layers[upperIndex], scene.Layers[upperIndex - 1]);
+                scene, scene.Layers[upperIndex], scene.Layers[upperIndex - 1], erasers);
             scene.Layers.RemoveAt(upperIndex);
         });
         ActiveLayerIndex = targetIndex;

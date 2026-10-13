@@ -386,7 +386,8 @@ pixels instead, so the merge always looks exactly like the two layers did:
 - a blend mode or opacity on the layer being merged — it is applied into the
   pixels, the way merging in Photoshop applies it;
 - erasers or clear-regions on it — kept as strokes they would start erasing
-  the lower layer's marks, which they never touched;
+  the lower layer's marks, which they never touched. **This one is your
+  choice** — see below;
 - alpha-locked or smudge strokes, and imported pixels — all of them read what
   is underneath, and "underneath" changes when the layers become one.
 
@@ -396,6 +397,43 @@ flatten any drawing, Lightbox asks first, because a flattened drawing is one
 the inbetweener can no longer read. As in Photoshop, a blend mode is applied
 against the layer directly below — if it was interacting with layers deeper
 in the stack, that part of its look can shift.
+
+**Erasing no longer has to mean pixels.** A line drawing nearly always has
+erasing in it, so flattening those would mean merging line art costs you the
+line art. When erasing is the only thing in the way, Lightbox asks which you
+want:
+
+- **Keep strokes.** Each line is cut where you erased it and the erasers are
+  dropped, the way an eraser works in a vector program. The drawing stays
+  strokes: you can still reshape it and the AI inbetweener can still read it.
+  It is *nearly* exact rather than exact. A soft or half-strength eraser becomes
+  a clean cut. Each piece stops where its own round end would first touch what
+  you erased, so ink does not come back into the gap, and the corners of a cut
+  come out slightly short instead. An eraser that only shaved a line's edge
+  without reaching its middle leaves the line whole, and so does the stretch
+  where an eraser ran *along* a line after crossing it. A textured brush starts
+  its grain afresh at a cut. On thin line art the difference is hard to find —
+  measured on three real merges it was 0.00%, 0.11% and 0.27% of the painted
+  pixels — and it grows with the width of the brush: 2.7% on a deliberately
+  hard case, a 24-pixel line under a 30-pixel eraser.
+- **Flatten to pixels.** Exactly what the two layers looked like, as a picture.
+
+Tick **Remember this choice** and it stops asking; **Edit ▸ Configure ▸
+Drawing** shows the remembered answer and "Ask every time" takes it back. With
+a remembered answer, Ctrl+E simply uses it.
+
+A drawing still flattens whatever you choose when something else needs it — a
+blend mode, opacity, a clip, an alpha-locked or smudge stroke — or when cutting
+would not give the picture you had:
+
+- the erasing reaches something that is not a plain painted line — a fill, a
+  gradient, text, a blur or a wet-media stroke;
+- you erased inside a selection, which confined the eraser to it;
+- the eraser, or a line it might have crossed, was drawn with symmetry or
+  tile wrap, so its mirrored copies matter too.
+
+Those drawings get the exact answer, pixels, and the others on the same layer
+still keep their strokes.
 
 Merging a masked or clipped layer applies the mask and the clip into the
 merged pixels, so the result looks exactly as the pair did; a mask on the

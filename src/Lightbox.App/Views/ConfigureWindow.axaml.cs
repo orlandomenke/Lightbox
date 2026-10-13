@@ -417,6 +417,35 @@ public partial class ConfigureWindow : Window
         _vm.PlacementPreference = SymbolPlacementChoices[index].Choice;
     }
 
+    /// <summary>Ask, and the two things an artist might have said instead (Q264).</summary>
+    private static readonly (string Label, Lightbox.Raster.EraserMerge? Choice)[] MergeErasersChoices =
+    [
+        ("Ask every time", null),
+        ("Keep strokes", Lightbox.Raster.EraserMerge.KeepStrokes),
+        ("Flatten to pixels", Lightbox.Raster.EraserMerge.Flatten),
+    ];
+
+    private bool _loadingMergeErasers;
+
+    private void LoadMergeErasersChoice()
+    {
+        if (_vm is null) return;
+        _loadingMergeErasers = true;
+        MergeErasersBox.ItemsSource = MergeErasersChoices.Select(c => c.Label).ToList();
+        var stored = _vm.MergeErasersPreference;
+        MergeErasersBox.SelectedIndex =
+            Array.FindIndex(MergeErasersChoices, c => c.Choice == stored) is var i and >= 0 ? i : 0;
+        _loadingMergeErasers = false;
+    }
+
+    private void OnMergeErasersChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_vm is null || _loadingMergeErasers) return;
+        var index = MergeErasersBox.SelectedIndex;
+        if (index < 0 || index >= MergeErasersChoices.Length) return;
+        _vm.MergeErasersPreference = MergeErasersChoices[index].Choice;
+    }
+
     private async void OnLibraryAddRoot(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (_vm is null) return;
@@ -1256,6 +1285,7 @@ public partial class ConfigureWindow : Window
     private void LoadDrawingPage()
     {
         if (_vm is null || SampleBox is null) return;
+        LoadMergeErasersChoice();
         _loadingDrawing = true;
         SampleBox.ItemsSource = _vm.SampleSourceChoices;
         SampleBox.SelectedItem = _vm.SmudgeSampleSource;
