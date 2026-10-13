@@ -37,9 +37,14 @@ public static class DocJson
 
     public static string Serialize(Doc doc) => JsonSerializer.Serialize(doc, Options);
 
-    public static Doc Deserialize(string json) =>
+    /// <remarks>
+    /// Every way a document is read back ends in <see cref="HeldDrawings.Relink"/>:
+    /// the file writes a held drawing once per cel, and the reader has to make
+    /// it one drawing again (B467, Q260).
+    /// </remarks>
+    public static Doc Deserialize(string json) => HeldDrawings.Relink(
         JsonSerializer.Deserialize<Doc>(json, Options)
-        ?? throw new JsonException("Document deserialized to null.");
+        ?? throw new JsonException("Document deserialized to null."));
 
     /// <summary>Write the document as gzip-compressed JSON, atomically.</summary>
     /// <remarks>
@@ -188,8 +193,8 @@ public static class DocJson
             // refused rather than read until memory runs out.
             var limit = Math.Max(InflationFloorBytes, file.Length * MaxInflationRatio);
             using var capped = new InflationCap(gzip, limit, file.Length);
-            return JsonSerializer.Deserialize<Doc>(capped, Options)
-                ?? throw new JsonException("Document deserialized to null.");
+            return HeldDrawings.Relink(JsonSerializer.Deserialize<Doc>(capped, Options)
+                ?? throw new JsonException("Document deserialized to null."));
         }
         using var reader = new StreamReader(file, leaveOpen: true);
         return Deserialize(reader.ReadToEnd());
@@ -260,9 +265,9 @@ public static class DocJson
     public static byte[] ToSnapshot(Doc doc) => JsonSerializer.SerializeToUtf8Bytes(doc, Compact);
 
     /// <summary>Rebuild a document from <see cref="ToSnapshot"/>'s bytes.</summary>
-    public static Doc FromSnapshot(byte[] bytes) =>
+    public static Doc FromSnapshot(byte[] bytes) => HeldDrawings.Relink(
         JsonSerializer.Deserialize<Doc>(bytes, Compact)
-        ?? throw new JsonException("Document snapshot deserialized to null.");
+        ?? throw new JsonException("Document snapshot deserialized to null."));
 
     /// <summary>Deep clone of any part of a document, through the same converters.</summary>
     /// <remarks>
