@@ -458,8 +458,9 @@ public partial class MainViewModel
     public void RefreshDocumentOrigin() => OnPropertyChanged(nameof(DocumentOrigin));
 
     /// <summary>
-    /// Apply a resize the artist confirmed, as one undo step — two when type
-    /// was still being typed, which is set first as its own step.
+    /// Apply a resize the artist confirmed, as one undo step — more when type
+    /// was still being typed, a pen line still being placed or a transform
+    /// still open, each of which is finished first as its own step.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -484,14 +485,36 @@ public partial class MainViewModel
         // (B462's review). The path edit ends — every node drag was already
         // its own undo step — and the type is set, so what was typed is in
         // the document before the resize walks it rather than lost.
+        var (wasWide, wasHigh) = (Scene.Width, Scene.Height);
         if (choice.IsImage)
         {
             EndPathEdit();
             CommitText();
+            // The same failure for every other session that holds places at
+            // the old size (B465). A transform is confirmed where the canvas
+            // can confirm it — as leaving its frame does — and dropped where
+            // it cannot; a pen line still being placed is finished, so it is
+            // in the drawing before the resize walks it.
+            ConfirmTransformBeforeLeaving();
+            if (TransformActive) CancelTransform();
+            FinishPen();
+            if (PenActive) CancelPen();
         }
         var changed = false;
         _editor.Perform(doc => changed = choice.Apply(doc, new Lightbox.Raster.PixelResampler()));
         if (!changed) return false;
+
+        // The selection is drawn round part of the drawing, so it goes where
+        // that part went (B465). A crop frame is a rectangle on the page, and
+        // the page is a different size now: it starts again on the new one,
+        // for either kind of resize.
+        if (choice.IsImage && HasSelection)
+        {
+            var (sx, sy) = ((double)Scene.Width / wasWide, (double)Scene.Height / wasHigh);
+            _selectionContours = [.. _selectionContours.Select(c => c.Select(p => p with { X = p.X * sx, Y = p.Y * sy }).ToList())];
+            NotifySelection();
+        }
+        if (CropFrame is not null) BeginCropFrame();
 
         RefreshDocumentOrigin();
         _publish.InvalidateWholeCanvas();

@@ -87,9 +87,11 @@ grain of a simulated medium (watercolour, gouache, oil) grows with it; the
 grain of a flat brush does not. The
 one thing that does not follow is a **camera**: its keys move with the drawing
 but keep their zoom, so after an enlargement every shot frames a smaller part
-of the drawing and wants re-keying. An edit you had open — a line you were
-reshaping, type you were still typing — is finished first, so nothing comes
-back at the old size. **Keep proportions** is on by default here, because scaling
+of the drawing and wants re-keying. Anything you had open is finished first,
+so nothing comes back at the old size: a line you were reshaping, type you
+were still typing, a pen line you were placing, a transform you had not
+applied. A selection moves and grows with the drawing, and a crop frame
+starts again on the new page. **Keep proportions** is on by default here, because scaling
 the two axes differently distorts the drawing and is almost never meant. This
 is also where **PPI** lives: it says how large these pixels print, so it belongs
 to the artwork rather than to the paper. Changing only the PPI is a valid
