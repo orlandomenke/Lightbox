@@ -1,0 +1,63 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.AiBar"
+             x:DataType="vm:MainViewModel">
+  <!--
+    The AI bar's controls. Moved out of MainWindow.axaml when Q261 gave the
+    button a menu of its own: the window's XAML is the top of the risk table
+    and is not allowed to grow, and a bar is a natural seam — OnionBar and
+    TransportBar went the same way.
+  -->
+  <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space10}">
+    <!-- Which model is answering. The bar used to say "Claude" in three
+         places; now that the provider is the artist's choice, saying it
+         once and truthfully beats saying it three times and wrongly. -->
+    <TextBlock Text="{Binding AiProviderLabel}" VerticalAlignment="Center" Opacity="0.6" FontSize="{StaticResource TypeBody}"
+               ToolTip.Tip="Change this in Edit ▸ Configure ▸ AI" />
+    <!-- Q261. One click stays one click: the button asks nothing. Shift+click
+         and the arrow beside it ask for a note first; the arrow also holds
+         Revise. Click is handled in code so Shift can be read off the press
+         that made it — a Command would fire either way. -->
+    <StackPanel Orientation="Horizontal">
+      <Button x:Name="AiInbetweenButton" Content="✦ AI Inbetween"
+              Click="OnAiInbetweenClick"
+              IsEnabled="{Binding CanUseAi}"
+              ToolTip.Tip="Ask the model to draw the inbetweens between this key and the next. Shift+click to add a direction first" />
+      <Button Classes="icon"
+              IsEnabled="{Binding CanUseAi}"
+              VerticalAlignment="Stretch"
+              ToolTip.Tip="Inbetween with a direction, or revise AI frames">
+        <Path Classes="icon" Width="{StaticResource SizeIcon9}" Height="{StaticResource SizeIcon9}"
+              Data="{StaticResource IconChevronDown}" />
+        <Button.Flyout>
+          <!-- Click handlers, not Command bindings: a flyout's items live in a
+               popup, and a binding that has to find its view model from there
+               finds nothing. -->
+          <MenuFlyout Placement="BottomEdgeAlignedLeft">
+            <MenuItem Header="AI Inbetween with a direction…" Click="OnAiInbetweenWithDirection" />
+            <MenuItem Header="Revise AI frames…" Click="OnAiRevise" />
+          </MenuFlyout>
+        </Button.Flyout>
+      </Button>
+    </StackPanel>
+    <Button Command="{Binding CancelAiCommand}" IsVisible="{Binding AiBusy}"
+            ToolTip.Tip="Cancel the AI request">
+      <Path Classes="icon" Width="{StaticResource SizeIcon10}" Height="{StaticResource SizeIcon10}"
+            Data="{StaticResource IconClose}" />
+    </Button>
+    <ProgressBar IsIndeterminate="True" Width="{StaticResource SizeAiBusyBar}" IsVisible="{Binding AiBusy}"
+                 VerticalAlignment="Center" />
+    <TextBlock Text="{Binding AiStatus}" VerticalAlignment="Center" Opacity="0.85" TextTrimming="CharacterEllipsis" />
+    <!--
+      Why the tool will do nothing here. Beside the status line rather than
+      replacing it: this one follows the pointer and that one records what a
+      command did, so sharing a slot would have each wiping the other out
+      the moment the artist moved the mouse. Absent unless there is a
+      refusal, so it costs no room in the ordinary case.
+    -->
+    <TextBlock Text="{Binding PointerRefusal}" IsVisible="{Binding HasPointerRefusal}"
+               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+               Foreground="{DynamicResource Warning}" />
+  </StackPanel>
+</UserControl>

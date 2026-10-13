@@ -856,6 +856,67 @@ public partial class MainViewModel
         });
     }
 
+    // ---- water (Q255) -----------------------------------------------------------
+
+    /// <summary>A blur brush can be a rewetting one: the paint it passes over bleeds and thins.</summary>
+    public bool IsBlurBrush => GetBrushValue(s => s.Kind) == BrushKind.Blur;
+
+    /// <summary>Whether this blur rewets (<see cref="WetSettings"/>). Off removes the block from the brush.</summary>
+    public bool BrushWet
+    {
+        get => GetBrushValue(s => s.Wet is not null);
+        set
+        {
+            SetBrush(s => s.Wet = value ? s.Wet ?? new WetSettings() : null);
+            OnPropertyChanged(nameof(BrushWetSpread));
+            OnPropertyChanged(nameof(BrushWetThin));
+            OnPropertyChanged(nameof(BrushWetCloud));
+            OnPropertyChanged(nameof(BrushWetGather));
+        }
+    }
+
+    // As with mixing: a bound control writing back the default it read is not
+    // the artist switching the water on, and creates nothing.
+    public double BrushWetSpread
+    {
+        get => GetBrushValue(s => s.Wet?.Spread ?? new WetSettings().Spread);
+        set => SetBrush(s =>
+        {
+            if (s.Wet is null && Math.Abs(value - new WetSettings().Spread) < 1e-9) return;
+            (s.Wet ??= new WetSettings()).Spread = Math.Clamp(value, 0, 1);
+        });
+    }
+
+    public double BrushWetThin
+    {
+        get => GetBrushValue(s => s.Wet?.Thin ?? new WetSettings().Thin);
+        set => SetBrush(s =>
+        {
+            if (s.Wet is null && Math.Abs(value - new WetSettings().Thin) < 1e-9) return;
+            (s.Wet ??= new WetSettings()).Thin = Math.Clamp(value, 0, 1);
+        });
+    }
+
+    public double BrushWetCloud
+    {
+        get => GetBrushValue(s => s.Wet?.Cloud ?? new WetSettings().Cloud);
+        set => SetBrush(s =>
+        {
+            if (s.Wet is null && Math.Abs(value - new WetSettings().Cloud) < 1e-9) return;
+            (s.Wet ??= new WetSettings()).Cloud = Math.Clamp(value, 0, 1);
+        });
+    }
+
+    public double BrushWetGather
+    {
+        get => GetBrushValue(s => s.Wet?.Gather ?? new WetSettings().Gather);
+        set => SetBrush(s =>
+        {
+            if (s.Wet is null && Math.Abs(value - new WetSettings().Gather) < 1e-9) return;
+            (s.Wet ??= new WetSettings()).Gather = Math.Clamp(value, 0, 1);
+        });
+    }
+
     // ---- medium ---------------------------------------------------------------
     //
     // The physical simulation. Picking a medium decides which parts of the
@@ -1255,6 +1316,7 @@ public partial class MainViewModel
         nameof(BrushSaturationJitter), nameof(BrushBrightnessJitter),
         nameof(IsSmudgeBrush), nameof(IsEffectBrush), nameof(ShowsEffectOptions), nameof(EffectStrength),
         nameof(UsesSmudgeRadius),
+        nameof(IsBlurBrush), nameof(BrushWet), nameof(BrushWetSpread), nameof(BrushWetThin), nameof(BrushWetCloud), nameof(BrushWetGather),
         nameof(BrushSmudgeMode), nameof(BrushSmudgeLength),
         nameof(BrushSmudgeRadius), nameof(BrushColorRate),
         nameof(BrushMixing), nameof(BrushMixAmount), nameof(BrushMixLength), nameof(BrushMixReach),

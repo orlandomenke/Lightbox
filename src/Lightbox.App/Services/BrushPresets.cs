@@ -283,8 +283,9 @@ public static class BuiltInPresets
         {
             Id = "builtin-watercolor-wet",
             Name = "Watercolor",
-            // Ctrl+Alt lifts with the towel (Q255). Alt is for the water brush,
-            // when there is one; until then it erases, as it always has.
+            // Rework without putting the brush down (Q255): Alt rewets with
+            // Water, Ctrl+Alt lifts with the Blot.
+            Alternate = "builtin-water",
             SecondAlternate = "builtin-blot",
             // A wash, without the fluid simulation it used to run (Q240, Q244):
             // a crisp-edged, thin layer of paint whose pigment gathers at the
@@ -372,7 +373,8 @@ public static class BuiltInPresets
             // Q251): it covers the sheet and settles into it, so the paper
             // shows as tone inside the mark, and it gathers at the rim as a
             // wash does. Chosen from a sheet beside the simulated brush.
-            SecondAlternate = "builtin-blot", // Q255: see Watercolor
+            Alternate = "builtin-water", // Q255: see Watercolor
+            SecondAlternate = "builtin-blot",
             Settings = new BrushSettings
             {
                 Size = 30, Hardness = 0.75, Opacity = 0.8, Flow = 0.4, Spacing = 0.07,
@@ -399,6 +401,25 @@ public static class BuiltInPresets
                 Size = 44, Hardness = 0.6, Opacity = 0.8, Flow = 0.6, Spacing = 0.1,
                 PressureFlowGamma = 1.2,
                 TextureSurface = PaperKind.Fibre, TextureScale = 6, TextureDepth = 0.6,
+            },
+        },
+        new()
+        {
+            Id = "builtin-water",
+            Name = "Water",
+            // Clean water on dry paint (Q255): what it passes over bleeds out
+            // into the wet area and thins, in uneven pools, and the pigment the
+            // water pushed gathers where the water stopped. It lays no paint of
+            // its own. Pressure sets how wet; size, how far paint can travel.
+            // Chosen by the owner from a sheet rendered by the engine (cell 2).
+            Settings = new BrushSettings
+            {
+                // Spacing a quarter: the wet area is the most of soft discs, and denser
+                // dabs only cost time - each pen event re-renders what they cover.
+                Size = 60, Hardness = 0.65, Flow = 1, Spacing = 0.25, Kind = BrushKind.Blur,
+                PressureFlowGamma = 0.6,
+                TextureSurface = PaperKind.Fibre, TextureScale = 8, TextureSettle = 0.4,
+                Wet = new WetSettings { Spread = 0.6, Thin = 0.2, Cloud = 0.9, Gather = 0.5 },
             },
         },
         new()

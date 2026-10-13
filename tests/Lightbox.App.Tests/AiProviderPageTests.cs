@@ -45,7 +45,8 @@ public class AiProviderPageTests : BrushStateIsolated
         var window = Open();
 
         Choose(window, AiProviders.Anthropic);
-        Assert.Equal(["apiKey", "model"], FieldIds(window));
+        // Q262: effort is a field of both Claude routes, and of no other provider.
+        Assert.Equal(["apiKey", "model", "effort"], FieldIds(window));
 
         // A local server wants a command line, not a key.
         Choose(window, AiProviders.Mcp);
@@ -56,6 +57,7 @@ public class AiProviderPageTests : BrushStateIsolated
         // Ollama needs neither a key nor a command.
         Choose(window, AiProviders.Ollama);
         Assert.DoesNotContain("apiKey", FieldIds(window));
+        Assert.DoesNotContain("effort", FieldIds(window));
         Assert.DoesNotContain("command", FieldIds(window));
     }
 

@@ -739,6 +739,12 @@ public partial class MainWindow
             case "timeline.detectContacts":
                 _vm.DetectContacts();
                 break;
+            case "ai.inbetweenWithDirection":
+                _ = _vm.AiInbetweenWithDirectionCommand.ExecuteAsync(null);
+                break;
+            case "ai.revise":
+                _ = _vm.AiReviseCommand.ExecuteAsync(null);
+                break;
             case "timeline.pinnedOnly":
                 _vm.SheetPinnedOnly = !_vm.SheetPinnedOnly;
                 break;

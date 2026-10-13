@@ -52,6 +52,35 @@ public sealed class BrushEditorTests(ITestOutputHelper output) : BrushStateIsola
             Listed(editor));
     }
 
+    /// <summary>
+    /// The Water option (Q255) is listed for a blur brush only, is in use on
+    /// the shipped Water brush, and turning it off makes a plain blur that
+    /// writes no water to the record - turning it back on restores what it had.
+    /// </summary>
+    [AvaloniaFact]
+    public void WaterIsAnOptionOfABlurBrush()
+    {
+        var (_, vm, editor) = Open();
+        Assert.DoesNotContain("Water", Listed(editor));
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-water"));
+        Pump();
+        Assert.Contains("Water", Listed(editor));
+        Assert.True(editor.InUse(Option("Water")));
+        vm.BrushWetThin = 0.35;
+        Pump();
+
+        editor.SetInUse(Option("Water"), false);
+        Pump();
+        Assert.False(vm.BrushWet);
+        Assert.Null(vm.CurrentToolSettingsForTest.Wet);
+
+        editor.SetInUse(Option("Water"), true);
+        Pump();
+        Assert.True(vm.BrushWet);
+        Assert.Equal(0.35, vm.BrushWetThin, 6);
+    }
+
     [AvaloniaFact]
     public void TurningAnOptionOffLeavesTheMarkAloneAndOnPutsItBack()
     {

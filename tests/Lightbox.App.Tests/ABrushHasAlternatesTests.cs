@@ -323,6 +323,7 @@ public class ABrushHasAlternatesTests : BrushStateIsolated
         foreach (var id in new[] { "builtin-watercolor-wet", "builtin-ink-wash" })
         {
             Assert.Equal("builtin-blot", shipped.Single(p => p.Id == id).SecondAlternate);
+            Assert.Equal("builtin-water", shipped.Single(p => p.Id == id).Alternate);
         }
         // Everything else keeps Alt as it was.
         Assert.Null(shipped.Single(p => p.Id == "builtin-ink").Alternate);
