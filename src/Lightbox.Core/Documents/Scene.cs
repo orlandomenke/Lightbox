@@ -565,7 +565,17 @@ public sealed class Scene
     public Scene Clone(Func<Frame, Frame>? frame = null)
     {
         var copy = (Scene)MemberwiseClone();
-        copy.Layers = Layers.Select(l => l.Clone(frame)).ToList();
+        // A drawing held by several cels is copied once and the copy is held
+        // by the same cels: a copy that split a hold turned it into separate
+        // drawings with one id, and undo hands back a copy (B467, Q260).
+        var copyOf = frame ?? (f => f.Clone());
+        var copied = new Dictionary<Frame, Frame>(ReferenceEqualityComparer.Instance);
+        Frame Shared(Frame original)
+        {
+            if (!copied.TryGetValue(original, out var made)) copied[original] = made = copyOf(original);
+            return made;
+        }
+        copy.Layers = Layers.Select(l => l.Clone(Shared)).ToList();
         copy.Markers = Markers.Select(m => m.Clone()).ToList();
         copy.LayerGroups = LayerGroups.Select(g => g.Clone()).ToList();
         copy.LayerLinks = LayerLinks?.Select(l => l.Clone()).ToList();
