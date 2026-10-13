@@ -1,0 +1,202 @@
+# Stroke groups: why a merge should never turn strokes into pixels
+
+**The stroke record is the document — and merge down was the one command that
+quietly broke that.** Recorded 2026-10-13, after the owner put real drawings
+through the AI inbetweener, found their merged line art had become pictures, and
+restated the deal in one sentence: *"working with the stroke record was the
+superpower compared to other tools like Krita and Photoshop — editable
+everything everywhere, without losing the power of digital painting."*
+
+This note is the design that keeps the deal through a merge. It is written
+before the code, records what was decided and by whom (Q265), and is meant to be
+argued with: if you are about to add a case where a merge bakes pixels, read
+*What still flattens* first, because the list is supposed to get shorter.
+
+## The short answer
+
+A merged drawing keeps the upper layer's strokes in a **group**: one entry in
+the drawing's stroke list that holds strokes of its own together with the blend
+mode, opacity, clip, mask and effects the layer had. It is drawn by rendering
+those strokes on their own and compositing the result onto the drawing — which
+is exactly what the merge did once, at merge time, before throwing the strokes
+away. A group does it every time the drawing is rendered instead, and keeps
+them.
+
+Three things follow, and they are the reason for choosing this shape:
+
+- **A merge is exact, and still strokes.** No approximation: the picture is
+  computed the way the two layers computed it.
+- **An eraser inside a group can only reach that group's strokes.** The whole
+  reason erasing forced pixels disappears, with nothing to cut.
+- **Anything drawn after the merge acts on the whole drawing**, because it comes
+  after the group in the list. Erasing "the merged layer" erases all of it.
+
+## Why merge flattened at all
+
+A frame's pixels are *baseline, then each stroke in order*. Two layers merge by
+appending the upper drawing's strokes after the lower's — when that gives the
+same picture. It does not whenever something about the upper layer reads or
+removes what is underneath it, or is applied when the layers are combined rather
+than when a stroke is stamped:
+
+| Reason a pair flattened | Why appending strokes was a different picture |
+| --- | --- |
+| eraser, clear-region | removes whatever is under it, which now includes the lower layer's marks |
+| alpha-locked stroke | paints only where there is already ink; "already" gains the lower layer |
+| smudge, blur, colour mixing | sample the canvas so far |
+| blend mode, opacity on the upper layer | applied when layers are combined; a stroke cannot carry them |
+| mask, clip to the layer below | carve the upper layer's result |
+| effect stack, layer style | a filter over the layer's result, per frame |
+| upper drawing has a pixel baseline | a baseline sits under a frame's strokes, and there is one slot |
+| lower layer has a mask or effects | they apply to the lower content only, not to what lands on top |
+| a folder's shape carves the upper layer | depends on the *other* layers in the folder |
+
+`LayerMerge.PairIsLossless` is that table as code. Everything it refuses goes to
+`BakedFrame`, which renders the pair once and stores a PNG.
+
+**Every row but the last is computed from the two drawings alone.** That is the
+observation the design rests on: the bake is a pure function of two frames and a
+handful of layer attributes, so those can be kept and the function run later.
+
+## The model
+
+```
+Frame.Strokes: [ stroke, stroke, GROUP, stroke, … ]
+
+GROUP = a Stroke with Tool = Group and a Group block:
+    strokes     its own stroke list (which may contain groups)
+    baseline    its own pixel baseline, when the layer it came from had one
+    blend       how its result lands on what is under it
+    opacity
+    clip        land only where there is already paint beneath it
+    mask        a frame carved out of (or into) its result, and whether inverted
+    effects     the layer's effect stack, applied to its result per frame
+```
+
+A group is an entry in the list rather than a new field on the frame because
+order is meaning here: strokes before it are under it, strokes after it act on
+it. It is a kind of stroke because the list already holds six kinds — brush,
+eraser, fill, clear-region, gradient, text — and one place draws all of them.
+
+### What a merge writes
+
+For each pair of drawings the two layers expose:
+
+| The pair | The merged drawing's stroke list |
+| --- | --- |
+| plain strokes on both | lower's strokes, then upper's — as today |
+| the upper needs any of the group reasons above | lower's strokes, then **one group** holding the upper drawing and the upper layer's attributes |
+| the lower layer has a mask or effects | **a group** holding the lower drawing with them, then the upper (in a group of its own if it needs one) |
+| a folder's shape carves the upper | flattened, as today |
+
+A drawing merged twice nests: the earlier group is simply one of the strokes the
+later merge appends or wraps.
+
+## Drawing a group
+
+`BrushEngine.StampStroke` is the only stroke-to-pixel path (verified: every
+caller goes through it) and already dispatches by kind. A group is one more
+branch, and what it does is the bake's own order, moved from merge time to
+render time:
+
+1. render the group's baseline and strokes to a scratch surface, each stroke
+   through `StampStroke` — so a nested group, an eraser, a smudge all behave
+   inside it exactly as they did on their layer;
+2. apply the effect stack's filter for this frame index;
+3. carve by the mask;
+4. carve by what is already on the target, if it clips;
+5. apply the layer style;
+6. composite onto the target with the blend mode and opacity.
+
+The scratch-then-composite shape already exists three times in the engine
+(`StampPaint`'s own scratch, `ComposeDraftRegion`, `LayerMerge.BakedFrame`).
+Steps 2–5 are `BakedFrame`'s helpers, which become shared rather than copied.
+
+### The costs of that, stated before they are found
+
+- **A surface per group per render.** Bounded by the window being repainted —
+  invariant 6 holds only if a group honours `StampStroke`'s `window`, and that
+  is a test, not a hope.
+- **A group's reach is the union of its children's.** `CommitRegion` and
+  `VisibleDrawingBounds` have to know that, or a bounded repaint skips it.
+- **The fast paths have to say no honestly.** Tiling (`CanTile`), stroke
+  checkpoints (`CanCheckpoint`) and region repaint (`CanRepaintRegion`) each
+  decide eligibility by scanning top-level strokes; a group that contains a
+  smudge must count as one. The checkpoint fingerprint already hashes each
+  entry's JSON, children included, so it stays sound.
+- **Effects are per frame.** A group with a wiggle effect renders differently at
+  each cel index; `Materialize` already takes one and must pass it down.
+
+## Everything that reads a stroke list
+
+Forty-six clusters of code read or edit `Frame.Strokes` (inventory taken
+2026-10-13). Met with an entry they do not understand, almost all of them do
+nothing with it — safe, and also the definition of "not yet editable there".
+Six would do something wrong:
+
+| | What goes wrong | Fixed in |
+| --- | --- | --- |
+| `TransformOps` (move, flip, transform) | moves the group's own empty points; its strokes stay behind | step 1 |
+| `ImageResize` | its strokes are not rescaled | step 1 |
+| `Stroke.Clone` | a memberwise copy would share the child list between copies and undo snapshots | step 1 |
+| `StrokeRecordCleaner.EffectiveStrokes` | erasers never reach inside, so erased ink returns in inbetweens and trails | step 1 |
+| `StrokeMatcher`, `InbetweenVerifier` | match and count a group as a brush stroke with no points | step 1, via the cleaner |
+| `StrokePayload.ToWire` | sends a group to the model labelled "brush", empty | step 1, via the cleaner |
+
+The AI reads a drawing through the cleaner, so teaching the cleaner to look
+through a group — its strokes, with its erasers applied — is what makes a merged
+drawing readable by the inbetweener. That is where `EraserCut` (Q264) ends up:
+not as a way to merge, but as how a group's erased strokes are *read*.
+
+## The file
+
+- A group is absent unless a merge made one. A document with none serializes
+  byte for byte as it does today, and a test dumps the JSON to prove it.
+- **An older build cannot read a document that has one** — it meets a stroke
+  kind it has no name for and stops. SENSITIVITY W2 asks for exactly that
+  ("a file from a newer build is refused honestly … never opened and re-saved
+  … in a way that silently drops what the older build did not understand"), so
+  the version a document is written with goes up **only when it contains a
+  group**. Everything else stays openable everywhere.
+- A committed fixture guards the format (W8), and loading a pre-group document
+  changes no pixel (W5) — there is no migration, because nothing is rewritten.
+
+## What still flattens
+
+- **A folder's shape carving the upper layer.** It depends on the other layers
+  in the folder, which a drawing cannot carry with it. Rare, and named.
+- **Smudge or blur set to sample *all layers***, if that turns out to read
+  through the merge differently — to be measured in step 1 rather than assumed.
+
+Nothing else. If that list grows during the build, it is recorded here with the
+reason, not left as a silent fallback.
+
+## Steps
+
+Each is its own branch and pull request, in this order (Q265):
+
+1. **Exact merge, whole-group editing.** The model, the file, rendering, the six
+   wrong consumers, and merge writing groups. A group moves, transforms,
+   resizes, copies and deletes as a unit; the picker selects it; the AI reads
+   through it; **Split group** puts it back on a layer of its own. Reshaping one
+   stroke *inside* a group is not in this step.
+2. **Editing inside a group**, tool by tool: pick, reshape, width, recolour,
+   path edit, stroke clipboard, bones. The inventory above is the checklist.
+3. **Retire the eraser dialog** (Q264). Merge is exact either way, so it stops
+   asking; the cutter stays as the reader and as an optional *simplify to plain
+   strokes* command, which is the form the inbetweener matches best.
+
+## Decided, and by whom
+
+Asked of the owner on 2026-10-13 with `AskUserQuestion`; all four as recommended.
+
+| Question | Answer | Against |
+| --- | --- | --- |
+| Where do groups live? | An entry in the stroke list | Keeping the layers and showing them as one: far less code, but anything drawn or erased after merging lands on one inner layer only — a tidier folder, not a merge |
+| What ships first? | Exact merge, whole-group editing | Holding everything until every tool reaches inside; or erasers and blend/opacity only |
+| Older builds? | Mark only documents that contain a group as newer | Also offering a "save for older builds" export |
+| The eraser cutter (#732)? | Merge it; retire its dialog later | Holding it; closing it |
+
+The larger decision came first, the same day: asked how far to go to keep the
+deal, the owner chose **grouped merge, never rasterize** over designing it now
+and building it after the AI work, and over stopping at erasers.
