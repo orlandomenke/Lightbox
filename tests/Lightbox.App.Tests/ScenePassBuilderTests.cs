@@ -26,7 +26,8 @@ public class ScenePassBuilderTests(ITestOutputHelper output)
 {
     private static Layer LayerWith(string name, int cels, bool background = false)
     {
-        var layer = new Layer { Name = name, IsBackground = background };
+        // a new layer's onion starts off (2026-10-08); these ghost
+        var layer = new Layer { Name = name, IsBackground = background, OnionEnabled = true };
         for (var i = 0; i < cels; i++) layer.Cels.Add(new Cel { Frame = new Frame() });
         return layer;
     }

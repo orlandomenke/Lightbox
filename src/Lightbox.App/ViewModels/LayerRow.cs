@@ -262,7 +262,7 @@ public sealed partial class LayerRow : ObservableObject
     private bool _alphaLocked;
 
     [ObservableProperty]
-    private bool _onionEnabled = true;
+    private bool _onionEnabled;
 
     [ObservableProperty]
     private bool _isActive;

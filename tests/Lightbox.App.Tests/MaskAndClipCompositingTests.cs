@@ -282,6 +282,7 @@ public class MaskAndClipCompositingTests(ITestOutputHelper output)
     {
         var ink = LayerWith("Ink");
         ink.Mask = new LayerMask();
+        ink.OnionEnabled = true; // a new layer's onion starts off (2026-10-08); this one ghosts
         var scene = SceneWith(LayerWith("Paper"), ink);
 
         var state = new ScenePassBuilder.State(
