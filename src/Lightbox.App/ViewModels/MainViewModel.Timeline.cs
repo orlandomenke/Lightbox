@@ -296,6 +296,7 @@ public partial class MainViewModel
         CancelBuffering();
         if (!IsPlaying) return;
         _clock.Stop();
+        StopPreparingFrames();
         // How well the clock kept time over this play, for the lab: a frame
         // assembled less often than the clock ticks is not a drop on a scene
         // shot on 2s, so cadence is read from the clock, not from publishes.

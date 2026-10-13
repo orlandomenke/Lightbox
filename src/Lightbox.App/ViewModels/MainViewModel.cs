@@ -262,12 +262,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// step is a cache miss rather than a wrong-sized hit.
     /// </para>
     /// </remarks>
-    private double ComposeScale => WorthScaling(EffectiveCanvasQuality switch
-    {
-        CanvasQuality.Full => Math.Clamp(_displayScale * 2.0, 0.125, 1.0),
-        CanvasQuality.Half => Math.Clamp(_displayScale * 0.5, 0.125, 1.0),
-        _ => Math.Clamp(_displayScale, 0.125, 1.0),
-    });
+    private double ComposeScale => ScaleFor(EffectiveCanvasQuality);
 
     /// <summary>
     /// Above this, compositing smaller costs more than compositing everything.

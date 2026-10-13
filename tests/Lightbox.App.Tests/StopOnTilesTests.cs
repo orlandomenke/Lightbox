@@ -96,11 +96,29 @@ public sealed class StopOnTilesTests : BrushStateIsolated
         vm.FrameCache.Clear();
         RenderSnapshot? latest = null;
         vm.SnapshotChanged += s => { latest = s; seen(s); };
-        vm.TogglePlaybackCommand.Execute(null);
+        Toggle(vm);
         vm.CurrentFrameIndex = 2;
         vm.PublishSnapshot();
-        vm.TogglePlaybackCommand.Execute(null); // Stop: publishes the stopped frame
+        Toggle(vm); // Stop: publishes the stopped frame
         return latest;
+    }
+
+    /// <summary>
+    /// Play or stop. Starting may buffer first — the loop's first frames are
+    /// finished before the clock runs (prepared playback frames, step 6) — so
+    /// this runs what the workers hand back until playback has actually begun.
+    /// </summary>
+    private void Toggle(MainViewModel vm)
+    {
+        var starting = !vm.IsPlaying;
+        vm.TogglePlaybackCommand.Execute(null);
+        if (!starting) return;
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (vm.IsBufferingPlay && DateTime.UtcNow < deadline)
+        {
+            if (_posted.TryDequeue(out var run)) run();
+            else Thread.Sleep(5);
+        }
     }
 
     [AvaloniaFact]
@@ -136,11 +154,11 @@ public sealed class StopOnTilesTests : BrushStateIsolated
         vm.PublishSnapshot();
         Settle(vm);
         vm.FrameCache.Clear(); // see PlayThenStop
-        vm.TogglePlaybackCommand.Execute(null);
+        Toggle(vm);
         vm.CurrentFrameIndex = 2;
         vm.PublishSnapshot();
         var missesBefore = vm.FrameCache.Misses;
-        vm.TogglePlaybackCommand.Execute(null);
+        Toggle(vm);
         missesAtStop = vm.FrameCache.Misses - missesBefore;
         Assert.NotNull(atStop);
         using var held = Pixels(atStop!);
@@ -178,11 +196,11 @@ public sealed class StopOnTilesTests : BrushStateIsolated
         Settle(vm);
         vm.FrameCache.Clear(); // see PlayThenStop
 
-        vm.TogglePlaybackCommand.Execute(null);
+        Toggle(vm);
         vm.CurrentFrameIndex = 2;
         vm.PublishSnapshot();
         var beforeStop = vm.FrameCache.Misses;
-        vm.TogglePlaybackCommand.Execute(null);
+        Toggle(vm);
         var atStop = vm.FrameCache.Misses - beforeStop;
 
         Assert.True(vm.HoldingTilesAfterStop);
@@ -221,10 +239,10 @@ public sealed class StopOnTilesTests : BrushStateIsolated
                 new SKBitmap(new SKImageInfo(4, 4, SKColorType.Rgba8888, SKAlphaType.Premul)));
         }
 
-        vm.TogglePlaybackCommand.Execute(null);
+        Toggle(vm);
         vm.CurrentFrameIndex = 2;
         vm.PublishSnapshot();
-        vm.TogglePlaybackCommand.Execute(null);
+        Toggle(vm);
         Assert.True(vm.HoldingTilesAfterStop);
         var renderedAtStop = vm.Prewarm.Rendered;
 
@@ -247,10 +265,10 @@ public sealed class StopOnTilesTests : BrushStateIsolated
             vm.PublishSnapshot();
             Settle(vm);
             Lightbox.Raster.FrameBitmapCache.ByteBudget = 1;
-            vm.TogglePlaybackCommand.Execute(null);
+            Toggle(vm);
             vm.CurrentFrameIndex = 2;
             vm.PublishSnapshot();
-            vm.TogglePlaybackCommand.Execute(null);
+            Toggle(vm);
 
             Assert.False(vm.HoldingTilesAfterStop);
         }
@@ -289,10 +307,10 @@ public sealed class StopOnTilesTests : BrushStateIsolated
     {
         ThumbnailWorker.Post = null;
         var vm = Vm();
-        vm.TogglePlaybackCommand.Execute(null);
+        Toggle(vm);
         vm.CurrentFrameIndex = 2;
         vm.PublishSnapshot();
-        vm.TogglePlaybackCommand.Execute(null);
+        Toggle(vm);
 
         Assert.False(vm.HoldingTilesAfterStop);
     }
