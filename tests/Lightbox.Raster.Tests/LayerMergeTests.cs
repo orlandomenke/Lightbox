@@ -144,7 +144,7 @@ public class LayerMergeTests
     [Fact]
     public void PixelsOverNothing_ArriveWithTheirStrokes()
     {
-        // B470. The lower layer has no drawing at this cel, so the upper
+        // B471. The lower layer has no drawing at this cel, so the upper
         // drawing "carries over as-is" — and what carried over was its
         // strokes without the pixels under them: an imported picture merged
         // onto an empty cel vanished, with nothing said.

@@ -2987,7 +2987,7 @@ test reopens the bug.
   - P1 by reach: it is not an edge case, it is *opening your own work*. Masked for anyone who mostly created documents in-session and kept them open; found the day opening a saved file became the first thing the application asks you to do.
   - The regression test walks the whole route — open, draw, look in the record — because asserting the index alone would stay green if a second gate ever ate the stroke.
 
-- [x] **B470** `P2` `layers` Merging a drawing with pixels onto a cel with no lower drawing drops the pixels `evidence: PixelsOverNothing_ArriveWithTheirStrokes`
+- [x] **B471** `P2` `layers` Merging a drawing with pixels onto a cel with no lower drawing drops the pixels `evidence: PixelsOverNothing_ArriveWithTheirStrokes`
   - **Found 2026-10-13 while writing the grouped merge (PR #735)**, by a test of an upper drawing with a pixel baseline merged over an empty cel: 14,742 bytes of the picture differed. `PairIsLossless` says a pair with nothing underneath "carries over as-is", and `ConcatenatedFrame` then built the merged drawing from the *lower* drawing's baseline only — null, when there is no lower drawing. An imported picture, a PSD layer or an earlier flattened merge, merged down onto a layer that has no drawing at that cel, lost its pixels and kept only the strokes drawn over them. Undo brought them back; nothing said they had gone. Present since baselines and merge first met; the eraser-over-nothing case beside it was tested and this one was not.
   - **Fix:** with nothing underneath, the merged drawing takes the upper drawing's baseline. One expression.
 
