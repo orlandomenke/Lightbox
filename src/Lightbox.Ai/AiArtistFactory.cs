@@ -32,10 +32,10 @@ public static class AiArtistFactory
         {
             return connection.ProviderId switch
             {
-                AiProviders.Anthropic => new AnthropicArtist(Get("apiKey")!, Get("model")),
+                AiProviders.Anthropic => new AnthropicArtist(Get("apiKey")!, Get("model"), Get("effort")),
 
                 AiProviders.ClaudeCli => new ClaudeCliArtist(
-                    new ProcessCliRunner(), Get("command") ?? ClaudeCliArtist.DefaultCommand, Get("model")),
+                    new ProcessCliRunner(), Get("command") ?? ClaudeCliArtist.DefaultCommand, Get("model"), Get("effort")),
 
                 AiProviders.OpenAi => new OpenAiArtist(
                     Get("baseUrl") ?? OpenAiArtist.OpenAiUrl, Get("apiKey"), Get("model"), "OpenAI"),

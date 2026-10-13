@@ -243,6 +243,27 @@ one, a URL for a local one, a command line for an agent of your own.
 | **Custom (OpenAI-compatible)** | Endpoint, model | LM Studio, vLLM, llama.cpp's server, your own gateway. The key is optional. |
 | **Custom agent (MCP)** | Command, tool | An MCP server you supply that owns the model. |
 
+### How hard the model thinks
+
+Both Claude providers have an **Effort** field: `low`, `medium`, `high`, `xhigh`
+or `max`. It is how much the model reasons before it draws, and it is most of
+what an inbetween costs — measured on real drawings, thinking was 60–90% of a
+request's output and most of its time.
+
+It starts at **low**, on purpose. On four layers of one running-character
+drawing, low effort was 1.4 to 7 times faster and up to 5 times cheaper than the
+model's own default, every frame still passed the checks, and side by side we
+could not tell the drawings apart. The one frame that came out wrong was equally
+wrong at every level, so more effort would not have fixed it.
+
+That is a small test, of easy motion. If overlaps, forms that turn, or layers
+with many strokes come out wrong, raise it and compare. A word that is not a
+level is read as low rather than failing a request halfway. Type `model` to send
+no effort at all and use the model's own — the way out if a model you named, or
+an older Claude Code, does not accept the setting; Lightbox says so when that
+happens. A capability reading notes the effort it was taken at and goes stale
+when you change it.
+
 ## Testing it
 
 **Test connection** asks for real work rather than pinging, because most of the
