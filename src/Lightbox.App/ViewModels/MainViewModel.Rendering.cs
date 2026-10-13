@@ -868,6 +868,9 @@ public partial class MainViewModel
     {
         if (repaintBounds is not { } bounds) return false;
         if (FrameById(Doc, frameId) is not { } frame) return false;
+        // The open line's own reshape, over the art held under it — see
+        // MainViewModel.LineBackdrop.cs.
+        if (TryRepaintOverHeldArt(frame, RegionOf(bounds))) return true;
         return _cache.RepaintRegion(frame, RegionOf(bounds));
     }
 

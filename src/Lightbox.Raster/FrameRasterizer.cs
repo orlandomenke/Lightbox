@@ -146,20 +146,36 @@ public static class FrameRasterizer
     /// The rectangle to rebuild, in <b>surface</b> pixels — already scaled, and
     /// already clamped to the bitmap by the caller.
     /// </param>
+    /// <param name="below">
+    /// The drawing as it stood before stroke <paramref name="fromStroke"/> — a
+    /// render of the strokes before it, the document's size, at scale 1. With
+    /// it the rectangle is copied out of that picture instead of cleared, and
+    /// only the strokes from <paramref name="fromStroke"/> on are replayed: the
+    /// same pixels as replaying all of them, without replaying the ones a
+    /// caller knows have not changed. The caller vouches for the picture.
+    /// </param>
     public static bool RepaintRegion(
         SKBitmap layer, Frame frame, SKRectI region, int width, int height,
-        double outputScale = 1.0, SKBitmap? backdrop = null)
+        double outputScale = 1.0, SKBitmap? backdrop = null,
+        SKBitmap? below = null, int fromStroke = 0)
     {
         if (region.Width <= 0 || region.Height <= 0) return false;
         if (!CanRepaintRegion(frame)) return false;
+        if (below is not null
+            && (outputScale != 1.0 || below.Width != layer.Width || below.Height != layer.Height))
+        {
+            return false;
+        }
+        if (below is null) fromStroke = 0;
 
         var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
 
         // Asked before anything is painted, so a refusal leaves the bitmap as it
         // was rather than half-rebuilt.
         var replay = new List<Stroke>();
-        foreach (var stroke in frame.Strokes)
+        for (var i = Math.Max(0, fromStroke); i < frame.Strokes.Count; i++)
         {
+            var stroke = frame.Strokes[i];
             // B460: every copy's reach, not only the drawn one's. A stroke
             // under a mirror or a tile wrap is stamped once per copy, and a
             // rectangle that holds only a reflection was cleared and never
@@ -193,7 +209,18 @@ public static class FrameRasterizer
         using var canvas = new SKCanvas(layer);
         canvas.Save();
         canvas.ClipRect(SKRect.Create(region.Left, region.Top, region.Width, region.Height));
-        canvas.Clear(SKColors.Transparent);
+        if (below is null)
+        {
+            canvas.Clear(SKColors.Transparent);
+        }
+        else
+        {
+            // Replace, not blend: the rectangle becomes the held picture's
+            // pixels exactly, as if the strokes before had just been stamped.
+            using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+            var rect = SKRect.Create(region.Left, region.Top, region.Width, region.Height);
+            canvas.DrawBitmap(below, rect, rect, replace);
+        }
         foreach (var stroke in replay)
         {
             BrushEngine.StampStroke(

@@ -115,6 +115,7 @@ public partial class MainViewModel
 
         _pathEdit?.Revert();
         _pathEdit = session;
+        HoldArtUnder(stroke.Id);
 
         // The whole-stroke selection would otherwise sit underneath the node
         // overlay, drawing a second highlight around a line the artist is now
@@ -148,6 +149,7 @@ public partial class MainViewModel
     {
         if (_pathEdit is null) return;
         _pathEdit = null;
+        ForgetLineBackdrop();
         AiStatus = "";
         PathEditChanged?.Invoke();
         OnPropertyChanged(nameof(PathEditActive));
@@ -314,16 +316,21 @@ public partial class MainViewModel
     /// touched stroke was stamped whole.
     /// </para>
     /// </remarks>
-    private bool ReplayingBeatsRebuilding(Frame frame, GeometryOps.BBox bounds)
+    /// <param name="heldFrom">
+    /// Where the open line sits in the drawing when the art under it is held
+    /// and ready: the strokes before it are copied back rather than replayed,
+    /// so they cost the patch nothing.
+    /// </param>
+    private bool ReplayingBeatsRebuilding(Frame frame, GeometryOps.BBox bounds, int heldFrom = 0)
     {
         var region = RegionOf(bounds);
         var page = new SkiaSharp.SKImageInfo(Scene.Width, Scene.Height);
         long patch = 0, whole = 0;
-        foreach (var stroke in frame.Strokes)
+        for (var i = 0; i < frame.Strokes.Count; i++)
         {
-            var (all, part) = Lightbox.Raster.BrushEngine.ReplayAreas(stroke, page, region);
+            var (all, part) = Lightbox.Raster.BrushEngine.ReplayAreas(frame.Strokes[i], page, region);
             whole += all;
-            patch += part;
+            if (i >= heldFrom) patch += part;
         }
         return patch * 2 <= whole;
     }
@@ -388,33 +395,45 @@ public partial class MainViewModel
                 Math.Min(was.Left, now.Left), Math.Min(was.Top, now.Top),
                 Math.Max(was.Right, now.Right), Math.Max(was.Bottom, now.Bottom))
             : (GeometryOps.BBox?)null;
-        if (repaint is { } rectangle && !ReplayingBeatsRebuilding(frame, rectangle)) repaint = null;
+        var heldFrom = ReadyArtUnder(frame, strokeId)?.FromStroke ?? 0;
+        if (repaint is { } rectangle && !ReplayingBeatsRebuilding(frame, rectangle, heldFrom)) repaint = null;
 
         var frameId = frame.Id;
-        _editor.PerformDelta(
-            apply: doc =>
-            {
-                if (StrokeIn(doc, frameId, strokeId) is not { } s) return;
-                s.Points = [.. afterPoints];
-                s.Path = afterPath.Clone();
-            },
-            revert: doc =>
-            {
-                if (StrokeIn(doc, frameId, strokeId) is not { } s) return;
-                s.Points = [.. beforePoints];
-                s.Path = beforePath?.Clone();
-            },
-            affectedFrameId: frameId,
-            repaintBounds: repaint);
+        // The one edit the art held under the open line is trusted for: while
+        // this is set the change listener leaves it alone and the repaint may
+        // start from it (MainViewModel.LineBackdrop.cs).
+        _reshapeInFlight = true;
+        try
+        {
+            _editor.PerformDelta(
+                apply: doc =>
+                {
+                    if (StrokeIn(doc, frameId, strokeId) is not { } s) return;
+                    s.Points = [.. afterPoints];
+                    s.Path = afterPath.Clone();
+                },
+                revert: doc =>
+                {
+                    if (StrokeIn(doc, frameId, strokeId) is not { } s) return;
+                    s.Points = [.. beforePoints];
+                    s.Path = beforePath?.Clone();
+                },
+                affectedFrameId: frameId,
+                repaintBounds: repaint);
 
-        // The session's Original becomes what was just committed, so a later
-        // Escape restores this rather than the state the session opened in —
-        // the committed edit is history's now, not the session's to take back.
-        // Keep takes the weight with it, or a width edit would survive a commit
-        // and then be un-done by an Escape that never named it.
-        session.Keep(afterPath);
+            // The session's Original becomes what was just committed, so a later
+            // Escape restores this rather than the state the session opened in —
+            // the committed edit is history's now, not the session's to take back.
+            // Keep takes the weight with it, or a width edit would survive a commit
+            // and then be un-done by an Escape that never named it.
+            session.Keep(afterPath);
 
-        AfterStrokeEdit(frameId, repaint);
+            AfterStrokeEdit(frameId, repaint);
+        }
+        finally
+        {
+            _reshapeInFlight = false;
+        }
         PathEditChanged?.Invoke();
         return true;
     }

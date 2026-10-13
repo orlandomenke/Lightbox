@@ -97,6 +97,9 @@ public partial class MainViewModel
     {
         // One publish for the whole listener, however many of its parts ask (B402).
         using var held = HoldPublishes();
+        // Before anything repaints: an edit that is not the open line's own
+        // reshape may have changed what is under it.
+        LineBackdropSawAnEdit();
         // First, and above the scoped-edit return below: a stroke commit takes
         // that fast path and is exactly the edit the Edit menu must not miss.
         RefreshUndoRedo();

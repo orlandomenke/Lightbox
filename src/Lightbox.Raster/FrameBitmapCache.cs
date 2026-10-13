@@ -786,7 +786,13 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     /// </para>
     /// </remarks>
     /// <param name="region">The rectangle to rebuild, in document coordinates.</param>
-    public bool RepaintRegion(Frame frame, SKRectI region)
+    /// <param name="below">
+    /// See <see cref="FrameRasterizer.RepaintRegion"/>: the drawing before
+    /// stroke <paramref name="fromStroke"/>, held by a caller who vouches for
+    /// it. Only a render at the document's own size and scale can start from
+    /// it; any other held render of the drawing is dropped, as a refusal is.
+    /// </param>
+    public bool RepaintRegion(Frame frame, SKRectI region, SKBitmap? below = null, int fromStroke = 0)
     {
         if (Rig.IsPosed(frame)) return false;
         if (!FrameRasterizer.CanRepaintRegion(frame)) return false;
@@ -801,7 +807,8 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
             {
                 var target = Clamped(region, entry.OutputScale, entry.Bmp.Width, entry.Bmp.Height);
                 if (FrameRasterizer.RepaintRegion(
-                        entry.Bmp, frame, target, entry.Width, entry.Height, entry.OutputScale))
+                        entry.Bmp, frame, target, entry.Width, entry.Height, entry.OutputScale,
+                        below: below, fromStroke: fromStroke))
                 {
                     patched = true;
                 }
