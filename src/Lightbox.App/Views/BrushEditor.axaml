@@ -389,6 +389,34 @@
           </DockPanel>
           <StackPanel x:Name="CurvesSmudge" Spacing="{StaticResource Space6}" Margin="{StaticResource SectionGap}" />
         </StackPanel>
+        <StackPanel x:Name="OptionWater" Spacing="{StaticResource Space6}" IsVisible="False"
+                    ToolTip.Tip="Rewets what the brush passes over: the paint bleeds out into the wet area and thins. It lays no paint of its own. Press harder for wetter.">
+          <TextBlock Classes="optionTitle" Text="Water" />
+          <DockPanel ToolTip.Tip="How far the paint bleeds out into the wet area, as a share of the brush's size.">
+            <TextBlock Text="Spread" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
+            <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushWetSpread}" Minimum="0" Maximum="1"
+                           Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
+            <Slider Value="{Binding BrushWetSpread}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+          </DockPanel>
+          <DockPanel ToolTip.Tip="How much pigment the water carries off where it is wettest. The rewetted paint ends up this much paler.">
+            <TextBlock Text="Thin" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
+            <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushWetThin}" Minimum="0" Maximum="1"
+                           Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
+            <Slider Value="{Binding BrushWetThin}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+          </DockPanel>
+          <DockPanel ToolTip.Tip="How uneven the wash is: water pools in places and pushes the pigment out of them. Zero is an even bleed.">
+            <TextBlock Text="Pools" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
+            <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushWetCloud}" Minimum="0" Maximum="1"
+                           Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
+            <Slider Value="{Binding BrushWetCloud}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+          </DockPanel>
+          <DockPanel ToolTip.Tip="How much of the pigment the water pushed gathers in a line where the water stopped.">
+            <TextBlock Text="Edge" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
+            <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushWetGather}" Minimum="0" Maximum="1"
+                           Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
+            <Slider Value="{Binding BrushWetGather}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+          </DockPanel>
+        </StackPanel>
         <StackPanel x:Name="OptionMixing" Spacing="{StaticResource Space6}" IsVisible="False">
           <TextBlock Classes="optionTitle" Text="Colour mixing" />
           <TextBlock Classes="note" Text="The brush picks up the colour it is laid on and mixes its own paint into it, as pigment: yellow over blue goes green." />

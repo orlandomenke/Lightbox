@@ -283,8 +283,9 @@ public static class BuiltInPresets
         {
             Id = "builtin-watercolor-wet",
             Name = "Watercolor",
-            // Ctrl+Alt lifts with the towel (Q255). Alt is for the water brush,
-            // when there is one; until then it erases, as it always has.
+            // Rework without putting the brush down (Q255): Alt rewets with
+            // Water, Ctrl+Alt lifts with the Blot.
+            Alternate = "builtin-water",
             SecondAlternate = "builtin-blot",
             // A wash, without the fluid simulation it used to run (Q240, Q244):
             // a crisp-edged, thin layer of paint whose pigment gathers at the
@@ -372,7 +373,8 @@ public static class BuiltInPresets
             // Q251): it covers the sheet and settles into it, so the paper
             // shows as tone inside the mark, and it gathers at the rim as a
             // wash does. Chosen from a sheet beside the simulated brush.
-            SecondAlternate = "builtin-blot", // Q255: see Watercolor
+            Alternate = "builtin-water", // Q255: see Watercolor
+            SecondAlternate = "builtin-blot",
             Settings = new BrushSettings
             {
                 Size = 30, Hardness = 0.75, Opacity = 0.8, Flow = 0.4, Spacing = 0.07,
