@@ -446,6 +446,23 @@ public class ImageResizeTests
     }
 
     [Fact]
+    public void TwoDrawingsThatShareAnIdAreStillTwoDrawings()
+    {
+        // "Seen it already" is about the object, never the id: a copied cel
+        // or a hand-edited file can carry one id twice, and skipping the
+        // second would leave a drawing at the old size.
+        var first = new Frame { Id = "dup", Strokes = [new Stroke { Points = [new StrokePoint(100, 50, 1)] }] };
+        var second = new Frame { Id = "dup", Strokes = [new Stroke { Points = [new StrokePoint(100, 50, 1)] }] };
+        var doc = new Doc();
+        doc.Scene.Layers.Add(new Layer { Cels = [new Cel { Frame = first }, new Cel { Frame = second }] });
+
+        ImageResize.Apply(doc, doc.Scene.Width * 2, doc.Scene.Height * 2, new FakeResampler());
+
+        Assert.Equal(200, first.Strokes[0].Points[0].X);
+        Assert.Equal(200, second.Strokes[0].Points[0].X);
+    }
+
+    [Fact]
     public void ADrawingThatIsAlsoItsLayersMaskIsScaledOnce()
     {
         // The same walk visits a layer's mask after its cels. Nothing makes
