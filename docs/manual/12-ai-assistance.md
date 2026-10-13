@@ -51,7 +51,13 @@ provider; until one is chosen the AI controls are disabled and say where to
 choose it.
 
 Anything the AI produces arrives as ordinary strokes — undoable, editable, and
-subject to every rule your own strokes are, including the layer ones. A hidden
+subject to every rule your own strokes are, including the layer ones. Each
+stroke wears the brush of the stroke in your keys it came from — tip, texture,
+pressure response and alpha lock — so a pencil line comes back a pencil line and
+a stroke colouring your ink still only colours the ink. The model chooses the
+size, and the opacity where your keys differ (a fade); past halfway the brush is
+key B's. A stroke Lightbox cannot trace to a nearby stroke in your keys — a line
+the motion revealed — keeps a plain round brush rather than borrowing one. A hidden
 or locked layer refuses the AI exactly as it refuses a brush.
 
 **There is no way to ask for a drawing from nothing.** Everything the AI does

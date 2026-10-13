@@ -175,7 +175,9 @@ public static class InbetweenRepair
             var accepted = best.IsAccepted(i);
             frames.Add(new RepairedFrame(
                 ts[i],
-                accepted ? best.Strokes[i] : null,
+                // B468: the artist's brush back on each stroke, after judging —
+                // the verifier reads geometry, and the brush is not the model's.
+                accepted ? AiBrushes.Restore(best.Strokes[i]!, request.KeyframeA, request.KeyframeB, request.Scene, ts[i]) : null,
                 accepted ? null : best.Refusals[i] ?? NothingReturned,
                 accepted ? acceptedAt[i] : calls,
                 best.Notes[i],
