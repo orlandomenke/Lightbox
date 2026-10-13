@@ -84,7 +84,9 @@ where it stands — an effect that had no pen of its own is given one at the
 size its outlines now are, so the effects window shows that size where it
 said "default" — clearing it goes back to the six-pixel default. The paper
 grain of a simulated medium (watercolour, gouache, oil) grows with it; the
-grain of a flat brush does not. The
+grain of a flat brush does not. Layer and scene effects keep their look against
+the drawing: a blur's radius, a shadow's distance and softness, a glow's
+size and a style's stroke width all scale with it. The
 one thing that does not follow is a **camera**: its keys move with the drawing
 but keep their zoom, so after an enlargement every shot frames a smaller part
 of the drawing and wants re-keying. An edit you had open — a line you were

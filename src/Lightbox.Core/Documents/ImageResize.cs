@@ -98,7 +98,8 @@ public static class ImageResize
     /// <returns>False, changing nothing, if the request is not a size or asks
     /// for exactly what the document already is.</returns>
     public static bool Apply(
-        Doc doc, int newWidth, int newHeight, IPixelResampler resampler, int? ppi = null)
+        Doc doc, int newWidth, int newHeight, IPixelResampler resampler, int? ppi = null,
+        Func<string, string, bool>? effectLengths = null)
     {
         var scene = doc.Scene;
         if (newWidth < 1 || newHeight < 1) return false;
@@ -281,6 +282,18 @@ public static class ImageResize
                 ScaleMedium(outline, mark);
             }
 
+        // Effects re-render live, so a length left behind shows at once: a
+        // blur half as soft against a doubled drawing, a shadow half as far
+        // from it (B466). Which parameters are lengths is the effect
+        // registry's to say — Core does not render and does not know — so the
+        // caller passes it in, and with no word nothing is touched. A length
+        // points anywhere, so it takes the mark's one factor, keys and all.
+        if (effectLengths is not null)
+        {
+            ScaleEffects(scene.Effects, effectLengths, mark);
+            foreach (var layer in scene.Layers) ScaleEffects(layer.Effects, effectLengths, mark);
+        }
+
         if (scene.PoseTrack is { } poses)
             foreach (var key in poses.Keys)
                 foreach (var pose in key.Bones.Values)
@@ -325,6 +338,20 @@ public static class ImageResize
     {
         if (brush.Medium.IsUntouched()) return;
         brush.Medium.PaperScale *= mark;
+    }
+
+    private static void ScaleEffects(
+        Lightbox.Core.Effects.EffectStack? stack, Func<string, string, bool> isLength, double mark)
+    {
+        if (stack is null) return;
+        foreach (var use in stack.Uses)
+            foreach (var (key, param) in use.Params)
+            {
+                if (!isLength(use.Kind, key)) continue;
+                param.Value *= mark;
+                if (param.Keys is { } keys)
+                    foreach (var k in keys) k.Value *= mark;
+            }
     }
 
     private static void ScaleFrame(

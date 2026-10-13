@@ -1,5 +1,6 @@
 using System.Reflection;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Effects;
 using Lightbox.Core.Timeline;
 
 namespace Lightbox.Core.Tests;
@@ -934,6 +935,79 @@ public class ImageResizeTests
         Assert.True(gone.Count == 0, $"{type.Name} no longer has: {string.Join(", ", gone)}");
     }
 
+    /// <summary>The lengths of the three effects these tests use, as the registry declares them.</summary>
+    private static bool KnownLengths(string kind, string key) => (kind, key) switch
+    {
+        ("blur.gaussian", "radius") => true,
+        ("style.dropShadow", "distance" or "size") => true,
+        _ => false,
+    };
+
+    private static EffectUse Use(string kind, params (string Key, double Value)[] values) => new()
+    {
+        Kind = kind,
+        Params = values.ToDictionary(v => v.Key, v => new Lightbox.Core.Effects.EffectParam(v.Value)),
+    };
+
+    [Fact]
+    public void AnEffectsRadiusGrowsWithTheDrawing()
+    {
+        // B466. A blur's radius is in document pixels and re-renders live:
+        // left alone, a doubled drawing was half as soft relative to itself,
+        // with no edit needed for it to show. Keys of an animated radius
+        // scale with it.
+        var doc = DocWithAStroke(out _);
+        var blur = Use("blur.gaussian", ("radius", 4));
+        blur.Params["radius"].Keys = [new EffectKey { Frame = 0, Value = 4 }, new EffectKey { Frame = 10, Value = 9 }];
+        doc.Scene.Effects = new EffectStack { Uses = [blur] };
+
+        ImageResize.Apply(doc, 1920, 1080, new FakeResampler(), effectLengths: KnownLengths);
+
+        var radius = doc.Scene.Effects.Uses[0].Params["radius"];
+        Assert.Equal(8, radius.Value, 9);
+        Assert.Equal([8.0, 18.0], radius.Keys!.Select(k => k.Value));
+        Assert.Equal([0, 10], radius.Keys!.Select(k => k.Frame));
+    }
+
+    [Fact]
+    public void ADropShadowKeepsItsPlaceAgainstTheDrawing()
+    {
+        // A layer's shadow: its distance and softness are lengths and take
+        // the mark's one factor (they point anywhere, so no axis owns them);
+        // its angle and opacity are not and stay.
+        var doc = DocWithAStroke(out _);
+        var layer = doc.Scene.Layers[^1];
+        layer.Effects = new EffectStack { Uses = [Use("style.dropShadow", ("distance", 6), ("size", 5), ("angle", 120), ("opacity", 75))] };
+
+        ImageResize.Apply(doc, 1920, 540, new FakeResampler(), effectLengths: KnownLengths);   // twice as wide, the same height
+        var mark = Math.Sqrt(2);
+
+        var shadow = layer.Effects.Uses[0].Params;
+        Assert.Equal(6 * mark, shadow["distance"].Value, 9);
+        Assert.Equal(5 * mark, shadow["size"].Value, 9);
+        Assert.Equal(120, shadow["angle"].Value);
+        Assert.Equal(75, shadow["opacity"].Value);
+    }
+
+    [Fact]
+    public void AnEffectNobodySaidWasALengthIsLeftAsWritten()
+    {
+        // An effect this build does not know — a newer document's — and a
+        // resize given no word on which parameters are lengths both leave
+        // every number alone: a guess would be a wrong one.
+        var doc = DocWithAStroke(out _);
+        doc.Scene.Effects = new EffectStack { Uses = [Use("future.ripple", ("radius", 4)), Use("blur.gaussian", ("radius", 4))] };
+
+        ImageResize.Apply(doc, 1920, 1080, new FakeResampler(), effectLengths: KnownLengths);
+        Assert.Equal(4, doc.Scene.Effects.Uses[0].Params["radius"].Value);
+        Assert.Equal(8, doc.Scene.Effects.Uses[1].Params["radius"].Value);
+
+        var told = DocWithAStroke(out _);
+        told.Scene.Effects = new EffectStack { Uses = [Use("blur.gaussian", ("radius", 4))] };
+        ImageResize.Apply(told, 1920, 1080, new FakeResampler());
+        Assert.Equal(4, told.Scene.Effects.Uses[0].Params["radius"].Value);
+    }
+
     [Fact]
     public void EveryCoordinateOnTheSceneIsAccountedFor()
     {
@@ -950,6 +1024,10 @@ public class ImageResizeTests
             nameof(Scene.Layers), nameof(Scene.Guides), nameof(Scene.Camera),
             nameof(Scene.Pivot), nameof(Scene.References), nameof(Scene.Ppi),
             nameof(Scene.PoseTrack), nameof(Scene.Symmetry),
+            // Its lengths — a blur's radius, a shadow's distance — when the
+            // caller says which they are; the registry knows and Core does not
+            // (B466). Grades, angles and opacities hold no place on the paper.
+            nameof(Scene.Effects),
 
             // Carry no document coordinate, on purpose.
             nameof(Scene.Id), nameof(Scene.Name), nameof(Scene.Fps),
@@ -961,13 +1039,6 @@ public class ImageResizeTests
             nameof(Scene.LayerLinks),
             nameof(Scene.GhostFrames), nameof(Scene.Anchors), nameof(Scene.Tags),
             nameof(Scene.Shapes), nameof(Scene.Audio),
-            // Effect parameters are values, not places — nothing in a grade
-            // names a point on the paper. The one spatial number, a blur's
-            // radius, is deliberately left alone by a resize for the brush
-            // rule's reason turned around: the roadmap's open effects work
-            // carries rescaling kernel params with the registry's reach
-            // knowledge, which Core does not have.
-            nameof(Scene.Effects),
             // What a newer build wrote (Q230): this build cannot know whether
             // any of it is a coordinate, so it is carried as written. A resize
             // here may leave a newer build's own coordinates unscaled — the

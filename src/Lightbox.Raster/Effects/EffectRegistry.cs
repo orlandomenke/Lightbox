@@ -18,7 +18,7 @@ namespace Lightbox.Raster.Effects;
 /// </param>
 public sealed record EffectParamSpec(
     string Key, string Label, double Default, double Min, double Max, double Increment = 1,
-    bool PerUse = false);
+    bool PerUse = false, bool Length = false);
 
 /// <summary>
 /// One colour of one effect — a glow's colour, a bevel's highlight. Hex
@@ -243,7 +243,7 @@ public static class EffectRegistry
 
         ["blur.gaussian"] = new(
             "blur.gaussian", "Gaussian blur", "blur",
-            [new EffectParamSpec("radius", "Radius", 4, 0, 100)],
+            [new EffectParamSpec("radius", "Radius", 4, 0, 100, Length: true)],
             // The visible spill of a Gaussian is ~3 sigma, and sigma is
             // radius/2 — the feather convention the selection clip already
             // uses, so one word means one thing across the app.
@@ -275,7 +275,7 @@ public static class EffectRegistry
                 // a slider that lies. The threshold is an implementation
                 // detail of the raster backend rather than a promise, which
                 // is the other reason not to sit just above it.
-                new EffectParamSpec("radius", "Radius", 2, 2, 20, Increment: 0.5),
+                new EffectParamSpec("radius", "Radius", 2, 2, 20, Increment: 0.5, Length: true),
             ],
             // An unsharp mask reaches as far as the blur it subtracts.
             Reach: (use, frame) => 1.5 * Math.Max(0, use.At("radius", frame, 2)),
@@ -296,7 +296,7 @@ public static class EffectRegistry
         ["detail.edges"] = new(
             "detail.edges", "Find edges", "detail",
             // The same floor as sharpen, for the same reason.
-            [new EffectParamSpec("radius", "Radius", 2, 2, 20, Increment: 0.5)],
+            [new EffectParamSpec("radius", "Radius", 2, 2, 20, Increment: 0.5, Length: true)],
             Reach: (use, frame) => 1.5 * Math.Max(0, use.At("radius", frame, 2)),
             Chain: (use, frame, scale, inner) =>
             {
@@ -395,7 +395,7 @@ public static class EffectRegistry
         ["anim.wiggle"] = new(
             "anim.wiggle", "Wiggle", "anim",
             [
-                new EffectParamSpec("amount", "Amount", 6, 0, 200),
+                new EffectParamSpec("amount", "Amount", 6, 0, 200, Length: true),
                 new EffectParamSpec("hold", "Hold", 2, 1, 24),
                 Seed,
             ],
@@ -446,7 +446,7 @@ public static class EffectRegistry
             "grade.grain", "Film grain", "grade",
             [
                 new EffectParamSpec("amount", "Amount", 25, 0, 100),
-                new EffectParamSpec("size", "Size", 1.5, 0.5, 8, Increment: 0.5),
+                new EffectParamSpec("size", "Size", 1.5, 0.5, 8, Increment: 0.5, Length: true),
                 new EffectParamSpec("hold", "Hold", 1, 1, 24),
                 Seed,
             ],
@@ -469,8 +469,8 @@ public static class EffectRegistry
         ["style.dropShadow"] = new(
             "style.dropShadow", "Drop shadow", "style",
             [
-                new EffectParamSpec("distance", "Distance", 6, 0, 100),
-                new EffectParamSpec("size", "Size", 6, 0, 100),
+                new EffectParamSpec("distance", "Distance", 6, 0, 100, Length: true),
+                new EffectParamSpec("size", "Size", 6, 0, 100, Length: true),
                 new EffectParamSpec("angle", "Angle", 120, 0, 360),
                 new EffectParamSpec("opacity", "Opacity", 75, 0, 100),
             ],
@@ -491,8 +491,8 @@ public static class EffectRegistry
         ["style.outerGlow"] = new(
             "style.outerGlow", "Outer glow", "style",
             [
-                new EffectParamSpec("size", "Size", 8, 0, 100),
-                new EffectParamSpec("spread", "Spread", 0, 0, 50),
+                new EffectParamSpec("size", "Size", 8, 0, 100, Length: true),
+                new EffectParamSpec("spread", "Spread", 0, 0, 50, Length: true),
                 new EffectParamSpec("opacity", "Opacity", 75, 0, 100),
             ],
             Colors: [new EffectColorSpec("color", "Colour", "#ffffbe")],
@@ -517,7 +517,7 @@ public static class EffectRegistry
         ["style.innerGlow"] = new(
             "style.innerGlow", "Inner glow", "style",
             [
-                new EffectParamSpec("size", "Size", 8, 0, 100),
+                new EffectParamSpec("size", "Size", 8, 0, 100, Length: true),
                 new EffectParamSpec("opacity", "Opacity", 75, 0, 100),
             ],
             Colors: [new EffectColorSpec("color", "Colour", "#ffffbe")],
@@ -536,7 +536,7 @@ public static class EffectRegistry
         ["style.stroke"] = new(
             "style.stroke", "Stroke", "style",
             [
-                new EffectParamSpec("width", "Width", 3, 1, 50),
+                new EffectParamSpec("width", "Width", 3, 1, 50, Length: true),
                 // 0 outside, 1 inside, 2 centred — a picker row arrives with
                 // the docker's choice control; the mapping is in the manual.
                 new EffectParamSpec("position", "Position", 0, 0, 2),
@@ -563,7 +563,7 @@ public static class EffectRegistry
         ["style.bevel"] = new(
             "style.bevel", "Bevel", "style",
             [
-                new EffectParamSpec("size", "Size", 5, 1, 50),
+                new EffectParamSpec("size", "Size", 5, 1, 50, Length: true),
                 new EffectParamSpec("depth", "Depth", 30, 0, 100),
                 new EffectParamSpec("angle", "Angle", 120, 0, 360),
                 // 0 inner (raised inside the edge), 1 outer (a ridge around it).
@@ -606,6 +606,14 @@ public static class EffectRegistry
 
     public static EffectDefinition? Resolve(string kind) =>
         ByKind.TryGetValue(kind, out var def) ? def : null;
+
+    /// <summary>
+    /// Whether a parameter of an effect is a length in document pixels — what
+    /// an image resize scales (B466). False for an effect this build does not
+    /// know: a guess would be a wrong one.
+    /// </summary>
+    public static bool IsLength(string kind, string key) =>
+        Resolve(kind) is { } definition && definition.Params.Any(p => p.Key == key && p.Length);
 
     /// <summary>Every definition, for the picker, shelf-tagged.</summary>
     public static IReadOnlyCollection<EffectDefinition> All => ByKind.Values;
