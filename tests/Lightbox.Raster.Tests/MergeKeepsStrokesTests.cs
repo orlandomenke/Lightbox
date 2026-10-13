@@ -514,12 +514,15 @@ public class MergeKeepsStrokesTests(ITestOutputHelper output)
         output.WriteLine($"erasers across the lines: {across:F1} ms; the same erasers off the drawing: {elsewhere:F1} ms");
 
         Assert.True(elsewhere < across * 0.25, $"{elsewhere:F1} ms against {across:F1} ms");
-        // And the crossing itself is bounded by the work that had nothing to
-        // cut. The first cutter walked every eraser segment, with a pressure
-        // curve behind each, for every pixel of every line: 43 s against 15 ms,
-        // 2,850 times. With the segments prepared once and boxed it measures
-        // about 300 times; the limit sits between the two.
-        Assert.True(across < elsewhere * 1000, $"{across:F1} ms against {elsewhere:F1} ms");
+        // And the crossing itself has a ceiling rather than a second ratio. The
+        // first cutter walked every eraser segment, with a pressure curve behind
+        // each, for every pixel of every line: 43 seconds here. With the
+        // segments prepared once and boxed it measures 0.3 to 0.5 seconds. A
+        // ratio against the run above would divide by a sub-millisecond number
+        // and fail on a fast machine with nothing wrong (the perf warden
+        // measured 530 against a first limit of 1,000); five seconds is ten
+        // times clear of both the cutter that works and the one that did not.
+        Assert.True(across < 5000, $"{across:F1} ms");
     }
 
     [Fact]
