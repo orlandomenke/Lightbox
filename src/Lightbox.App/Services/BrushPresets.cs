@@ -403,6 +403,23 @@ public static class BuiltInPresets
         },
         new()
         {
+            Id = "builtin-water",
+            Name = "Water",
+            // Clean water on dry paint (Q255): what it passes over bleeds out
+            // into the wet area and thins, in uneven pools, and the pigment the
+            // water pushed gathers where the water stopped. It lays no paint of
+            // its own. Pressure sets how wet; size, how far paint can travel.
+            // Chosen by the owner from a sheet rendered by the engine (cell 2).
+            Settings = new BrushSettings
+            {
+                Size = 60, Hardness = 0.65, Flow = 1, Spacing = 0.15, Kind = BrushKind.Blur,
+                PressureFlowGamma = 0.6,
+                TextureSurface = PaperKind.Fibre, TextureScale = 8, TextureSettle = 0.4,
+                Wet = new WetSettings { Spread = 0.6, Thin = 0.2, Cloud = 0.9, Gather = 0.5 },
+            },
+        },
+        new()
+        {
             Id = "builtin-smudge",
             Name = "Smudge",
             // Flow 0.08, not 0.6. An effect brush's flow is how hard each

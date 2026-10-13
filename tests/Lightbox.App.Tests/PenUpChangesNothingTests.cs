@@ -415,6 +415,27 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
     [AvaloniaTheory]
     [MemberData(nameof(Erasing))]
     public void AnEraserStrokeAcrossPaintIsKept(string how, int size, bool smooth)
+    public static IEnumerable<object[]> Rewetting() =>
+        from size in new[] { 0, 60, 200 }
+        from smooth in new[] { false, true }
+        from pressed in new[] { false, true }
+        select new object[] { size, smooth, pressed };
+
+    /// <summary>
+    /// The Water brush (Q255): what is on screen while rewetting is what the
+    /// record replays, and lifting the pen changes nothing.
+    /// </summary>
+    /// <remarks>
+    /// It reaches the screen a different way from paint - a blur brush writes
+    /// the layer's own pixels into a working copy - so it is held to the same
+    /// two things separately: the working copy the pen leaves is the committed
+    /// frame, and the committed frame is a render of the record from nothing.
+    /// The live path renders only the rectangle each event changed; this is
+    /// what proves those rectangles add up to the whole.
+    /// </remarks>
+    [AvaloniaTheory]
+    [MemberData(nameof(Rewetting))]
+    public void WaterUnderThePenIsTheReplay(int size, bool smooth, bool pressed)
     {
         var vm = Vm(smooth);
         var scene = vm.Doc.Scene;
@@ -488,5 +509,42 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
         Assert.True(gap.Differing == 0,
             $"{how}: the committed frame is not what its record renders ({gap.Differing} pixels, worst {gap.Worst}) - invariant 1");
         Assert.True(promoted, $"{how} at {size}: an eraser stroke was rendered again at pen-up - {vm.WhyReplayed}");
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-water"));
+        if (size > 0) vm.BrushSize = size;
+        Assert.NotNull(vm.CurrentToolSettingsForTest.Wet);
+
+        // Across the bars and back over them, so the stroke meets itself and its own tail is rewritten.
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        vm.BeginStroke(200, 250, 0.6);
+        for (var i = 1; i <= 70; i++)
+        {
+            var back = i > 45;
+            var t = back ? 45 - ((i - 45) * 1.4) : i;
+            vm.MoveStroke(200 + (t * 12.0), (back ? 330 : 250) + (Math.Sin(i * 0.2) * 40), pressed ? 0.3 + (0.6 * i / 70.0) : 0.8);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var perEvent = clock.Elapsed.TotalMilliseconds / 70;
+        using var underThePen = vm.LiveCompositeForTests!.Copy();
+        clock.Restart();
+        vm.EndStroke();
+        var penUp = clock.Elapsed.TotalMilliseconds;
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var live = Compare(underThePen, kept);
+        var record = Compare(kept, replay);
+        var did = Compare(kept, painted);
+        output.WriteLine(
+            $"WATER size {vm.BrushSize,4:0} {(smooth ? "smooth" : "raw"),-6} {(pressed ? "rising" : "level"),-6} changed {did.Differing,6} pixels; "
+            + $"under the pen vs kept {live.Differing}, kept vs replay {record.Differing}; {perEvent:0.00} ms an event, pen-up {penUp:0.0} ms");
+
+        Assert.True(did.Differing > 2000, $"the water changed almost nothing ({did.Differing} pixels) - nothing was tested");
+        Assert.True(live.Differing == 0,
+            $"lifting the pen changed {live.Differing} pixels (worst {live.Worst}): what was on screen is not what was kept");
+        Assert.True(record.Differing == 0,
+            $"the committed frame is not what its record renders ({record.Differing} pixels, worst {record.Worst}) - invariant 1");
     }
 }
