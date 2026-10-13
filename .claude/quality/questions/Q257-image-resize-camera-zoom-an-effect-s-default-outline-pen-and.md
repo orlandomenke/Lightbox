@@ -22,6 +22,11 @@ What it blocks: the branch after B463 that finishes the resize's leftovers.
 - **The pen an effect is given is the default brush, exactly, at the new
   size** — so the bake draws with what it drew with before, and a document
   that is never resized never gains the key (`AnEffectThatIsNeverResizedKeepsNoPen`).
+- **What the effects window shows changes with it.** An effect that had no
+  pen read "the default pen"; after a resize it shows a pen size, and
+  clearing that pen goes back to the six-pixel default — which, after a
+  resize, is no longer what the effect drew with. That is the decision's
+  honest result, not a side effect of it.
 - **The camera decision is written where it will be read**: in the resize's
   own code, in the omission guard's list (zoom is "not scaled, by decision",
   not "holds no size"), in the test that pins it, and in the manual.

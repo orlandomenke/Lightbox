@@ -458,7 +458,8 @@ public partial class MainViewModel
     public void RefreshDocumentOrigin() => OnPropertyChanged(nameof(DocumentOrigin));
 
     /// <summary>
-    /// Apply a resize the artist confirmed, as one undo step.
+    /// Apply a resize the artist confirmed, as one undo step — two when type
+    /// was still being typed, which is set first as its own step.
     /// </summary>
     /// <remarks>
     /// <para>

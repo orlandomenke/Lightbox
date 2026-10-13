@@ -844,6 +844,11 @@ public class ImageResizeTests
             new[] { nameof(MediumSettings.PaperScale) },
             new[]
             {
+                // FlowSteps counts lattice steps, and below a small size a
+                // lattice cell is one document pixel, so a wash bleeds a fixed
+                // number of pixels. It is a capped integer and cannot follow a
+                // resize; it is left by the rule that a rescale may change the
+                // mark, not because it holds no size.
                 nameof(MediumSettings.Unknown), nameof(MediumSettings.Kind), nameof(MediumSettings.Wetness),
                 nameof(MediumSettings.Viscosity), nameof(MediumSettings.Drag), nameof(MediumSettings.FlowSteps),
                 nameof(MediumSettings.Absorbency), nameof(MediumSettings.EdgePull), nameof(MediumSettings.PigmentDensity),

@@ -81,7 +81,10 @@ symbol placements. So does what a drawing is edited through: skeletons and
 their poses, pen paths, type and effects all come to the new size, so a line
 can still be reshaped by its nodes, a word retyped and an effect baked again
 where it stands — an effect that had no pen of its own is given one at the
-size its outlines now are. A painted stroke's paper grain grows with it. The
+size its outlines now are, so the effects window shows that size where it
+said "default" — clearing it goes back to the six-pixel default. The paper
+grain of a simulated medium (watercolour, gouache, oil) grows with it; the
+grain of a flat brush does not. The
 one thing that does not follow is a **camera**: its keys move with the drawing
 but keep their zoom, so after an enlargement every shot frames a smaller part
 of the drawing and wants re-keying. An edit you had open — a line you were
