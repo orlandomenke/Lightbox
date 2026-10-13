@@ -348,6 +348,8 @@ public static class BuiltInPresets
                     // Q236: 0.55 is the load whose reach is what 0.6 had before
                     // (seven diameters), so the scrape still runs out where it did.
                     Body = 0.8, Relief = 0.6, PaintLoad = 0.55,
+                    // The hairs: a loaded hog-hair, combed. Tuned by sheet, 2026-10-10.
+                    BristleDrag = 0.8,
                     // No BristleDrag or Pickup: the engine reads neither, so setting
                     // them wrote two keys on every oil stroke promising behaviour that
                     // does not exist. The dragged-bristle *look* comes from the tip

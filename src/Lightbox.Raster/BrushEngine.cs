@@ -1779,12 +1779,32 @@ public static class BrushEngine
     /// </para>
     /// </remarks>
     public static bool NeedsFootprintCap(BrushSettings brush) =>
-        brush.AntiAlias
-        && brush.TipId is null
-        && brush.Medium.Kind == MediumKind.None
-        && Math.Clamp(brush.Hardness, 0, 1) < 0.999
-        && CanOutrunItsFootprint(brush)
-        && !DrawsAsOneSilhouette(brush);
+        NeedsHairCeiling(brush)
+        || (brush.AntiAlias
+            && brush.TipId is null
+            && brush.Medium.Kind == MediumKind.None
+            && Math.Clamp(brush.Hardness, 0, 1) < 0.999
+            && CanOutrunItsFootprint(brush)
+            && !DrawsAsOneSilhouette(brush));
+
+    /// <summary>
+    /// Does this brush comb its paint into hairs? A medium brush with
+    /// <c>BristleDrag</c> above zero records, in the footprint, a ceiling made
+    /// of parallel hairs along the stroke rather than the dab's own shape, so
+    /// each hair's coverage survives the dozen dabs that overlap every pixel.
+    /// </summary>
+    /// <remarks>
+    /// The bristle tip alone cannot do this: its grooves are radial, and the
+    /// running maximum over overlapping dabs sweeps every angle through every
+    /// pixel, which collapses the comb to the plain body. Measured on the
+    /// shipped Oil, 2026-10-10: with the medium off and the tip on, the mark
+    /// was a smooth ribbon with no hair in it at all. Hairs have to be a
+    /// property of the <em>stroke</em> — the same hair at the same offset from
+    /// the path, dab after dab — and the footprint's maximum keeps exactly
+    /// that, because every dab on a straight run lays the same stripes.
+    /// </remarks>
+    public static bool NeedsHairCeiling(BrushSettings brush) =>
+        brush.Medium.Kind != MediumKind.None && Math.Clamp(brush.Medium.BristleDrag, 0, 1) > 0;
 
     /// <summary>
     /// How far outside a band the live post-process has to look for the pixels
@@ -2646,6 +2666,7 @@ public static class BrushEngine
         var color = StrokeColor(stroke);
         var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
         var tipImage = brush.TipId is null ? null : BrushTipRegistry.ResolveImage(brush.TipId);
+        var hairs = HairSeed(stroke);
 
         for (var i = Math.Max(0, from); i < Math.Min(to, dabs.Count); i++)
         {
@@ -2655,9 +2676,15 @@ public static class BrushEngine
             MixDeposit? mix = replay is not null && i < replay.Count ? replay[i] : null;
             StampDab(
                 canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load,
-                dab.Seed, footprint, footprintOnly, dab.Fidelity, mix, press);
+                dab.Seed, footprint, footprintOnly, dab.Fidelity, mix, press, hairs);
         }
     }
+
+    /// <summary>The seed a hair brush's hairs are hashed from: the stroke's first point, so every dab lays the same hairs.</summary>
+    private static SKPoint? HairSeed(Stroke stroke) =>
+        NeedsHairCeiling(stroke.Brush) && stroke.Points.Count > 0
+            ? new SKPoint((float)stroke.Points[0].X, (float)stroke.Points[0].Y)
+            : null;
 
     // ---- colour mixing (Q232) ----------------------------------------------------
 
@@ -2721,6 +2748,7 @@ public static class BrushEngine
         var color = StrokeColor(stroke);
         var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
         var tipImage = brush.TipId is null ? null : BrushTipRegistry.ResolveImage(brush.TipId);
+        var hairs = HairSeed(stroke);
         var baseAmount = (float)Math.Clamp(mixing.Amount, 0, 1);
         var stretch = (float)Math.Clamp(mixing.Length, 0, 1);
         var reach = (float)Math.Clamp(mixing.Reach, 0, 1);
@@ -2766,7 +2794,7 @@ public static class BrushEngine
 
             StampDab(
                 canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load,
-                dab.Seed, footprint, false, dab.Fidelity, deposit);
+                dab.Seed, footprint, false, dab.Fidelity, deposit, null, hairs);
         }
         return carry;
     }
@@ -3358,7 +3386,8 @@ public static class BrushEngine
         SKCanvas canvas, SKPoint pos, double pressure, BrushSettings brush, SKColor color,
         SKBitmap? tip, double directionDeg = double.NaN, SKImage? tipImage = null,
         double load = 1, SKPoint? seed = null, SKCanvas? footprint = null,
-        bool footprintOnly = false, int fidelity = 1, MixDeposit? mix = null, SKCanvas? press = null)
+        bool footprintOnly = false, int fidelity = 1, MixDeposit? mix = null, SKCanvas? press = null,
+        SKPoint? hairs = null)
     {
         var radius = (float)(RadiusAt(brush, pressure));
         if (radius <= 0) return;
@@ -3470,6 +3499,16 @@ public static class BrushEngine
             }
             paint.ColorFilter = null;
             canvas.Restore();
+            if (footprint is not null && hairs is { } tipHairs)
+            {
+                // Hairs run with the stroke, not with the tip's own rotation.
+                footprint.Save();
+                footprint.Translate(pos.X, pos.Y);
+                footprint.RotateDegrees((float)(double.IsNaN(directionDeg) ? rotation : directionDeg));
+                footprint.Scale(1f, (float)roundness);
+                StampHairs(footprint, radius, brush, tipHairs);
+                footprint.Restore();
+            }
             if (press is not null)
             {
                 // The tip's bounding disc, under the tip's own transform: close
@@ -3517,9 +3556,18 @@ public static class BrushEngine
             {
                 footprint.Save();
                 footprint.Translate(pos.X, pos.Y);
-                footprint.RotateDegrees((float)rotation);
-                footprint.Scale(1f, (float)roundness);
-                StampFootprint(footprint, SKPoint.Empty, radius, hardness, brush.AntiAlias);
+                if (hairs is { } orientedHairs)
+                {
+                    footprint.RotateDegrees((float)(double.IsNaN(directionDeg) ? rotation : directionDeg));
+                    footprint.Scale(1f, (float)roundness);
+                    StampHairs(footprint, radius, brush, orientedHairs);
+                }
+                else
+                {
+                    footprint.RotateDegrees((float)rotation);
+                    footprint.Scale(1f, (float)roundness);
+                    StampFootprint(footprint, SKPoint.Empty, radius, hardness, brush.AntiAlias);
+                }
                 footprint.Restore();
             }
             if (press is not null)
@@ -3540,8 +3588,81 @@ public static class BrushEngine
             canvas.DrawCircle(pos, radius, round);
             ReleaseShader(round, shader);
         }
-        if (footprint is not null) StampFootprint(footprint, pos, radius, hardness, brush.AntiAlias);
+        if (footprint is not null)
+        {
+            if (hairs is { } roundHairs && !double.IsNaN(directionDeg))
+            {
+                footprint.Save();
+                footprint.Translate(pos.X, pos.Y);
+                footprint.RotateDegrees((float)directionDeg);
+                StampHairs(footprint, radius, brush, roundHairs);
+                footprint.Restore();
+            }
+            else
+            {
+                StampFootprint(footprint, pos, radius, hardness, brush.AntiAlias);
+            }
+        }
         if (press is not null) StampPress(press, pos, radius, hardness, brush.AntiAlias, PressFor(brush, pressure));
+    }
+
+    /// <summary>Never more hairs than this across a brush, whatever its size.</summary>
+    private const int MaxHairs = 48;
+
+    /// <summary>Document pixels of width one hair takes at output scale 1: fine enough to read as hair, coarse enough to survive the lattice.</summary>
+    private const float HairWidthPx = 3f;
+
+    /// <summary>
+    /// Record the stroke's hairs for this dab: parallel stripes across the
+    /// brush, along the heading the canvas is already turned to, each at the
+    /// height the hair carries, as a running maximum in the footprint's red
+    /// channel. Green is the support, blue zero — the swept ceiling is off
+    /// for a hair brush, so neither is read.
+    /// </summary>
+    /// <remarks>
+    /// The hairs belong to the stroke, not to the dab: their weights are hashed
+    /// from the stroke's first point and the hair's index, so hair seven is the
+    /// same hair from the first dab to the last and the maximum over
+    /// overlapping dabs keeps it instead of averaging it away. A hair's weight
+    /// is where the paint stands up (a ridge the impasto pass lights) and how
+    /// much of the dab it lets through (a thin hair breaks up first as the
+    /// brush runs dry). <c>BristleDrag</c> is how far the weights depart from
+    /// one; at zero this is never called.
+    /// </remarks>
+    private static void StampHairs(SKCanvas footprint, float radius, BrushSettings brush, SKPoint seed)
+    {
+        var drag = (float)Math.Clamp(brush.Medium.BristleDrag, 0, 1);
+        var hairs = Math.Clamp((int)MathF.Round(radius * 2f / HairWidthPx), 4, MaxHairs);
+        var stops = hairs * 2;
+        if (t_hairColors is null || t_hairColors.Length != stops)
+        {
+            t_hairColors = new SKColor[stops];
+            t_hairPositions = new float[stops];
+        }
+        var colors = t_hairColors;
+        var positions = t_hairPositions!;
+        for (var i = 0; i < hairs; i++)
+        {
+            // Weights from 0.3 to 1: the lightest hair still carries paint,
+            // the heaviest is the full dab. Skewed toward full so a brush is
+            // mostly paint with a few scratches, not mostly scratches.
+            var h = (float)Hash01(seed.X, seed.Y, (uint)(200 + i));
+            var weight = 0.3f + 0.7f * MathF.Pow(h, 0.6f);
+            var level = 1f - drag * (1f - weight);
+            var r = (byte)Math.Clamp((int)MathF.Round(level * 255f), 0, 255);
+            var colour = new SKColor(r, 255, 0);
+            colors[i * 2] = colour;
+            colors[i * 2 + 1] = colour;
+            positions[i * 2] = i / (float)hairs;
+            positions[i * 2 + 1] = (i + 1) / (float)hairs;
+        }
+        var paint = DabPaint(ref t_hairPaint, brush.AntiAlias);
+        paint.BlendMode = SKBlendMode.Lighten;
+        var shader = SKShader.CreateLinearGradient(
+            new SKPoint(0, -radius), new SKPoint(0, radius), colors, positions, SKShaderTileMode.Clamp);
+        paint.Shader = shader;
+        footprint.DrawCircle(SKPoint.Empty, radius, paint);
+        ReleaseShader(paint, shader);
     }
 
     /// <summary>
@@ -3591,6 +3712,9 @@ public static class BrushEngine
     [ThreadStatic] private static SKPaint? t_tipPaint;
     [ThreadStatic] private static SKPaint? t_footprintPaint;
     [ThreadStatic] private static SKPaint? t_pressPaint;
+    [ThreadStatic] private static SKPaint? t_hairPaint;
+    [ThreadStatic] private static SKColor[]? t_hairColors;
+    [ThreadStatic] private static float[]? t_hairPositions;
     [ThreadStatic] private static SKColor[]? t_stopColors;
     [ThreadStatic] private static float[]? t_stopPositions;
 
@@ -3693,7 +3817,12 @@ public static class BrushEngine
     /// still ask for.
     /// </remarks>
     public static int CeilingReachPx(BrushSettings brush, double bufferScale) =>
-        (int)Math.Ceiling(RadiusAt(brush, 1) * Math.Max(bufferScale, 0.0001)) + 2;
+        // A hair ceiling is read as it was laid; the swept ceiling (B349)
+        // rebuilds a soft dab's falloff from the support's edge, and would
+        // fill the hairs in.
+        NeedsHairCeiling(brush)
+            ? 0
+            : (int)Math.Ceiling(RadiusAt(brush, 1) * Math.Max(bufferScale, 0.0001)) + 2;
 
     /// <returns>The gradient it installed, for the caller to release; null for a hard dab.</returns>
     private static SKShader? SetRoundPaint(SKPaint paint, SKPoint centre, float radius, float hardness, SKColor color)

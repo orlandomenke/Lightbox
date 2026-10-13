@@ -1939,7 +1939,7 @@ public partial class MainViewModel
                 // where a pixel is, and a zoom mid-stroke would move it.
                 _live.BeginCoverage(
                     Scene.Width, Scene.Height,
-                    BrushEngine.NeedsFootprintCap(CurrentToolSettings)
+                    BrushEngine.NeedsFootprintCap(CurrentToolSettings) && !BrushEngine.NeedsHairCeiling(CurrentToolSettings)
                         ? Rendering.LiveFootprintScale.For(ComposeScale)
                         : 1.0);
                 LiveFootprintScaleUsed = _live.CoverageScale;

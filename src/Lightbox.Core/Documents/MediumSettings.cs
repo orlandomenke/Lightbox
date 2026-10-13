@@ -123,17 +123,19 @@ public sealed class MediumSettings
 
     /// <summary>0..1: streaking along the stroke direction, as bristles comb the paint.</summary>
     /// <remarks>
-    /// <b>Reserved — the engine reads this and nothing happens (B23).</b> It belongs to the
-    /// directional advection loop, `DESIGN-fluid-media.md` piece (3), which is sequenced last
-    /// and sits behind two open questions. Kept on the record so a document written when it
-    /// was offered still round-trips, and kept out of the UI so nobody is given a slider that
-    /// does nothing — charter O7.
     /// <para>
-    /// The *look* of a dragged bristle is already reachable another way:
-    /// <c>TipShape.Bristle</c> with <c>AngleFollowsDirection</c>, which is what the shipped
-    /// Oil preset uses. Anything wiring this up must read the stroke's direction, which
-    /// <c>MediumSimulator</c> deliberately does not know — it works off the scratch surface's
-    /// coverage, so a comb needs a direction the pass never learns.
+    /// <b>Read since 2026-10-10 by the hair ceiling</b> (<c>BrushEngine.NeedsHairCeiling</c>):
+    /// a medium brush with this above zero records parallel hairs along the stroke in its
+    /// footprint, and the ceiling keeps each hair's coverage through the dozen dabs that
+    /// overlap every pixel. Heavy hairs stand up as ridges the impasto pass lights; thin
+    /// ones break first as the brush runs dry. This is how far the hairs' weights depart
+    /// from one. It was reserved and read by nothing from B23 until then, which is why the
+    /// editor hid it (charter O7).
+    /// </para>
+    /// <para>
+    /// Not the advection loop of <c>DESIGN-fluid-media.md</c> piece (3): the paint is not
+    /// pushed along the stroke, it is combed where it lands. <see cref="Pickup"/> still
+    /// waits on that loop.
     /// </para>
     /// </remarks>
     public double BristleDrag { get; set; }
@@ -146,10 +148,9 @@ public sealed class MediumSettings
 
     /// <summary>0..1: how much of what is already on the canvas the brush picks up and drags.</summary>
     /// <remarks>
-    /// <b>Reserved — read by nothing (B23),</b> for the same reason as
-    /// <see cref="BristleDrag"/>: it is the advection loop. Unlike bristle drag there is no
-    /// cheap substitute for it, so this is the one of the pair that genuinely waits on
-    /// `DESIGN-fluid-media.md` piece (3).
+    /// <b>Reserved — read by nothing (B23):</b> it is the advection loop, and there is no
+    /// cheap substitute for it, so it genuinely waits on `DESIGN-fluid-media.md` piece (3).
+    /// Bristle drag waited beside it until the hair ceiling read it (2026-10-10).
     /// </remarks>
     public double Pickup { get; set; }
 

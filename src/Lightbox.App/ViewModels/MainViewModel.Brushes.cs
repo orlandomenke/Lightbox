@@ -917,11 +917,23 @@ public partial class MainViewModel
         set => SetBrush(s => s.Medium.Relief = Math.Clamp(value, 0, 1));
     }
 
-    // No MediumBristleDrag or MediumPickup, and their absence is the fix rather than an
-    // oversight. Both settings exist on the record and the engine reads neither — they
-    // are the directional advection loop that DESIGN-fluid-media.md sequences last —
-    // so exposing them gave an artist two sliders that moved and changed nothing.
-    // Charter O7, and B23. `MediumSettings` says the same thing at the declarations.
+    /// <summary>
+    /// How far the brush's hairs depart from one another: the hair ceiling
+    /// (BrushEngine.NeedsHairCeiling) combs a medium stroke into parallel
+    /// hairs that survive overlap, and this is their contrast. Back on the
+    /// editor since 2026-10-10, when the engine started reading it.
+    /// </summary>
+    public double MediumBristleDrag
+    {
+        get => GetBrush(s => s.Medium.BristleDrag);
+        set => SetBrush(s => s.Medium.BristleDrag = Math.Clamp(value, 0, 1));
+    }
+
+    // No MediumPickup, and its absence is the fix rather than an oversight. The
+    // setting exists on the record and the engine reads nothing — it is the
+    // directional advection loop that DESIGN-fluid-media.md sequences last — so
+    // exposing it gave an artist a slider that moved and changed nothing. Charter
+    // O7, and B23. `MediumSettings` says the same thing at the declaration.
 
     public double MediumPaintLoad
     {
@@ -1202,7 +1214,7 @@ public partial class MainViewModel
         nameof(MediumPigmentDensity), nameof(MediumGranularity), nameof(MediumHiding),
         nameof(MediumPhysicalMixing),
         nameof(MediumPaper), nameof(MediumPaperScale), nameof(MediumPaperInfluence),
-        nameof(MediumBody), nameof(MediumRelief), nameof(MediumPaintLoad),
+        nameof(MediumBody), nameof(MediumRelief), nameof(MediumBristleDrag), nameof(MediumPaintLoad),
         nameof(MediumPressureWater), nameof(MediumPressureMix), nameof(MediumRewetting),
     ];
 

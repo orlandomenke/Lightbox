@@ -37,8 +37,8 @@ public class UnreadSettingsTests(ITestOutputHelper output)
     /// </remarks>
     private static readonly Dictionary<string, string> Unread = new()
     {
-        ["BristleDrag"] = "advection loop, DESIGN-fluid-media.md piece (3) — the look is "
-            + "reachable now via TipShape.Bristle with AngleFollowsDirection",
+        // BristleDrag left this list on 2026-10-10, when the hair ceiling
+        // (BrushEngine.NeedsHairCeiling) started reading it.
         ["Pickup"] = "advection loop, DESIGN-fluid-media.md piece (3) — no cheap substitute",
     };
 
@@ -116,7 +116,7 @@ public class UnreadSettingsTests(ITestOutputHelper output)
         // this list and came off it when Impasto.Shade landed; the next pair should come off
         // the same way, and this is what says so rather than leaving a stale exemption
         // quietly suppressing a control that now works.
-        var implemented = new[] { "Body", "Relief", "PaintLoad", "Wetness", "Viscosity" };
+        var implemented = new[] { "Body", "Relief", "PaintLoad", "Wetness", "Viscosity", "BristleDrag" };
 
         var stale = implemented.Where(Unread.ContainsKey).ToList();
 

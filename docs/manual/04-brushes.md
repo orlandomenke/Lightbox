@@ -335,13 +335,16 @@ size and roundness variation and no heading at all — a wash edge is not
 directional. All of that variation is seeded from where each dab lands, so a
 mark is varied and still replays identically.
 
-**Bristle drag and pickup are not on the Medium option**, and that is deliberate
-rather than missing. Both need the paint to be pushed along the stroke's own
-direction, which the medium pass does not yet do, so the sliders that used to be
-there moved and changed nothing. A control that does nothing is worse than one
-that is absent: it teaches you the editor cannot be trusted. For the *look* of a
-dragged bristle, use the bristle tip with **Angle follows direction** — which is
-what Oil already does.
+**Bristle drag** combs a simulated medium into hairs. The brush's hairs run
+with the stroke — the same hair at the same place across the mark from its
+first dab to its last — and each carries its own weight of paint: the heavy
+ones stand up as ridges the light catches, the thin ones break first as the
+brush runs dry, leaving scratches through the body. Turn it up for a loaded
+hog-hair oil, down for a sable that lays paint flat. **Pickup is not on the
+Medium option**, and that is deliberate rather than missing: it needs the
+paint to be pushed along the stroke's own direction, which the medium pass does
+not yet do, so a slider for it would move and change nothing. Colour mixing
+already drags what is on the canvas into the stroke.
 
 **A simulated wash is transparent, and it glazes.** Pigment darkens the way
 pigment does rather than the way a slider does: laying the same watercolour

@@ -505,11 +505,18 @@
                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
             <Slider Value="{Binding MediumRelief}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
           </DockPanel>
+          <DockPanel ToolTip.Tip="Combs the paint into hairs that run with the stroke: ridges that catch the light, and scratches where a thin hair runs dry.">
+            <TextBlock Text="Bristle drag" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
+            <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding MediumBristleDrag}" Minimum="0" Maximum="1"
+                           Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
+            <Slider Value="{Binding MediumBristleDrag}" Minimum="0" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+          </DockPanel>
           <!--
-            Bristle drag and Pickup are deliberately NOT here: the engine reads
-            neither (DESIGN-fluid-media.md piece 3, B23), and a slider bound to
-            one was measured at 0 of 41 600 pixels different. A setting that
-            does nothing teaches an artist that the panel lies.
+            Pickup is deliberately NOT here: the engine reads nothing
+            (DESIGN-fluid-media.md piece 3, B23), and a slider bound to it was
+            measured at 0 of 41 600 pixels different. A setting that does
+            nothing teaches an artist that the panel lies. Bristle drag sat in
+            the same comment until the hair ceiling (2026-10-10) read it.
           -->
           <DockPanel ToolTip.Tip="Paint on the brush at the start. Below 1 the brush runs out: that is dry-brush.">
             <TextBlock Text="Paint load" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
