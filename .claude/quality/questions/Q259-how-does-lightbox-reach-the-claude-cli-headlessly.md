@@ -1,4 +1,4 @@
-# Q257 · How does Lightbox reach the Claude CLI headlessly? — **answered 2026-10-13**
+# Q259 · How does Lightbox reach the Claude CLI headlessly? — **answered 2026-10-13**
 
 **Answered: a direct provider. Lightbox launches `claude -p` itself, once per request, with its own system prompt and schema and every tool off. No MCP in the loop.** All eight as recommended, in two rounds — the second after the review pair and the sensitivity guardian had read the first build.
 
