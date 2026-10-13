@@ -104,9 +104,16 @@ public sealed class ReshapeRepaintsItsRegionTests(ITestOutputHelper output) : Br
     }
 
     /// <summary>Pull the middle point of the pen line down, and commit.</summary>
-    private static void Reshape(MainViewModel vm, string lineId)
+    /// <param name="withoutHeldArt">
+    /// Let go of the art held under the open line first, so the reshape takes
+    /// the replay road these tests are about. Opening a line starts rendering
+    /// that art on a worker, and whether it is ready by the commit is a race
+    /// a test must not depend on; the held road has its own class.
+    /// </param>
+    private static void Reshape(MainViewModel vm, string lineId, bool withoutHeldArt = true)
     {
         Assert.True(vm.BeginPathEdit(lineId));
+        if (withoutHeldArt) vm.ForgetLineBackdrop();
         var grabbed = vm.GrabPathPart(250, 200, tolerance: 6);
         Assert.True(grabbed.IsHit);
         vm.DragPathPart(grabbed, 250, 300, 0, 100);

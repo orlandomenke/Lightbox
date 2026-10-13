@@ -466,6 +466,10 @@ public partial class MainViewModel
         [System.Runtime.CompilerServices.CallerMemberName] string by = "")
     {
         _publish.BumpRenderEpoch();
+        // The art held under an open line is a picture of this drawing: any
+        // reason its pixels are no longer good is a reason that picture is
+        // not either. Here, because not every such reason is an edit.
+        LineBackdropSawARepaint(frameId);
         // Before the cache work rather than after it (B327). A warm in flight was
         // started from the frame as it stood before this edit; on the drop path it
         // would be refused on arrival because the entry it targets is gone, but a
@@ -948,6 +952,7 @@ public partial class MainViewModel
     private void ClearFrameRenders(Scene? keepFramesOf = null)
     {
         _publish.BumpRenderEpoch();
+        LineBackdropSawARepaint(null);
         if (keepFramesOf is null) _cache.Clear();
         _tileFrames.Clear();
         // Unreachable already (the epoch moved); cleared so a closed or

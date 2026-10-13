@@ -169,6 +169,7 @@ public sealed partial class MainViewModel
             var affected = PosedFramesAtPlayhead();
             foreach (var frame in affected)
             {
+                LineBackdropSawARepaint(frame.Id);
                 _cache.Invalidate(frame.Id);
                 _stackBake.NoteFrameChanged(frame.Id);
             }
@@ -264,6 +265,7 @@ public sealed partial class MainViewModel
 
         foreach (var frame in affected)
         {
+            LineBackdropSawARepaint(frame.Id);
             _cache.Invalidate(frame.Id);
             _stackBake.NoteFrameChanged(frame.Id);
         }

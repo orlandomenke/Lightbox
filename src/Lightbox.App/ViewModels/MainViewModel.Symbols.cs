@@ -1550,6 +1550,7 @@ public sealed partial class MainViewModel
 
     private void AfterPlacementChange(string frameId)
     {
+        LineBackdropSawARepaint(frameId);
         _cache.Invalidate(frameId);
         _dirtyThumbIds.Add(frameId);
         PublishSnapshot();

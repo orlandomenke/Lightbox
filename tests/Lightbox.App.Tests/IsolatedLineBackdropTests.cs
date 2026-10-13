@@ -254,6 +254,42 @@ public sealed class IsolatedLineBackdropTests(ITestOutputHelper output) : BrushS
         Assert.Equal(0, differing);
     }
 
+    /// <summary>
+    /// A repaint that is not an edit lets the held art go too.
+    /// </summary>
+    /// <remarks>
+    /// The adversary's refutation of the first cut. Switching a palette
+    /// variant, dragging a swatch's colour and editing a gradient all change
+    /// what the strokes under the line look like <em>without an edit</em> —
+    /// the record of a stroke does not change, what its swatch resolves to
+    /// does — so the change listener never ran, the held art kept the old
+    /// colours, and the next reshape copied them back into the drawing. What
+    /// they do all go through is the funnel that drops a drawing's pixels,
+    /// and that is where the held art is let go now.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ARepaintThatIsNotAnEditLetsTheHeldArtGoToo()
+    {
+        var (vm, lineId) = Busy(strokesOver: false);
+        Open(vm, lineId);
+        var frame = vm.PaintedCel();
+
+        // What a variant switch does to a drawing, by its own entry point: the
+        // first sweep now resolves to another colour, and every drawing is
+        // told to repaint. No edit is made.
+        frame.Strokes[0].Color = "#ffcc00";
+        vm.OnVariantSwitched();
+        _ = vm.FrameCache.Get(frame, vm.Doc.Scene.Width, vm.Doc.Scene.Height);
+
+        Reshape(vm);
+
+        using var cached = Cached(vm);
+        using var rebuilt = Rebuilt(vm);
+        var differing = Differing(cached, rebuilt);
+        output.WriteLine($"after a variant switch: differing {differing}");
+        Assert.Equal(0, differing);
+    }
+
     /// <summary>The held art is the session's: leaving the line lets it go.</summary>
     [AvaloniaFact]
     public void LeavingTheLineLetsTheHeldArtGo()

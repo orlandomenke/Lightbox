@@ -159,6 +159,48 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// A drawing's pixels are being dropped or patched. Unless it is the open
+    /// line's own reshape doing it, the art held under that drawing goes too.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The second guard, and the one the first missed</b> (the adversary):
+    /// a palette variant switch, a swatch dragged to another colour and a
+    /// gradient edited all change what the strokes under the line look like
+    /// without an edit — a stroke's record does not change, what its swatch
+    /// resolves to does — so the change listener never runs. The held art
+    /// kept the old colours and the next reshape copied them back: 915 bytes
+    /// of one drawing in the test that now holds this. What every one of
+    /// those does do is come through the funnel that invalidates a drawing's
+    /// render, so that is where the art is let go.
+    /// </para>
+    /// <para>
+    /// <b>Not rendered afresh from here.</b> A swatch drag comes through at
+    /// pointer rate, and a render per event would be the cost this exists to
+    /// remove. The next reshape takes the ordinary road and holds the art
+    /// again when it is done.
+    /// </para>
+    /// </remarks>
+    /// <param name="frameId">The drawing, or null for every drawing.</param>
+    private void LineBackdropSawARepaint(string? frameId)
+    {
+        if (_reshapeInFlight || _lineBackdrop is not { } held) return;
+        if (frameId is not null && held.FrameId != frameId) return;
+        ForgetLineBackdrop();
+        LineBackdropsLetGo++;
+    }
+
+    /// <summary>
+    /// After a reshape: if the line is still open and nothing is held under
+    /// it — the art was let go, or the line was opened on a held cel that the
+    /// reshape then keyed — hold it again for the next one.
+    /// </summary>
+    private void HoldArtAgainIfLetGo()
+    {
+        if (_lineBackdrop is null && _pathEdit is { } session) HoldArtUnder(session.StrokeId);
+    }
+
+    /// <summary>
     /// The held art, if it is ready and is the art under this stroke of this
     /// drawing as the drawing now stands.
     /// </summary>

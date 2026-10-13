@@ -434,6 +434,7 @@ public partial class MainViewModel
         {
             _reshapeInFlight = false;
         }
+        HoldArtAgainIfLetGo();
         PathEditChanged?.Invoke();
         return true;
     }
