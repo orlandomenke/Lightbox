@@ -108,6 +108,41 @@ public class StrokeRecordCleanerTests
     }
 
     [Fact]
+    public void AGroupNobodyCanSeeIsNotRead()
+    {
+        // Q266. A group at zero opacity, or behind a mask with nothing painted
+        // on it, shows no ink at all — and a model sent its lines would
+        // inbetween a drawing that is not on the page.
+        var shown = Line(0, 10, 100, 10);
+        var transparent = Group(Line(0, 50, 100, 50));
+        transparent.Group!.Opacity = 0;
+        var maskedOut = Group(Line(0, 70, 100, 70));
+        maskedOut.Group!.Mask = new LayerMask();
+        var nested = Group(Group(Line(0, 80, 100, 80)));
+        nested.Group!.Strokes[0].Group!.Opacity = 0;
+
+        Assert.Equal([shown], StrokeRecordCleaner.EffectiveStrokes([shown, transparent, maskedOut, nested]));
+    }
+
+    [Fact]
+    public void AGroupThatIsOnlyPartlyHiddenIsStillReadWhole()
+    {
+        // What was decided, and its limit: the reader does not cut lines by a
+        // mask. A faint group, a partly masked one, a mask that is switched
+        // off and an inverted empty mask (which hides nothing) are all read.
+        var faint = Group(Line(0, 10, 100, 10));
+        faint.Group!.Opacity = 0.05;
+        var partly = Group(Line(0, 30, 100, 30));
+        partly.Group!.Mask = new LayerMask { Frame = new Frame { Strokes = [Line(0, 30, 10, 30)] } };
+        var off = Group(Line(0, 50, 100, 50));
+        off.Group!.Mask = new LayerMask { Disabled = true };
+        var inverted = Group(Line(0, 70, 100, 70));
+        inverted.Group!.Mask = new LayerMask { Inverted = true };
+
+        Assert.Equal(4, StrokeRecordCleaner.EffectiveStrokes([faint, partly, off, inverted]).Count);
+    }
+
+    [Fact]
     public void ADrawingWithNoGroupIsReadExactlyAsBefore()
     {
         var a = Line(0, 10, 100, 10);

@@ -26,7 +26,7 @@
     </StackPanel>
 
     <StackPanel Spacing="{StaticResource Space8}">
-      <RadioButton x:Name="GroupOption" Content="Keep the erasers, in a group" />
+      <RadioButton x:Name="GroupOption" Content="Keep exact" />
       <TextBlock Text="The strokes and erasers stay together as one group: exact, and the AI still reads every line. The group moves as one piece; its lines cannot be picked singly yet."
                  TextWrapping="Wrap" Margin="{StaticResource OptionDetailIndent}" Opacity="0.7" />
     </StackPanel>

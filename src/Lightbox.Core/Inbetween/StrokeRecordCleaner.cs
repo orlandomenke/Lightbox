@@ -97,11 +97,26 @@ public static class StrokeRecordCleaner
         var flat = new List<Stroke>(record.Count);
         foreach (var stroke in record)
         {
-            if (stroke.Group is { } group) flat.AddRange(EffectiveStrokes(group.Strokes));
-            else flat.Add(stroke);
+            if (stroke.Group is not { } group) flat.Add(stroke);
+            else if (!ShowsNothing(group)) flat.AddRange(EffectiveStrokes(group.Strokes));
         }
         return flat;
     }
+
+    /// <summary>
+    /// A group that puts no ink on the page whatever is inside it: zero
+    /// opacity, or a mask that applies with nothing painted on it (Q266).
+    /// </summary>
+    /// <remarks>
+    /// Only what can be told without rendering. A partly masked group, a clip
+    /// onto nothing and a mask that happens to miss every line are still read
+    /// whole — cutting lines by a mask is a different piece of work, and the
+    /// owner chose this much.
+    /// </remarks>
+    private static bool ShowsNothing(StrokeGroup group) =>
+        group.Opacity is <= 0
+        || group.Mask is { Applies: true, IsInverted: false } mask
+            && mask.Frame.Strokes.Count == 0 && !mask.Frame.HasBaseline;
 
     /// <summary>Fraction of the stroke's resampled points lying inside any eraser's swept area.</summary>
     private static double Coverage(Stroke stroke, IReadOnlyList<Stroke> erasers)

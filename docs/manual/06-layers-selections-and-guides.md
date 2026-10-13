@@ -409,7 +409,10 @@ that part of its look can shift.
 drawing. Under a selection, the part of it inside the selection moves and the
 rest stays, cut at the selection's edge. Whatever you draw or erase afterwards
 lands on top of it, so erasing on a merged drawing erases all of it. Onion
-skin, motion trails and the inbetweener all see the lines inside it.
+skin, motion trails and the inbetweener all see the lines inside it — except a
+group that shows nothing at all, at zero opacity or behind an empty mask, which
+the inbetweener leaves out. A line that a mask only partly hides is still read
+whole.
 
 *Planned:* picking, reshaping or recolouring a single line inside a group, and
 **Split group**, which puts a group back on a layer of its own. Until then,
@@ -441,8 +444,8 @@ and plain strokes, Lightbox asks which you want:
   measured on three real merges it was 0.00%, 0.11% and 0.27% of the painted
   pixels — and it grows with the width of the brush: 2.7% on a deliberately
   hard case, a 24-pixel line under a 30-pixel eraser.
-- **Keep the erasers, in a group.** Exactly what the two layers looked like:
-  the drawing keeps its strokes and its erasers together as a group.
+- **Keep exact.** Exactly what the two layers looked like: the drawing keeps
+  its strokes and its erasers together as a group.
 
 Tick **Remember this choice** and it stops asking; **Edit ▸ Configure ▸
 Drawing** shows the remembered answer and "Ask every time" takes it back. With

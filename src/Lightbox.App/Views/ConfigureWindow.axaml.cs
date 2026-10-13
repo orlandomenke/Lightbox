@@ -422,7 +422,7 @@ public partial class ConfigureWindow : Window
     [
         ("Ask every time", null),
         ("Cut the lines", Lightbox.Raster.EraserMerge.KeepStrokes),
-        ("Keep the erasers, in a group", Lightbox.Raster.EraserMerge.Group),
+        ("Keep exact", Lightbox.Raster.EraserMerge.Group),
     ];
 
     private bool _loadingMergeErasers;

@@ -247,11 +247,11 @@ Recorded because each was green before it was found.
 
 ### Known, and not fixed here
 
-- **Ink a group hides still reaches the inbetweener.** A group's strokes are
-  read whatever its mask, clip or opacity — as an unmerged masked layer's
-  always were, but unlike the flattened merge this replaces, where masked-out
-  ink was gone. Whether the reader should drop a fully hidden group is a
-  question for the owner, not a default to pick silently.
+- **Ink a group partly hides still reaches the inbetweener.** Asked of the
+  owner (Q266): a group that shows nothing at all — zero opacity, or a mask
+  with nothing painted on it — is left out of what the AI reads; anything else
+  is read whole, as an unmerged masked layer's strokes always were. Sending
+  only the visible ink means cutting lines by a mask, which is its own branch.
 - **A rig does not pose strokes inside a group.** The flattened merge froze the
   rest pose too, so nothing is lost, but nothing is gained either.
 - **The cost of a group is a full-surface scratch per render**, and a mask is
