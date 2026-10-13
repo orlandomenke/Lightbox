@@ -56,8 +56,11 @@ public interface IPixelResampler
 /// and not added here does not fail a build or a test, it goes quiet and
 /// leaves one thing in the wrong place. The list is exhaustive rather than
 /// "the ones that matter", and <c>ImageResizeTests</c> asserts against the
-/// model's own property list so that adding a coordinate without handling it
-/// here is caught.
+/// model's own property lists — the scene's, and those of the document, a
+/// frame, a stroke, a rig, a bone, a pin, a text element and an effect — so
+/// that adding a coordinate to any of them without handling it here is
+/// caught. It read the scene alone until B462, and seven things slipped past
+/// it on the other types.
 /// </para>
 /// </remarks>
 public static class ImageResize
@@ -217,6 +220,53 @@ public static class ImageResize
             if (rig.PinCell is { } cell) rig.PinCell = cell * mark;
         }
 
+        // Set type and baked effects are ordinary strokes, scaled with every
+        // other stroke above. Beside them the document keeps what they were
+        // made from, so a sentence can be retyped and an effect baked again —
+        // and those records hold places and sizes on the paper too. Left
+        // behind, the drawing looks right until the first edit, which sets
+        // the type or bakes the smoke at the old size in the old place (B462).
+        if (doc.Texts is { } texts)
+            foreach (var text in texts.Values)
+            {
+                text.X *= sx;
+                text.Y *= sy;
+                // The em and the leading are sizes of marks, like a brush's:
+                // one number each, so an uneven rescale takes the mark's.
+                // Tracking is thousandths of an em and means the same at any size.
+                text.Size *= mark;
+                if (text.LineHeight is { } leading) text.LineHeight = leading * mark;
+            }
+
+        if (doc.Sims is { } sims)
+            foreach (var sim in sims.Values)
+            {
+                // The grid stays the grid: the same cells, each cell bigger,
+                // over the same part of the drawing. Emitters, wind and the
+                // solver's numbers are measured in cells and do not move.
+                //
+                // A cell is square, so it has one size and takes the mark's
+                // factor; the grid is then placed by its middle, which is a
+                // place on the paper and takes the axis factors. Scaled
+                // evenly that is simply the corner moving with everything
+                // else. Scaled unevenly, moving the corner alone would slide
+                // the whole effect off the smoke it had already drawn — the
+                // adversary measured 47 px on a small fire — where this keeps
+                // it centred on it, the right size on average.
+                var (halfWide, halfHigh) = (sim.GridWidth / 2.0 * sim.Scale, sim.GridHeight / 2.0 * sim.Scale);
+                sim.OriginX = (sim.OriginX + halfWide) * sx - halfWide * mark;
+                sim.OriginY = (sim.OriginY + halfHigh) * sy - halfHigh * mark;
+                sim.Scale *= mark;
+                // What the bake draws with is in document pixels, like any
+                // stroke's brush.
+                if (sim.Particles is { } particles) particles.Size *= mark;
+                if (sim.OutlineBrush is { } outline)
+                {
+                    outline.Size *= mark;
+                    outline.TextureScale *= mark;
+                }
+            }
+
         if (scene.PoseTrack is { } poses)
             foreach (var key in poses.Keys)
                 foreach (var pose in key.Bones.Values)
@@ -265,6 +315,24 @@ public static class ImageResize
             // Weights are ratios and stay; an authored rescale re-rolls the
             // grain anyway (Q26), so the seeds moving with the art is right.
             if (stroke.RestPoints is { } rest) ScalePoints(rest, sx, sy);
+            // A pen path is the second description of the points above, and
+            // the two must never disagree (StrokePath): its nodes are places
+            // and its handles are offsets from them, so all six numbers take
+            // the axis factors. A curve mapped that way is the mapped curve —
+            // Beziers are affine — so the line the nodes draw is still the
+            // line on the paper, and moving a node later redraws it from the
+            // right size (B462).
+            if (stroke.Path is { } path)
+                for (var i = 0; i < path.Nodes.Count; i++)
+                {
+                    var node = path.Nodes[i];
+                    path.Nodes[i] = node with
+                    {
+                        X = node.X * sx, Y = node.Y * sy,
+                        InX = node.InX * sx, InY = node.InY * sy,
+                        OutX = node.OutX * sx, OutY = node.OutY * sy,
+                    };
+                }
             // The axis a stroke was painted under is a place on the paper too
             // (B379): left behind, the mark's points sat at the new scale while
             // the centre it reflects about stayed at the old one, and the copy
