@@ -50,7 +50,13 @@ public static class HeldDrawings
                 var id = frame.Id;
                 if (written.TryGetValue(id, out var same))
                 {
-                    var match = same.Find(f => ReferenceEquals(f, frame) || ContentEquality.Same(Unnamed(f, id), frame));
+                    // The first drawing that had this id, and the latest: a
+                    // hold is a run of cels, so its next cel matches one of
+                    // those two. Comparing against every earlier one made a
+                    // file of thousands of different drawings under one id —
+                    // which only a bug or a hand-edited file makes — quadratic
+                    // to open (the adversary: 13.9 s at four thousand).
+                    var match = Matching(same[0]) ?? (same.Count > 1 ? Matching(same[^1]) : null);
                     if (match is not null)
                     {
                         cel.Frame = match;
@@ -67,6 +73,9 @@ public static class HeldDrawings
                     taken.Add(frame.Id);
                 }
                 same.Add(frame);
+
+                Frame? Matching(Frame candidate) =>
+                    ReferenceEquals(candidate, frame) || ContentEquality.Same(Unnamed(candidate, id), frame) ? candidate : null;
             }
             // A mask is never part of a hold; it only must not answer to a
             // drawing's id.
