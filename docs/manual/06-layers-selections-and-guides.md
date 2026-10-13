@@ -388,8 +388,8 @@ pixels instead, so the merge always looks exactly like the two layers did:
 - erasers or clear-regions on it — kept as strokes they would start erasing
   the lower layer's marks, which they never touched. **This one is your
   choice** — see below;
-- alpha-locked or smudge strokes, and imported pixels — all of them read what
-  is underneath, and "underneath" changes when the layers become one.
+- alpha-locked, smudge or blur strokes, and imported pixels — all of them read
+  what is underneath, and "underneath" changes when the layers become one.
 
 The decision is per drawing, not per layer: one blended drawing does not cost
 the other eleven their strokes. When AI assistance is on and a merge would
