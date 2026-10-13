@@ -183,6 +183,7 @@ one, a URL for a local one, a command line for an agent of your own.
 | Provider | What it needs | Notes |
 | --- | --- | --- |
 | **Claude (Anthropic)** | API key, model | What Lightbox is tuned against, and the strongest inbetweener here. |
+| **Claude Code (your account)** | Nothing, if Claude Code is installed | Uses the Claude Code you are signed in to, so no API key is needed. Your drawing still goes to Anthropic — see below. |
 | **GPT (OpenAI)** | API key, model | Strict JSON schema, so replies parse by construction. |
 | **OpenRouter** | API key, model | One key for many vendors' models. |
 | **Ollama** | Model | Local, no key, no network. Weaker inbetweens — good for working offline. |
@@ -280,6 +281,50 @@ model, and re-running costs money.
 subjects — a quadruped's gait, a figure turning — and it ships empty, because
 those need answers drawn by hand rather than computed. It appears anyway so
 that a question nobody asked can never read as one the model passed.
+
+## Claude Code, without an API key
+
+If [Claude Code](https://claude.com/claude-code) is installed and signed in on
+this machine, the **Claude Code (your account)** provider asks it instead of
+calling the API with a key. Nothing needs filling in when it was installed with
+the native installer: the command defaults to `claude`, and the model to the
+same one the Claude API provider uses. Give the full path to `claude.exe` if it
+is not on your PATH — an npm install's `claude.cmd` is refused, because a batch
+file cannot be handed a prompt safely.
+
+Lightbox uses it as a model, not as an agent. Each request starts Claude Code
+once and hands it the same instructions and the same reply format the API
+provider gets. Its tools, MCP servers, skills, hooks and instruction files are
+switched off, and Lightbox checks the run's own start-up report and refuses the
+answer if anything beyond the reply form was offered. The reply is checked and
+repaired by the same rules as an API reply — the same instructions, though not
+a promise of the identical drawing, since Claude Code chooses its own thinking
+and output settings.
+
+Things to know:
+
+- **Your drawing goes to Anthropic**, under the account Claude Code is signed
+  in to, and under that account's terms. On a Claude subscription those are the
+  consumer terms, where whether your conversations may be used to improve models
+  is a setting in your Claude account's privacy settings — unlike the API
+  provider, which is under Anthropic's commercial terms. Check that setting
+  before sending work that is not yours to share.
+- **It always uses the signed-in account.** An `ANTHROPIC_API_KEY` in your
+  environment is not passed on — use the Claude (Anthropic) provider for a key.
+  Claude Code's own telemetry and update checks are switched off for these runs.
+- **Claude Code adds a little context of its own** to each request, such as
+  today's date and the account's email address. Nothing from your other
+  projects or files.
+- **It spends your plan's usage**, and a long run of inbetweens can reach your
+  plan's limits. A rate limit is reported and can be retried.
+- **If Claude Code is not signed in**, Test connection says so. Run `claude` in
+  a terminal once, sign in, and try again.
+- **It is usually slower** than the API, because a program is started for each
+  request, and a request that runs past ten minutes is stopped.
+
+This is separate from letting Claude drive the document over Lightbox's own MCP
+server: that still works as before, from Claude's window. This provider is for
+staying in Lightbox and pressing the AI buttons there.
 
 ## An agent of your own, over MCP
 

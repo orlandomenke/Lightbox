@@ -185,6 +185,7 @@ listed, so adding one is a visible decision (A1). What was found on
 | --- | --- | --- |
 | `src/Lightbox.Ai/*Artist.cs` | the configured AI provider | yes — an AI action |
 | `src/Lightbox.Ai/Mcp/*` | a configured MCP server | yes — an AI action |
+| `src/Lightbox.Ai/Cli/ProcessCliRunner.cs` (via `ClaudeCliArtist`) | Anthropic, through the `claude` CLI under its own signed-in account — a third-party program the scanner cannot see inside; launched with no API key or base URL and its non-essential traffic off | yes — an AI action |
 | `src/Lightbox.App/Services/GoogleFontSource.cs` | Google's font catalogue and CSS | yes — the font browser (verify: does opening it fetch, or choosing a font?) |
 | `src/Lightbox.App/Services/WebImageDrop.cs` | the URL of an image dropped from a browser | yes — a drop |
 
@@ -276,6 +277,7 @@ root.
   ],
   "process_allowlist": [
     "src/Lightbox.Ai/Mcp/StdioMcpChannel.cs",
+    "src/Lightbox.Ai/Cli/ProcessCliRunner.cs",
     "src/Lightbox.App/Services/VideoExporter.cs",
     "src/Lightbox.App/Services/VideoReferenceImporter.cs",
     "src/Lightbox.App/Services/FileReveal.cs"

@@ -11,6 +11,13 @@ public enum AiTransport
     /// owns the model; Lightbox only hands it a prompt and a schema.
     /// </summary>
     Mcp,
+
+    /// <summary>
+    /// A command-line program already installed and signed in on this machine,
+    /// launched once per request. It owns the account; Lightbox owns the
+    /// prompt and the schema, exactly as it does over an API.
+    /// </summary>
+    Cli,
 }
 
 /// <summary>What kind of editor a field wants, and whether it must be hidden.</summary>
@@ -54,10 +61,11 @@ public sealed record AiProvider(
     IReadOnlyList<AiField> Fields);
 
 /// <summary>
-/// The providers Lightbox ships with. Three shapes cover the field:
-/// Anthropic's own API, anything that speaks the OpenAI chat-completions
-/// dialect (GPT, OpenRouter, LM Studio, vLLM, a gateway in front of a private
-/// model), and an MCP server that owns the model itself.
+/// The providers Lightbox ships with. Four shapes cover the field:
+/// Anthropic's own API, the Claude Code command line for someone with a
+/// subscription rather than a key, anything that speaks the OpenAI
+/// chat-completions dialect (GPT, OpenRouter, LM Studio, vLLM, a gateway in
+/// front of a private model), and an MCP server that owns the model itself.
 /// </summary>
 public static class AiProviders
 {
@@ -67,6 +75,7 @@ public static class AiProviders
     public const string Ollama = "ollama";
     public const string Compatible = "openai-compatible";
     public const string Mcp = "mcp";
+    public const string ClaudeCli = "claude-cli";
 
     /// <summary>What a fresh install selects: the path that already worked.</summary>
     public const string DefaultId = Anthropic;
@@ -86,6 +95,26 @@ public static class AiProviders
                     "From console.anthropic.com. Stored in your settings file, never in a document.",
                     "ANTHROPIC_API_KEY"),
                 Model(AnthropicArtist.Model),
+            ]),
+
+        new(ClaudeCli, "Claude Code (your account)", AiTransport.Cli,
+            "Claude through the Claude Code command line you are signed in to, so no API key is "
+            + "needed. The drawing goes to Anthropic under that account and its terms: on a Claude "
+            + "subscription those are the consumer terms, where whether your conversations may be "
+            + "used to improve models is a setting in your Claude account — check it before "
+            + "sending work that is not yours to share. Lightbox sends the same prompt and schema "
+            + "it sends the API, with tools switched off.",
+            [
+                new("command", "Command", AiFieldKind.Text, Required: true, ClaudeCliArtist.DefaultCommand,
+                    "The Claude Code program (claude.exe on Windows, from the native installer). Give the full "
+                    + "path if it is not on your PATH."),
+                // Pinned to the API route's model rather than left to Claude
+                // Code's own default, which follows the account and can be a
+                // lighter model: the same keys should not give a weaker
+                // inbetween just because they took the other road.
+                new("model", "Model", AiFieldKind.Model, Required: false, AnthropicArtist.Model,
+                    "The same model the Claude API route uses. Name another — opus, sonnet, or a full "
+                    + "model name — to change it."),
             ]),
 
         new(OpenAi, "GPT (OpenAI)", AiTransport.Api,

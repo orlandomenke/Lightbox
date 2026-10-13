@@ -1,3 +1,4 @@
+using Lightbox.Ai.Cli;
 using Lightbox.Ai.Mcp;
 
 namespace Lightbox.Ai;
@@ -32,6 +33,9 @@ public static class AiArtistFactory
             return connection.ProviderId switch
             {
                 AiProviders.Anthropic => new AnthropicArtist(Get("apiKey")!, Get("model")),
+
+                AiProviders.ClaudeCli => new ClaudeCliArtist(
+                    new ProcessCliRunner(), Get("command") ?? ClaudeCliArtist.DefaultCommand, Get("model")),
 
                 AiProviders.OpenAi => new OpenAiArtist(
                     Get("baseUrl") ?? OpenAiArtist.OpenAiUrl, Get("apiKey"), Get("model"), "OpenAI"),
