@@ -101,6 +101,36 @@ public sealed class BrushLibraryTests(ITestOutputHelper output) : BrushStateIsol
         Assert.Contains("broken.gbr", summary);
     }
 
+    /// <summary>
+    /// Procreate's two extensions are offered by the file picker and reach the reader:
+    /// a file that is not one comes back named, the same as any other format's.
+    /// </summary>
+    /// <remarks>
+    /// The reader itself is held by <c>ProcreateBrushImportTests</c> in the Raster
+    /// suite. This is the registration: a reader the picker does not list cannot be
+    /// chosen, and one the dispatcher does not know is "unsupported" for every file.
+    /// </remarks>
+    [Fact]
+    public void ProcreateFilesAreOfferedAndABadOneIsNamed()
+    {
+        Assert.Contains("*.brushset", BrushImportJob.Patterns);
+        Assert.Contains("*.brush", BrushImportJob.Patterns);
+
+        var files = new List<(string, byte[])>
+        {
+            ("pack.brushset", [1, 2, 3, 4]),
+            ("good.gbr", Gbr(20, "good one")),
+        };
+        var outcome = BrushImportJob.Read(files, cancel: TestContext.Current.CancellationToken);
+
+        Assert.Single(outcome.Presets);
+        Assert.Equal(["pack.brushset"], outcome.Unreadable);
+        var refusal = Assert.Throws<FormatException>(
+            () => Lightbox.Import.BrushImport.Read("pack.brushset", [1, 2, 3, 4]));
+        output.WriteLine(refusal.Message);
+        Assert.DoesNotContain("Unsupported", refusal.Message);
+    }
+
     [Fact]
     public void ManyBadFilesDoNotProduceAParagraph()
     {

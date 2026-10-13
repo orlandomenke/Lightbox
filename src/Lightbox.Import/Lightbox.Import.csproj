@@ -4,4 +4,8 @@
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lightbox.Raster.Tests" />
+  </ItemGroup>
+
 </Project>

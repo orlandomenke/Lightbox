@@ -454,6 +454,43 @@ simply the mark you drew. How strong the paint is comes from **pigment
 density** — a watercolour is meant to be transparent, so raise that rather than
 the flow if you want a darker wash.
 
+## Reworking what you painted: a brush's alternates
+
+Hold **Alt** as you put the pen down and the brush in your hand paints with
+its **alternate** instead, for that one stroke. Hold **Ctrl+Alt** and it uses
+its second. Let go and you are painting again. Nothing is switched: the brush,
+its size and its colour stay as they were, and the alternate works at the size
+you are painting at.
+
+| | A brush that names no alternate | Watercolor and Ink wash |
+| --- | --- | --- |
+| **Alt** | Erases with the brush itself - its size, shape and dynamics, unlike **E**, which brings the eraser's own. | The same, for now. *Planned:* a water brush that rewets - the paint bleeds out into the wet area and thins. |
+| **Ctrl+Alt** | Picks a colour, as **Ctrl** does. | **Blot.** |
+
+**Blot** is a paper towel. Dab an edge and it lifts the paint there: more the
+harder you press, and never all of it in one dab - a firm press takes about
+four fifths and leaves a stain, a light one barely touches it. Dab the same
+place again and more comes away. It leaves the towel's texture in what
+remains. Use it to soften the hard edge a wash dries with, or to pull a
+gradient out of a flat one. It is also in the brush list on its own, as an
+eraser.
+
+Any brush can name alternates, including ones you make or import. In the brush
+editor, open **More** (the three dots) and choose **Alternates (Alt,
+Ctrl+Alt)...**, then pick a brush for each key. The first entry in each list
+is what the key does with no alternate. An alternate is simply another brush:
+a stroke made through one is recorded as a stroke of that brush, with nothing
+in the drawing about how it was reached. Anti-aliasing and smoothing stay the
+ones you are working with. If a brush you named is later deleted, the key goes
+back to what it did before.
+
+With the **Eraser** tool in hand the two keys do nothing new: Alt has nothing
+to switch to, and Ctrl+Alt picks a colour. And inside a selection Ctrl still
+takes hold of what is selected, so Ctrl+Alt there moves it and does not blot;
+Alt is unaffected.
+
+*Planned:* a damp brush for Gouache that drags and blends what is there.
+
 ## Colour mixing
 
 A brush with **Colour mixing** on picks up the colour it is laid on — what is
@@ -618,8 +655,23 @@ this: whoever made it called them what suited them.
 
 ## Brush importers
 
-**.abr** (Photoshop), **.gbr** / **.gih** (GIMP) and **.kpp** (Krita) import
-directly. What comes across is what those formats actually carry.
+**.abr** (Photoshop), **.gbr** / **.gih** (GIMP), **.kpp** (Krita) and
+**.brushset** / **.brush** (Procreate) import directly. What comes across is what
+those formats actually carry.
+
+**A Procreate brush brings its name, its shape, a size, a spacing and an
+opacity**, and a set arrives in the order its author arranged it. Three things
+to expect:
+
+- **A brush built on one of Procreate's own shapes arrives round.** Those shapes
+  live inside Procreate, not in the file, so there is nothing to bring. Brushes
+  whose author drew their own shape bring it.
+- **The size is an estimate.** Procreate stores size in its own units and
+  publishes no scale for them. Check the size the first time you pick an imported
+  brush up, and set it to taste.
+- **Grain, pressure and tilt response, taper and the wet-paint behaviour do not
+  come across.** The mark's shape and density do; how Procreate's paint engine
+  moves it does not, and is set here with this app's own brush options.
 
 **A big collection takes real time, and the bar tells you how much.** The cost is
 the tip: decoding it and re-encoding it, per brush, and it grows with the tip's

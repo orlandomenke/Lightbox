@@ -111,7 +111,8 @@ public partial class MainWindow : Window
         Canvas.SetPlacementProvider(_vm.GetCurrentFramePlacements);
 
         _vm.SnapshotChanged += snapshot => Canvas.UpdateSnapshot(snapshot);
-        Canvas.PaintStarted += _vm.BeginStroke;  // (x, y, pressure, alt-erases, shift-joins)
+        Canvas.PaintStarted += _vm.BeginStroke;  // (x, y, pressure, alternate held, shift-joins)
+        Canvas.SetBrushAlternateQuery(_vm.BrushAlternateAtPress);
         Canvas.PaintMoved += _vm.MoveStrokeBatch;
         Canvas.PaintEnded += _vm.EndStroke;
 

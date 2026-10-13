@@ -160,7 +160,12 @@ public static class FrameRasterizer
         var replay = new List<Stroke>();
         foreach (var stroke in frame.Strokes)
         {
-            if (BrushEngine.ReachBounds(stroke) is not { } reach) continue;
+            // B460: every copy's reach, not only the drawn one's. A stroke
+            // under a mirror or a tile wrap is stamped once per copy, and a
+            // rectangle that holds only a reflection was cleared and never
+            // repainted, because the stroke as drawn was nowhere near it.
+            // CommitRegion is the union the commit itself declares.
+            if (BrushEngine.CommitRegion(stroke, info) is not { } reach) continue;
             if (!Scale(reach, outputScale).IntersectsWith(region)) continue;
             // An effect brush reads the pixels it sits on. Outside the clip this
             // bitmap holds the drawing as it stands *now* — every stroke, including
@@ -175,6 +180,16 @@ public static class FrameRasterizer
             replay.Add(stroke);
         }
 
+        // B450: the region, in the strokes' own coordinates, so each stroke is
+        // stamped over the part of it that reaches the rectangle rather than
+        // whole. The clip stays: the window is grown by what a brush reads
+        // sideways, and nothing outside the region may be written.
+        var window = outputScale == 1.0
+            ? region
+            : new SKRectI(
+                (int)Math.Floor(region.Left / outputScale), (int)Math.Floor(region.Top / outputScale),
+                (int)Math.Ceiling(region.Right / outputScale), (int)Math.Ceiling(region.Bottom / outputScale));
+
         using var canvas = new SKCanvas(layer);
         canvas.Save();
         canvas.ClipRect(SKRect.Create(region.Left, region.Top, region.Width, region.Height));
@@ -182,7 +197,7 @@ public static class FrameRasterizer
         foreach (var stroke in replay)
         {
             BrushEngine.StampStroke(
-                canvas, stroke, info, layer, outputScale: outputScale, backdrop: backdrop);
+                canvas, stroke, info, layer, outputScale: outputScale, backdrop: backdrop, window: window);
         }
         canvas.Restore();
         canvas.Flush();

@@ -28,6 +28,165 @@ public static class BrushEngine
     private const double MinStepPx = 0.5;
 
     /// <summary>
+    /// How much scratch replaying this stroke takes — all of it, or the part
+    /// of it a region repaint over <paramref name="window"/> would stamp. Zero
+    /// when the stroke does not reach the window at all.
+    /// </summary>
+    /// <remarks>
+    /// The estimate a caller chooses by: patch a rectangle of a drawing, or
+    /// drop it and render it again (B448, B450). In the same units either way,
+    /// so the two can be compared, and from the same rules the stamp itself
+    /// uses — a stroke the window refuses counts whole. An estimate: it reads
+    /// the drawn copy's reach and not each mirrored copy's.
+    /// </remarks>
+    public static long ReplayArea(Stroke stroke, SKImageInfo info, SKRectI? window = null) =>
+        ReachBounds(stroke) is { } reach ? ReplayArea(stroke, reach, info, window) : 0;
+
+    /// <summary>
+    /// Both answers from one walk of the stroke's points: the whole stroke,
+    /// and the part a repaint over <paramref name="window"/> would stamp.
+    /// </summary>
+    public static (long Whole, long Patch) ReplayAreas(Stroke stroke, SKImageInfo info, SKRectI window) =>
+        ReachBounds(stroke) is { } reach
+            ? (ReplayArea(stroke, reach, info, null), ReplayArea(stroke, reach, info, window))
+            : (0, 0);
+
+    private static long ReplayArea(Stroke stroke, SKRectI reach, SKImageInfo info, SKRectI? window)
+    {
+        var page = SKRectI.Intersect(reach, SKRectI.Create(0, 0, info.Width, info.Height));
+        if (page.Width <= 0 || page.Height <= 0) return 0;
+        if (window is not { } wanted) return (long)page.Width * page.Height;
+        if (!page.IntersectsWith(wanted)) return 0;
+        if (stroke.Tool.FillsAContour() || stroke.Tool == ToolKind.Gradient
+            || stroke.Brush.Kind is BrushKind.Smudge or BrushKind.Blur
+            || !ReplaysInDocumentSpace(info.Width, info.Height)
+            || !WindowIsExact(stroke, null))
+        {
+            return (long)page.Width * page.Height;
+        }
+
+        var pad = (int)Math.Ceiling(DabReach(stroke.Brush)) + CeilingReachPx(stroke.Brush, 1.0) + WindowPad;
+        var cut = SKRectI.Intersect(
+            page, new SKRectI(wanted.Left - pad, wanted.Top - pad, wanted.Right + pad, wanted.Bottom + pad));
+        return cut.Width <= 0 || cut.Height <= 0 ? 0 : (long)cut.Width * cut.Height;
+    }
+
+    /// <summary>
+    /// The runs of a stroke's dabs that can reach a rectangle, as index ranges;
+    /// all of them when there is no rectangle to keep to (B450).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Runs, not a filtered list</b>, so whatever stamps them still sees
+    /// each dab beside its real neighbours. A dab is kept when the box round
+    /// it and the dabs either side of it touches the rectangle — its
+    /// neighbours too, because a mark can be joined from one dab to the next
+    /// and a join between two dabs that both miss the rectangle can still
+    /// cross it.
+    /// </para>
+    /// <para>
+    /// The rectangle is already grown by the brush's reach, so a dab's centre
+    /// is all that is asked about here.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<(int From, int To)> RunsReaching(IReadOnlyList<Dab> dabs, SKRect? keep)
+    {
+        if (keep is not { } box)
+        {
+            yield return (0, dabs.Count);
+            yield break;
+        }
+
+        var start = -1;
+        for (var i = 0; i < dabs.Count; i++)
+        {
+            var a = dabs[Math.Max(0, i - 1)].Pos;
+            var b = dabs[i].Pos;
+            var c = dabs[Math.Min(dabs.Count - 1, i + 1)].Pos;
+            var reaches =
+                Math.Min(a.X, Math.Min(b.X, c.X)) <= box.Right && Math.Max(a.X, Math.Max(b.X, c.X)) >= box.Left
+                && Math.Min(a.Y, Math.Min(b.Y, c.Y)) <= box.Bottom && Math.Max(a.Y, Math.Max(b.Y, c.Y)) >= box.Top;
+            if (reaches)
+            {
+                if (start < 0) start = i;
+            }
+            else if (start >= 0)
+            {
+                yield return (start, i);
+                start = -1;
+            }
+        }
+        if (start >= 0) yield return (start, dabs.Count);
+    }
+
+    private static long _dabsStamped;
+
+    /// <summary>How many dabs the paint path has been asked to stamp. See <see cref="ScratchPixels"/>.</summary>
+    public static long DabsStamped => System.Threading.Interlocked.Read(ref _dabsStamped);
+
+    private static long _scratchPixels;
+
+    /// <summary>
+    /// How many pixels of scratch the paint path has used since the process
+    /// started: each stroke is stamped into a scratch of its own before it
+    /// reaches the drawing, and the size of that scratch is most of what a
+    /// stroke costs to replay.
+    /// </summary>
+    /// <remarks>
+    /// A count rather than a time, for the tests that hold B450: what that fix
+    /// is about is <em>how much was stamped</em>, and a millisecond assertion
+    /// measures the machine it ran on.
+    /// </remarks>
+    public static long ScratchPixels => System.Threading.Interlocked.Read(ref _scratchPixels);
+
+    /// <summary>
+    /// Extra pixels round a window, past the brush's own reach: room for the
+    /// antialiased edge of a dab and for a rounding of the device rectangle.
+    /// </summary>
+    private const int WindowPad = 4;
+
+    /// <summary>
+    /// Whether stamping only a window of this stroke leaves the pixels inside
+    /// the window exactly as a whole stamp would (B450).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Refusing is the safe direction</b>: a stroke that is not windowed is
+    /// stamped whole, which is what always happened. So this admits only what
+    /// is known to be local — dabs, which land where their own position puts
+    /// them, and the passes that read a bounded neighbourhood — and refuses
+    /// everything whose result depends on where the scratch begins or on the
+    /// stroke as a whole.
+    /// </para>
+    /// <para>
+    /// A medium is simulated over the scratch it is given. Granulation and a
+    /// plain texture pass seed a repeating field from the scratch's corner
+    /// (<c>StampPaint</c> says so where it sizes it). A mixing brush carries
+    /// colour along the whole stroke. Each would come out differently from a
+    /// smaller scratch — as would a stroke painted inside a selection, whose
+    /// mask is drawn from the scratch's corner — and each is refused here
+    /// rather than reasoned about;
+    /// <c>RegionRepaintWindowTests</c> holds every built-in brush, and a brush
+    /// for each option this admits, to the whole render pixel for pixel.
+    /// </para>
+    /// </remarks>
+    private static bool WindowIsExact(Stroke stroke, List<MixDeposit>? deposits)
+    {
+        var brush = stroke.Brush;
+        return deposits is null
+            // A selection's mask is rasterised in the scratch, under a
+            // translation by the scratch's corner. A cut scratch moves it, and
+            // a slanted edge came out up to 33 levels different on 157 bytes
+            // of one patch (the adversary's angle; the test that measured it
+            // is APatchedDrawingOfStrokesInsideASelectionIsTheWholeRender).
+            && stroke.ClipId is null
+            && brush.Mixing is null
+            && brush.Medium.Kind == MediumKind.None
+            && brush.Granulation <= 0
+            && !HasTexture(brush);
+    }
+
+    /// <summary>
     /// Stamp a stroke onto <paramref name="target"/>. Brush strokes composite
     /// SrcOver; eraser strokes composite DstOut (they remove layer content).
     /// <paramref name="targetPixels"/> gives effect brushes (smudge/blur)
@@ -81,7 +240,8 @@ public static class BrushEngine
     public static void StampStroke(
         SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels = null,
         bool draft = false, double outputScale = 1.0, SKBitmap? backdrop = null,
-        IReadOnlyList<Dab>? draftDabs = null, int draftFromDab = 0, SKPointI origin = default)
+        IReadOnlyList<Dab>? draftDabs = null, int draftFromDab = 0, SKPointI origin = default,
+        SKRectI? window = null)
     {
         if (stroke.Points.Count == 0) return;
 
@@ -155,7 +315,7 @@ public static class BrushEngine
         foreach (var m in SymmetryCopies(stroke))
         {
             if (draft) StampPaintDraft(target, stroke, info, targetPixels, origin, m);
-            else StampPaint(target, stroke, info, targetPixels, outputScale, origin, m, deposits);
+            else StampPaint(target, stroke, info, targetPixels, outputScale, origin, m, deposits, window);
         }
     }
 
@@ -566,7 +726,8 @@ public static class BrushEngine
     /// </param>
     private static void StampPaint(
         SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels, double outputScale,
-        SKPointI origin, SKMatrix? symmetry = null, List<MixDeposit>? deposits = null)
+        SKPointI origin, SKMatrix? symmetry = null, List<MixDeposit>? deposits = null,
+        SKRectI? window = null)
     {
         // The scratch covers only what the stroke can reach — dabs, effects
         // and feathered clips all happen inside it. This is what keeps a
@@ -577,6 +738,44 @@ public static class BrushEngine
         var region = stroke.ClipId is null ? null : ClipRegionRegistry.Resolve(stroke.ClipId);
         if (region is { Feather: > 0 }) margin += (float)(region.Feather * 2);
         if (SegmentBounds(stroke, info, margin, origin, symmetry) is not { } rect) return;
+
+        // B450. The caller only wants a rectangle of this stroke — a region
+        // repaint — so the scratch is that rectangle and not the stroke: the
+        // scratch is most of what a stroke costs to replay, and stamping all
+        // of it for the canvas clip to throw away made a small patch on a busy
+        // drawing as dear as the drawing. Grown by as far as anything in this
+        // path reads sideways, so every pixel inside the window is computed
+        // from the same neighbours it had in the whole render.
+        //
+        // Only where the dabs go into the document's own plane — scale 1, no
+        // origin, a document that fits one. Anywhere else the scratch sits
+        // under a translation, and Skia's gradient arithmetic is not
+        // translation-invariant: a smaller scratch moved the translation and
+        // a few bytes came out a level different at 2x (the test that found
+        // it is APatchAtTwiceTheResolutionIsTheWholeRender). Those renders are
+        // stamped whole, as they always were.
+        SKRect? keep = null;
+        if (window is { } wanted
+            && outputScale == 1.0 && origin.X == 0 && origin.Y == 0
+            && ReplaysInDocumentSpace(info.Width, info.Height)
+            && WindowIsExact(stroke, deposits))
+        {
+            var pad = (int)Math.Ceiling(margin) + CeilingReachPx(brush, 1.0) + WindowPad;
+            var grown = new SKRectI(wanted.Left - pad, wanted.Top - pad, wanted.Right + pad, wanted.Bottom + pad);
+            var cut = SKRectI.Intersect(rect, grown);
+            if (cut.Width <= 0 || cut.Height <= 0) return;
+            rect = cut;
+            // And only the dabs that can reach it. The scratch was the smaller
+            // half of the cost: on the owner-shaped fixture a 120-pixel patch
+            // with the scratch cut and every dab still stamped took half the
+            // whole render's time. Not under symmetry, where a dab's position
+            // is the drawn copy's and this rectangle is the reflected one's.
+            if (symmetry is null)
+            {
+                keep = SKRect.Create(cut.Left, cut.Top, cut.Width, cut.Height);
+                keep = SKRect.Inflate(keep.Value, margin + 2, margin + 2);
+            }
+        }
 
         // Bigger surface, same geometry. The scratch is allocated at output
         // resolution but the dabs are stamped in unchanged document
@@ -590,6 +789,7 @@ public static class BrushEngine
         // what keeps the composite at the bottom unchanged.
         var dev = DeviceRect(ToSurface(rect, origin), outputScale);
         var local = new SKImageInfo(dev.Width, dev.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        System.Threading.Interlocked.Add(ref _scratchPixels, (long)dev.Width * dev.Height);
 
         // One mark, made once (docs/DESIGN-paint-path.md). The live path stamps
         // its dabs into a document-sized scratch under an identity matrix; this
@@ -700,7 +900,11 @@ public static class BrushEngine
                 }
                 else
                 {
-                    StampDabRange(dabCanvas, stroke, WalkDabs(stroke), 0, int.MaxValue, fp, false, deposits);
+                    var walked = WalkDabs(stroke);
+                    foreach (var (from, to) in RunsReaching(walked, keep))
+                    {
+                        StampDabRange(dabCanvas, stroke, walked, from, to, fp, false, deposits);
+                    }
                 }
             }
 
@@ -720,7 +924,11 @@ public static class BrushEngine
                 cover.Clear(SKColors.Black);
                 InDocumentSpace(
                     cover, dabSpace, outputScale, origin,
-                    () => AccumulateCoverage(cover, brush, all, 0, all.Count), symmetry);
+                    () =>
+                    {
+                        foreach (var (from, to) in RunsReaching(all, keep)) AccumulateCoverage(cover, brush, all, from, to);
+                    },
+                    symmetry);
                 cover.Restore();
                 cover.Flush();
                 var held = dabCanvas.Save();
@@ -3390,6 +3598,7 @@ public static class BrushEngine
         to = Math.Min(to, dabs.Count);
         from = Math.Max(0, from);
         if (from >= to) return;
+        System.Threading.Interlocked.Add(ref _dabsStamped, to - from);
 
         var m = coverage.TotalMatrix;
         var deviceScale = (float)Math.Sqrt(m.ScaleX * m.ScaleX + m.SkewY * m.SkewY);
@@ -3562,6 +3771,8 @@ public static class BrushEngine
         var tip = brush.TipId is null ? null : BrushTipRegistry.Resolve(brush.TipId);
         var tipImage = brush.TipId is null ? null : BrushTipRegistry.ResolveImage(brush.TipId);
 
+        System.Threading.Interlocked.Add(
+            ref _dabsStamped, Math.Max(0, Math.Min(to, dabs.Count) - Math.Max(0, from)));
         for (var i = Math.Max(0, from); i < Math.Min(to, dabs.Count); i++)
         {
             var dab = dabs[i];

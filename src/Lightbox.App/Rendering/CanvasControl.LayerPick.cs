@@ -97,12 +97,13 @@ public sealed partial class CanvasControl
     /// <summary>
     /// Ctrl is a held eyedropper while painting or filling: the colour you want is
     /// almost always already on the canvas, and reaching for a tool to fetch it
-    /// breaks the stroke you were about to make.
+    /// breaks the stroke you were about to make. Except Ctrl+Alt on a brush with a
+    /// second alternate, which paints (Q255).
     /// </summary>
     private bool HeldEyedropperPressed(PointerPressedEventArgs e, double x, double y)
     {
         if (ToolMode is not (CanvasToolMode.Paint or CanvasToolMode.Fill)
-            || !e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            || !e.KeyModifiers.HasFlag(KeyModifiers.Control) || CtrlAltPaints(e.KeyModifiers))
         {
             return false;
         }

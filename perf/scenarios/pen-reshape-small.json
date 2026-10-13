@@ -1,0 +1,32 @@
+{
+  "name": "pen-reshape-small",
+  "about": "A short pen line in the middle of the owner-shaped document, then the white arrow drags its middle point three times and each drag is undone. The line's box is about a twelfth of the page each way, over the busiest part of every drawing — the case B450 is for: a small change among many strokes. pen-path is its opposite, a line across the whole canvas, where the rectangle that has to be repainted is most of the drawing whatever the engine does. Watch the release of each drag (the step after it settles) and undo.",
+  "fixture": "owner-shape",
+  "repeat": 2,
+  "steps": [
+    {"do": "hover", "at": [0.5, 0.5]},
+    {"do": "key", "keys": "p", "after_ms": 300},
+    {"do": "click", "at": [0.46, 0.47], "after_ms": 150},
+    {"do": "click", "at": [0.50, 0.52], "after_ms": 150},
+    {"do": "click", "at": [0.54, 0.47], "after_ms": 150},
+    {"do": "key", "keys": "enter"},
+    {"do": "settle", "quiet_s": 1.0},
+    {"do": "key", "keys": "n", "after_ms": 300},
+    {"do": "click", "at": [0.50, 0.52], "after_ms": 300},
+    {"do": "drag", "from": [0.50, 0.52], "by": [0.01, 0.03], "ms": 600, "hz": 120},
+    {"do": "settle", "quiet_s": 0.8},
+    {"do": "drag", "from": [0.51, 0.55], "by": [-0.02, -0.02], "ms": 600, "hz": 120},
+    {"do": "settle", "quiet_s": 0.8},
+    {"do": "drag", "from": [0.49, 0.53], "by": [0.01, -0.02], "ms": 600, "hz": 120},
+    {"do": "settle", "quiet_s": 0.8},
+    {"do": "key", "keys": "escape", "after_ms": 300},
+    {"do": "key", "keys": "ctrl+z"},
+    {"do": "settle", "quiet_s": 0.8},
+    {"do": "key", "keys": "ctrl+z"},
+    {"do": "settle", "quiet_s": 0.8},
+    {"do": "key", "keys": "ctrl+z"},
+    {"do": "settle", "quiet_s": 0.8},
+    {"do": "key", "keys": "ctrl+z"},
+    {"do": "settle", "quiet_s": 1.0}
+  ]
+}

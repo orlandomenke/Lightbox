@@ -1112,6 +1112,45 @@ public partial class MainViewModel
     /// freed. Disposing a borrowed one is B130; leaking an owned one is a
     /// viewport-sized bitmap per frame of playback.
     /// </remarks>
+    /// <summary>
+    /// What is being edited live, as the pass builder reads it — one expression
+    /// for the tick and for a frame prepared ahead, so the two cannot describe a
+    /// frame differently.
+    /// </summary>
+    private ScenePassBuilder.LiveEdit LiveEditNow() =>
+        new ScenePassBuilder.LiveEdit(
+            _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedPoints,
+            _liveShape, _liveGradient, LiveTextPaint, _strokeBuilder.Current,
+            _transform.Preview, _transform.Frames,
+            _transform.BandPasses,
+            // The moving/staying split stays behind a delegate because building
+            // it caches bitmaps and owns their disposal — state with a lifetime,
+            // which is the one thing the pure builder must not hold. Held in a
+            // field rather than written as a lambda here: a lambda capturing
+            // `this` allocates a closure and a delegate on every publish, and a
+            // publish happens per pointer event while drawing.
+            _passTransformSplit ??= TransformSplitFor,
+            TransformMesh: _transform.CageMesh,
+            MaskEditing: EditingLayerMask,
+            TipScratch: BuildLiveTip(),
+            TipBounds: _live.TipUsed,
+            // Read AFTER BuildLiveTip, which is what sets it. Argument evaluation
+            // is left to right, so this is the scale the tip above was stamped at.
+            TipScale: _live.TipScale,
+            // B334: what the passes have actually covered, so the compositor can
+            // show the raw stamped ink everywhere they have not.
+            PostUsed: _live.PostUsed,
+            // Q216: whole drawings move, so their ghosts can move with them.
+            GhostsFollow: _transform.Filter is null,
+            TransformFrameIds: _transform.FrameIds,
+            GhostSheet: _passGhostSheet ??= GhostSheetFor,
+            // Q216: a ramp gives each drawing its own share of the box.
+            RampPreview: RampApplies ? _passRampPreview ??= RampPreviewAt : null,
+            // The owner's "near live, rest on pause": the far ghosts at the
+            // last pause's box, as one sheet between pauses.
+            RampSettledPreview: RampApplies ? _passRampSettledPreview ??= RampSettledPreviewAt : null,
+            RampFarSheet: RampApplies ? _passRampFarSheet ??= RampFarSheetFor : null);
+
     private Action ReleaseFor(List<RenderPass> passes, List<SKBitmap>? owned)
     {
         var unpin = PinPasses(passes);
@@ -1639,38 +1678,7 @@ public partial class MainViewModel
         // The frame is about to read the live mark: finish what the pen has
         // touched since the last one did.
         PrepareLiveMark();
-        var live = new ScenePassBuilder.LiveEdit(
-            _live.Composite, _live.Scratch, _live.PostScratch, _live.PostStampedPoints,
-            _liveShape, _liveGradient, LiveTextPaint, _strokeBuilder.Current,
-            _transform.Preview, _transform.Frames,
-            _transform.BandPasses,
-            // The moving/staying split stays behind a delegate because building
-            // it caches bitmaps and owns their disposal — state with a lifetime,
-            // which is the one thing the pure builder must not hold. Held in a
-            // field rather than written as a lambda here: a lambda capturing
-            // `this` allocates a closure and a delegate on every publish, and a
-            // publish happens per pointer event while drawing.
-            _passTransformSplit ??= TransformSplitFor,
-            TransformMesh: _transform.CageMesh,
-            MaskEditing: EditingLayerMask,
-            TipScratch: BuildLiveTip(),
-            TipBounds: _live.TipUsed,
-            // Read AFTER BuildLiveTip, which is what sets it. Argument evaluation
-            // is left to right, so this is the scale the tip above was stamped at.
-            TipScale: _live.TipScale,
-            // B334: what the passes have actually covered, so the compositor can
-            // show the raw stamped ink everywhere they have not.
-            PostUsed: _live.PostUsed,
-            // Q216: whole drawings move, so their ghosts can move with them.
-            GhostsFollow: _transform.Filter is null,
-            TransformFrameIds: _transform.FrameIds,
-            GhostSheet: _passGhostSheet ??= GhostSheetFor,
-            // Q216: a ramp gives each drawing its own share of the box.
-            RampPreview: RampApplies ? _passRampPreview ??= RampPreviewAt : null,
-            // The owner's "near live, rest on pause": the far ghosts at the
-            // last pause's box, as one sheet between pauses.
-            RampSettledPreview: RampApplies ? _passRampSettledPreview ??= RampSettledPreviewAt : null,
-            RampFarSheet: RampApplies ? _passRampFarSheet ??= RampFarSheetFor : null);
+        var live = LiveEditNow();
 
         var built = ScenePassBuilder.Describe(scene, passState, _cache, _tileFallbacks, live);
         var tileNativeDoc = built.TileNative;

@@ -488,6 +488,60 @@ public partial class BrushEditor : UserControl
         flyout.ShowAt(MoreButton);
     }
 
+    /// <summary>
+    /// Which brush this one paints with while Alt, or Ctrl+Alt, is held (Q255).
+    /// Beside the tags because it is the same kind of thing: about the preset
+    /// and how it is reached, not about the mark.
+    /// </summary>
+    private void OnAlternatesClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_vm?.SelectedBrushPreset is not { } preset) return;
+        var others = _vm.AlternateChoicesFor(preset);
+
+        ComboBox Choice(Services.BrushAlternate slot, string none)
+        {
+            var box = new ComboBox { Width = 240, HorizontalAlignment = HorizontalAlignment.Stretch };
+            box.Items.Add(new ComboBoxItem { Content = none, Tag = null });
+            var current = MainViewModel.AlternateIdOf(preset, slot);
+            box.SelectedIndex = 0;
+            foreach (var other in others)
+            {
+                box.Items.Add(new ComboBoxItem { Content = other.Name, Tag = other.Id });
+                if (other.Id == current) box.SelectedIndex = box.Items.Count - 1;
+            }
+            return box;
+        }
+
+        var first = Choice(Services.BrushAlternate.First, "Erase with this brush");
+        var second = Choice(Services.BrushAlternate.Second, "Pick a colour (as Ctrl does)");
+        var apply = new Button { Classes = { "text", "primary" }, Content = "Set", HorizontalAlignment = HorizontalAlignment.Right };
+        var flyout = new Flyout
+        {
+            Content = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock { Text = "While Alt is held, paint with" },
+                    first,
+                    new TextBlock { Text = "While Ctrl+Alt is held, paint with" },
+                    second,
+                    apply,
+                },
+            },
+        };
+        apply.Click += (_, _) =>
+        {
+            // Each call may replace a shipped brush with its shadow, so the
+            // preset is asked for again rather than held.
+            _vm.SetPresetAlternate(_vm.SelectedBrushPreset!, Services.BrushAlternate.First, (first.SelectedItem as ComboBoxItem)?.Tag as string);
+            _vm.SetPresetAlternate(_vm.SelectedBrushPreset!, Services.BrushAlternate.Second, (second.SelectedItem as ComboBoxItem)?.Tag as string);
+            flyout.Hide();
+            Changed();
+        };
+        flyout.ShowAt(MoreButton);
+    }
+
     private void OnDeletePresetClicked(object? sender, RoutedEventArgs e)
     {
         if (_vm?.SelectedBrushPreset is not { } preset) return;

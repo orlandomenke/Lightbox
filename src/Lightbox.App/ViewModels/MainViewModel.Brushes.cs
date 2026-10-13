@@ -421,14 +421,29 @@ public partial class MainViewModel
             // the next mark tell the truth only until you changed brush.
             var antiAlias = AntiAliasing;
             var sampleSource = SmudgeSampleSource;
-            _brushes.Brush = SettingsToApply(value);
-            _brushes.Brush.AntiAlias = antiAlias;
+            // An eraser preset is the eraser's settings, not the brush's. It
+            // used to be written to the brush whatever its tool, so picking one
+            // switched to the eraser and erased with the stock eraser while the
+            // brush quietly became the preset - found when the Blot became the
+            // first eraser to ship.
+            if (value.Tool == ToolKind.Eraser)
+            {
+                _brushes.Eraser = SettingsToApply(value);
+                _brushes.Eraser.AntiAlias = antiAlias;
+            }
+            else
+            {
+                _brushes.Brush = SettingsToApply(value);
+                _brushes.Brush.AntiAlias = antiAlias;
+            }
             _brushes.Brush.SampleSource = sampleSource;
             _brushes.Eraser.SampleSource = sampleSource;
             EnsurePresetTip(value);
             NotifyBrushProperties();
         });
         PersistBrushState();
+        // What Ctrl+Alt does depends on the brush in hand (Q255), and the pointer says which.
+        OnPropertyChanged(nameof(PointerIntent));
     }
 
     /// <summary>
@@ -1271,6 +1286,9 @@ public partial class MainViewModel
             Tool = IsEraser ? ToolKind.Eraser : ToolKind.Brush,
             Settings = CurrentToolSettings.Clone(),
             Tags = CleanTags(tags),
+            // A brush saved from another keeps how that one is reworked.
+            Alternate = AlternateIdOf(SelectedBrushPreset, Services.BrushAlternate.First),
+            SecondAlternate = AlternateIdOf(SelectedBrushPreset, Services.BrushAlternate.Second),
         };
         _brushes.UserPresets.Add(preset);
         BrushPresetChoices.Add(preset);

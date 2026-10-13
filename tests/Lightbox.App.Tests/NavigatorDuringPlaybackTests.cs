@@ -76,6 +76,24 @@ public sealed class NavigatorDuringPlaybackTests : BrushStateIsolated
         throw new TimeoutException("never settled");
     }
 
+    /// <summary>
+    /// Play or stop. Starting may buffer first — the loop's first frames are
+    /// finished before the clock runs (prepared playback frames, step 6) — so
+    /// this runs what the workers hand back until playback has actually begun.
+    /// </summary>
+    private void Toggle(MainViewModel vm)
+    {
+        var starting = !vm.IsPlaying;
+        vm.TogglePlaybackCommand.Execute(null);
+        if (!starting) return;
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (vm.IsBufferingPlay && DateTime.UtcNow < deadline)
+        {
+            if (_posted.TryDequeue(out var run)) run();
+            else Thread.Sleep(5);
+        }
+    }
+
     [AvaloniaFact]
     public void AThumbnailRefreshWhilePlayingRendersNoStillOnTheUiThread()
     {
@@ -83,7 +101,7 @@ public sealed class NavigatorDuringPlaybackTests : BrushStateIsolated
         vm.PublishSnapshot();
         Settle(vm);
 
-        vm.TogglePlaybackCommand.Execute(null);
+        Toggle(vm);
         vm.CurrentFrameIndex = 2;
         vm.PublishSnapshot();
         // Playback draws tiles: the frame's stills are not there, as on a
@@ -106,11 +124,11 @@ public sealed class NavigatorDuringPlaybackTests : BrushStateIsolated
         Settle(vm);
         var atStart = vm.NavigatorThumb;
 
-        vm.TogglePlaybackCommand.Execute(null);
+        Toggle(vm);
         vm.CurrentFrameIndex = 2;
         vm.PublishSnapshot();
         vm.RefreshThumbnails();
-        vm.TogglePlaybackCommand.Execute(null);
+        Toggle(vm);
         Settle(vm);
 
         Assert.NotNull(vm.NavigatorThumb);

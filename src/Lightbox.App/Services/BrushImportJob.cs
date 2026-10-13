@@ -52,7 +52,7 @@ public sealed record BrushImportOutcome(List<BrushPreset> Presets, List<string> 
 public static class BrushImportJob
 {
     /// <summary>The formats an artist can hand over, for the file picker and the manual.</summary>
-    public static readonly string[] Patterns = ["*.abr", "*.gbr", "*.gih", "*.kpp"];
+    public static readonly string[] Patterns = ["*.abr", "*.gbr", "*.gih", "*.kpp", "*.brushset", "*.brush"];
 
     /// <summary>
     /// Turn brush files into presets, reporting progress and stopping if asked.

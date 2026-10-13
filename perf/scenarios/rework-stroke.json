@@ -1,0 +1,30 @@
+{
+  "name": "rework-stroke",
+  "about": "Paint, then rework what was painted without putting the brush down: three strokes with the brush in `brush`, then the same three paths with Ctrl+Alt held (the brush's second alternate - the Blot on Watercolor and Ink wash) and again with Alt held (its first - erase-with-this-brush until a brush names one). The alternates act on paint that is already there, which paint-stroke's blank canvas never gives them: an eraser or a rewetting brush over nothing measures nothing. Swept over `sizes` like paint-stroke. Read stroke.move and pen.screen for the reworking strokes against the painting ones (the first three commits are paint, the next six are rework), and stroke.commit, which for an alternate should be as short as for the brush itself. A brush with no second alternate turns the Ctrl+Alt drags into colour picks, so run it with one that has.",
+  "fixture": "blank-1080p",
+  "brush": "builtin-watercolor-wet",
+  "sizes": [60, 150, 300],
+  "repeat": 1,
+  "steps": [
+    {"do": "hover", "at": [0.5, 0.5]},
+    {"do": "key", "keys": "b", "after_ms": 200},
+    {"do": "drag", "from": [0.15, 0.30], "by": [0.70, 0.0], "ms": 1500, "hz": 120},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.15, 0.50], "by": [0.70, 0.0], "ms": 1500, "hz": 120},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.15, 0.70], "by": [0.70, 0.0], "ms": 1500, "hz": 120},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.20, 0.32], "by": [0.60, 0.0], "ms": 1500, "hz": 120, "mods": "ctrl+alt"},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.20, 0.52], "by": [0.60, 0.0], "ms": 1500, "hz": 120, "mods": "ctrl+alt"},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.20, 0.72], "by": [0.60, 0.0], "ms": 1500, "hz": 120, "mods": "ctrl+alt"},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.25, 0.28], "by": [0.50, 0.0], "ms": 1500, "hz": 120, "mods": "alt"},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.25, 0.48], "by": [0.50, 0.0], "ms": 1500, "hz": 120, "mods": "alt"},
+    {"do": "settle", "quiet_s": 0.6},
+    {"do": "drag", "from": [0.25, 0.68], "by": [0.50, 0.0], "ms": 1500, "hz": 120, "mods": "alt"},
+    {"do": "settle", "quiet_s": 1.0}
+  ]
+}

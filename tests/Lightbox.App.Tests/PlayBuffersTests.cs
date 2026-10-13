@@ -148,18 +148,53 @@ public sealed class PlayBuffersTests : BrushStateIsolated
         Assert.False(vm.IsPlaying, "a cancelled buffer started playing anyway");
     }
 
+    /// <summary>
+    /// Prepared means the drawings as tiles and the first second of finished
+    /// frames (prepared playback frames, step 6): with both, play starts at once.
+    /// </summary>
     [AvaloniaFact]
     public void ALoopAlreadyPreparedPlaysAtOnce()
     {
         var vm = Vm(warm: true);
+        vm.PlaybackComposites = new ComposeCache(256L * 1024 * 1024);
         vm.PublishSnapshot();
         Settle(vm);
+        for (var i = 0; i < vm.Doc.Scene.FrameCount; i++) Assert.True(vm.PrepareFrameNow(i), $"frame {i} could not be prepared");
 
         vm.TogglePlaybackCommand.Execute(null);
 
         Assert.False(vm.IsBufferingPlay);
         Assert.True(vm.IsPlaying);
         vm.TogglePlaybackCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// With only the tiles ready — what idle time leaves behind — play waits for
+    /// the first frames to be finished, and the first lap is then shown from them
+    /// rather than built on its ticks: the large document's first lap dropped
+    /// about forty frames in fifteen seconds when it was not (2026-10-12).
+    /// </summary>
+    [AvaloniaFact]
+    public void WithOnlyItsTilesReadyALoopWaitsForItsFirstFramesThenShowsThemFinished()
+    {
+        var vm = Vm(warm: true);
+        vm.PlaybackComposites = new ComposeCache(256L * 1024 * 1024);
+        vm.PublishSnapshot();
+        Settle(vm);
+
+        vm.TogglePlaybackCommand.Execute(null);
+        Assert.True(vm.IsBufferingPlay, "play started with no frame of the loop finished");
+        Until(vm, () => vm.IsPlaying, "the loop never started");
+
+        var shown = new List<RenderSnapshot>();
+        void Take(RenderSnapshot s) => shown.Add(s);
+        vm.SnapshotChanged += Take;
+        for (var i = 1; i < vm.Doc.Scene.FrameCount; i++) vm.CurrentFrameIndex = i;
+        vm.SnapshotChanged -= Take;
+        vm.TogglePlaybackCommand.Execute(null);
+
+        Assert.NotEmpty(shown);
+        Assert.All(shown, s => Assert.True(s.FromCache, "a frame of the first lap was built on its tick"));
     }
 
     [AvaloniaFact]
