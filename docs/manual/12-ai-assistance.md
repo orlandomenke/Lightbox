@@ -55,9 +55,11 @@ subject to every rule your own strokes are, including the layer ones. A hidden
 or locked layer refuses the AI exactly as it refuses a brush.
 
 **There is no way to ask for a drawing from nothing.** Everything the AI does
-starts from something you drew: here, the two keys it works between. Lightbox
-has no prompt box, and that is a decision rather than a gap — the AI is here to
-take the tedious parts off an artist, not to make the drawing.
+starts from something you drew: here, the two keys it works between. You can
+add a note to steer it (below), but a note always rides on your keys — there is
+no box that makes a drawing out of words alone, and that is a decision rather
+than a gap: the AI is here to take the tedious parts off an artist, not to make
+the drawing.
 
 **What gets sent.** Along with the frames, the **first two views on your character
 sheets that have a visible layer** go out as pictures, so the model can see who it
@@ -129,7 +131,52 @@ small provenance note in the saved file — which provider, and the model name
 when there is one. Frames you drew carry nothing, and a document that never
 used the AI is byte-for-byte what it would have been before the feature
 existed. Provenance is a record, never behaviour: it changes nothing about how
-the frame renders, and deleting it changes no pixel.
+the frame renders, and deleting it changes no pixel. When you gave a direction,
+the note is kept with the frames it produced, so you can see later what was
+asked.
+
+### Telling the model what you want, and revising what it drew
+
+**✦ AI Inbetween** is one click and asks nothing. To add a note first, either
+**Shift+click** it, or open the **arrow** beside it and choose **AI Inbetween
+with a direction…**. Type what the keys cannot say on their own — *"running,
+this is the far arm"*, *"let the head lead"*, *"ease in hard to B"* — and press
+Enter. Leaving the note empty is the same as the plain button.
+
+**A note goes with one layer's request.** The AI inbetweens the active layer
+and sees only that layer's strokes, so on a character split across layers it
+cannot tell on its own that a shape is the far arm of somebody running. Saying
+so is the most useful thing a note can do — and because each layer is its own
+request, say it again on the next layer.
+
+The same arrow holds **Revise AI frames…**. Put the playhead between two
+drawings you made, choose it, and say what should change: the model is handed
+the AI frames between those drawings together with your note, and redraws them
+in place. Select some of those frames on the timeline first to redraw only
+them — the frames either side of them go along unchanged, so the redraw sits
+smoothly among them. The selection has to be on the active layer; with nothing
+selected there, every AI frame between the two drawings is redrawn, and the
+status line says how many before the model starts. A revise is one undo step,
+and it needs a note: "redraw it" with nothing to go on is a reroll, not a
+revision.
+
+Each frame is revised at its place between the two drawings — the second of
+three frames sits halfway — or by the key's timing chart when it has one. A
+frame the AI drew still counts as the AI's after you touch it up by hand, so a
+revise would redraw it too; select the ones you want redrawn.
+If you change the timeline while the model is working, nothing is written and
+the status says so.
+
+A note steers what happens between the keys, never what is accepted. Every
+frame that comes back is checked against your keys exactly as before, and a
+revised frame that fails keeps the drawing it had — the status says which. Ask
+for more energy and you should get a rounder arc and a stronger ease; ask for an
+overshoot past a key and the frame is refused. That is a breakdown for you to
+draw, and the AI will inbetween either side of it. Notes are kept to 500
+characters — a sentence or two is what the model can use.
+
+Both commands are in **Edit ▸ Configure ▸ Shortcuts** under Timeline, with no
+key set, for anyone who wants one.
 
 ## Reading a folder
 

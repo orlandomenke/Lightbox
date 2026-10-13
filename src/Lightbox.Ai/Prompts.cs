@@ -107,8 +107,65 @@ public static class Prompts
                "Produce one inbetween frame for every t in `requestedTs` (t is the " +
                "position between keyframe A at t=0 and keyframe B at t=1):\n" +
                JsonSerializer.Serialize(payload, Compact) +
+               (request.Earlier is { Count: > 0 } earlier ? RevisionBlock(earlier, request.Fixed) : "") +
+               (string.IsNullOrWhiteSpace(request.Direction) ? "" : DirectionBlock(request.Direction)) +
                (request.Repair is { Count: > 0 } repair ? RepairBlock(repair, request.Settled) : "");
     }
+
+    /// <summary>
+    /// The model's own earlier drawings, handed back to be redrawn (Q261).
+    /// </summary>
+    /// <remarks>
+    /// The same shape the repair block uses for the same reason: a model asked
+    /// to change a drawing it cannot see has to redraw it from the keys, and a
+    /// revision is an edit. The frames that stay ride along as fixed context so
+    /// the redraw sits among them rather than jumping off their path.
+    /// </remarks>
+    internal static string RevisionBlock(IReadOnlyList<AcceptedFrame> earlier, IReadOnlyList<AcceptedFrame>? fixedFrames) =>
+        "\n\nYou drew these frames before. Redraw them, changing what the artist " +
+        "asks below and keeping the rest — returning a drawing unchanged is not a " +
+        "revision:\n" +
+        JsonSerializer.Serialize(
+            earlier.Select(e => new { t = e.T, yourStrokes = e.Strokes.Select(StrokeWire.ToWire) }), Compact) +
+        (fixedFrames is { Count: > 0 }
+            ? "\nThese frames between the same keys stay as they are; your redraw has " +
+              "to sit smoothly between them:\n" +
+              JsonSerializer.Serialize(
+                  fixedFrames.Select(f => new { t = f.T, strokes = f.Strokes.Select(StrokeWire.ToWire) }), Compact)
+            : "");
+
+    /// <summary>
+    /// The artist's own words (Q261): the one part of a request written to the
+    /// model rather than about the drawing.
+    /// </summary>
+    /// <remarks>
+    /// After the drawing, so the keys stay the stable front of the request and
+    /// only the words change between asks. JSON-encoded, so a quote cannot end
+    /// the string it sits in. The keys are stated as the bound and the note as
+    /// what to do inside it — not as a threat of refusal, which the art director
+    /// found makes a model timid: it flattens toward the chord, and a run of
+    /// chords reads as a slide. The verifier still refuses a frame that leaves
+    /// the keys; an overshoot is a breakdown the artist draws.
+    /// </remarks>
+    internal static string DirectionBlock(string direction) =>
+        "\n\nThe artist using the tool asks, in their own words: " +
+        JsonSerializer.Serialize(direction.Trim(), NameOnly) +
+        "\nIt may also say what this drawing is — which part of a character, doing " +
+        "what — which the strokes alone cannot. The keys bound the motion: every " +
+        "inbetween sits between the keys, and inside them you follow the note and " +
+        "keep the arcs, so a note asking for more energy means a rounder arc and a " +
+        "stronger ease, not a straighter path. Keep every stroke's label and the " +
+        "subject's construction: the note changes how the motion goes, not who or " +
+        "what is drawn.";
+
+    /// <summary>
+    /// For text placed in a prompt: escapes what would break out of the
+    /// string and nothing else, so "Zoë" stays readable.
+    /// </summary>
+    private static readonly JsonSerializerOptions NameOnly = new()
+    {
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
 
     /// <summary>
     /// What was wrong with the last answer, and the answer itself, appended for

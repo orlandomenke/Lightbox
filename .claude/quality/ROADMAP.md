@@ -2281,6 +2281,10 @@ Four rules govern everything below, and they are not negotiable per feature:
 - [x] A frame remembers when an AI drew it `evidence: AiProvenance, AiProvenanceTests, ADocumentThatNeverUsedAiWritesNoAiKey, AnInsertedAiFrameCarriesItsProvenance, ADeterministicInbetweenCarriesNoProvenance`
   - Q31: provenance on the frame — provider, and the model name when there is one — **absent unless AI touched it**, so a document that never used the AI is byte-identical to one from before the feature existed. Frames inserted by an MCP agent carry it too; deterministic inbetweens do not, because the free engine is not an AI. A record, never behaviour: rendering never reads it.
 
+- [x] Directions and revision: the artist's note rides on the keys, and AI frames can be redrawn with one `evidence: AiDirectionTests, DirectionTests, AiBar, DirectionDialog, ReviseRedrawsTheAiFramesBetweenTheKeysInPlace, ARefusedRevisionKeepsTheFrameItWasRevising`
+  - Q261. **✦ AI Inbetween** stays one click; Shift+click or the arrow beside it asks for a note first, and the arrow holds **Revise AI frames…**, which redraws the AI frames between the artist's nearest drawings — or only the selected ones, with the rest sent as fixed context — in one undo step. The note is kept in the frames' `AiProvenance.Note`, absent when there was none. Rule 0 holds: a note always rides on keys, and `IAiArtist` gained nothing. **The verifier still decides** — a note changes what is asked, never what is accepted, so an overshoot past a key is refused and stays a breakdown to draw.
+  - The bar moved to `AiBar.axaml` to carry its menu, which shrank `MainWindow.axaml` rather than growing it.
+
 ### Reading the drawing
 
 The prerequisite half. Both of these exist to be *inputs to authoring* and neither

@@ -1,0 +1,26 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lightbox.App.Views.DirectionDialog"
+        Width="{StaticResource SizeDialogWidth}" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="AI Inbetween with a direction">
+
+  <!--
+    Q261. A note to the AI inbetweener. One wrapping field rather than a
+    multi-line editor: a direction is a sentence or two, and Enter sending it is
+    worth more than Enter starting a line nobody needed.
+  -->
+  <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
+    <TextBlock x:Name="Explanation" TextWrapping="Wrap" Opacity="0.8" />
+    <TextBox x:Name="Note" TextWrapping="Wrap" />
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="{StaticResource Space8}" HorizontalAlignment="Right">
+      <Button Classes="tertiary" Content="Cancel" IsCancel="True" Click="OnCancel"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="primary" x:Name="Go" Content="Inbetween" IsDefault="True" Click="OnGo"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+    </UniformGrid>
+  </StackPanel>
+</Window>
