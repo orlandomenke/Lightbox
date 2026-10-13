@@ -458,7 +458,10 @@ public partial class MainViewModel
     public void RefreshDocumentOrigin() => OnPropertyChanged(nameof(DocumentOrigin));
 
     /// <summary>
-    /// Apply a resize the artist confirmed, as one undo step.
+    /// Apply a resize the artist confirmed, as one undo step — more when type
+    /// was still being typed, a pen line still being placed or a transform
+    /// still open, each of which is finished first as its own step. An image
+    /// resize clears the selection.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -477,9 +480,42 @@ public partial class MainViewModel
     /// </remarks>
     public bool ApplyResize(ResizeDialogViewModel choice)
     {
+        // An open pen-path edit and a text block being typed each hold a
+        // working copy of what they edit. Left open across an image resize,
+        // the next node drag or keystroke wrote that copy back at the old size
+        // (B462's review). The path edit ends — every node drag was already
+        // its own undo step — and the type is set, so what was typed is in
+        // the document before the resize walks it rather than lost.
+        if (choice.IsImage)
+        {
+            EndPathEdit();
+            CommitText();
+            // The same failure for every other session that holds places at
+            // the old size (B465). A transform is confirmed where the canvas
+            // can confirm it — as leaving its frame does — and dropped where
+            // it cannot; a pen line still being placed is finished, so it is
+            // in the drawing before the resize walks it.
+            ConfirmTransformBeforeLeaving();
+            if (TransformActive) CancelTransform();
+            FinishPen();
+            if (PenActive) CancelPen();
+            // The selection is drawn round part of the drawing at the old
+            // size, and it lives outside the document, so an undo of the
+            // resize cannot take it back down: scaled with the drawing, it was
+            // left at twice the size on the restored page (the adversary). It
+            // is cleared instead — a marquee is quick to draw again, and a
+            // wrong one clips every mark made inside it.
+            Deselect();
+        }
         var changed = false;
         _editor.Perform(doc => changed = choice.Apply(doc, new Lightbox.Raster.PixelResampler()));
         if (!changed) return false;
+
+        // A crop frame is a rectangle on the page, and the page is a different
+        // size now: it starts again on the new one, for either kind of resize
+        // — and again after an undo or a redo that changes the page back
+        // (RestartCropFrameIfThePageMoved).
+        if (CropFrame is not null) BeginCropFrame();
 
         RefreshDocumentOrigin();
         _publish.InvalidateWholeCanvas();

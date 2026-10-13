@@ -151,6 +151,8 @@ public class LayerTransformTests : BrushStateIsolated
         Line(340);
         vm.CurrentFrameIndex = 1;
         vm.Onion.Enabled = true;
+        // a new layer's onion starts off (2026-10-08); this one ghosts
+        vm.SetLayerOnionEnabled(vm.PaintLayer(), true);
         vm.Onion.Before = 1;
         vm.Onion.After = 1;
 

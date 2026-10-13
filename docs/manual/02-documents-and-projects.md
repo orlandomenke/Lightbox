@@ -77,7 +77,26 @@ bottom has neither.
 
 **Resize image** (`Ctrl+Alt+I`) scales the artwork itself. Everything moves and
 everything scales with it — line positions, brush sizes, textures, guides,
-symbol placements. **Keep proportions** is on by default here, because scaling
+symbol placements. So does what a drawing is edited through: skeletons and
+their poses, pen paths, type and effects all come to the new size, so a line
+can still be reshaped by its nodes, a word retyped and an effect baked again
+where it stands — an effect that had no pen of its own is given one at the
+size its outlines now are, so the effects window shows that size where it
+said "default" — clearing it goes back to the six-pixel default. The paper
+grain of a simulated medium (watercolour, gouache, oil) grows with it; the
+grain of a flat brush does not. Layer and scene effects keep their look against
+the drawing: a blur's radius, a shadow's distance and softness, a glow's
+size and a style's stroke width all scale with it. Enlarging can take one
+past the end of its slider — a blur of 80 doubled is 160 — and the effects
+window shows and keeps that number. Shrinking stops a radius at the least its
+effect works at, so find edges and sharpen never go below two. The
+one thing that does not follow is a **camera**: its keys move with the drawing
+but keep their zoom, so after an enlargement every shot frames a smaller part
+of the drawing and wants re-keying. Anything you had open is finished first,
+so nothing comes back at the old size: a line you were reshaping, type you
+were still typing, a pen line you were placing, a transform you had not
+applied. A selection is cleared — it was drawn round the old size — and a
+crop frame starts again on the new page, and again if you undo the resize. **Keep proportions** is on by default here, because scaling
 the two axes differently distorts the drawing and is almost never meant. This
 is also where **PPI** lives: it says how large these pixels print, so it belongs
 to the artwork rather than to the paper. Changing only the PPI is a valid

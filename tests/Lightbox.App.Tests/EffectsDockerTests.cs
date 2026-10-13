@@ -288,4 +288,35 @@ public sealed class EffectsDockerTests(ITestOutputHelper output) : BrushStateIso
         Assert.True(Math.Abs(grey.Red - grey.Green) <= 2,
             $"the adjustment should desaturate the bar, got {grey}");
     }
+
+    // ---- B466: a length a resize took past the slider's end ----------------------------
+
+    [AvaloniaFact]
+    public void ALengthPastTheSlidersEndIsShownAndKeptAsItIs()
+    {
+        // A blur of 80 on a doubled image is 160, and the slider stops at 100.
+        // A row that kept the slider's range would show 100 for a stored 160,
+        // and the control, coercing to its range, could write 100 back — a
+        // second, silent edit undoing the resize for the one effect the artist
+        // is looking at. The row's range takes the stored value in instead.
+        var vm = Vm();
+        vm.EffectsPanel.AddUseCommand.Execute(Choice(vm, "blur.gaussian"));
+        vm.EffectsPanel.Params.Single(p => p.Label == "Radius").Value = 80;
+        var steps = vm.RecordedStepCount;
+
+        var choice = new ResizeDialogViewModel(vm.Doc.Scene, ResizeMode.Image);
+        choice.Width = vm.Doc.Scene.Width * 2;
+        choice.Height = vm.Doc.Scene.Height * 2;
+        Assert.True(vm.ApplyResize(choice));
+
+        var row = vm.EffectsPanel.Params.Single(p => p.Label == "Radius");
+        Assert.Equal(160, row.Value, 9);
+        Assert.True(row.Max >= 160, $"the row's range stops at {row.Max} for a stored 160");
+        Assert.Equal(160, Paint(vm).Effects!.Uses[0].Params["radius"].Value, 9);
+        Assert.Equal(steps + 1, vm.RecordedStepCount);
+
+        // And the artist can still bring it down by hand, to anywhere in that range.
+        row.Value = 150;
+        Assert.Equal(150, Paint(vm).Effects!.Uses[0].Params["radius"].Value, 9);
+    }
 }

@@ -259,6 +259,6 @@ public sealed partial class ResizeDialogViewModel : ObservableObject
     /// </remarks>
     public bool Apply(Doc doc, IPixelResampler resampler) =>
         IsImage
-            ? ImageResize.Apply(doc, Width, Height, resampler, Ppi)
+            ? ImageResize.Apply(doc, Width, Height, resampler, Ppi, Lightbox.Raster.Effects.EffectRegistry.LengthFloor)
             : CanvasResize.Apply(doc.Scene, Width, Height, Anchor);
 }

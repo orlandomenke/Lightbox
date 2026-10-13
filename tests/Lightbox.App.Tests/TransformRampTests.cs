@@ -283,6 +283,8 @@ public class TransformRampTests : BrushStateIsolated
         var vm = InPlace(5);
         vm.CurrentFrameIndex = 4;
         vm.Onion.Enabled = true;
+        // a new layer's onion starts off (2026-10-08); these ghost
+        vm.SetLayerOnionEnabled(vm.PaintLayer(), true);
         vm.Onion.Before = 2;
         vm.Onion.After = 0;
         RenderSnapshot? latest = null;

@@ -272,9 +272,13 @@ public class ProcreateBrushImportTests(ITestOutputHelper output)
             ("B/Brush.archive", Archive("Survivor")));
         output.WriteLine($"{bomb.Length / 1024} KB of zip holding an 80 MB settings file");
 
-        var before = GC.GetTotalAllocatedBytes(precise: true);
+        // This thread's allocations, not the process's: the import runs on
+        // the calling thread, and the whole-process count picked up whatever
+        // the tests beside this one were allocating — 113 MB against a 40 MB
+        // limit in a full run, 4 MB alone.
+        var before = GC.GetAllocatedBytesForCurrentThread();
         var brushes = BrushImport.Read("x.brushset", bomb);
-        var allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         output.WriteLine($"allocated {allocated / (1024 * 1024)} MB reading it");
         Assert.Equal("Survivor", Assert.Single(brushes).Name);
@@ -302,7 +306,7 @@ public class ProcreateBrushImportTests(ITestOutputHelper output)
         Assert.True(record > 0);
         BinaryPrimitives.WriteInt32LittleEndian(bomb.AsSpan(record + 24), 100);
 
-        var before = GC.GetTotalAllocatedBytes(precise: true);
+        var before = GC.GetAllocatedBytesForCurrentThread();
         List<ImportedBrush> brushes;
         try
         {
@@ -314,7 +318,7 @@ public class ProcreateBrushImportTests(ITestOutputHelper output)
             output.WriteLine($"refused outright: {e.Message}");
             brushes = [];
         }
-        var allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         output.WriteLine($"allocated {allocated / (1024 * 1024)} MB; {brushes.Count} brush(es) read");
         Assert.DoesNotContain(brushes, b => b.Name != "Survivor");
@@ -464,9 +468,9 @@ public class ProcreateBrushImportTests(ITestOutputHelper output)
             ("B/Brush.archive", Archive("Survivor")));
         output.WriteLine($"{refs:N0} references to a {blob / 1000} KB blob, in a {set.Length} byte file");
 
-        var before = GC.GetTotalAllocatedBytes(precise: true);
+        var before = GC.GetAllocatedBytesForCurrentThread();
         var brushes = BrushImport.Read("x.brushset", set);
-        var allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         output.WriteLine($"allocated {allocated / (1024 * 1024)} MB; built once it is about 2, built per reference 34,000");
         Assert.Equal("Survivor", Assert.Single(brushes).Name);
@@ -503,9 +507,9 @@ public class ProcreateBrushImportTests(ITestOutputHelper output)
             ("A/Brush.archive", ms.ToArray()),
             ("B/Brush.archive", Archive("Survivor")));
 
-        var before = GC.GetTotalAllocatedBytes(precise: true);
+        var before = GC.GetAllocatedBytesForCurrentThread();
         var brushes = BrushImport.Read("x.brushset", set);
-        var allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         output.WriteLine($"allocated {allocated / (1024 * 1024)} MB; unbudgeted it is {(long)blob * entries / (1024 * 1024)}");
         Assert.Equal("Survivor", Assert.Single(brushes).Name);
@@ -527,9 +531,9 @@ public class ProcreateBrushImportTests(ITestOutputHelper output)
             ("B/Brush.archive", Archive("Survivor")));
         output.WriteLine($"a dictionary of {pairs:N0} pairs, all itself, in a {set.Length} byte file");
 
-        var before = GC.GetTotalAllocatedBytes(precise: true);
+        var before = GC.GetAllocatedBytesForCurrentThread();
         var brushes = BrushImport.Read("x.brushset", set);
-        var allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         output.WriteLine($"allocated {allocated / (1024 * 1024)} MB");
         Assert.Equal("Survivor", Assert.Single(brushes).Name);

@@ -201,8 +201,12 @@ public class AiProviderTests
         foreach (var provider in AiProviders.All)
         {
             var ids = provider.Fields.Select(f => f.Id).ToList();
-            if (provider.Transport == AiTransport.Api) Assert.Contains("model", ids);
-            else Assert.Contains("tool", ids);
+            Assert.Contains(provider.Transport switch
+            {
+                AiTransport.Api => "model",
+                AiTransport.Mcp => "tool",
+                _ => "command",
+            }, ids);
         }
     }
 }

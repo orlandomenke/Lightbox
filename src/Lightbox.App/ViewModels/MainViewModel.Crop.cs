@@ -109,7 +109,22 @@ public partial class MainViewModel
     {
         CropFrame ??= new CropSession();
         CropFrame.Begin(Scene.Left, Scene.Top, Scene.Width, Scene.Height);
+        _cropPage = (Scene.Left, Scene.Top, Scene.Width, Scene.Height);
         NotifyCropFrame();
+    }
+
+    /// <summary>The page the crop frame was laid on.</summary>
+    private (int Left, int Top, int Width, int Height) _cropPage;
+
+    /// <summary>
+    /// After an undo or a redo: if the page is not the one the crop frame was
+    /// laid on — a resize was undone or redone — the frame starts again on the
+    /// page there is now, rather than cropping a rectangle from another size.
+    /// </summary>
+    private void RestartCropFrameIfThePageMoved()
+    {
+        if (CropFrame is null) return;
+        if (_cropPage != (Scene.Left, Scene.Top, Scene.Width, Scene.Height)) BeginCropFrame();
     }
 
     /// <summary>Drop the frame. Leaving the tool does this, and so does applying.</summary>

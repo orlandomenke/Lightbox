@@ -23,13 +23,19 @@ public sealed partial class EffectParamRow : ObservableObject
         _syncing = true;
         Value = use.At(spec.Key, frame, EffectRegistry.DefaultOf(spec, use));
         _syncing = false;
+        // The range takes in what is stored. An image resize can leave a
+        // length past the slider's end — a blur of 80 doubled is 160 — and a
+        // control bound to a range that stops at 100 shows 100 and can write
+        // it back, undoing the resize for the effect being looked at (B466).
+        Min = Math.Min(spec.Min, Value);
+        Max = Math.Max(spec.Max, Value);
     }
 
     public string Label => _spec.Label;
 
-    public double Min => _spec.Min;
+    public double Min { get; }
 
-    public double Max => _spec.Max;
+    public double Max { get; }
 
     public double Increment => _spec.Increment;
 
@@ -38,7 +44,7 @@ public sealed partial class EffectParamRow : ObservableObject
 
     partial void OnValueChanged(double value)
     {
-        if (!_syncing) _owner.CommitParam(_use, _spec, value);
+        if (!_syncing) _owner.CommitParam(_use, _spec, value, Min, Max);
     }
 }
 
@@ -395,9 +401,11 @@ public sealed partial class EffectsViewModel : ObservableObject
             frameContentUnchanged: true);
     }
 
-    internal void CommitParam(EffectUse use, EffectParamSpec spec, double value)
+    internal void CommitParam(EffectUse use, EffectParamSpec spec, double value, double? min = null, double? max = null)
     {
-        var clamped = Math.Clamp(value, spec.Min, spec.Max);
+        // The row's range, which is the parameter's own widened to take in a
+        // value already stored outside it.
+        var clamped = Math.Clamp(value, min ?? spec.Min, max ?? spec.Max);
         _owner.PanelEditor.Perform(_ =>
         {
             if (!use.Params.TryGetValue(spec.Key, out var param))

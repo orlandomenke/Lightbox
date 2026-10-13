@@ -189,6 +189,9 @@ public class DockerMultiSelectTests
         var vm = VmWithLayers(3);
         vm.SelectLayer(Row(vm, 0), toggle: false, range: false);
         vm.SelectLayer(Row(vm, 2), toggle: false, range: true);
+        // a new layer's onion starts off (2026-10-08); start them all on so
+        // turning one off shows which layers the toggle reached
+        foreach (var layer in vm.Doc.Scene.Layers.ToList()) vm.SetLayerOnionEnabled(layer, true);
 
         Row(vm, 2).OnionEnabled = false;
 

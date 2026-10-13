@@ -56,8 +56,11 @@ public interface IPixelResampler
 /// and not added here does not fail a build or a test, it goes quiet and
 /// leaves one thing in the wrong place. The list is exhaustive rather than
 /// "the ones that matter", and <c>ImageResizeTests</c> asserts against the
-/// model's own property list so that adding a coordinate without handling it
-/// here is caught.
+/// model's own property lists — the scene's, and those of the document, a
+/// frame, a stroke, a rig, a bone, a pin, a text element and an effect — so
+/// that adding a coordinate to any of them without handling it here is
+/// caught. It read the scene alone until B462, and seven things slipped past
+/// it on the other types.
 /// </para>
 /// </remarks>
 public static class ImageResize
@@ -95,7 +98,8 @@ public static class ImageResize
     /// <returns>False, changing nothing, if the request is not a size or asks
     /// for exactly what the document already is.</returns>
     public static bool Apply(
-        Doc doc, int newWidth, int newHeight, IPixelResampler resampler, int? ppi = null)
+        Doc doc, int newWidth, int newHeight, IPixelResampler resampler, int? ppi = null,
+        Func<string, string, double?>? effectLengths = null)
     {
         var scene = doc.Scene;
         if (newWidth < 1 || newHeight < 1) return false;
@@ -118,15 +122,21 @@ public static class ImageResize
         scene.OriginX = Scaled(scene.OriginX, sx);
         scene.OriginY = Scaled(scene.OriginY, sy);
 
+        // Each drawing once, however many cels hold it. A hold is one Frame
+        // standing in several cels — an effect baked on 2s is stored that way
+        // — and walking the cels scaled it once for each: twice the image,
+        // four times the smoke (B463). By identity, not by id: two drawings
+        // are the same drawing only when they are the same object.
+        var scaled = new HashSet<Frame>(ReferenceEqualityComparer.Instance);
         foreach (var layer in scene.Layers)
         {
             foreach (var cel in layer.Cels)
-                if (cel.Frame is { } frame)
+                if (cel.Frame is { } frame && scaled.Add(frame))
                     ScaleFrame(frame, sx, sy, mark, resampler);
             // The mask is a drawing like any other (Q147) and it lives on the
             // layer, not in a cel — left unscaled, the content would slide
             // out from under its own carve.
-            if (layer.Mask is { } mask) ScaleFrame(mask.Frame, sx, sy, mark, resampler);
+            if (layer.Mask is { } mask && scaled.Add(mask.Frame)) ScaleFrame(mask.Frame, sx, sy, mark, resampler);
         }
 
         foreach (var region in doc.ClipRegions.Values)
@@ -154,10 +164,12 @@ public static class ImageResize
             {
                 key.X *= sx;
                 key.Y *= sy;
-                // Zoom is a ratio against the scene, and the scene scaled with
-                // it — so the shot frames the same part of the drawing. Output
-                // size is the deliverable's resolution and is nothing to do
-                // with the document's.
+                // Zoom is left as it is, by the owner's decision (Q257) and
+                // against the recommendation. It maps document pixels to
+                // output pixels, so after a doubling the same key frames half
+                // the width of the drawing it did, and the shots of a resized
+                // document are re-keyed by hand. Output size is the
+                // deliverable's resolution and is left alone either way.
             }
 
         if (scene.Pivot is { } pivot)
@@ -217,6 +229,75 @@ public static class ImageResize
             if (rig.PinCell is { } cell) rig.PinCell = cell * mark;
         }
 
+        // Set type and baked effects are ordinary strokes, scaled with every
+        // other stroke above. Beside them the document keeps what they were
+        // made from, so a sentence can be retyped and an effect baked again —
+        // and those records hold places and sizes on the paper too. Left
+        // behind, the drawing looks right until the first edit, which sets
+        // the type or bakes the smoke at the old size in the old place (B462).
+        if (doc.Texts is { } texts)
+            foreach (var text in texts.Values)
+            {
+                text.X *= sx;
+                text.Y *= sy;
+                // The em and the leading are sizes of marks, like a brush's:
+                // one number each, so an uneven rescale takes the mark's.
+                // Tracking is thousandths of an em and means the same at any size.
+                text.Size *= mark;
+                if (text.LineHeight is { } leading) text.LineHeight = leading * mark;
+            }
+
+        if (doc.Sims is { } sims)
+            foreach (var sim in sims.Values)
+            {
+                // The grid stays the grid: the same cells, each cell bigger,
+                // over the same part of the drawing. Emitters, wind and the
+                // solver's numbers are measured in cells and do not move.
+                //
+                // A cell is square, so it has one size and takes the mark's
+                // factor; the grid is then placed by its middle, which is a
+                // place on the paper and takes the axis factors. Scaled
+                // evenly that is simply the corner moving with everything
+                // else. Scaled unevenly, moving the corner alone would slide
+                // the whole effect off the smoke it had already drawn — the
+                // adversary measured 47 px on a small fire — where this keeps
+                // it centred on it, the right size on average.
+                var (halfWide, halfHigh) = (sim.GridWidth / 2.0 * sim.Scale, sim.GridHeight / 2.0 * sim.Scale);
+                sim.OriginX = (sim.OriginX + halfWide) * sx - halfWide * mark;
+                sim.OriginY = (sim.OriginY + halfHigh) * sy - halfHigh * mark;
+                sim.Scale *= mark;
+                // What the bake draws with is in document pixels, like any
+                // stroke's brush.
+                if (sim.Particles is { } particles) particles.Size *= mark;
+                // An effect with no pen of its own draws with the default
+                // brush, which is the same six pixels at any size of document:
+                // its outlines on the paper were just scaled, and a re-bake
+                // would draw them at six again. So it is given the pen it was
+                // using, at the size it now needs (Q257). That writes a key
+                // the element did not have — after a resize the default is no
+                // longer what it draws with.
+                var outline = sim.OutlineBrush ??= new BrushSettings();
+                outline.Size *= mark;
+                outline.TextureScale *= mark;
+                ScaleMedium(outline, mark);
+            }
+
+        // Effects re-render live, so a length left behind shows at once: a
+        // blur half as soft against a doubled drawing, a shadow half as far
+        // from it (B466). Which parameters are lengths is the effect
+        // registry's to say — Core does not render and does not know — so the
+        // caller passes it in, and with no word nothing is touched. A length
+        // points anywhere, so it takes the mark's one factor, keys and all.
+        // What the caller answers is the least the length may be scaled down
+        // to (Q263): an effect that stops working below a radius of two is not
+        // shrunk through it. Nothing stops a length growing — a slider's end
+        // is the slider's, and the renderer takes any size.
+        if (effectLengths is not null)
+        {
+            ScaleEffects(scene.Effects, effectLengths, mark);
+            foreach (var layer in scene.Layers) ScaleEffects(layer.Effects, effectLengths, mark);
+        }
+
         if (scene.PoseTrack is { } poses)
             foreach (var key in poses.Keys)
                 foreach (var pose in key.Bones.Values)
@@ -236,9 +317,51 @@ public static class ImageResize
                 strip.OffsetX *= sx;
                 strip.OffsetY *= sy;
                 strip.Scale *= mark;
+                // Except a cell's nudge: it registers one frame of the
+                // reference against the drawing, in document pixels, added
+                // outside the strip's scale — so it moves with the drawing.
+                foreach (var cell in strip.Cells)
+                {
+                    cell.Dx *= sx;
+                    cell.Dy *= sy;
+                }
             }
 
         return true;
+    }
+
+    /// <summary>
+    /// A simulated medium's paper grain is in document pixels and is read every
+    /// time the stroke renders, so an enlarged painting re-rendered on a finer
+    /// tooth than it was painted on (Q257). It is a size of a mark and takes
+    /// the mark's factor, as the brush's texture scale does. An untouched
+    /// medium is left untouched: scaling its grain would make it "used", and
+    /// an unused medium is what keeps twenty-one keys off every stroke.
+    /// </summary>
+    private static void ScaleMedium(BrushSettings brush, double mark)
+    {
+        if (brush.Medium.IsUntouched()) return;
+        brush.Medium.PaperScale *= mark;
+    }
+
+    private static void ScaleEffects(
+        Lightbox.Core.Effects.EffectStack? stack, Func<string, string, double?> leastOf, double mark)
+    {
+        if (stack is null) return;
+        foreach (var use in stack.Uses)
+            foreach (var (key, param) in use.Params)
+            {
+                if (leastOf(use.Kind, key) is not { } least) continue;
+                param.Value = Scaled(param.Value);
+                if (param.Keys is { } keys)
+                    foreach (var k in keys) k.Value = Scaled(k.Value);
+
+                // Stopped at the least only when the resize is what would take
+                // it through: a value a file already had below it is scaled
+                // like any other, not quietly raised.
+                double Scaled(double value) =>
+                    value >= least && value * mark < least ? least : value * mark;
+            }
     }
 
     private static void ScaleFrame(
@@ -265,6 +388,24 @@ public static class ImageResize
             // Weights are ratios and stay; an authored rescale re-rolls the
             // grain anyway (Q26), so the seeds moving with the art is right.
             if (stroke.RestPoints is { } rest) ScalePoints(rest, sx, sy);
+            // A pen path is the second description of the points above, and
+            // the two must never disagree (StrokePath): its nodes are places
+            // and its handles are offsets from them, so all six numbers take
+            // the axis factors. A curve mapped that way is the mapped curve —
+            // Beziers are affine — so the line the nodes draw is still the
+            // line on the paper, and moving a node later redraws it from the
+            // right size (B462).
+            if (stroke.Path is { } path)
+                for (var i = 0; i < path.Nodes.Count; i++)
+                {
+                    var node = path.Nodes[i];
+                    path.Nodes[i] = node with
+                    {
+                        X = node.X * sx, Y = node.Y * sy,
+                        InX = node.InX * sx, InY = node.InY * sy,
+                        OutX = node.OutX * sx, OutY = node.OutY * sy,
+                    };
+                }
             // The axis a stroke was painted under is a place on the paper too
             // (B379): left behind, the mark's points sat at the new scale while
             // the centre it reflects about stayed at the old one, and the copy
@@ -286,12 +427,14 @@ public static class ImageResize
                 wrap.Height *= sy;
             }
 
-            // Size and TextureScale are the only two brush settings in
-            // document pixels. Spacing, smudge length and radius, minimum
-            // diameter and every jitter are fractions of one of them and
-            // therefore already scale.
+            // Size and TextureScale are the brush's own settings in document
+            // pixels; a medium's paper grain is the third, and ScaleMedium
+            // has it. Spacing, smudge length and radius, minimum diameter and
+            // every jitter are fractions of one of them and therefore already
+            // scale.
             stroke.Brush.Size *= mark;
             stroke.Brush.TextureScale *= mark;
+            ScaleMedium(stroke.Brush, mark);
 
             if (stroke.Baked is { PngBase64.Length: > 0 } baked)
             {
