@@ -99,7 +99,7 @@ public static class ImageResize
     /// for exactly what the document already is.</returns>
     public static bool Apply(
         Doc doc, int newWidth, int newHeight, IPixelResampler resampler, int? ppi = null,
-        Func<string, string, bool>? effectLengths = null)
+        Func<string, string, double?>? effectLengths = null)
     {
         var scene = doc.Scene;
         if (newWidth < 1 || newHeight < 1) return false;
@@ -288,6 +288,10 @@ public static class ImageResize
         // registry's to say — Core does not render and does not know — so the
         // caller passes it in, and with no word nothing is touched. A length
         // points anywhere, so it takes the mark's one factor, keys and all.
+        // What the caller answers is the least the length may be scaled down
+        // to (Q262): an effect that stops working below a radius of two is not
+        // shrunk through it. Nothing stops a length growing — a slider's end
+        // is the slider's, and the renderer takes any size.
         if (effectLengths is not null)
         {
             ScaleEffects(scene.Effects, effectLengths, mark);
@@ -341,16 +345,22 @@ public static class ImageResize
     }
 
     private static void ScaleEffects(
-        Lightbox.Core.Effects.EffectStack? stack, Func<string, string, bool> isLength, double mark)
+        Lightbox.Core.Effects.EffectStack? stack, Func<string, string, double?> leastOf, double mark)
     {
         if (stack is null) return;
         foreach (var use in stack.Uses)
             foreach (var (key, param) in use.Params)
             {
-                if (!isLength(use.Kind, key)) continue;
-                param.Value *= mark;
+                if (leastOf(use.Kind, key) is not { } least) continue;
+                param.Value = Scaled(param.Value);
                 if (param.Keys is { } keys)
-                    foreach (var k in keys) k.Value *= mark;
+                    foreach (var k in keys) k.Value = Scaled(k.Value);
+
+                // Stopped at the least only when the resize is what would take
+                // it through: a value a file already had below it is scaled
+                // like any other, not quietly raised.
+                double Scaled(double value) =>
+                    value >= least && value * mark < least ? least : value * mark;
             }
     }
 

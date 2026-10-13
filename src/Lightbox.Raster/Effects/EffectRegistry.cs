@@ -612,8 +612,22 @@ public static class EffectRegistry
     /// an image resize scales (B466). False for an effect this build does not
     /// know: a guess would be a wrong one.
     /// </summary>
-    public static bool IsLength(string kind, string key) =>
-        Resolve(kind) is { } definition && definition.Params.Any(p => p.Key == key && p.Length);
+    public static bool IsLength(string kind, string key) => LengthFloor(kind, key) is not null;
+
+    /// <summary>
+    /// What an image resize is told about a parameter: null when it is not a
+    /// length, and otherwise the least it may be scaled down to — the
+    /// parameter's own minimum, which is there because the effect stops
+    /// working below it (find edges and sharpen need a radius of two; under
+    /// that the blur beneath them does nothing). Q262.
+    /// </summary>
+    public static double? LengthFloor(string kind, string key)
+    {
+        if (Resolve(kind) is not { } definition) return null;
+        foreach (var param in definition.Params)
+            if (param.Key == key) return param.Length ? param.Min : null;
+        return null;
+    }
 
     /// <summary>Every definition, for the picker, shelf-tagged.</summary>
     public static IReadOnlyCollection<EffectDefinition> All => ByKind.Values;

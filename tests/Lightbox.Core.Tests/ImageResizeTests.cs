@@ -936,11 +936,13 @@ public class ImageResizeTests
     }
 
     /// <summary>The lengths of the three effects these tests use, as the registry declares them.</summary>
-    private static bool KnownLengths(string kind, string key) => (kind, key) switch
+    /// <remarks>The answer is the least a length may be scaled down to; null means "not a length".</remarks>
+    private static double? KnownLengths(string kind, string key) => (kind, key) switch
     {
-        ("blur.gaussian", "radius") => true,
-        ("style.dropShadow", "distance" or "size") => true,
-        _ => false,
+        ("blur.gaussian", "radius") => 0,
+        ("style.dropShadow", "distance" or "size") => 0,
+        ("detail.edges", "radius") => 2,
+        _ => null,
     };
 
     private static EffectUse Use(string kind, params (string Key, double Value)[] values) => new()
@@ -987,6 +989,43 @@ public class ImageResizeTests
         Assert.Equal(5 * mark, shadow["size"].Value, 9);
         Assert.Equal(120, shadow["angle"].Value);
         Assert.Equal(75, shadow["opacity"].Value);
+    }
+
+    [Fact]
+    public void AShrunkLengthStopsAtTheLeastItsEffectWorksAt()
+    {
+        // Q262. Find edges needs a radius of two: below it the blur underneath
+        // does nothing, and the layer renders as a flat white shape with every
+        // line gone. Halving the image would take a radius of 2 to 1, and of
+        // 3 to 1.5; both stop at 2. A length above the least still scales
+        // exactly, and nothing stops one growing past its slider's end.
+        var doc = DocWithAStroke(out _);
+        var animated = Use("detail.edges", ("radius", 6));
+        animated.Params["radius"].Keys = [new EffectKey { Frame = 0, Value = 3 }, new EffectKey { Frame = 8, Value = 10 }];
+        doc.Scene.Effects = new EffectStack { Uses = [Use("detail.edges", ("radius", 2)), animated, Use("blur.gaussian", ("radius", 80))] };
+
+        ImageResize.Apply(doc, 480, 270, new FakeResampler(), effectLengths: KnownLengths);
+
+        Assert.Equal(2, doc.Scene.Effects.Uses[0].Params["radius"].Value);
+        Assert.Equal(3, doc.Scene.Effects.Uses[1].Params["radius"].Value);
+        Assert.Equal([2.0, 5.0], doc.Scene.Effects.Uses[1].Params["radius"].Keys!.Select(k => k.Value));
+        Assert.Equal(40, doc.Scene.Effects.Uses[2].Params["radius"].Value);
+
+        ImageResize.Apply(doc, 1920, 1080, new FakeResampler(), effectLengths: KnownLengths);
+        Assert.Equal(160, doc.Scene.Effects.Uses[2].Params["radius"].Value);
+    }
+
+    [Fact]
+    public void ALengthAlreadyBelowTheLeastIsNotRaisedByAResize()
+    {
+        // The floor stops a resize pushing a working effect below where it
+        // works. It does not rewrite a value a file already had there.
+        var doc = DocWithAStroke(out _);
+        doc.Scene.Effects = new EffectStack { Uses = [Use("detail.edges", ("radius", 1))] };
+
+        ImageResize.Apply(doc, 480, 270, new FakeResampler(), effectLengths: KnownLengths);
+
+        Assert.Equal(0.5, doc.Scene.Effects.Uses[0].Params["radius"].Value);
     }
 
     [Fact]

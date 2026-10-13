@@ -86,7 +86,10 @@ said "default" — clearing it goes back to the six-pixel default. The paper
 grain of a simulated medium (watercolour, gouache, oil) grows with it; the
 grain of a flat brush does not. Layer and scene effects keep their look against
 the drawing: a blur's radius, a shadow's distance and softness, a glow's
-size and a style's stroke width all scale with it. The
+size and a style's stroke width all scale with it. Enlarging can take one
+past the end of its slider — a blur of 80 doubled is 160 — and the effects
+window shows and keeps that number. Shrinking stops a radius at the least its
+effect works at, so find edges and sharpen never go below two. The
 one thing that does not follow is a **camera**: its keys move with the drawing
 but keep their zoom, so after an enlargement every shot frames a smaller part
 of the drawing and wants re-keying. An edit you had open — a line you were

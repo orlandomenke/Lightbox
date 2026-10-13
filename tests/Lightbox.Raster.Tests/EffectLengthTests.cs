@@ -76,5 +76,13 @@ public class EffectLengthTests
         Assert.True(EffectRegistry.IsLength("blur.gaussian", "radius"));
         Assert.False(EffectRegistry.IsLength("style.dropShadow", "angle"));
         Assert.False(EffectRegistry.IsLength("future.ripple", "radius"));
+
+        // What a resize is told: the least a length may be scaled down to
+        // (Q262), and nothing at all for a number that is not a length.
+        Assert.Equal(0, EffectRegistry.LengthFloor("blur.gaussian", "radius"));
+        Assert.Equal(2, EffectRegistry.LengthFloor("detail.edges", "radius"));
+        Assert.Equal(2, EffectRegistry.LengthFloor("detail.sharpen", "radius"));
+        Assert.Null(EffectRegistry.LengthFloor("detail.sharpen", "amount"));
+        Assert.Null(EffectRegistry.LengthFloor("future.ripple", "radius"));
     }
 }
