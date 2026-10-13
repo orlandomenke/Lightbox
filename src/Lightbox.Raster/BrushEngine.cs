@@ -277,6 +277,16 @@ public static class BrushEngine
             {
                 using var owned = SampledSource(stroke, targetPixels, backdrop, info);
                 var read = owned ?? targetPixels;
+                if (stroke.Brush.Wet is not null)
+                {
+                    // A rewetting brush (Q255): the same reading of the layer as
+                    // it was, and a result that is a function of it and of where
+                    // the brush went - so a draft and a commit are one render.
+                    WithHardClip(
+                        target, stroke, draft ? 1.0 : outputScale, origin,
+                        () => StampWet(target, read, stroke, draft ? 1.0 : outputScale, origin, draft ? draftDabs : null));
+                    return;
+                }
                 if (draft)
                 {
                     // Whole-stroke dabs, so densification and spacing are the commit's (B54). A
@@ -6720,6 +6730,31 @@ public static class BrushEngine
         fidelity <= 1 || alpha <= 0 || alpha >= 1
             ? alpha
             : 1 - Math.Pow(1 - alpha, 1.0 / fidelity);
+
+    /// <summary>
+    /// A rewetting stroke, whole: the rectangle its dabs cover, rendered by
+    /// <see cref="WetBleed"/> from the layer as it was and laid in its place.
+    /// </summary>
+    private static void StampWet(
+        SKCanvas target, SKBitmap pixels, Stroke stroke, double outputScale, SKPointI origin, IReadOnlyList<Dab>? dabs)
+    {
+        var walk = dabs ?? WalkDabs(stroke);
+        var region = WetBleed.Bounds(walk, 0, walk.Count, stroke.Brush, pixels.Width, pixels.Height, outputScale, origin);
+        if (region.Width <= 0 || region.Height <= 0) return;
+        using var result = new SKBitmap(new SKImageInfo(region.Width, region.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        WetBleed.Render(
+            pixels.GetPixelSpan(), pixels.Width, pixels.Height, pixels.RowBytes, walk, stroke.Brush, region,
+            result.GetPixelSpan(), outputScale, origin);
+        using var paint = new SKPaint { BlendMode = SKBlendMode.Src };
+        target.DrawBitmap(result, region.Left, region.Top, paint);
+    }
+
+    /// <summary>Hardness after the pressure response, for <see cref="WetBleed"/>.</summary>
+    internal static float HardnessOf(BrushSettings brush, double pressure) => HardnessAt(brush, pressure);
+
+    /// <summary>How much of its flow a touch at this pressure has: what makes a rewetting brush wetter when pressed.</summary>
+    internal static double WetnessOfPressure(BrushSettings brush, double pressure) =>
+        PressureResponse.Factor(brush, BrushDynamic.Flow, pressure);
 
     /// <summary>Dab-edge hardness after the pressure response (light pressure = softer edge).</summary>
     private static float HardnessAt(BrushSettings brush, double pressure) =>
