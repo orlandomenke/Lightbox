@@ -15,7 +15,17 @@ public sealed record InbetweenRequest(
     IReadOnlyList<string>? ReferenceImages = null,
     SubjectTaxonomy? Taxonomy = null,
     IReadOnlyList<RefusedFrame>? Repair = null,
-    IReadOnlyList<AcceptedFrame>? Settled = null);
+    IReadOnlyList<AcceptedFrame>? Settled = null,
+    string? Direction = null,
+    IReadOnlyList<AcceptedFrame>? Earlier = null,
+    IReadOnlyList<AcceptedFrame>? Fixed = null);
+
+// Q261. Direction is the artist's own note, sent in their words. Earlier and
+// Fixed make a request a revision: Earlier is the model's own drawing at each
+// requested t, to be redrawn; Fixed is AI frames between the same keys that
+// stay as they are, so the redraw sits smoothly among them. Fixed is kept apart
+// from Settled on purpose — the repair loop rewrites Settled on every re-ask,
+// and the artist's choice of what to keep must survive that.
 
 /// <summary>
 /// A frame from an earlier attempt that passed and is now fixed — context for

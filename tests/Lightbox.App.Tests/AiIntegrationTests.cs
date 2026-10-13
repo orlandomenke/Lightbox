@@ -23,6 +23,9 @@ internal sealed class FakeArtist : IAiArtist
     public AiResult<SubjectTaxonomy>? SubjectResult { get; set; }
     public InbetweenRequest? LastInbetweenRequest { get; private set; }
     public int InbetweenCalls { get; private set; }
+
+    /// <summary>Runs while a request is out — for tests about what the artist does meanwhile.</summary>
+    public Action? OnRequest { get; set; }
     public SubjectRequest? LastSubjectRequest { get; private set; }
 
     public Task<AiResult<List<InbetweenFrameResult>>> GenerateInbetweensAsync(
@@ -30,6 +33,7 @@ internal sealed class FakeArtist : IAiArtist
     {
         LastInbetweenRequest = request;
         InbetweenCalls++;
+        OnRequest?.Invoke();
         if (InbetweenAnswers.Count > 0) return Task.FromResult(InbetweenAnswers.Dequeue());
         return Task.FromResult(InbetweenResult
             ?? AiResult<List<InbetweenFrameResult>>.Error("unscripted", false));

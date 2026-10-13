@@ -43,6 +43,28 @@ public class AiProvenanceTests
     }
 
     [Fact]
+    public void AnArtistsNoteIsKeptWithTheFramesItProduced()
+    {
+        // Q261: the direction an AI frame was drawn under, so the artist can
+        // later see what was asked.
+        var doc = DocWithOneStroke();
+        doc.Scene.Layers[0].Cels[0].Frame!.Ai = new AiProvenance("Claude", Note: "Let the arm lead.");
+
+        var restored = DocJson.Deserialize(DocJson.Serialize(doc));
+
+        Assert.Equal("Let the arm lead.", restored.Scene.Layers[0].Cels[0].Frame!.Ai!.Note);
+    }
+
+    [Fact]
+    public void ProvenanceWithoutANoteWritesNoNoteKey()
+    {
+        var doc = DocWithOneStroke();
+        doc.Scene.Layers[0].Cels[0].Frame!.Ai = new AiProvenance("Claude", "claude-opus-5");
+
+        Assert.DoesNotContain("\"note\"", DocJson.Serialize(doc));
+    }
+
+    [Fact]
     public void ProvenanceWithoutAModelWritesNoModelKey()
     {
         // Optional has two halves: the block is absent when unused, and the
