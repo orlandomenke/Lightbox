@@ -229,10 +229,11 @@ public class MergeKeepsStrokesTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AFillUnderAnEraserStillFlattens()
+    public void AFillUnderAnEraserIsNotCutAndKeepsItsEraser()
     {
         // A fill is an area, and an area with a bite out of it is not a list of
-        // shorter fills. That drawing keeps the exact answer: pixels.
+        // shorter fills. That drawing keeps the exact answer — once pixels, now
+        // its own strokes, eraser included, in a group (Q265).
         var fill = new Stroke
         {
             Tool = ToolKind.Fill,
@@ -244,11 +245,13 @@ public class MergeKeepsStrokesTests(ITestOutputHelper output)
 
         LayerMerge.MergeDown(TestScene(), upper, lower, EraserMerge.KeepStrokes);
 
-        Assert.True(lower.Cels[0].Frame!.HasBaseline);
+        var frame = lower.Cels[0].Frame!;
+        Assert.False(frame.HasBaseline);
+        Assert.Equal([ToolKind.Fill, ToolKind.Eraser], frame.Strokes[^1].Group!.Strokes.Select(s => s.Tool));
     }
 
     [Fact]
-    public void ABlendModeStillFlattensWhateverWasChosenForErasers()
+    public void ABlendModeStillNeedsAGroupWhateverWasChosenForErasers()
     {
         var lower = LayerOf(Bar(60, "#ff0000"));
         var upper = LayerOf(Bar(120, "#0000ff"));
@@ -256,11 +259,13 @@ public class MergeKeepsStrokesTests(ITestOutputHelper output)
 
         LayerMerge.MergeDown(TestScene(), upper, lower, EraserMerge.KeepStrokes);
 
-        Assert.True(lower.Cels[0].Frame!.HasBaseline);
+        var frame = lower.Cels[0].Frame!;
+        Assert.False(frame.HasBaseline);
+        Assert.Equal(LayerBlendMode.Multiply, frame.Strokes[^1].Group!.Blend);
     }
 
     [Fact]
-    public void FlattenIsStillTheDefaultAndStillExact()
+    public void ExactIsStillTheDefault()
     {
         var lower = LayerOf(Bar(60, "#ff0000"));
         var upper = LayerOf(Bar(120, "#0000ff"), EraserDown(100));
@@ -268,7 +273,10 @@ public class MergeKeepsStrokesTests(ITestOutputHelper output)
 
         LayerMerge.MergeDown(TestScene(), upper, lower);
 
-        Assert.True(lower.Cels[0].Frame!.HasBaseline);
+        // Exact, and no longer pixels: the erasers stay, in a group.
+        var frame = lower.Cels[0].Frame!;
+        Assert.False(frame.HasBaseline);
+        Assert.Contains(frame.Strokes[^1].Group!.Strokes, s => s.Tool == ToolKind.Eraser);
         using var actual = Render(lower);
         Assert.True(expected.Bytes.AsSpan().SequenceEqual(actual.Bytes));
     }

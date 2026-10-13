@@ -1640,9 +1640,25 @@ public partial class MainViewModel
                     // a moved erasure leaves a stay copy where it was still holding
                     // rubbed-out ink down, so erased strokes outside the selection
                     // do not come back (the ghost the preview split also guards).
-                    if (filter is null) TransformOps.TransformFrame(frame, map, sizeScale, null, travel.Carry, mover);
-                    else TransformErasures.TransformFrame(
-                        frame, map, sizeScale, filter, split?.For(frame), travel.Carry, mover);
+                    // Q265: a group's stored pixels are a baseline one level
+                    // in, resampled by whatever resamples the drawing's own.
+                    Action<Frame>? pixels = baselineResample is not null
+                        ? baselineResample
+                        : !baselineMatrix.IsIdentity ? held => ResampleBaseline(held, baselineMatrix) : null;
+                    if (filter is null)
+                    {
+                        TransformOps.TransformFrame(frame, map, sizeScale, null, travel.Carry, mover);
+                        if (pixels is not null) StrokeGroups.ResamplePixels(frame.Strokes, pixels);
+                    }
+                    else
+                    {
+                        // Under a selection only the half of a cut group that
+                        // travelled is resampled; the half that stayed is the
+                        // picture it was.
+                        TransformErasures.TransformFrame(
+                            frame, map, sizeScale, filter, split?.For(frame), travel.Carry, mover,
+                            pixels is null ? null : s => StrokeGroups.ResamplePixels([s], pixels));
+                    }
                     // Raster baselines resample once per commit; a region-limited
                     // transform moves strokes only (baseline pixels stay put).
                     // Identity means "there is no matrix for this transform" — a

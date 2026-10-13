@@ -47,6 +47,12 @@ public enum TileFallbackReason
     /// isolation and backdrop.
     /// </summary>
     Effects,
+
+    /// <summary>
+    /// The frame holds a group (Q265) — a merged layer kept as strokes, drawn
+    /// on a surface of its own that a single tile does not hold.
+    /// </summary>
+    Group,
 }
 
 /// <summary>
@@ -119,6 +125,9 @@ public static class TileFallback
         // carry painted weights on a layer nobody rigged, and a rigged layer
         // moves strokes that carry no weights of their own.
         if (posed || frame.HasBoundStrokes) return TileFallbackReason.BoundStrokes;
+        // Asked first, because CanTile refuses a group too and would name it
+        // as a smudge — sending the artist to look for a stroke that is not there.
+        if (Lightbox.Core.Documents.StrokeGroups.Any(frame.Strokes)) return TileFallbackReason.Group;
         if (!TiledRasterizer.CanTile(frame.Strokes)) return TileFallbackReason.EffectStroke;
         return TileFallbackReason.None;
     }
@@ -132,6 +141,7 @@ public static class TileFallback
         TileFallbackReason.Baseline => "frames carry imported or flattened pixels",
         TileFallbackReason.Placements => "frames place symbols",
         TileFallbackReason.EffectStroke => "frames contain smudge, blur or colour-mixing strokes",
+        TileFallbackReason.Group => "frames hold a merged drawing kept as a group",
         TileFallbackReason.BoundStrokes => "frames contain strokes bound to the rig",
         TileFallbackReason.LiveEffect => "a smudge, blur or colour-mixing stroke was in flight",
         TileFallbackReason.Shaped => "layers carry a mask or clip to another",

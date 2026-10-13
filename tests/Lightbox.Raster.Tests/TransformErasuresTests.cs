@@ -133,6 +133,151 @@ public class TransformErasuresTests(ITestOutputHelper output)
         return mask;
     }
 
+    // ---- Q265: a group under a region ------------------------------------------
+
+    private static Stroke Group(params Stroke[] strokes) => new()
+    {
+        Tool = ToolKind.Group,
+        Group = new StrokeGroup { Strokes = [.. strokes] },
+    };
+
+    [Fact]
+    public void ARegionOverAGroupsInkCatchesTheGroup()
+    {
+        // The entry has no points of its own. Judged by them, a selection
+        // drawn straight over a merged drawing found nothing to move — where
+        // the pixels a merge used to leave would have moved.
+        var group = Group(Line(30, 50, 70, 50));
+        var elsewhere = Group(Line(120, 150, 170, 150));
+
+        var moving = TransformErasures.MovingWithin([group, elsewhere], MaskColumn(200, 200, 20, 80), 200, 200);
+
+        Assert.Equal([0], moving);
+    }
+
+    [Fact]
+    public void InkAGroupErasedInsideItselfIsNotThere()
+    {
+        // Rule three, inside the group: its own eraser took the line, so no
+        // region can mean it.
+        var group = Group(Line(30, 50, 70, 50), Line(-40, 50, 110, 50, ToolKind.Eraser));
+
+        var moving = TransformErasures.MovingWithin([group], MaskColumn(200, 200, 20, 80), 200, 200);
+
+        Assert.Empty(moving);
+    }
+
+    [Fact]
+    public void AGroupPartlyInsideARegionCrossesIt()
+    {
+        var mask = MaskColumn(200, 200, 20, 80);
+        var straddling = Group(Line(30, 50, 70, 50), Line(120, 50, 170, 50));
+        var within = Group(Line(30, 50, 70, 50), Line(30, 70, 70, 70));
+        var reading = new TransformErasures.RegionReading([straddling, within], mask, 200, 200);
+
+        Assert.True(reading.Crosses(straddling));
+        Assert.False(reading.Crosses(within));
+    }
+
+    [Fact]
+    public void AGroupCutByARegionMovesItsInsideAndLeavesItsOutside()
+    {
+        // What flattened pixels did under a selection, kept as strokes: two
+        // copies of the group under complementary clips, as a single stroke
+        // the region cuts through becomes two.
+        ClipRegionRegistry.Register("q265_in", new ClipRegion
+        {
+            Contours = [[new(0, 0, 1), new(100, 0, 1), new(100, 100, 1), new(0, 100, 1)]],
+        });
+        ClipRegionRegistry.Register("q265_out", new ClipRegion
+        {
+            Contours = [[new(100, 0, 1), new(300, 0, 1), new(300, 100, 1), new(100, 100, 1)]],
+        });
+        // Carried to where the moving half lands.
+        ClipRegionRegistry.Register("q265_in_moved", new ClipRegion
+        {
+            Contours = [[new(0, 100, 1), new(100, 100, 1), new(100, 200, 1), new(0, 200, 1)]],
+        });
+        var inner = Line(20, 50, 180, 50);
+        var group = Group(inner);
+        var frame = new Frame { Strokes = [group] };
+        TransformOps.PointMap down = (x, y) => (x, y + 100);
+
+        var moved = TransformErasures.TransformFrame(
+            frame, down, 1, s => ReferenceEquals(s, group),
+            split: _ => new TransformErasures.RegionClips("q265_in_moved", "q265_out"));
+
+        Assert.Equal(1, moved);
+        Assert.Equal(2, frame.Strokes.Count);
+        Assert.Equal("q265_out", frame.Strokes[0].ClipId);
+        Assert.Equal("q265_in_moved", frame.Strokes[1].ClipId);
+        Assert.Equal(50, frame.Strokes[0].Group!.Strokes[0].Points[0].Y);
+        Assert.Equal(150, frame.Strokes[1].Group!.Strokes[0].Points[0].Y);
+
+        using var bmp = FrameRasterizer.Rasterize(frame.Strokes, 300, 200);
+        var (leftOld, rightOld) = (bmp.GetPixel(50, 50).Alpha, bmp.GetPixel(150, 50).Alpha);
+        var (leftNew, rightNew) = (bmp.GetPixel(50, 150).Alpha, bmp.GetPixel(150, 150).Alpha);
+        output.WriteLine($"old row: left {leftOld}, right {rightOld}; new row: left {leftNew}, right {rightNew}");
+        Assert.Equal(0, leftOld);          // the part inside the region left
+        Assert.True(rightOld > 200);       // the part outside it stayed
+        Assert.True(leftNew > 200);        // and arrived
+        Assert.Equal(0, rightNew);         // without bringing the rest along
+    }
+
+    [Fact]
+    public void TheBoxRoundADrawingWrapsWhatIsInsideItsGroups()
+    {
+        // The handles go round this box, and a drawing with no box is refused
+        // as "nothing to transform". A merged drawing that is one group
+        // measured as empty by its own (absent) points.
+        var page = new SKRect(0, 0, 300, 300);
+        var rubbed = Line(200, 200, 260, 200);
+        var group = Group(
+            Line(30, 50, 70, 50),
+            Group(Line(100, 120, 140, 120)),
+            rubbed,
+            Line(190, 200, 270, 200, ToolKind.Eraser));
+        group.Group!.Strokes[3].Brush.Size = 30;
+
+        var whole = VisibleDrawingBounds.Of([new Frame { Strokes = [group] }], null, page);
+        var caught = VisibleDrawingBounds.Of([new Frame { Strokes = [group] }], s => ReferenceEquals(s, group), page);
+        var missed = VisibleDrawingBounds.Of([new Frame { Strokes = [group] }], _ => false, page);
+
+        output.WriteLine($"whole {whole}, caught {caught}");
+        // Brush size 10: five either side of the points. The line the group's
+        // own eraser took is not in the box.
+        Assert.Equal(new SKRect(25, 45, 145, 125), whole);
+        Assert.Equal(whole, caught);
+        Assert.Null(missed);
+    }
+
+    [Fact]
+    public void AGroupHoldingPixelsIsAsBigAsThePage()
+    {
+        var page = new SKRect(0, 0, 300, 300);
+        var group = Group();
+        group.Group!.PngBase64 = "AAAA";
+
+        Assert.Equal(page, VisibleDrawingBounds.Of([new Frame { Strokes = [group] }], null, page));
+    }
+
+    [Fact]
+    public void AClipAStrokeInsideAGroupAlreadyHadTravelsWithIt()
+    {
+        var inner = Line(20, 50, 80, 50);
+        inner.ClipId = "inner-clip";
+        var group = Group(inner);
+        var frame = new Frame { Strokes = [group] };
+
+        TransformErasures.TransformFrame(
+            frame, MoveRight, 1, s => ReferenceEquals(s, group),
+            split: _ => new TransformErasures.RegionClips("moved", "stayed"),
+            mapClip: id => id + "-carried");
+
+        Assert.Equal("inner-clip", frame.Strokes[0].Group!.Strokes[0].ClipId);
+        Assert.Equal("inner-clip-carried", frame.Strokes[1].Group!.Strokes[0].ClipId);
+    }
+
     [Fact]
     public void AWhollyErasedStrokeIsNeverCaughtByARegion()
     {

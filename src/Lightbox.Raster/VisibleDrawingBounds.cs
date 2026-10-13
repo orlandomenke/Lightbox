@@ -96,33 +96,7 @@ public static class VisibleDrawingBounds
                 ink.Take(pixels.Left, pixels.Top, pixels.Right, pixels.Bottom);
             }
 
-            var strokes = frame.Strokes;
-            var erasures = StrokePicker.ErasurePositions(strokes);
-            for (var i = 0; i < strokes.Count; i++)
-            {
-                var stroke = strokes[i];
-                if (filter is not null && !filter(stroke)) continue;
-
-                // A gradient covers the layer wherever its axis points sit, so
-                // the axis is not its extent. The same special case it gets
-                // everywhere else that asks a gradient where it is.
-                if (stroke.Tool == ToolKind.Gradient)
-                {
-                    ink.Take(page.Left, page.Top, page.Right, page.Bottom);
-                    continue;
-                }
-
-                // An erasure is kept apart rather than counted or dropped —
-                // see the fallback below for why it is neither.
-                if (IsErasure(stroke))
-                {
-                    Pad(stroke, stroke.Points, ref rubs);
-                    continue;
-                }
-
-                var surviving = SurvivingPoints(strokes, erasures, i);
-                if (surviving.Count > 0) Pad(stroke, surviving, ref ink);
-            }
+            Measure(frame.Strokes, filter, page, ref ink, ref rubs);
         }
 
         // The box wraps what you can see. When the only thing moving is a rub,
@@ -134,6 +108,51 @@ public static class VisibleDrawingBounds
         // erasures unconditionally.
         if (ink.Any) return ink.Rect;
         return rubs.Any ? rubs.Rect : null;
+    }
+
+    /// <summary>One stroke list's visible ink, and its rubs kept apart.</summary>
+    private static void Measure(
+        List<Stroke> strokes, Func<Stroke, bool>? filter, SKRect page, ref Box ink, ref Box rubs)
+    {
+        var erasures = StrokePicker.ErasurePositions(strokes);
+        for (var i = 0; i < strokes.Count; i++)
+        {
+            var stroke = strokes[i];
+            if (filter is not null && !filter(stroke)) continue;
+
+            // A group is as big as what is visible inside it (Q265): measured
+            // as a drawing of its own, so its erasers take ink out of the box
+            // as they do on the page. Its own rubs are never the subject —
+            // they act on the group and nothing else — so they are dropped.
+            // The filter chose the group, and everything in it comes along.
+            if (stroke.Group is { } group)
+            {
+                if (!string.IsNullOrEmpty(group.PngBase64)) ink.Take(page.Left, page.Top, page.Right, page.Bottom);
+                var inner = new Box();
+                Measure(group.Strokes, null, page, ref ink, ref inner);
+                continue;
+            }
+
+            // A gradient covers the layer wherever its axis points sit, so
+            // the axis is not its extent. The same special case it gets
+            // everywhere else that asks a gradient where it is.
+            if (stroke.Tool == ToolKind.Gradient)
+            {
+                ink.Take(page.Left, page.Top, page.Right, page.Bottom);
+                continue;
+            }
+
+            // An erasure is kept apart rather than counted or dropped —
+            // see the fallback below for why it is neither.
+            if (IsErasure(stroke))
+            {
+                Pad(stroke, stroke.Points, ref rubs);
+                continue;
+            }
+
+            var surviving = SurvivingPoints(strokes, erasures, i);
+            if (surviving.Count > 0) Pad(stroke, surviving, ref ink);
+        }
     }
 
     /// <summary>

@@ -70,8 +70,10 @@ public class LayerMergeVmTests
         var vm = UpperLayerHasAnEraser();
 
         Assert.True(vm.MergeErasersDecide(null));
-        Assert.True(vm.MergeWouldBake(null));                                         // flattened, today's answer
-        Assert.False(vm.MergeWouldBake(null, Lightbox.Raster.EraserMerge.KeepStrokes)); // or kept as strokes
+        // Neither answer makes pixels any more (Q265): kept with its erasers
+        // in a group, or cut into plain strokes.
+        Assert.False(vm.MergeWouldBake(null));
+        Assert.False(vm.MergeWouldBake(null, Lightbox.Raster.EraserMerge.KeepStrokes));
     }
 
     [AvaloniaFact]
@@ -98,13 +100,16 @@ public class LayerMergeVmTests
     }
 
     [AvaloniaFact]
-    public void FlatteningIsStillWhatHappensUnlessAsked()
+    public void TheExactAnswerIsStillWhatHappensUnlessAsked()
     {
         var vm = UpperLayerHasAnEraser();
 
         vm.MergeLayerDown(null);
 
-        Assert.True(Assert.Single(vm.Doc.Scene.Layers).Cels[0].Frame!.HasBaseline);
+        // Exact, and no longer pixels: the erasers stay with their drawing.
+        var merged = Assert.Single(vm.Doc.Scene.Layers).Cels[0].Frame!;
+        Assert.False(merged.HasBaseline);
+        Assert.Contains(merged.Strokes, s => s.Group is { } g && g.Strokes.Exists(c => c.Tool == ToolKind.Eraser));
     }
 
     [AvaloniaFact]
@@ -162,8 +167,8 @@ public class LayerMergeVmTests
         var vm = VmLayers.BareVm();
         try
         {
-            vm.MergeErasersPreference = Lightbox.Raster.EraserMerge.Flatten;
-            Assert.Equal(Lightbox.Raster.EraserMerge.Flatten, vm.MergeErasersPreference);
+            vm.MergeErasersPreference = Lightbox.Raster.EraserMerge.Group;
+            Assert.Equal(Lightbox.Raster.EraserMerge.Group, vm.MergeErasersPreference);
 
             vm.MergeErasersPreference = null;     // "ask every time"
             Assert.Null(vm.MergeErasersPreference);
@@ -191,15 +196,29 @@ public class LayerMergeVmTests
     }
 
     [AvaloniaFact]
-    public void MergeWouldBake_SeesTheUpperLayersOpacity()
+    public void AMergeCarriesTheUpperLayersOpacityInAGroup()
     {
         var vm = TwoDrawnLayers();
         vm.ActiveLayerOpacity = 50;
-        Assert.True(vm.MergeWouldBake(null));
+        Assert.False(vm.MergeWouldBake(null));
 
         vm.MergeActiveLayerDownCommand.Execute(null);
         Assert.Single(vm.Doc.Scene.Layers);
-        Assert.True(((Frame)vm.Doc.Scene.Layers[0].Cels[0].Frame!).HasBaseline);
+        var merged = (Frame)vm.Doc.Scene.Layers[0].Cels[0].Frame!;
+        Assert.False(merged.HasBaseline);
+        Assert.Equal(0.5, merged.Strokes[^1].Group!.Opacity);
+    }
+
+    [AvaloniaFact]
+    public void MergeWouldBake_SeesWhatADrawingCannotCarry()
+    {
+        // The Q52 warning still has something to warn about: a symbol placed
+        // on a drawing that needs a group.
+        var vm = TwoDrawnLayers();
+        vm.ActiveLayerOpacity = 50;
+        ((Frame)vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame!).Placements = [new SymbolPlacement { SymbolId = "none" }];
+
+        Assert.True(vm.MergeWouldBake(null));
     }
 
     [AvaloniaFact]

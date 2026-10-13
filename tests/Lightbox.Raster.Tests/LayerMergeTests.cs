@@ -85,7 +85,7 @@ public class LayerMergeTests
     }
 
     [Fact]
-    public void UpperBlendMode_Bakes_AndRenderMatchesTheComposite()
+    public void UpperBlendMode_IsKeptInAGroup_AndRenderMatchesTheComposite()
     {
         var scene = TestScene();
         // Overlapping bars, so the blend actually changes pixels.
@@ -94,17 +94,18 @@ public class LayerMergeTests
         upper.BlendMode = LayerBlendMode.Multiply;
         using var expected = Composite(lower, upper, 0);
 
-        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        Assert.False(LayerMerge.WouldBakePixels(upper, lower));
         LayerMerge.MergeDown(scene, upper, lower);
 
         var frame = (Frame)lower.Cels[0].Frame!;
-        Assert.True(frame.HasBaseline);
-        Assert.Empty(frame.Strokes);
+        Assert.False(frame.HasBaseline);
+        Assert.Equal(2, frame.Strokes.Count);
+        Assert.Equal(LayerBlendMode.Multiply, frame.Strokes[1].Group!.Blend);
         AssertRendersIdentically(expected, lower, 0);
     }
 
     [Fact]
-    public void UpperOpacity_Bakes_AndRenderMatchesTheComposite()
+    public void UpperOpacity_IsKeptInAGroup_AndRenderMatchesTheComposite()
     {
         var scene = TestScene();
         var lower = LayerOf(Key(Bar(100, "#2040c0")));
@@ -112,15 +113,15 @@ public class LayerMergeTests
         upper.Opacity = 0.5;
         using var expected = Composite(lower, upper, 0);
 
-        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        Assert.False(LayerMerge.WouldBakePixels(upper, lower));
         LayerMerge.MergeDown(scene, upper, lower);
 
-        Assert.True(((Frame)lower.Cels[0].Frame!).HasBaseline);
+        Assert.False(((Frame)lower.Cels[0].Frame!).HasBaseline);
         AssertRendersIdentically(expected, lower, 0);
     }
 
     [Fact]
-    public void UpperEraser_Bakes_SoItCannotStartEatingTheLowerLayer()
+    public void UpperEraser_IsKeptInAGroup_SoItCannotStartEatingTheLowerLayer()
     {
         var scene = TestScene();
         var lower = LayerOf(Key(Bar(100, "#2040c0")));
@@ -129,11 +130,11 @@ public class LayerMergeTests
         var upper = LayerOf(Key(Bar(100, "#c02040"), Bar(100, "#000000", ToolKind.Eraser)));
         using var expected = Composite(lower, upper, 0);
 
-        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        Assert.False(LayerMerge.WouldBakePixels(upper, lower));
         LayerMerge.MergeDown(scene, upper, lower);
 
         var frame = (Frame)lower.Cels[0].Frame!;
-        Assert.True(frame.HasBaseline);
+        Assert.False(frame.HasBaseline);
         AssertRendersIdentically(expected, lower, 0);
         // The blue bar survived where the eraser crossed it — the proof the
         // eraser did not leak downward.
@@ -142,7 +143,7 @@ public class LayerMergeTests
     }
 
     [Fact]
-    public void UpperBlur_Bakes_SoItCannotStartBlurringTheLowerLayer()
+    public void UpperBlur_IsKeptInAGroup_SoItCannotStartBlurringTheLowerLayer()
     {
         // B469. A blur stroke softens whatever is under it. On its own layer
         // this one passed over nothing at y=100; appended after the lower
@@ -157,10 +158,10 @@ public class LayerMergeTests
         var upper = LayerOf(Key(Bar(40, "#c02040"), blur));
         using var expected = Composite(lower, upper, 0);
 
-        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        Assert.False(LayerMerge.WouldBakePixels(upper, lower));
         LayerMerge.MergeDown(scene, upper, lower);
 
-        Assert.True(((Frame)lower.Cels[0].Frame!).HasBaseline);
+        Assert.False(((Frame)lower.Cels[0].Frame!).HasBaseline);
         AssertRendersIdentically(expected, lower, 0);
     }
 
@@ -234,7 +235,7 @@ public class LayerMergeTests
     }
 
     [Fact]
-    public void AMaskedUpperLayerBakesWithItsMaskApplied()
+    public void AMaskedUpperLayerMergesWithItsMaskApplied()
     {
         // The upper bar runs 20..180; its mask covers 20..90 — so the merged
         // drawing carries the bar's left span and nothing of its right.
@@ -244,7 +245,7 @@ public class LayerMergeTests
         upper.Mask = new LayerMask();
         upper.Mask.Frame.Strokes.Add(LeftCover(120));
 
-        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        Assert.False(LayerMerge.WouldBakePixels(upper, lower));
         LayerMerge.MergeDown(scene, upper, lower);
 
         using var merged = Render(lower, 0);
@@ -254,17 +255,17 @@ public class LayerMergeTests
     }
 
     [Fact]
-    public void AMaskedLowerLayerBakesItsMaskAndClearsIt()
+    public void AMaskedLowerLayerCarriesItsMaskIntoTheDrawingsAndClearsIt()
     {
-        // Even the frames the upper layer never touches are baked — the merge
-        // clears the mask, so a cleared mask must already be in the pixels.
+        // Even the drawings the upper layer never touches carry it — the merge
+        // clears the mask, so a cleared mask must already be in each of them.
         var scene = TestScene();
         var lower = LayerOf(Key(Bar(60, "#2040c0")));
         lower.Mask = new LayerMask();
         lower.Mask.Frame.Strokes.Add(LeftCover(60));
         var upper = LayerOf(Key(Bar(120, "#c02040")));
 
-        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        Assert.False(LayerMerge.WouldBakePixels(upper, lower));
         LayerMerge.MergeDown(scene, upper, lower);
 
         Assert.Null(lower.Mask);
@@ -275,7 +276,7 @@ public class LayerMergeTests
     }
 
     [Fact]
-    public void AClippedUpperLayerBakesCarvedToTheLowersContent()
+    public void AClippedUpperLayerMergesCarvedToTheLowersContent()
     {
         // The bars cross only where both have ink (same row): the clipped
         // upper survives on the lower's bar and vanishes off it.
@@ -284,7 +285,7 @@ public class LayerMergeTests
         var upper = LayerOf(Key(Bar(100, "#c02040")), Key(Bar(40, "#c02040")));
         upper.ClipToBelow = true;
 
-        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        Assert.False(LayerMerge.WouldBakePixels(upper, lower));
         LayerMerge.MergeDown(scene, upper, lower);
 
         using var first = Render(lower, 0);
@@ -381,7 +382,7 @@ public class LayerMergeTests
     }
 
     [Fact]
-    public void AMergeBakesALiveEffectStackIntoThePixels()
+    public void AMergeCarriesALiveEffectStackIntoTheDrawing()
     {
         // B286: the pair used to merge by concatenation, and the upper
         // layer's filter vanished with the layer. Output-white 0 crushes the
@@ -391,11 +392,11 @@ public class LayerMergeTests
         var upper = LayerOf(Key(Bar(50, "#ffffff")));
         upper.Effects = StackOf("grade.levels", ("outWhite", 0));
 
-        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        Assert.False(LayerMerge.WouldBakePixels(upper, lower));
         LayerMerge.MergeDown(scene, upper, lower);
 
         var frame = (Frame)lower.Cels[0].Frame!;
-        Assert.True(frame.HasBaseline);
+        Assert.False(frame.HasBaseline);
         using var merged = Render(lower, 0);
         var graded = merged.GetPixel(100, 50);
         Assert.True(graded.Alpha > 200 && graded.Red < 10,
@@ -404,7 +405,7 @@ public class LayerMergeTests
     }
 
     [Fact]
-    public void AMergeBakesLayerStylesIntoThePixels()
+    public void AMergeCarriesLayerStylesIntoTheDrawing()
     {
         // The lower layer's own glow, baked by the same pipeline the
         // compositor runs (content → filter → carve → style), and the stack
@@ -422,16 +423,16 @@ public class LayerMergeTests
         lower.Mask.Frame.Strokes.Add(LeftCover(100)); // keeps x 20..90ish
         var upper = LayerOf(Hold());
 
-        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        Assert.False(LayerMerge.WouldBakePixels(upper, lower));
         LayerMerge.MergeDown(scene, upper, lower);
 
-        Assert.Null(lower.Effects); // baked, so cleared — like a baked mask
+        Assert.Null(lower.Effects); // in the drawing now, so cleared — like the mask
         Assert.Null(lower.Mask);
         var frame = (Frame)lower.Cels[0].Frame!;
-        Assert.True(frame.HasBaseline);
+        Assert.False(frame.HasBaseline);
         using var merged = Render(lower, 0);
         var halo = merged.GetPixel(50, 78); // above the kept span
-        Assert.True(halo.Alpha > 10, $"the glow is in the pixels now, got {halo}");
+        Assert.True(halo.Alpha > 10, $"the glow is in the drawing now, got {halo}");
         Assert.True(merged.GetPixel(50, 100).Alpha > 200, "the kept span survives");
         // The carved-away span must not glow: the style read the carved
         // silhouette. A style-before-carve bake leaves a halo here.

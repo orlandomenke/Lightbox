@@ -49,8 +49,18 @@ public static class StrokeRecordCleaner
     private const int Samples = 32;
     private const double RadiusSlack = 1.05;
 
+    /// <remarks>
+    /// <b>A group is read as the strokes inside it (Q265).</b> A merged layer's
+    /// drawing sits in one entry of the record with no points of its own; sent
+    /// as it stands it would reach a model as an empty brush stroke and the
+    /// line art it holds as nothing. So each group is replaced, in place, by
+    /// its own effective strokes — its erasers applied to its strokes and to
+    /// nothing else, which is all they ever reached — and the erasures that
+    /// come after the group in this record then apply to those like any others.
+    /// </remarks>
     public static List<Stroke> EffectiveStrokes(IReadOnlyList<Stroke> record)
     {
+        record = ThroughGroups(record);
         var result = new List<Stroke>();
         for (var i = 0; i < record.Count; i++)
         {
@@ -69,6 +79,28 @@ public static class StrokeRecordCleaner
             }
         }
         return result;
+    }
+
+    /// <summary>The record with each group replaced by what is effectively inside it.</summary>
+    private static IReadOnlyList<Stroke> ThroughGroups(IReadOnlyList<Stroke> record)
+    {
+        var grouped = false;
+        foreach (var stroke in record)
+        {
+            if (stroke.Group is null) continue;
+            grouped = true;
+            break;
+        }
+        // Nearly every drawing: the record itself, and no copy of it.
+        if (!grouped) return record;
+
+        var flat = new List<Stroke>(record.Count);
+        foreach (var stroke in record)
+        {
+            if (stroke.Group is { } group) flat.AddRange(EffectiveStrokes(group.Strokes));
+            else flat.Add(stroke);
+        }
+        return flat;
     }
 
     /// <summary>Fraction of the stroke's resampled points lying inside any eraser's swept area.</summary>

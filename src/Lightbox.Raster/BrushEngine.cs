@@ -254,7 +254,8 @@ public static class BrushEngine
         if (stroke.Group is { } group)
         {
             StrokeGroupRenderer.Stamp(
-                target, group, info, targetPixels, draft ? 1.0 : outputScale, backdrop, origin, window, frameIndex);
+                target, stroke, group, info, targetPixels, draft ? 1.0 : outputScale, backdrop, origin, window,
+                frameIndex);
             return;
         }
 
@@ -674,7 +675,7 @@ public static class BrushEngine
     /// rasterises sharp at whatever <paramref name="outputScale"/> asks for;
     /// its feather is a physical width and scales with it.
     /// </summary>
-    private static void ApplyClip(
+    internal static void ApplyClip(
         SKCanvas scratchCanvas, Stroke stroke, SKImageInfo local, SKRectI dev, double outputScale,
         SKPointI origin)
     {

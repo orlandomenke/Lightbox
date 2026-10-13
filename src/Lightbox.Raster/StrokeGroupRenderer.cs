@@ -38,8 +38,13 @@ internal static class StrokeGroupRenderer
     /// same picture); one with another blend lands unclipped, because the
     /// carve has nothing to read.
     /// </param>
+    /// <param name="entry">
+    /// The stroke that holds the group. Its <see cref="Stroke.ClipId"/> is the
+    /// selection the group is confined to — set when a region-limited
+    /// transform cut it in two, as it does a single stroke.
+    /// </param>
     public static void Stamp(
-        SKCanvas target, StrokeGroup group, SKImageInfo info, SKBitmap? targetPixels,
+        SKCanvas target, Stroke entry, StrokeGroup group, SKImageInfo info, SKBitmap? targetPixels,
         double outputScale, SKBitmap? backdrop, SKPointI origin, SKRectI? window, int frameIndex)
     {
         if (group.Strokes.Count == 0 && string.IsNullOrEmpty(group.PngBase64)) return;
@@ -80,6 +85,16 @@ internal static class StrokeGroupRenderer
             blend = SKBlendMode.SrcATop;
         }
         LayerMerge.ApplyFilter(scratch, Effects.EffectRegistry.StyleFor(effects, frameIndex, (float)outputScale));
+        if (entry.ClipId is not null)
+        {
+            // Last, over the finished result: a selection cuts what is on the
+            // page, styles and all — the pixels a flattened drawing would have
+            // had there.
+            using var canvas = new SKCanvas(scratch);
+            BrushEngine.ApplyClip(
+                canvas, entry, scaled, SKRectI.Create(0, 0, scaled.Width, scaled.Height), outputScale, origin);
+            canvas.Flush();
+        }
 
         using var paint = new SKPaint
         {

@@ -378,34 +378,57 @@ It walks the exposure sheet drawing by drawing: where both layers hold, the
 merged layer holds, so animating on 2s survives a merge. Where either layer
 keys a new drawing, the merged layer gets one combined drawing.
 
-**Your strokes survive wherever the merge can be exact without pixels.** Two
-plain drawings merge by keeping both stroke records, still editable and still
-readable by the AI inbetweener. What cannot stay strokes is flattened to
-pixels instead, so the merge always looks exactly like the two layers did:
+**Your strokes survive a merge.** Two plain drawings merge by keeping both
+stroke records as one list, still editable line by line. Where that alone would
+change the picture, the drawing being merged keeps its strokes together as a
+**group** inside the merged drawing, and the group carries what its layer did:
 
-- a blend mode or opacity on the layer being merged — it is applied into the
-  pixels, the way merging in Photoshop applies it;
-- erasers or clear-regions on it — kept as strokes they would start erasing
-  the lower layer's marks, which they never touched. **This one is your
+- a blend mode or opacity on the layer being merged;
+- a mask on it, a clip onto the layer below, or layer effects;
+- erasers or clear-regions on it — as loose strokes they would start erasing
+  the lower layer's marks, which they never touched. **Here you have a
   choice** — see below;
-- alpha-locked, smudge or blur strokes, and imported pixels — all of them read
-  what is underneath, and "underneath" changes when the layers become one.
+- alpha-locked, smudge, blur or colour-mixing strokes, and imported pixels —
+  all of them read what is underneath, and "underneath" changes when the
+  layers become one.
 
-The decision is per drawing, not per layer: one blended drawing does not cost
-the other eleven their strokes. When AI assistance is on and a merge would
-flatten any drawing, Lightbox asks first, because a flattened drawing is one
-the inbetweener can no longer read. As in Photoshop, a blend mode is applied
-against the layer directly below — if it was interacting with layers deeper
-in the stack, that part of its look can shift.
+A group is drawn the way its layer was: its strokes on their own, then put onto
+the drawing through the blend, opacity, mask and effects it carries. So the
+merge looks exactly as the two layers did, nothing has been turned into a
+picture, and the AI inbetweener still reads every line. A mask or effects on
+the *lower* layer move into a group around that layer's drawings the same way,
+and come off the layer — left on it, they would start applying to the drawing
+that was merged in.
 
-**Erasing no longer has to mean pixels.** A line drawing nearly always has
-erasing in it, so flattening those would mean merging line art costs you the
-line art. When erasing is the only thing in the way, Lightbox asks which you
-want:
+The decision is per drawing, not per layer: one blended drawing does not put
+the other eleven in groups. As in Photoshop, a blend mode lands against the
+layer directly below — if it was interacting with layers deeper in the stack,
+that part of its look can shift.
 
-- **Keep strokes.** Each line is cut where you erased it and the erasers are
-  dropped, the way an eraser works in a vector program. The drawing stays
-  strokes: you can still reshape it and the AI inbetweener can still read it.
+**What a group can do.** It moves, scales, rotates and resizes with its
+drawing. Under a selection, the part of it inside the selection moves and the
+rest stays, cut at the selection's edge. Whatever you draw or erase afterwards
+lands on top of it, so erasing on a merged drawing erases all of it. Onion
+skin, motion trails and the inbetweener all see the lines inside it.
+
+*Planned:* picking, reshaping or recolouring a single line inside a group, and
+**Split group**, which puts a group back on a layer of its own. Until then,
+undo is the way back from a merge, and a line inside a group cannot be picked
+on its own. If you want every line loose after the merge, merge plain layers,
+or choose **Cut the lines** below.
+
+**A document that holds a group needs a Lightbox that knows groups.** An older
+version will refuse to open it — with a blunt message about a stroke kind it
+cannot read — rather than open it with the merged drawing missing. Documents
+with no group in them are saved exactly as before and open anywhere.
+
+**Erasing: cut the lines, or keep the erasers.** A line drawing nearly always
+has erasing in it. When erasing is the only thing standing between a drawing
+and plain strokes, Lightbox asks which you want:
+
+- **Cut the lines.** Each line is cut where you erased it and the erasers are
+  dropped, the way an eraser works in a vector program. The drawing becomes
+  plain strokes: every line can still be picked and reshaped on its own.
   It is *nearly* exact rather than exact. A soft or half-strength eraser becomes
   a clean cut. Each piece stops where its own round end would first touch what
   you erased, so ink does not come back into the gap, and the corners of a cut
@@ -416,29 +439,44 @@ want:
   measured on three real merges it was 0.00%, 0.11% and 0.27% of the painted
   pixels — and it grows with the width of the brush: 2.7% on a deliberately
   hard case, a 24-pixel line under a 30-pixel eraser.
-- **Flatten to pixels.** Exactly what the two layers looked like, as a picture.
+- **Keep the erasers, in a group.** Exactly what the two layers looked like:
+  the drawing keeps its strokes and its erasers together as a group.
 
 Tick **Remember this choice** and it stops asking; **Edit ▸ Configure ▸
 Drawing** shows the remembered answer and "Ask every time" takes it back. With
-a remembered answer, Ctrl+E simply uses it.
+a remembered answer, Ctrl+E simply uses it; with none, it keeps the erasers.
 
-A drawing still flattens whatever you choose when something else needs it — a
-blend mode, opacity, a clip, an alpha-locked or smudge stroke — or when cutting
-would not give the picture you had:
+A drawing goes into a group whatever you choose when something else needs
+one — a blend mode, opacity, a clip, an alpha-locked or smudge stroke — or when
+cutting would not give the picture you had:
 
 - the erasing reaches something that is not a plain painted line — a fill, a
   gradient, text, a blur or a wet-media stroke;
 - you erased inside a selection, which confined the eraser to it;
 - the eraser, or a line it might have crossed, was drawn with symmetry or
-  tile wrap, so its mirrored copies matter too.
+  tile wrap, so its mirrored copies matter too;
+- the drawing already holds a group from an earlier merge.
 
-Those drawings get the exact answer, pixels, and the others on the same layer
-still keep their strokes.
+Those drawings keep their erasers, and the others on the same layer are still
+cut.
 
-Merging a masked or clipped layer applies the mask and the clip into the
-merged pixels, so the result looks exactly as the pair did; a mask on the
-lower layer is applied and removed by the merge, since it is now in the
-drawing itself.
+**The few drawings a merge still turns into pixels** are the ones shaped by
+something that is not theirs to carry:
+
+- a drawing kept inside a **folder's shape** — the shape is the other layers
+  in the folder;
+- a drawing with a **placed symbol** on it, when it would otherwise need a
+  group — a symbol is placed on a drawing, not in its stroke list, so it would
+  slip out from under the blend or mask;
+- a layer **clipped onto a layer that has effects** — the clip follows the
+  lower layer's drawing, and inside a merged drawing it would follow the
+  blurred or glowing result instead;
+- a smudge or blur set to read **all layers, live** — "all layers" included
+  the one it is being merged into.
+
+When AI assistance is on and a merge would do that to any drawing, Lightbox
+asks first, because a flattened drawing is one the inbetweener can no longer
+read.
 
 ### Masking a layer
 

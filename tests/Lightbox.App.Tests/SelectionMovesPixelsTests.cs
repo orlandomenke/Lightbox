@@ -182,8 +182,124 @@ public sealed class SelectionMovesPixelsTests(ITestOutputHelper output) : BrushS
     }
 
     /// <summary>
-    /// A merge that had to bake (the upper layer at half opacity) leaves a
-    /// layer that is pixels; a lasso over it moves what it holds.
+    /// A merge of a layer at half opacity used to bake, leaving a layer that
+    /// was pixels; a lasso over it moved what it held. Since Q265 the merged
+    /// drawing keeps its strokes in a group — and a lasso over it must still
+    /// move what it holds, cut at the selection's edge, or keeping the strokes
+    /// cost the artist something the pixels could do.
+    /// </summary>
+    [AvaloniaFact]
+    public void ALassoOverAMergedGroupMovesWhatIsInsideAndLeavesTheRest()
+    {
+        var vm = VmLayers.BareVm();
+        vm.SmoothStrokes = false;
+        vm.BrushHardness = 1;
+        vm.BrushOpacity = 1;
+        vm.BrushFlow = 1;
+        vm.BrushSize = 20;
+        while (vm.Doc.Scene.Layers.Count(l => l.Cels.Count > 0) < 2) vm.AddPaintedLayerCommand.Execute(null);
+        var layers = vm.Doc.Scene.Layers;
+        var painted = Enumerable.Range(0, layers.Count).Where(i => layers[i].Cels.Count > 0).ToList();
+        int lower = painted[^2], upper = painted[^1];
+        vm.ActiveLayerIndex = lower;
+        vm.ColorHex = "#0000ff";
+        vm.BeginStroke(100, 400, 1);
+        vm.MoveStroke(340, 400, 1);
+        vm.EndStroke();
+        // One line on the upper layer, running through the lasso and out of it.
+        vm.ActiveLayerIndex = upper;
+        vm.ColorHex = "#ff0000";
+        vm.BeginStroke(100, 120, 1);
+        vm.MoveStroke(340, 120, 1);
+        vm.EndStroke();
+        layers[upper].Opacity = 0.5;
+        Assert.False(vm.MergeWouldBake(layers[upper]));
+        vm.MergeLayerDown(layers[upper]);
+        var merged = vm.ActiveLayerIndex;
+        var frame = (Frame)layers[merged].Cels[0].Frame!;
+        Assert.False(frame.HasBaseline);
+        Assert.Contains(frame.Strokes, s => s.Group is not null);
+        var before = At(vm, merged, 120, 120);
+
+        vm.ActiveTool = ToolId.Select;
+        LassoTheLeftSquare(vm);
+        Assert.True(vm.BeginTransform(), vm.AiStatus);
+        // The preview is built from the split the commit writes: dragged, the
+        // canvas shows the inside part at the new spot and the rest where it was.
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+        vm.PreviewTransform(SKMatrix.CreateTranslation(0, 200));
+        vm.PublishSnapshot();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(latest);
+        using (var shown = SKBitmap.FromImage(latest!.Image))
+        {
+            output.WriteLine($"preview: old spot {shown.GetPixel(120, 120)}, new spot {shown.GetPixel(120, 320)}, outside {shown.GetPixel(300, 120)}");
+            Assert.True(shown.GetPixel(120, 320).Red > shown.GetPixel(120, 320).Blue + 40, "the preview does not show the group moving");
+            Assert.True(shown.GetPixel(300, 120).Red > shown.GetPixel(300, 120).Blue + 40, "the preview lost the part outside the lasso");
+        }
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 0, 200);
+
+        var (old, moved, rest) = (At(vm, merged, 120, 120), At(vm, merged, 120, 320), At(vm, merged, 300, 120));
+        output.WriteLine($"merged group: was {before}; old spot {old}, new spot {moved}, outside the lasso {rest}");
+        Assert.Equal(before, moved);            // the half-opacity red arrived as it was
+        Assert.Equal(0, old.Alpha);             // and left
+        Assert.Equal(before, rest);             // the part outside the lasso stayed
+        Assert.Equal(0, At(vm, merged, 300, 320).Alpha);
+        // Still strokes: two groups under complementary clips, as a single
+        // stroke the lasso cuts through becomes two.
+        var after = (Frame)vm.Doc.Scene.Layers[merged].Cels[0].Frame!;
+        Assert.False(after.HasBaseline);
+        Assert.Equal(2, after.Strokes.Count(s => s.Group is not null));
+    }
+
+    /// <summary>
+    /// A group can hold pixels of its own — an imported picture merged down
+    /// with a blend. They are a baseline one level in, and a transform has to
+    /// resample them as it does a drawing's.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PixelsInsideAGroupMoveWithIt(bool underASelection)
+    {
+        var (vm, upper) = Imported();
+        var layers = vm.Doc.Scene.Layers;
+        vm.AddPaintedLayerCommand.Execute(null);
+        layers = vm.Doc.Scene.Layers;
+        var top = vm.ActiveLayerIndex;
+        // The imported squares go on the new top layer, at Multiply, over a
+        // lower layer that has a drawing of its own.
+        layers[top].Cels[0].Frame = layers[upper].Cels[0].Frame;
+        layers[upper].Cels[0].Frame = new Frame
+        {
+            Strokes = [new Stroke { Color = "#ffffff", Points = [new(0, 400, 1), new(500, 400, 1)], Brush = new BrushSettings { Size = 10 } }],
+        };
+        vm.ActiveLayerIndex = top;
+        Assert.False(vm.MergeWouldBake(layers[top]));
+        vm.MergeLayerDown(layers[top]);
+        var merged = vm.ActiveLayerIndex;
+        var frame = (Frame)layers[merged].Cels[0].Frame!;
+        Assert.False(frame.HasBaseline);
+        Assert.Contains(frame.Strokes, s => s.Group is { PngBase64.Length: > 0 });
+
+        vm.ActiveTool = ToolId.Select;
+        if (underASelection) LassoTheLeftSquare(vm);
+        Assert.True(vm.BeginTransform(), vm.AiStatus);
+        vm.CommitTransformAffine(0, 0, 1, 1, 0, 0, 200);
+
+        output.WriteLine($"left square: old {At(vm, merged, 120, 120)}, new {At(vm, merged, 120, 320)}; "
+            + $"right square: old {At(vm, merged, 320, 120)}, new {At(vm, merged, 320, 320)}");
+        Assert.True(At(vm, merged, 120, 320).Alpha > 200, "the group's pixels did not move");
+        Assert.Equal(0, At(vm, merged, 120, 120).Alpha);
+        // Under the lasso only the left square was inside it.
+        Assert.Equal(underASelection, At(vm, merged, 320, 120).Alpha > 200);
+        Assert.Equal(!underASelection, At(vm, merged, 320, 320).Alpha > 200);
+    }
+
+    /// <summary>
+    /// The few merges that still bake leave a layer that is pixels; a lasso
+    /// over it moves what it holds. (A layer clipped onto one with effects.)
     /// </summary>
     [AvaloniaFact]
     public void ALassoOverABakedMergeMovesWhatIsInside()
@@ -208,7 +324,10 @@ public sealed class SelectionMovesPixelsTests(ITestOutputHelper output) : BrushS
         vm.BeginStroke(300, 120, 1);
         vm.MoveStroke(340, 120, 1);
         vm.EndStroke();
+        // A symbol placed on a drawing that needs a group is one of the cases
+        // a drawing cannot carry with it (docs/DESIGN-stroke-groups.md).
         layers[upper].Opacity = 0.5;
+        ((Frame)layers[upper].Cels[0].Frame!).Placements = [new SymbolPlacement { SymbolId = "none" }];
         Assert.True(vm.MergeWouldBake(layers[upper]));
         vm.MergeLayerDown(layers[upper]);
         var merged = vm.ActiveLayerIndex;

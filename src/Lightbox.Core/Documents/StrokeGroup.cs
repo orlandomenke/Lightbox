@@ -74,8 +74,21 @@ public sealed class StrokeGroup
     {
         var copy = (StrokeGroup)MemberwiseClone();
         copy.Strokes = Strokes.Select(s => s.Clone(newIds)).ToList();
-        copy.Mask = Mask?.Clone(newIds ? null : f => f.Clone());
+        copy.Mask = Mask?.Clone(newIds ? Fresh : f => f.Clone());
         copy.Effects = Effects?.Clone();
+        return copy;
+    }
+
+    /// <summary>
+    /// A mask's drawing copied as a new drawing: its own id, and its strokes'.
+    /// <see cref="Frame.Clone"/> keeps ids, which is right for a snapshot and
+    /// wrong for a duplicate — ids key caches across the document.
+    /// </summary>
+    private static Frame Fresh(Frame frame)
+    {
+        var copy = frame.Clone();
+        copy.Id = new Frame().Id;
+        for (var i = 0; i < copy.Strokes.Count; i++) copy.Strokes[i] = copy.Strokes[i].Clone();
         return copy;
     }
 }

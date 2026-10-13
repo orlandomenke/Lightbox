@@ -421,8 +421,8 @@ public partial class ConfigureWindow : Window
     private static readonly (string Label, Lightbox.Raster.EraserMerge? Choice)[] MergeErasersChoices =
     [
         ("Ask every time", null),
-        ("Keep strokes", Lightbox.Raster.EraserMerge.KeepStrokes),
-        ("Flatten to pixels", Lightbox.Raster.EraserMerge.Flatten),
+        ("Cut the lines", Lightbox.Raster.EraserMerge.KeepStrokes),
+        ("Keep the erasers, in a group", Lightbox.Raster.EraserMerge.Group),
     ];
 
     private bool _loadingMergeErasers;

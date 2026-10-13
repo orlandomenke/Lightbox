@@ -56,6 +56,66 @@ public class StrokeRecordCleanerTests
         Assert.Same(s2, result[1]);
     }
 
+    // ---- Q265: a merged drawing is read through its groups ----------------------
+
+    private static Stroke Group(params Stroke[] strokes) => new()
+    {
+        Tool = ToolKind.Group,
+        Group = new StrokeGroup { Strokes = [.. strokes] },
+    };
+
+    [Fact]
+    public void AGroupIsReadAsTheStrokesInsideIt()
+    {
+        // Sent as it stands, a group reaches a model as one "brush" stroke
+        // with no points — and the merged line art it holds as nothing.
+        var below = Line(0, 10, 100, 10);
+        var inner = Line(0, 50, 100, 50);
+        var innermost = Line(0, 70, 100, 70);
+        var after = Line(0, 90, 100, 90);
+
+        var result = StrokeRecordCleaner.EffectiveStrokes([below, Group(inner, Group(innermost)), after]);
+
+        Assert.Equal([below, inner, innermost, after], result);
+        Assert.DoesNotContain(result, s => s.Tool == ToolKind.Group);
+    }
+
+    [Fact]
+    public void AnEraserInsideAGroupErasesOnlyInsideIt()
+    {
+        // The same line drawn on both layers; the upper layer rubbed its own
+        // out. The lower one is still on the page.
+        var below = Line(10, 50, 90, 50);
+        var above = Line(10, 50, 90, 50);
+        var eraser = Line(5, 50, 95, 50, size: 20, tool: ToolKind.Eraser);
+
+        var result = StrokeRecordCleaner.EffectiveStrokes([below, Group(above, eraser)]);
+
+        Assert.Same(below, Assert.Single(result));
+    }
+
+    [Fact]
+    public void AnEraserAfterAGroupErasesWhatIsInsideIt()
+    {
+        // Drawn after the merge, it acts on the whole drawing.
+        var below = Line(10, 20, 90, 20);
+        var inner = Line(10, 50, 90, 50);
+        var eraser = Line(5, 50, 95, 50, size: 20, tool: ToolKind.Eraser);
+
+        var result = StrokeRecordCleaner.EffectiveStrokes([below, Group(inner), eraser]);
+
+        Assert.Same(below, Assert.Single(result));
+    }
+
+    [Fact]
+    public void ADrawingWithNoGroupIsReadExactlyAsBefore()
+    {
+        var a = Line(0, 10, 100, 10);
+        var b = Line(0, 90, 100, 90);
+
+        Assert.Equal([a, b], StrokeRecordCleaner.EffectiveStrokes([a, b]));
+    }
+
     // ---- B233: a cleared region is an erasure too -----------------------------
 
     /// <summary>A square emptied out of the drawing — the "clear selection" stroke.</summary>
