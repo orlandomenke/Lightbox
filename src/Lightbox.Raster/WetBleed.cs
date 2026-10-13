@@ -43,6 +43,7 @@ namespace Lightbox.Raster;
 /// </remarks>
 public static class WetBleed
 {
+
     /// <summary>How far past its dabs a stroke can change a pixel: nothing, the water is where the brush was.</summary>
     public static SKRectI Bounds(
         IReadOnlyList<BrushEngine.Dab> dabs, int from, int to, BrushSettings brush, int width, int height,
@@ -88,7 +89,7 @@ public static class WetBleed
     public static void Render(
         ReadOnlySpan<byte> pre, int width, int height, int rowBytes,
         IReadOnlyList<BrushEngine.Dab> dabs, BrushSettings brush, SKRectI region, Span<byte> dest,
-        double scale = 1.0, SKPointI origin = default)
+        double scale = 1.0, SKPointI origin = default, Spread? spread = null)
     {
         var wet = brush.Wet ?? new WetSettings();
         region = SKRectI.Intersect(region, new SKRectI(0, 0, width, height));
@@ -117,18 +118,36 @@ public static class WetBleed
             var strength = (float)(flow * BrushEngine.WetnessOfPressure(brush, d.Pressure));
             if (strength <= 0) continue;
             touched = true;
+            // Only the pixels inside the disc, and a square root only in its soft
+            // band: the solid middle is the same value everywhere.
+            var r2 = radius * radius;
+            var solid = hardness * radius;
+            var solid2 = solid * solid;
             for (var y = y0; y <= y1; y++)
             {
                 var dy = (y + 0.5) - cy;
+                var dy2 = dy * dy;
+                if (dy2 >= r2) continue;
+                var half = Math.Sqrt(r2 - dy2);
+                int xa = Math.Max(x0, (int)Math.Floor(cx - half - 0.5)), xb = Math.Min(x1, (int)Math.Ceiling(cx + half - 0.5));
                 var row = (y - region.Top) * rw;
-                for (var x = x0; x <= x1; x++)
+                for (var x = xa; x <= xb; x++)
                 {
                     var dx = (x + 0.5) - cx;
-                    var t = Math.Sqrt((dx * dx) + (dy * dy)) / radius;
-                    if (t >= 1) continue;
-                    // Solid to the hardness, then a smooth fall to the rim.
-                    var f = t <= hardness ? 1.0 : 1 - ((t - hardness) / (1 - hardness));
-                    f = f * f * (3 - (2 * f));
+                    var d2 = (dx * dx) + dy2;
+                    if (d2 >= r2) continue;
+                    double f;
+                    if (d2 <= solid2)
+                    {
+                        f = 1;
+                    }
+                    else
+                    {
+                        // Solid to the hardness, then a smooth fall to the rim.
+                        var t = Math.Sqrt(d2) / radius;
+                        f = 1 - ((t - hardness) / (1 - hardness));
+                        f = f * f * (3 - (2 * f));
+                    }
                     var v = (float)f * strength;
                     var i = row + (x - region.Left);
                     if (v > mask[i]) mask[i] = v;
@@ -152,7 +171,8 @@ public static class WetBleed
         // 2. The spread: the layer blurred, over the rectangle.
         var k = SpreadRadius(brush, scale);
         var blurred = ArrayPool<byte>.Shared.Rent(rw * rh * 4);
-        Blur(pre, width, height, rowBytes, region, k, blurred);
+        (spread is { } kept && kept.Fits(width, height, k) ? kept : new Spread(width, height, k))
+            .Read(pre, rowBytes, region, blurred);
 
         // 3. One expression per pixel.
         var thin = (float)Math.Clamp(wet.Thin, 0, 1);
@@ -169,10 +189,14 @@ public static class WetBleed
                 brush.TextureSurface!.Value, Math.Max(1.5, brush.TextureScale * scale));
         }
         var cell = Math.Max(6.0, brush.Size * 0.45);
+        var coarse = new Octave(cell, 0x51ED27);
+        var fine = new Octave(cell * 0.37, 0x2C1B3D);
         for (var y = 0; y < rh; y++)
         {
             var src = pre.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), rw * 4);
             var docY = ((region.Top + y + 0.5) / scale) + origin.Y;
+            coarse.Row(docY);
+            fine.Row(docY);
             for (var x = 0; x < rw; x++)
             {
                 var i = (y * rw) + x;
@@ -185,7 +209,7 @@ public static class WetBleed
                 }
 
                 var docX = ((region.Left + x + 0.5) / scale) + origin.X;
-                var c = clouds > 0 ? Cloud(docX, docY, cell) : 0.5f;
+                var c = clouds > 0 ? Math.Clamp((coarse.At(docX) * 0.68f) + (fine.At(docX) * 0.32f), 0f, 1f) : 0.5f;
                 // Where water pooled the pigment is pushed out; beside a pool there is a little more.
                 var pool = Math.Clamp((c - 0.45f) * 2.2f, 0f, 1f);
                 var bank = Math.Clamp((0.45f - c) * 2.2f, 0f, 1f);
@@ -231,65 +255,73 @@ public static class WetBleed
     internal static int Cell(int k) => k >= 32 ? 8 : k >= 16 ? 4 : k >= 8 ? 2 : 1;
 
     /// <summary>
-    /// The layer blurred, over <paramref name="region"/>: averaged onto a grid
-    /// of <see cref="Cell"/>-pixel cells fixed to the layer's origin, three box
-    /// passes there, and read back between cell centres. It reads as far
-    /// outside the rectangle as that needs, and nothing where the layer ends.
-    /// Integer sums on the grid and one expression per pixel off it, so a
-    /// pixel's value does not depend on which rectangle it was computed as
-    /// part of.
+    /// The layer blurred, computed as it is asked for and kept: the layer is
+    /// averaged onto a grid of <see cref="Cell"/>-pixel cells fixed to its
+    /// origin, blurred there with three box passes, and read back between cell
+    /// centres. One of these lasts a stroke, since the layer it reads is the
+    /// layer as it was before the stroke and does not change while it is drawn.
     /// </summary>
-    private static void Blur(
-        ReadOnlySpan<byte> pre, int width, int height, int rowBytes, SKRectI region, int k, Span<byte> dest)
+    /// <remarks>
+    /// <para>
+    /// A pen event rewets a rectangle about the size of the brush, and its
+    /// spread reads three radii beyond that: at 200 px that was 375,000 pixels
+    /// read per event to render 45,000, and 16 ms. Kept in tiles of cells, each
+    /// pixel of the layer is read once in a stroke and each cell blurred once.
+    /// </para>
+    /// <para>
+    /// Integer sums on the grid, and each cell a function of the layer and of
+    /// where the cell is - never of which tile or which request it was computed
+    /// for. That is what makes a rectangle rendered alone the whole render there,
+    /// and a render through a kept one of these the same as a render without
+    /// (<c>WaterRewetsTests</c>).
+    /// </para>
+    /// </remarks>
+    public sealed class Spread
     {
-        int rw = region.Width, rh = region.Height;
-        if (k <= 0)
+        private const int Tile = 32;
+        private readonly int _width;
+        private readonly int _height;
+        private readonly int _k;
+        private readonly int _cell;
+        private readonly int _ks;
+        private readonly Dictionary<(int X, int Y), int[]> _coarse = [];
+        private readonly Dictionary<(int X, int Y), int[]> _blurred = [];
+
+        public Spread(int width, int height, int k)
         {
-            for (var y = 0; y < rh; y++)
-            {
-                pre.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), rw * 4).CopyTo(dest.Slice(y * rw * 4, rw * 4));
-            }
-            return;
+            _width = width;
+            _height = height;
+            _k = k;
+            _cell = WetBleed.Cell(k);
+            _ks = Math.Max(1, (int)Math.Round(k / (double)_cell));
         }
 
-        var d = Cell(k);
-        var ks = Math.Max(1, (int)Math.Round(k / (double)d));
-        // The cells the rectangle is read from (one beyond it each way, for the
-        // read-back between centres), and what three passes reach beyond those.
-        var margin = (ks * 3) + 1;
-        int gx = FloorDiv(region.Left, d) - 1 - margin, gy = FloorDiv(region.Top, d) - 1 - margin;
-        int gw = FloorDiv(region.Right - 1, d) + 1 + margin - gx + 1, gh = FloorDiv(region.Bottom - 1, d) + 1 + margin - gy + 1;
-        var a = ArrayPool<int>.Shared.Rent(gw * gh);
-        var b = ArrayPool<int>.Shared.Rent(gw * gh);
-        var window = (2 * ks) + 1;
-        var area = d * d;
-        for (var ch = 0; ch < 4; ch++)
+        /// <summary>Whether this was made for a layer of this size and this radius.</summary>
+        public bool Fits(int width, int height, int k) => width == _width && height == _height && k == _k;
+
+        /// <summary>How many cells have been blurred so far: the work done, for a test to bound.</summary>
+        public int CellsBlurred => _blurred.Count * Tile * Tile;
+
+        /// <summary>The blurred layer over <paramref name="region"/>, premultiplied RGBA, tightly packed.</summary>
+        public void Read(ReadOnlySpan<byte> pre, int rowBytes, SKRectI region, Span<byte> dest)
         {
-            // Each cell: the mean of the pixels under it, sixteen times over so
-            // the rounded divisions that follow lose nothing an eye could find.
-            for (var cy = 0; cy < gh; cy++)
+            int rw = region.Width, rh = region.Height;
+            if (_k <= 0)
             {
-                var py0 = (gy + cy) * d;
-                for (var cx = 0; cx < gw; cx++)
+                for (var y = 0; y < rh; y++)
                 {
-                    var px0 = (gx + cx) * d;
-                    var sum = 0;
-                    for (var y = Math.Max(0, py0); y < Math.Min(height, py0 + d); y++)
-                    {
-                        var line = pre.Slice(y * rowBytes, width * 4);
-                        for (var x = Math.Max(0, px0); x < Math.Min(width, px0 + d); x++) sum += line[(x * 4) + ch];
-                    }
-                    a[(cy * gw) + cx] = ((sum << 4) + (area >> 1)) / area;
+                    pre.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), rw * 4).CopyTo(dest.Slice(y * rw * 4, rw * 4));
                 }
+                return;
             }
 
-            for (var pass = 0; pass < 3; pass++)
-            {
-                BoxRows(a, b, gw, gh, ks, window);
-                BoxColumns(b, a, gw, gh, ks, window);
-            }
+            // The cells the rectangle reads back from: one beyond it each way.
+            var d = _cell;
+            int gx = FloorDiv(region.Left, d) - 1, gy = FloorDiv(region.Top, d) - 1;
+            int gw = FloorDiv(region.Right - 1, d) + 1 - gx + 1, gh = FloorDiv(region.Bottom - 1, d) + 1 - gy + 1;
+            var cells = ArrayPool<int>.Shared.Rent(gw * gh * 4);
+            Gather(pre, rowBytes, _blurred, blurredTile: true, gx, gy, gw, gh, cells);
 
-            // Read back between cell centres.
             for (var y = 0; y < rh; y++)
             {
                 var v = ((region.Top + y + 0.5) / d) - 0.5;
@@ -302,16 +334,110 @@ public static class WetBleed
                     var u = ((region.Left + x + 0.5) / d) - 0.5;
                     var ix = (int)Math.Floor(u);
                     var fx = (float)(u - ix);
-                    var c0 = ix - gx;
-                    var top = a[rowA + c0] + ((a[rowA + c0 + 1] - a[rowA + c0]) * fx);
-                    var bottom = a[rowB + c0] + ((a[rowB + c0 + 1] - a[rowB + c0]) * fx);
-                    var value = (top + ((bottom - top) * fy)) / 16f;
-                    dest[(((y * rw) + x) * 4) + ch] = (byte)Math.Clamp(value + 0.5f, 0f, 255f);
+                    var a = (rowA + (ix - gx)) * 4;
+                    var b = (rowB + (ix - gx)) * 4;
+                    var o = ((y * rw) + x) * 4;
+                    for (var ch = 0; ch < 4; ch++)
+                    {
+                        var top = cells[a + ch] + ((cells[a + 4 + ch] - cells[a + ch]) * fx);
+                        var bottom = cells[b + ch] + ((cells[b + 4 + ch] - cells[b + ch]) * fx);
+                        dest[o + ch] = (byte)Math.Clamp(((top + ((bottom - top) * fy)) / 16f) + 0.5f, 0f, 255f);
+                    }
+                }
+            }
+            ArrayPool<int>.Shared.Return(cells);
+        }
+
+        /// <summary>Copy a rectangle of cells out of the tiles that hold them, making the tiles it lacks.</summary>
+        private void Gather(
+            ReadOnlySpan<byte> pre, int rowBytes, Dictionary<(int X, int Y), int[]> tiles, bool blurredTile,
+            int gx, int gy, int gw, int gh, Span<int> into)
+        {
+            for (var ty = FloorDiv(gy, Tile); ty <= FloorDiv(gy + gh - 1, Tile); ty++)
+            {
+                for (var tx = FloorDiv(gx, Tile); tx <= FloorDiv(gx + gw - 1, Tile); tx++)
+                {
+                    if (!tiles.TryGetValue((tx, ty), out var tile))
+                    {
+                        tile = blurredTile ? BlurTile(pre, rowBytes, tx, ty) : AverageTile(pre, rowBytes, tx, ty);
+                        tiles[(tx, ty)] = tile;
+                    }
+                    int x0 = Math.Max(gx, tx * Tile), x1 = Math.Min(gx + gw, (tx + 1) * Tile);
+                    int y0 = Math.Max(gy, ty * Tile), y1 = Math.Min(gy + gh, (ty + 1) * Tile);
+                    for (var y = y0; y < y1; y++)
+                    {
+                        tile.AsSpan((((y - (ty * Tile)) * Tile) + (x0 - (tx * Tile))) * 4, (x1 - x0) * 4)
+                            .CopyTo(into.Slice((((y - gy) * gw) + (x0 - gx)) * 4, (x1 - x0) * 4));
+                    }
                 }
             }
         }
-        ArrayPool<int>.Shared.Return(a);
-        ArrayPool<int>.Shared.Return(b);
+
+        /// <summary>
+        /// A tile of cells, each the mean of the pixels under it - sixteen times
+        /// over, so the rounded divisions that follow lose nothing an eye could
+        /// find. Where the layer ends there is no paint, and that is read as none.
+        /// </summary>
+        private int[] AverageTile(ReadOnlySpan<byte> pre, int rowBytes, int tx, int ty)
+        {
+            var d = _cell;
+            var area = d * d;
+            var tile = new int[Tile * Tile * 4];
+            Span<int> sum = stackalloc int[4];
+            for (var cy = 0; cy < Tile; cy++)
+            {
+                var py0 = ((ty * Tile) + cy) * d;
+                if (py0 + d <= 0 || py0 >= _height) continue;
+                for (var cx = 0; cx < Tile; cx++)
+                {
+                    var px0 = ((tx * Tile) + cx) * d;
+                    if (px0 + d <= 0 || px0 >= _width) continue;
+                    sum.Clear();
+                    for (var y = Math.Max(0, py0); y < Math.Min(_height, py0 + d); y++)
+                    {
+                        var line = pre.Slice(y * rowBytes, _width * 4);
+                        for (var x = Math.Max(0, px0); x < Math.Min(_width, px0 + d); x++)
+                        {
+                            var o = x * 4;
+                            sum[0] += line[o]; sum[1] += line[o + 1]; sum[2] += line[o + 2]; sum[3] += line[o + 3];
+                        }
+                    }
+                    var at = ((cy * Tile) + cx) * 4;
+                    for (var ch = 0; ch < 4; ch++) tile[at + ch] = ((sum[ch] << 4) + (area >> 1)) / area;
+                }
+            }
+            return tile;
+        }
+
+        /// <summary>A tile of blurred cells: the averaged cells under it and three passes of reach around it, blurred, and the middle kept.</summary>
+        private int[] BlurTile(ReadOnlySpan<byte> pre, int rowBytes, int tx, int ty)
+        {
+            var margin = _ks * 3;
+            var side = Tile + (margin * 2);
+            var gathered = ArrayPool<int>.Shared.Rent(side * side * 4);
+            Gather(pre, rowBytes, _coarse, blurredTile: false, (tx * Tile) - margin, (ty * Tile) - margin, side, side, gathered);
+            var a = ArrayPool<int>.Shared.Rent(side * side);
+            var b = ArrayPool<int>.Shared.Rent(side * side);
+            var window = (2 * _ks) + 1;
+            var tile = new int[Tile * Tile * 4];
+            for (var ch = 0; ch < 4; ch++)
+            {
+                for (var i = 0; i < side * side; i++) a[i] = gathered[(i * 4) + ch];
+                for (var pass = 0; pass < 3; pass++)
+                {
+                    BoxRows(a, b, side, side, _ks, window);
+                    BoxColumns(b, a, side, side, _ks, window);
+                }
+                for (var y = 0; y < Tile; y++)
+                {
+                    for (var x = 0; x < Tile; x++) tile[(((y * Tile) + x) * 4) + ch] = a[((y + margin) * side) + x + margin];
+                }
+            }
+            ArrayPool<int>.Shared.Return(gathered);
+            ArrayPool<int>.Shared.Return(a);
+            ArrayPool<int>.Shared.Return(b);
+            return tile;
+        }
     }
 
     private static int FloorDiv(int value, int by) => (int)Math.Floor(value / (double)by);
@@ -352,33 +478,46 @@ public static class WetBleed
     }
 
     /// <summary>
-    /// Where water pools, 0..1, fixed to the document: two octaves of value
-    /// noise on a lattice of <paramref name="cell"/> pixels, hashed from the
-    /// lattice point. The same place is the same value in every stroke and on
-    /// every machine.
+    /// One octave of where water pools, 0..1, fixed to the document: value
+    /// noise on a lattice of cells hashed from the lattice point. The same
+    /// place is the same value in every stroke and on every machine. Walked a
+    /// row at a time, so the four corners are hashed when the pixel crosses
+    /// into a new cell and not at every pixel.
     /// </summary>
-    private static float Cloud(double x, double y, double cell)
+    private struct Octave(double cell, int salt)
     {
-        var coarse = Noise(x / cell, y / cell, 0x51ED27);
-        var fine = Noise(x / (cell * 0.37), y / (cell * 0.37), 0x2C1B3D);
-        return Math.Clamp((coarse * 0.68f) + (fine * 0.32f), 0f, 1f);
-    }
+        private int _y0;
+        private float _fy;
+        private int _x0 = int.MinValue;
+        private float _top0, _top1, _bottom0, _bottom1;
 
-    private static float Noise(double u, double v, int salt)
-    {
-        var x0 = (int)Math.Floor(u);
-        var y0 = (int)Math.Floor(v);
-        var fx = (float)(u - x0);
-        var fy = (float)(v - y0);
-        fx = fx * fx * (3 - (2 * fx));
-        fy = fy * fy * (3 - (2 * fy));
-        var a = Lattice(x0, y0, salt);
-        var b = Lattice(x0 + 1, y0, salt);
-        var c = Lattice(x0, y0 + 1, salt);
-        var d = Lattice(x0 + 1, y0 + 1, salt);
-        var top = a + ((b - a) * fx);
-        var bottom = c + ((d - c) * fx);
-        return top + ((bottom - top) * fy);
+        public void Row(double docY)
+        {
+            var v = docY / cell;
+            _y0 = (int)Math.Floor(v);
+            var fy = (float)(v - _y0);
+            _fy = fy * fy * (3 - (2 * fy));
+            _x0 = int.MinValue;
+        }
+
+        public float At(double docX)
+        {
+            var u = docX / cell;
+            var x0 = (int)Math.Floor(u);
+            if (x0 != _x0)
+            {
+                _x0 = x0;
+                _top0 = Lattice(x0, _y0, salt);
+                _top1 = Lattice(x0 + 1, _y0, salt);
+                _bottom0 = Lattice(x0, _y0 + 1, salt);
+                _bottom1 = Lattice(x0 + 1, _y0 + 1, salt);
+            }
+            var fx = (float)(u - x0);
+            fx = fx * fx * (3 - (2 * fx));
+            var top = _top0 + ((_top1 - _top0) * fx);
+            var bottom = _bottom0 + ((_bottom1 - _bottom0) * fx);
+            return top + ((bottom - top) * _fy);
+        }
     }
 
     private static float Lattice(int x, int y, int salt)

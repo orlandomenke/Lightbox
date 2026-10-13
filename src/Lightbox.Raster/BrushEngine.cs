@@ -1299,6 +1299,19 @@ public static class BrushEngine
     public static bool PromotesAtPenUp(Stroke stroke)
     {
         var brush = stroke.Brush;
+        // A rewetting brush (Q255) is kept too: what is on screen is the
+        // layer's own pixels rendered from the layer as it was, by the same
+        // function a replay calls, rectangle for rectangle (WetBleed). It reads
+        // its own layer only - a composite of the layers beneath is handed over
+        // differently by the live path and by a replay.
+        if (stroke.Tool == ToolKind.Brush && brush.Kind == BrushKind.Blur && brush.Wet is not null)
+        {
+            return brush.SampleSource == SampleSource.ThisLayer
+                && stroke.ClipId is null
+                && !stroke.AlphaLocked
+                && stroke.Points.Count > 0
+                && SymmetryCopies(stroke).Length <= 1;
+        }
         // An eraser is the same mark taken out of the layer where a brush lays
         // it on: the dabs, the finish and the last draw are the brush's own,
         // with the other blend (BlendModes.ForStroke). It was left off this
@@ -1331,6 +1344,13 @@ public static class BrushEngine
         using var pixels = mark.PeekPixels();
         using var image = pixels is null ? null : SKImage.FromPixels(pixels);
         if (image is null) return;
+        if (stroke.Brush.Kind == BrushKind.Blur && stroke.Brush.Wet is not null)
+        {
+            // A rewetting mark is the layer's final pixels there, not paint to lay over them.
+            using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+            target.DrawImage(image, region.Left, region.Top, replace);
+            return;
+        }
         using var paint = new SKPaint
         {
             Color = SKColors.White.WithAlpha((byte)Math.Round(Math.Clamp(stroke.Brush.Opacity, 0, 1) * 255)),

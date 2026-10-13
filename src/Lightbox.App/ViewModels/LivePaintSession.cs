@@ -327,6 +327,13 @@ sealed class LivePaintSession
     /// </remarks>
     internal List<BrushEngine.Dab>? EffectDabs { get; set; }
 
+    /// <summary>
+    /// The layer as it was before a rewetting stroke, blurred as far as the
+    /// stroke has needed it (<see cref="Lightbox.Raster.WetBleed.Spread"/>).
+    /// Kept for the stroke, since that layer does not change while it is drawn.
+    /// </summary>
+    internal Lightbox.Raster.WetBleed.Spread? WetSpread { get; set; }
+
     /// <summary>How many effect dabs are already on the composite and must not be drawn again.</summary>
     internal int EffectSettled { get; set; }
 
@@ -691,6 +698,7 @@ sealed class LivePaintSession
         Dabs = null;
         EffectDabs = null;
         EffectSettled = 0;
+        WetSpread = null;
         // The carry and the lent region go with the composite they described. The backup
         // bitmap does not: it is reused across strokes and only ever written before it is
         // read, so keeping it saves an allocation per stroke without any state surviving.

@@ -515,6 +515,7 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
         Assert.NotNull(vm.CurrentToolSettingsForTest.Wet);
 
         // Across the bars and back over them, so the stroke meets itself and its own tail is rewritten.
+        var before = vm.PromotedStrokes;
         var clock = System.Diagnostics.Stopwatch.StartNew();
         vm.BeginStroke(200, 250, 0.6);
         for (var i = 1; i <= 70; i++)
@@ -542,6 +543,7 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
             + $"under the pen vs kept {live.Differing}, kept vs replay {record.Differing}; {perEvent:0.00} ms an event, pen-up {penUp:0.0} ms");
 
         Assert.True(did.Differing > 2000, $"the water changed almost nothing ({did.Differing} pixels) - nothing was tested");
+        Assert.True(vm.PromotedStrokes - before == 1, $"the rewetted stroke was rendered again at pen-up - {vm.WhyReplayed}");
         Assert.True(live.Differing == 0,
             $"lifting the pen changed {live.Differing} pixels (worst {live.Worst}): what was on screen is not what was kept");
         Assert.True(record.Differing == 0,

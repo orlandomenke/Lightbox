@@ -412,7 +412,9 @@ public static class BuiltInPresets
             // Chosen by the owner from a sheet rendered by the engine (cell 2).
             Settings = new BrushSettings
             {
-                Size = 60, Hardness = 0.65, Flow = 1, Spacing = 0.15, Kind = BrushKind.Blur,
+                // Spacing a quarter: the wet area is the most of soft discs, and denser
+                // dabs only cost time - each pen event re-renders what they cover.
+                Size = 60, Hardness = 0.65, Flow = 1, Spacing = 0.25, Kind = BrushKind.Blur,
                 PressureFlowGamma = 0.6,
                 TextureSurface = PaperKind.Fibre, TextureScale = 8, TextureSettle = 0.4,
                 Wet = new WetSettings { Spread = 0.6, Thin = 0.2, Cloud = 0.9, Gather = 0.5 },

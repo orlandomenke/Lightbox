@@ -1589,6 +1589,18 @@ public partial class MainViewModel
         // A document too large for the replay's plane is replayed in another
         // frame of reference, and the live mark is then not the replay.
         if (!BrushEngine.ReplaysInDocumentSpace(Scene.Width, Scene.Height)) return No("document too large for the plane");
+        if (stroke.Brush.Kind == BrushKind.Blur && stroke.Brush.Wet is not null)
+        {
+            // A rewetting stroke: the working copy of the layer holds the result,
+            // rendered rectangle by rectangle from the layer as it was (Q255).
+            if (_live.Composite is not { } composite || _live.EffectDabs is not { Count: > 0 } wetDabs)
+            {
+                return No("nothing was rewetted live");
+            }
+            var wetRegion = WetBleed.Bounds(wetDabs, 0, wetDabs.Count, stroke.Brush, composite.Width, composite.Height);
+            if (wetRegion.Width <= 0 || wetRegion.Height <= 0) return No("the stroke is off the paper");
+            return CopyRegion(composite, wetRegion) is { } wet ? new LiveMark(wet, wetRegion, [.. wetDabs]) : No("the copy failed");
+        }
         if (_live.SettledDabChanged) return No($"a settled dab changed ({_live.WhySettledDabChanged})");
         if (_live.Dabs is not { Count: > 0 } dabs) return No("nothing was stamped live");
 
@@ -2405,6 +2417,7 @@ public partial class MainViewModel
         _live.WalkWork = 0;
         _live.EffectDabs = null;
         _live.EffectSettled = 0;
+        _live.WetSpread = null;
         _live.SmudgeCarry = default;
         _live.SmudgeRegion = null;
         _live.MixCarry = default;
@@ -2945,9 +2958,14 @@ public partial class MainViewModel
         var rendered = System.Buffers.ArrayPool<byte>.Shared.Rent(bytes);
         try
         {
+            var radius = WetBleed.SpreadRadius(live.Brush);
+            if (_live.WetSpread is not { } spread || !spread.Fits(before.Width, before.Height, radius))
+            {
+                _live.WetSpread = spread = new WetBleed.Spread(before.Width, before.Height, radius);
+            }
             WetBleed.Render(
                 before.GetPixelSpan(), before.Width, before.Height, before.RowBytes, dabs, live.Brush, region,
-                rendered.AsSpan(0, bytes));
+                rendered.AsSpan(0, bytes), spread: spread);
             var into = composite.GetPixelSpan();
             var rowBytes = composite.RowBytes;
             for (var y = 0; y < region.Height; y++)
