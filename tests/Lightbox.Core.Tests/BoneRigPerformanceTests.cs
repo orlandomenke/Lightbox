@@ -272,12 +272,16 @@ public class BoneRigPerformanceTests(ITestOutputHelper output)
                 Skinning.AutoBind(stroke, rig, keepPoints: true);
             }
         };
-        // With the table built once per bone: 4x. Built through a walk of the
-        // bone list per pair: 45x. The limit sits between.
+        // Four times the bones is sixteen times the bone pairs, and the zone
+        // table is one entry per pair — so even the fixed bind may cost up to
+        // about 16x here, and measured 10.6-12.3x on a loaded machine (4x on a
+        // quiet one). Built through a walk of the bone list per pair, it is
+        // 64x by the arithmetic and measured 30-45x. The limit sits between
+        // the two, where 14 sat on top of the right answer and flaked.
         var (a, b) = MinMsPair(8, Bind(small), Bind(big));
 
         output.WriteLine($"auto-bind 60 strokes: 30 bones {a:F2} ms, 120 bones {b:F2} ms ({b / a:F1}x for 4x the bones)");
-        Assert.True(b < a * 14, $"4x the bones cost {b / a:F1}x the bind");
+        Assert.True(b < a * 24, $"4x the bones cost {b / a:F1}x the bind");
     }
 
     [Fact]
