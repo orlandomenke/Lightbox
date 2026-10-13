@@ -41,7 +41,7 @@ that repeated as a pale band down every large mark (B459). The script keeps
 the 880 columns that are paper and makes them tile again by cross-fading the
 first 64 columns and 48 rows with the ones that follow the last, so Plain is
 816 by 552. Paper 002 has the same fault at two edges and has not been cleaned
-yet (Q256).
+yet (Q254).
 
 ## Why these and not others
 
