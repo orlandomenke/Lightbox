@@ -699,6 +699,14 @@ public static class BrushEngine
     /// <paramref name="outputScale"/>, so the clip path is scaled while the
     /// stamps inside it position themselves.
     /// </summary>
+    /// <summary>
+    /// Draw through the stroke's selection, at document scale - the same clip a
+    /// replay of it draws through, for a live path that renders a rectangle at
+    /// a time (the Water brush).
+    /// </summary>
+    public static void WithStrokeClip(SKCanvas target, Stroke stroke, Action stamp) =>
+        WithHardClip(target, stroke, 1.0, default, stamp);
+
     private static void WithHardClip(
         SKCanvas target, Stroke stroke, double outputScale, SKPointI origin, Action stamp)
     {

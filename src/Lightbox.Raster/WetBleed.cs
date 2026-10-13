@@ -262,7 +262,7 @@ public static class WetBleed
     /// computed on a coarser grid and read back smoothly: a sixteenth of the
     /// work at a radius of thirty, and nothing an eye can find.
     /// </summary>
-    internal static int Cell(int k) => k >= 32 ? 8 : k >= 16 ? 4 : k >= 8 ? 2 : 1;
+    public static int Cell(int k) => k >= 32 ? 8 : k >= 16 ? 4 : k >= 8 ? 2 : 1;
 
     /// <summary>
     /// The layer blurred, computed as it is asked for and kept: the layer is

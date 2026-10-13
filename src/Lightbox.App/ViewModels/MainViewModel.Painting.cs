@@ -2794,8 +2794,7 @@ public partial class MainViewModel
                 : BrushEngine.StablePositions(walk, _live.Walk.Kept, _live.Walk.Replaced);
             _live.WalkWork = _live.Walk.LastWalked + Math.Max(0, walk.Count - _live.Walk.Kept);
 
-            if (live.Brush.Kind == BrushKind.Blur && live.Brush.Wet is not null && live.ClipId is null
-                && _live.EffectBase is not null)
+            if (live.Brush.Kind == BrushKind.Blur && live.Brush.Wet is not null && _live.EffectBase is not null)
             {
                 // A rewetting brush (Q255): its result is a function of the layer as it
                 // was and of where the brush has been, so the rectangle the pen has just
@@ -2968,12 +2967,36 @@ public partial class MainViewModel
                 rendered.AsSpan(0, bytes), spread: spread);
             var into = composite.GetPixelSpan();
             var rowBytes = composite.RowBytes;
-            for (var y = 0; y < region.Height; y++)
+            if (live.ClipId is null)
             {
-                rendered.AsSpan(y * region.Width * 4, region.Width * 4)
-                    .CopyTo(into.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), region.Width * 4));
+                for (var y = 0; y < region.Height; y++)
+                {
+                    rendered.AsSpan(y * region.Width * 4, region.Width * 4)
+                        .CopyTo(into.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), region.Width * 4));
+                }
+                composite.NotifyPixelsChanged();
             }
-            composite.NotifyPixelsChanged();
+            else
+            {
+                // Under a selection a replay lays the result over the layer as it was,
+                // through the selection's soft edge. The same here: the layer as it was
+                // put back in the rectangle, and the result drawn through the same clip.
+                var pre = before.GetPixelSpan();
+                var preRow = before.RowBytes;
+                for (var y = 0; y < region.Height; y++)
+                {
+                    pre.Slice(((region.Top + y) * preRow) + (region.Left * 4), region.Width * 4)
+                        .CopyTo(into.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), region.Width * 4));
+                }
+                composite.NotifyPixelsChanged();
+                using var result = new SKBitmap(new SKImageInfo(region.Width, region.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+                rendered.AsSpan(0, bytes).CopyTo(result.GetPixelSpan());
+                result.NotifyPixelsChanged();
+                using var canvas = new SKCanvas(composite);
+                using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+                BrushEngine.WithStrokeClip(canvas, live, () => canvas.DrawBitmap(result, region.Left, region.Top, replace));
+                canvas.Flush();
+            }
         }
         finally
         {
