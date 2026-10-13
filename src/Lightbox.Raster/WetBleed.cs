@@ -106,8 +106,15 @@ public static class WetBleed
         Array.Clear(cover, 0, rw * rh);
         var flow = Math.Clamp(brush.Flow, 0, 1);
         var touched = false;
-        foreach (var d in dabs)
+        // No dab is wider than the brush's size (a pressure response is at most
+        // one), so a dab further than that from the rectangle is passed over
+        // before its radius is worked out - which with a curve is not cheap.
+        var reach = (Math.Max(1, brush.Size) * scale / 2) + 1;
+        for (var di = 0; di < dabs.Count; di++)
         {
+            var d = dabs[di];
+            double px = (d.Pos.X - origin.X) * scale, py = (d.Pos.Y - origin.Y) * scale;
+            if (px + reach < region.Left || px - reach > region.Right || py + reach < region.Top || py - reach > region.Bottom) continue;
             var radius = BrushEngine.RadiusAt(brush, d.Pressure) * scale;
             if (radius <= 0) continue;
             double cx = (d.Pos.X - origin.X) * scale, cy = (d.Pos.Y - origin.Y) * scale;
@@ -191,6 +198,8 @@ public static class WetBleed
         var cell = Math.Max(6.0, brush.Size * 0.45);
         var coarse = new Octave(cell, 0x51ED27);
         var fine = new Octave(cell * 0.37, 0x2C1B3D);
+        var columns = ArrayPool<double>.Shared.Rent(rw);
+        for (var x = 0; x < rw; x++) columns[x] = ((region.Left + x + 0.5) / scale) + origin.X;
         for (var y = 0; y < rh; y++)
         {
             var src = pre.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), rw * 4);
@@ -208,7 +217,7 @@ public static class WetBleed
                     continue;
                 }
 
-                var docX = ((region.Left + x + 0.5) / scale) + origin.X;
+                var docX = columns[x];
                 var c = clouds > 0 ? Math.Clamp((coarse.At(docX) * 0.68f) + (fine.At(docX) * 0.32f), 0f, 1f) : 0.5f;
                 // Where water pooled the pigment is pushed out; beside a pool there is a little more.
                 var pool = Math.Clamp((c - 0.45f) * 2.2f, 0f, 1f);
@@ -240,6 +249,7 @@ public static class WetBleed
             }
         }
 
+        ArrayPool<double>.Shared.Return(columns);
         if (paper is not null) ArrayPool<float>.Shared.Return(paper);
         ArrayPool<byte>.Shared.Return(blurred);
         ArrayPool<float>.Shared.Return(mask);
@@ -278,7 +288,7 @@ public static class WetBleed
     /// </remarks>
     public sealed class Spread
     {
-        private const int Tile = 32;
+        private const int Tile = 64;
         private readonly int _width;
         private readonly int _height;
         private readonly int _k;
@@ -322,6 +332,15 @@ public static class WetBleed
             var cells = ArrayPool<int>.Shared.Rent(gw * gh * 4);
             Gather(pre, rowBytes, _blurred, blurredTile: true, gx, gy, gw, gh, cells);
 
+            var colIx = ArrayPool<int>.Shared.Rent(rw);
+            var colFx = ArrayPool<float>.Shared.Rent(rw);
+            for (var x = 0; x < rw; x++)
+            {
+                var u = ((region.Left + x + 0.5) / d) - 0.5;
+                var ix = (int)Math.Floor(u);
+                colIx[x] = ix;
+                colFx[x] = (float)(u - ix);
+            }
             for (var y = 0; y < rh; y++)
             {
                 var v = ((region.Top + y + 0.5) / d) - 0.5;
@@ -331,9 +350,8 @@ public static class WetBleed
                 var rowB = rowA + gw;
                 for (var x = 0; x < rw; x++)
                 {
-                    var u = ((region.Left + x + 0.5) / d) - 0.5;
-                    var ix = (int)Math.Floor(u);
-                    var fx = (float)(u - ix);
+                    var ix = colIx[x];
+                    var fx = colFx[x];
                     var a = (rowA + (ix - gx)) * 4;
                     var b = (rowB + (ix - gx)) * 4;
                     var o = ((y * rw) + x) * 4;
@@ -345,6 +363,8 @@ public static class WetBleed
                     }
                 }
             }
+            ArrayPool<int>.Shared.Return(colIx);
+            ArrayPool<float>.Shared.Return(colFx);
             ArrayPool<int>.Shared.Return(cells);
         }
 
@@ -447,11 +467,13 @@ public static class WetBleed
         for (var y = 0; y < h; y++)
         {
             var row = y * w;
-            long sum = 0;
+            // An int holds the sum exactly: a cell is at most 4080 and a window a few hundred cells.
+            var sum = 0;
+            var half = window >> 1;
             for (var x = 0; x <= Math.Min(k, w - 1); x++) sum += from[row + x];
             for (var x = 0; x < w; x++)
             {
-                to[row + x] = (int)((sum + (window >> 1)) / window);
+                to[row + x] = (sum + half) / window;
                 var leaving = x - k;
                 var entering = x + k + 1;
                 if (leaving >= 0) sum -= from[row + leaving];
@@ -464,11 +486,12 @@ public static class WetBleed
     {
         for (var x = 0; x < w; x++)
         {
-            long sum = 0;
+            var sum = 0;
+            var half = window >> 1;
             for (var y = 0; y <= Math.Min(k, h - 1); y++) sum += from[(y * w) + x];
             for (var y = 0; y < h; y++)
             {
-                to[(y * w) + x] = (int)((sum + (window >> 1)) / window);
+                to[(y * w) + x] = (sum + half) / window;
                 var leaving = y - k;
                 var entering = y + k + 1;
                 if (leaving >= 0) sum -= from[(leaving * w) + x];
