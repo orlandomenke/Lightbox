@@ -405,6 +405,75 @@ public class MergeWritesGroupsTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void MergingAgainAndAgainStopsNestingWhileTheFileCanStillHoldIt()
+    {
+        // Collapsing a stack of line-art layers from the top down nests one
+        // level per merge. The file format has a depth it will not write
+        // past, and a merge that walked through it left a document that
+        // rendered and could not be saved (the sensitivity review). Past the
+        // bound a merge flattens that drawing instead, which the artist is
+        // warned of, and the document always saves and loads.
+        var layers = new List<Layer>();
+        for (var i = 0; i < 24; i++)
+        {
+            var layer = LayerOf(Bar(20 + i * 6, "#2040c0", size: 6), Down(40 + i * 5, ToolKind.Eraser, size: 4));
+            layer.Mask = i % 3 == 0 ? new LayerMask { Frame = new Frame { Strokes = [Soft(90, "#000000")] } } : null;
+            layers.Add(layer);
+        }
+        var doc = new Doc { Scene = SceneOf([.. layers]) };
+
+        var flattenedAt = -1;
+        for (var upper = layers.Count - 1; upper > 0; upper--)
+        {
+            if (flattenedAt < 0 && LayerMerge.WouldBakePixels(layers[upper], layers[upper - 1], doc.Scene)) flattenedAt = upper;
+            LayerMerge.MergeDown(doc.Scene, layers[upper], layers[upper - 1]);
+            doc.Scene.Layers.Remove(layers[upper]);
+
+            var frame = (Frame)layers[upper - 1].Cels[0].Frame!;
+            Assert.True(StrokeGroups.Depth(frame.Strokes) <= StrokeGroups.MaxDepth);
+            var json = Lightbox.Core.Serialization.DocJson.Serialize(doc);
+            var back = Lightbox.Core.Serialization.DocJson.Deserialize(json);
+            Assert.Equal(json, Lightbox.Core.Serialization.DocJson.Serialize(back));
+        }
+
+        output.WriteLine($"the first merge that had to flatten was layer {flattenedAt} of {layers.Count}");
+        Assert.True(flattenedAt > 0, "twenty-four nested merges never reached the bound: the test is not testing it");
+        Assert.True(layers.Count - flattenedAt >= StrokeGroups.MaxDepth - 1, "the bound bit long before it had to");
+    }
+
+    [Theory]
+    [InlineData("clip")]
+    [InlineData("multiply")]
+    public void AGroupThatReadsWhatIsUnderItIsNotAppendedOnTheNextMerge(string kind)
+    {
+        // Found by the adversary. Top merged into middle leaves a group in
+        // middle's drawing that is clipped by, or blended against, middle's
+        // own strokes. Merge middle into bottom and that group looked like an
+        // innocent brush stroke: appended after bottom's strokes it was
+        // clipped by, or multiplied against, bottom's ink as well.
+        var bottom = LayerOf(Bar(60, "#2040c0"));
+        var middle = LayerOf(Bar(100, "#c02040"));
+        var top = LayerOf(Down(100, ToolKind.Brush, size: 30));
+        top.Cels[0].Frame!.Strokes[0].Color = "#208040";
+        if (kind == "clip") top.ClipToBelow = true;
+        else top.BlendMode = LayerBlendMode.Multiply;
+        var scene = SceneOf(bottom, middle, top);
+        using var pair = Composite(middle, top, clipped: kind == "clip");
+        using var expected = Pipeline(bottom, 0, null);
+        using (var canvas = new SKCanvas(expected))
+        {
+            canvas.DrawBitmap(pair, 0, 0);
+        }
+
+        LayerMerge.MergeDown(scene, top, middle);
+        scene.Layers.Remove(top);
+        LayerMerge.MergeDown(scene, middle, bottom);
+
+        AssertNoPixelsWereMade(Merged(bottom));
+        AssertMergedIs(expected, bottom, $"{kind} group merged again");
+    }
+
+    [Fact]
     public void TheInbetweenerCanReadAMergedDrawing()
     {
         // The reason this exists: merged line art used to reach the AI as
@@ -480,6 +549,27 @@ public class MergeWritesGroupsTests(ITestOutputHelper output)
         smudge.Brush.SampleSource = SampleSource.AllLayersLive;
         var lower = LayerOf(Bar(80, "#2040c0"));
         var upper = LayerOf(Bar(100, "#c02040"), smudge);
+        var scene = SceneOf(lower, upper);
+
+        Assert.True(LayerMerge.WouldBakePixels(upper, lower, scene));
+        LayerMerge.MergeDown(scene, upper, lower);
+
+        Assert.True(Merged(lower).HasBaseline);
+    }
+
+    [Fact]
+    public void ALiveSamplingStrokeOnALowerLayerThatWouldBeWrappedStillFlattens()
+    {
+        // The leak-hunter's third finding. A drawing that samples the layers
+        // beneath it live is never cached — it is re-rendered on every read.
+        // Wrapped in a group for its layer's mask, that re-render became a
+        // group render per pointer event where there used to be a picture.
+        var smudge = Down(100, ToolKind.Brush);
+        smudge.Brush.Kind = BrushKind.Smudge;
+        smudge.Brush.SampleSource = SampleSource.AllLayersLive;
+        var lower = LayerOf(Bar(80, "#2040c0"), smudge);
+        lower.Mask = new LayerMask { Frame = new Frame { Strokes = [Soft(90, "#000000")] } };
+        var upper = LayerOf(Bar(120, "#c02040"));
         var scene = SceneOf(lower, upper);
 
         Assert.True(LayerMerge.WouldBakePixels(upper, lower, scene));

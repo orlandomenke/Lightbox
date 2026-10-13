@@ -431,7 +431,9 @@ public partial class MainViewModel
             RequestCheckpoints();
             AiStatus = $"Saved {System.IO.Path.GetFileName(path)}.";
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        // A document the format will not write is said, not thrown: the file
+        // on disk is the previous save, whole, and the artist has to know.
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
             AiStatus = $"Could not save: {ex.Message}";
         }

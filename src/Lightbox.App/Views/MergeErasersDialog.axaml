@@ -21,13 +21,13 @@
 
     <StackPanel Spacing="{StaticResource Space8}">
       <RadioButton x:Name="KeepOption" Content="Cut the lines" IsChecked="True" />
-      <TextBlock Text="Lines are cut where you erased them and the erasers are dropped. Those drawings become plain strokes, each one editable on its own. Nearly exact — a soft eraser becomes a hard cut."
+      <TextBlock Text="Each line is cut where you erased it and the erasers are dropped. Each line stays editable on its own. Nearly exact: a soft eraser becomes a hard cut."
                  TextWrapping="Wrap" Margin="{StaticResource OptionDetailIndent}" Opacity="0.7" />
     </StackPanel>
 
     <StackPanel Spacing="{StaticResource Space8}">
       <RadioButton x:Name="GroupOption" Content="Keep the erasers, in a group" />
-      <TextBlock Text="Those drawings keep their strokes and their erasers together as a group: exact, and still readable by the AI. A group moves and transforms as a whole — its lines cannot be picked one by one yet."
+      <TextBlock Text="The strokes and erasers stay together as one group: exact, and the AI still reads every line. The group moves as one piece; its lines cannot be picked singly yet."
                  TextWrapping="Wrap" Margin="{StaticResource OptionDetailIndent}" Opacity="0.7" />
     </StackPanel>
 

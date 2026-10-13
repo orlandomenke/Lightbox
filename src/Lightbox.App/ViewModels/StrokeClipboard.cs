@@ -75,8 +75,13 @@ internal static class StrokeClipboard
         foreach (var stroke in strokes)
         {
             copies.Add(stroke.Clone(newId: false));
-            if (stroke.ClipId is not { } id || clips.ContainsKey(id)) continue;
-            if (resolve(id) is { } region) clips[id] = region.Clone();
+            // Through a group too (Q265): the entry, what is inside it and
+            // its mask each name clips the copy needs wherever it is pasted.
+            foreach (var held in StrokeGroups.Everything([stroke]))
+            {
+                if (held.ClipId is not { } id || clips.ContainsKey(id)) continue;
+                if (resolve(id) is { } region) clips[id] = region.Clone();
+            }
         }
         _held = new Payload(copies, clips);
         Stamp = NextOrder();

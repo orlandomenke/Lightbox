@@ -69,7 +69,7 @@ public static class LayerMerge
             var above = ExposureSheet.ExposedFrame(upper, t);
             if (above is null && below is null) continue;
             if (!PairIsLossless(upper, lower, below, above, carve, erasers, cuts: null, out _)
-                && !CanGroup(lower, below, above, carve))
+                && !CanGroup(upper, lower, below, above, carve))
             {
                 return true;
             }
@@ -254,7 +254,7 @@ public static class LayerMerge
         {
             return ConcatenatedFrame(below, above, cut);
         }
-        return CanGroup(lower, below, above, carve)
+        return CanGroup(upper, lower, below, above, carve)
             ? GroupedFrame(upper, lower, below, above, carve, erasers, cuts)
             : BakedFrame(scene, upper, lower, below, above, t, carve);
     }
@@ -264,8 +264,25 @@ public static class LayerMerge
     /// (Q265)? Nearly always. These are the cases a drawing cannot carry with
     /// it, each named in <c>docs/DESIGN-stroke-groups.md</c>.
     /// </summary>
-    private static bool CanGroup(Layer lower, Frame? below, Frame? above, MergeCarve carve)
+    private static bool CanGroup(Layer upper, Layer lower, Frame? below, Frame? above, MergeCarve carve)
     {
+        // Groups nest one level per merge that needs one, and the file has a
+        // depth it will not write past. Counted as though both drawings were
+        // wrapped, masks included — a level early at worst, never a level late.
+        var deepest = Math.Max(
+            Math.Max(StrokeGroups.Depth(below?.Strokes), StrokeGroups.Depth(above?.Strokes)),
+            Math.Max(StrokeGroups.Depth(lower.Mask?.Frame.Strokes), StrokeGroups.Depth(upper.Mask?.Frame.Strokes)));
+        if (deepest + 1 > StrokeGroups.MaxDepth) return false;
+        // A drawing that samples the layers beneath it live is re-rendered on
+        // every read rather than cached. As a picture that was a decode; in a
+        // group it would be a group render per pointer event.
+        if (below is not null && (lower.IsMasked || LiveStack(lower) is not null))
+        {
+            foreach (var stroke in StrokeGroups.Flatten(below.Strokes))
+            {
+                if (stroke.Brush.SampleSource == SampleSource.AllLayersLive) return false;
+            }
+        }
         // A placement lives on the frame and is drawn over every stroke of it.
         // A group has no slot for one, so a symbol would escape the blend, mask
         // or effects of the layer it was placed on, or change places with the
@@ -432,6 +449,15 @@ public static class LayerMerge
         var erased = false;
         foreach (var stroke in above.Strokes)
         {
+            // A group from an earlier merge that is clipped by, or blended
+            // against, what is under it meant the upper drawing's own strokes.
+            // Appended, "under it" gains the lower layer's (the adversary).
+            // One that is Normal and unclipped is self-contained and follows.
+            if (stroke.Group is { } held
+                && (held.Clip == true || (held.Blend ?? LayerBlendMode.Normal) != LayerBlendMode.Normal))
+            {
+                return false;
+            }
             // Anything that reads or removes what is underneath changes
             // meaning when "underneath" gains the lower layer's marks.
             if (stroke.Tool is ToolKind.Eraser or ToolKind.ClearRegion)

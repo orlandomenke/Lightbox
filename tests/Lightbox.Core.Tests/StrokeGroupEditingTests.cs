@@ -54,6 +54,104 @@ public class StrokeGroupEditingTests
     }
 
     [Fact]
+    public void AGroupsOwnSelectionClipTravelsWithAWholeDrawingTransform()
+    {
+        // A lasso move cuts a group in two, each half confined by a clip on
+        // the entry itself. Move the whole layer afterwards and the strokes
+        // inside went while the stencils stood still: ink slid out from under
+        // them and vanished (the sensitivity review; B340's shape again).
+        var group = Group(Line(10, 20));
+        group.ClipId = "half";
+        var frame = new Frame { Strokes = [group] };
+
+        TransformOps.TransformFrame(frame, (x, y) => (x + 5, y + 5), mapClip: id => id + "-moved");
+
+        Assert.Equal("half-moved", group.ClipId);
+    }
+
+    [Fact]
+    public void NudgingADrawingMovesWhatIsInsideItsGroups()
+    {
+        // The spacing nudge reads through groups to offer itself, so it has
+        // to move through them too, or half a merged drawing stays behind.
+        var inner = Line(10, 20);
+        var carve = Line(50, 60);
+        var group = Group(inner, Group(Line(30, 40)));
+        group.Group!.Mask = new LayerMask { Frame = new Frame { Strokes = [carve] } };
+        var frame = new Frame { Strokes = [Line(0, 0), group] };
+
+        Assert.True(FrameTranslate.Apply(frame, 7, -3));
+
+        Assert.Equal((17.0, 17.0), (inner.Points[0].X, inner.Points[0].Y));
+        Assert.Equal((37.0, 37.0), (group.Group.Strokes[1].Group!.Strokes[0].Points[0].X, group.Group.Strokes[1].Group!.Strokes[0].Points[0].Y));
+        Assert.Equal((57.0, 57.0), (carve.Points[0].X, carve.Points[0].Y));
+    }
+
+    [Fact]
+    public void TheNudgesRefusalsSeeInsideGroups()
+    {
+        var clipped = Line(10, 20);
+        clipped.ClipId = "c";
+        var baked = Line(10, 20);
+        baked.Baked = new BakedSample { PngBase64 = "AAAA" };
+        var cut = Group(Line(1, 1));
+        cut.ClipId = "half";
+        var pixels = Group(Line(1, 1));
+        pixels.Group!.PngBase64 = "AAAA";
+        var before = pixels.Group.Strokes[0].Points[0].X;
+
+        Assert.True(FrameTranslate.HasClippedStrokes(new Frame { Strokes = [Group(clipped)] }));
+        Assert.True(FrameTranslate.HasClippedStrokes(new Frame { Strokes = [cut] }));
+        Assert.True(FrameTranslate.HasBakedRaster(new Frame { Strokes = [Group(baked)] }));
+        Assert.False(FrameTranslate.HasClippedStrokes(new Frame { Strokes = [Group(Line(1, 1))] }));
+        // Stored pixels inside a group are a baseline one level in: refused,
+        // and nothing touched.
+        Assert.False(FrameTranslate.Apply(new Frame { Strokes = [pixels] }, 5, 5));
+        Assert.Equal(before, pixels.Group.Strokes[0].Points[0].X);
+    }
+
+    [Fact]
+    public void NestingIsCountedThroughGroupsAndTheirMasks()
+    {
+        var masked = Group(Line(0, 0));
+        masked.Group!.Mask = new LayerMask { Frame = new Frame { Strokes = [Group(Group(Line(1, 1)))] } };
+
+        Assert.Equal(0, StrokeGroups.Depth([Line(0, 0)]));
+        Assert.Equal(1, StrokeGroups.Depth([Group(Line(0, 0))]));
+        Assert.Equal(3, StrokeGroups.Depth([Line(0, 0), Group(Group(Group()))]));
+        Assert.Equal(3, StrokeGroups.Depth([masked]));
+    }
+
+    [Fact]
+    public void EveryStrokeAResourceWalkNeedsIsReached()
+    {
+        // Clip regions, swatches and gradients are collected by walking
+        // strokes. The entry, what is inside it and its mask all name some.
+        var inner = Line(1, 1);
+        var carve = Line(2, 2);
+        var group = Group(inner);
+        group.Group!.Mask = new LayerMask { Frame = new Frame { Strokes = [carve] } };
+        var loose = Line(0, 0);
+
+        Assert.Equal([loose, group, inner, carve], StrokeGroups.Everything([loose, group]));
+    }
+
+    [Fact]
+    public void PixelsHeldAnywhereInsideGroupsAreFound()
+    {
+        // Several places ask a drawing "do you hold pixels?" to know that
+        // strokes alone do not bound it. A group's pixels answer yes.
+        var deep = Group(Group(Line(0, 0)));
+        deep.Group!.Strokes[0].Group!.PngBase64 = "AAAA";
+        var masked = Group(Line(0, 0));
+        masked.Group!.Mask = new LayerMask { Frame = new Frame { PngBase64 = "AAAA" } };
+
+        Assert.True(StrokeGroups.HoldsPixels([Line(0, 0), deep]));
+        Assert.True(StrokeGroups.HoldsPixels([masked]));
+        Assert.False(StrokeGroups.HoldsPixels([Line(0, 0), Group(Line(1, 1))]));
+    }
+
+    [Fact]
     public void AGroupIsAsBigAsTheStrokesInsideIt()
     {
         // The transform box is drawn round these bounds. A group measured by

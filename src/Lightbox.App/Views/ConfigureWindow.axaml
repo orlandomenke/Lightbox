@@ -360,7 +360,7 @@
         <StackPanel Spacing="{StaticResource Space6}">
           <TextBlock Text="Merging a layer whose drawings have erasing in them" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
-                     Text="An eraser merged into the layer below would start rubbing out that layer's marks too. Lightbox can cut the lines where you erased them — nearly exact, and every line stays editable on its own — or keep the erasers with their drawing in a group, which is exact and moves as a whole. Either way the drawing stays strokes the AI can read. It asks each time unless you tell it not to." />
+                     Text="An eraser merged into the layer below would rub out that layer's marks too. Lightbox can cut the lines where you erased them (nearly exact, each line stays editable), or keep the erasers with the lines in a group (exact, moves as one). Either way the AI can still read it. It asks each time unless you say otherwise." />
           <ComboBox x:Name="MergeErasersBox" Width="{StaticResource SizeSettingsCombo}" HorizontalAlignment="Left"
                     SelectionChanged="OnMergeErasersChanged" />
         </StackPanel>

@@ -276,6 +276,10 @@ public class TransformErasuresTests(ITestOutputHelper output)
 
         Assert.Equal("inner-clip", frame.Strokes[0].Group!.Strokes[0].ClipId);
         Assert.Equal("inner-clip-carried", frame.Strokes[1].Group!.Strokes[0].ClipId);
+        // The entry's own clip is the split's, already where it is going:
+        // carried again it would move twice.
+        Assert.Equal("moved", frame.Strokes[1].ClipId);
+        Assert.Equal("stayed", frame.Strokes[0].ClipId);
     }
 
     [Fact]

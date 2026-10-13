@@ -134,6 +134,9 @@ public static class TransformOps
             {
                 foreach (var carve in mask.Frame.Strokes) TransformStroke(carve, map, sizeScale, mapClip, mover);
             }
+            // The entry's own clip — a group a selection cut in two — is a
+            // stencil on the page like any stroke's, and travels like one.
+            if (mapClip is not null && stroke.ClipId is { } stencil) stroke.ClipId = mapClip(stencil);
             return;
         }
 

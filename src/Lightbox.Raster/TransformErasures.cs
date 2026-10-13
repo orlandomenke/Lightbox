@@ -602,6 +602,9 @@ public static class TransformErasures
                 // never saw, and those travel with them (Q265).
                 TransformOps.TransformStroke(
                     travelling, map, sizeScale, travelling.Group is null ? null : mapClip, mover);
+                // …and the entry's own is the split's, already carried to
+                // where the half is going: put back, not carried twice.
+                travelling.ClipId = clips.Moved;
                 moved?.Invoke(travelling);
                 result.Add(travelling);
                 count++;
@@ -636,6 +639,8 @@ public static class TransformErasures
         // Baseline pixels never move under a region-limited transform, and the
         // record cannot say where their ink is.
         if (frame.HasBaseline) return true;
+        // Nor where a group's are (Q265).
+        if (StrokeGroups.HoldsPixels(record)) return true;
 
         var erasure = ReachBounds(record[index]);
         // Replay order: an erasure only takes paint from what was laid before it.

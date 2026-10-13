@@ -1117,6 +1117,10 @@ public partial class MainViewModel
             foreach (var stroke in frame.Strokes)
             {
                 if (filter is not null && !filter(stroke)) continue;
+                // A group has no points to bound it and can carry a filter or
+                // pixels that reach anywhere (Q265): the whole surface, which
+                // is what null asks for. Too small a region leaves crumbs.
+                if (stroke.Group is not null) return null;
                 var reach = BrushEngine.ReachOf(stroke.Brush);
                 foreach (var p in stroke.Points)
                 {

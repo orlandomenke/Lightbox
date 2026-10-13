@@ -367,10 +367,10 @@ public partial class MainWindow
             var go = await AskImportChoice(
                 "Merge layer down?",
                 // What is left that a drawing cannot carry with it (Q265).
-                "Some drawings here cannot keep their strokes through this merge and become pixels: "
-                + "one kept inside a folder's shape, one with a placed symbol, one clipped onto a layer with effects, "
-                + "or one with a stroke that samples the layers beneath it live. "
-                + $"The AI inbetweener reads strokes and cannot read pixels, so it will skip those on “{below?.Name}”.",
+                "Some drawings will become pixels here: one inside a folder's shape, one with a placed symbol "
+                + "that would otherwise need a group, one clipped onto a layer with effects, or one whose smudge "
+                + "or blur reads all layers live. "
+                + $"The AI inbetweener cannot read pixels, so it will skip those on “{below?.Name}”.",
                 ("Merge", "Those drawings are flattened to pixels; the rest keep their strokes.", true));
             if (go != true) return;
         }

@@ -186,8 +186,8 @@ internal static class StrokeGroupRenderer
 
     /// <summary>
     /// Does this drawing render differently depending on which cel shows it?
-    /// A group with an effect does: an effect's parameters can be keyed, and
-    /// are read at the cel being drawn. Decides whether the timeline position
+    /// A group with an effect that changes over time does: its parameters are
+    /// read at the cel being drawn. Decides whether the timeline position
     /// is part of a cached render's identity, as a placed symbol's is.
     /// </summary>
     public static bool DependsOnCel(List<Stroke> strokes)
@@ -195,7 +195,25 @@ internal static class StrokeGroupRenderer
         foreach (var stroke in strokes)
         {
             if (stroke.Group is not { } group) continue;
-            if (LiveEffects(group) is not null || DependsOnCel(group.Strokes)) return true;
+            if (ChangesOverTime(LiveEffects(group)) || DependsOnCel(group.Strokes)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Does this stack draw differently at different cels — a keyed parameter,
+    /// or an effect seeded from the frame? A constant blur does not, and a
+    /// drawing held for 24 cels under one is still one picture.
+    /// </summary>
+    private static bool ChangesOverTime(EffectStack? stack)
+    {
+        if (stack is null) return false;
+        foreach (var use in stack.Uses)
+        {
+            if (!use.Applies) continue;
+            if (Effects.EffectRegistry.Resolve(use.Kind) is { TimeSeeded: true }) return true;
+            foreach (var param in use.Params.Values)
+                if (param.IsAnimated) return true;
         }
         return false;
     }

@@ -441,6 +441,35 @@ public class StrokeGroupRenderTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void OnlyAnEffectThatChangesOverTimeMakesADrawingDifferentAtEachCel()
+    {
+        // A held drawing is one cached picture for every cel it is held over.
+        // A group with a keyed effect cannot be — but one with a constant blur
+        // can, and keying it by cel anyway rendered a 24-cel hold 24 times
+        // (the leak-hunter's first finding).
+        Frame With(EffectStack effects) =>
+            new() { Strokes = [Group(new StrokeGroup { Strokes = [Bar(100, "#c02040")], Effects = effects })] };
+        using var cache = new FrameBitmapCache();
+        var constant = With(Blur(6));
+        var keyed = With(Blur(1, radiusLater: 12));
+
+        cache.Get(constant, W, H, celIndex: 0);
+        cache.Get(keyed, W, H, celIndex: 0);
+
+        Assert.True(cache.Holds(constant, W, H, 1.0, celIndex: 7), "a constant effect was keyed by cel");
+        Assert.False(cache.Holds(keyed, W, H, 1.0, celIndex: 7), "a keyed effect was not");
+        Assert.True(FrameCheckpoints.CanCheckpoint(Padded(constant)));
+        Assert.False(FrameCheckpoints.CanCheckpoint(Padded(keyed)));
+    }
+
+    /// <summary>Enough plain strokes in front that a checkpoint is worth making at all.</summary>
+    private static Frame Padded(Frame frame)
+    {
+        for (var i = 0; i < FrameCheckpoints.MinStrokes; i++) frame.Strokes.Insert(0, Bar(20 + i % 100, "#2040c0", size: 2));
+        return frame;
+    }
+
+    [Fact]
     public void AGroupReachesAsFarAsItsStrokesDo()
     {
         var info = new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Premul);

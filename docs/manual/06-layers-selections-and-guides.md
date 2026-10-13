@@ -417,10 +417,12 @@ undo is the way back from a merge, and a line inside a group cannot be picked
 on its own. If you want every line loose after the merge, merge plain layers,
 or choose **Cut the lines** below.
 
-**A document that holds a group needs a Lightbox that knows groups.** An older
-version will refuse to open it — with a blunt message about a stroke kind it
-cannot read — rather than open it with the merged drawing missing. Documents
-with no group in them are saved exactly as before and open anywhere.
+**A document that holds a group needs a Lightbox that knows groups.** A version
+from before groups will refuse to open it rather than open it with the merged
+drawing missing. Its message is blunt — *could not be converted to ToolKind* —
+because those versions never learned to say "saved by a newer Lightbox" for
+this; from this version on, a file too new to read says so in those words.
+Documents with no group in them are saved exactly as before and open anywhere.
 
 **Erasing: cut the lines, or keep the erasers.** A line drawing nearly always
 has erasing in it. When erasing is the only thing standing between a drawing
@@ -472,7 +474,10 @@ something that is not theirs to carry:
   lower layer's drawing, and inside a merged drawing it would follow the
   blurred or glowing result instead;
 - a smudge or blur set to read **all layers, live** — "all layers" included
-  the one it is being merged into.
+  the one it is being merged into;
+- a drawing already merged **eight groups deep** — groups nest each time you
+  merge something that needs one, and past eight the file could no longer be
+  saved, so that drawing flattens instead.
 
 When AI assistance is on and a merge would do that to any drawing, Lightbox
 asks first, because a flattened drawing is one the inbetweener can no longer

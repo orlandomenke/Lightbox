@@ -115,6 +115,68 @@ public static class StrokeGroups
         }
     }
 
+    /// <summary>
+    /// How deep groups may nest. A merge that would go deeper flattens that
+    /// drawing instead (<c>LayerMerge.CanGroup</c>).
+    /// </summary>
+    /// <remarks>
+    /// The file format is the limit, not the renderer: the serializer refuses
+    /// to write or read past 64 levels of JSON, a stroke at nesting level n
+    /// sits about 9 + 3n levels down, and a mask adds a few more. Eight leaves
+    /// that well clear — and a drawing merged eight times with something that
+    /// needed a group each time is already holding eight surfaces to render.
+    /// Raising the serializer's depth instead would raise how far a hostile
+    /// file can drive every walker here.
+    /// </remarks>
+    public const int MaxDepth = 8;
+
+    /// <summary>How many groups deep the list goes, counting through masks. Zero for plain strokes.</summary>
+    public static int Depth(IEnumerable<Stroke>? strokes)
+    {
+        if (strokes is null) return 0;
+        var deepest = 0;
+        foreach (var stroke in strokes)
+        {
+            if (stroke.Group is not { } group) continue;
+            var inside = Math.Max(Depth(group.Strokes), Depth(group.Mask?.Frame.Strokes));
+            deepest = Math.Max(deepest, 1 + inside);
+        }
+        return deepest;
+    }
+
+    /// <summary>
+    /// Every stroke a walk for <em>resources</em> has to see — clip regions,
+    /// swatches, gradients: each entry, then for a group what is inside it and
+    /// what its mask is drawn with. Unlike <see cref="Flatten"/>, the group
+    /// entry itself is included: it can carry a clip of its own.
+    /// </summary>
+    public static IEnumerable<Stroke> Everything(IEnumerable<Stroke> strokes)
+    {
+        foreach (var stroke in strokes)
+        {
+            yield return stroke;
+            if (stroke.Group is not { } group) continue;
+            foreach (var inner in Everything(group.Strokes)) yield return inner;
+            if (group.Mask is { } mask)
+                foreach (var carve in Everything(mask.Frame.Strokes)) yield return carve;
+        }
+    }
+
+    /// <summary>
+    /// Does any group in the list, at any depth, hold stored pixels — its own
+    /// baseline or its mask's? The question <see cref="Frame.HasBaseline"/>
+    /// answers for a drawing, one level in: strokes alone do not bound it.
+    /// </summary>
+    public static bool HoldsPixels(IEnumerable<Stroke> strokes)
+    {
+        foreach (var stroke in Everything(strokes))
+        {
+            if (stroke.Group is not { } group) continue;
+            if (!string.IsNullOrEmpty(group.PngBase64) || group.Mask is { Frame.HasBaseline: true }) return true;
+        }
+        return false;
+    }
+
     /// <summary>Does the list hold a group anywhere, at any depth — including inside a group's mask?</summary>
     public static bool Any(IEnumerable<Stroke> strokes) =>
         strokes.Any(s => s.Group is not null);

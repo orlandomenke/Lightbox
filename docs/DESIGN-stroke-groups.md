@@ -213,7 +213,50 @@ The list grew by two during the build, as this section said it might:
   clipped group is carved by what is on the drawing, which is after them. The
   cure is a group that can name what it is clipped by.
 
+And by two more in review, both about cost rather than the picture:
+
+- **A merge that would nest groups more than eight deep.** Each merge that
+  needs a group adds a level, and the file format refuses to write past 64
+  levels of JSON — a document merged far enough rendered and could not be
+  saved (the sensitivity review). `StrokeGroups.MaxDepth` is eight; past it
+  that drawing flattens, with the usual warning. Eight is also eight surfaces
+  held at once to render one drawing.
+- **A lower drawing that samples all layers live, when its layer's mask or
+  effects would put it in a group.** Such a drawing is never cached; as a
+  picture that was a decode per read, as a group it would be a group render per
+  pointer event (the leak-hunter).
+
 Nothing else flattens, and `LayerMerge.CanGroup` is this list as code.
+
+### What review found that the tests had not
+
+Recorded because each was green before it was found.
+
+- **A group merged a second time was appended like a plain stroke** when the
+  second merge needed nothing — and a clipped or blended group then read the
+  lower layer's ink as well as its own drawing's (the adversary, with a
+  repro). A group that is clipped or not Normal is no longer appendable.
+- **A group cut by a selection lost its halves' stencils on the next
+  whole-layer move** — the entry's own clip did not travel (B340's shape).
+- **The spacing nudge moved half a merged drawing**, and trim-to-content cut a
+  group's pixels off: `FrameTranslate` and the crop bounds were consumers the
+  inventory missed. Symbols, the stroke clipboard and document export collected
+  clip regions and swatches from the top of the list only.
+- **A constant effect keyed a held drawing's cached picture by cel**, rendering
+  a 24-cel hold 24 times. Only an effect that changes over time does now.
+
+### Known, and not fixed here
+
+- **Ink a group hides still reaches the inbetweener.** A group's strokes are
+  read whatever its mask, clip or opacity — as an unmerged masked layer's
+  always were, but unlike the flattened merge this replaces, where masked-out
+  ink was gone. Whether the reader should drop a fully hidden group is a
+  question for the owner, not a default to pick silently.
+- **A rig does not pose strokes inside a group.** The flattened merge froze the
+  rest pose too, so nothing is lost, but nothing is gained either.
+- **The cost of a group is a full-surface scratch per render**, and a mask is
+  rendered whole each time. Sizing the scratch to the window being repainted is
+  the first thing to do if a merged drawing is felt on undo at 4K.
 
 ## Steps
 
