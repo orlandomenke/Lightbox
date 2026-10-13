@@ -35,7 +35,23 @@ public static class DocJson
         return o;
     }
 
-    public static string Serialize(Doc doc) => JsonSerializer.Serialize(doc, Options);
+    public static string Serialize(Doc doc) => JsonSerializer.Serialize(Stamped(doc), Options);
+
+    /// <summary>
+    /// The document with the version its content needs written on it. Every
+    /// path that turns a document into bytes goes through here, so the number
+    /// in the file is a fact about the file.
+    /// </summary>
+    /// <remarks>
+    /// A document from a build newer than this one keeps the version it came
+    /// with: this build cannot know what that content needs, and Q237's
+    /// <c>savedByFormat</c> marker depends on the number staying put.
+    /// </remarks>
+    private static Doc Stamped(Doc doc)
+    {
+        if (!doc.IsFromANewerBuild) doc.Version = doc.RequiredVersion;
+        return doc;
+    }
 
     /// <remarks>
     /// Every way a document is read back ends in <see cref="HeldDrawings.Relink"/>:
@@ -83,7 +99,7 @@ public static class DocJson
         using (var file = File.Create(temp))
         using (var gzip = new GZipStream(file, CompressionLevel.Fastest))
         {
-            JsonSerializer.Serialize(gzip, doc, Options);
+            JsonSerializer.Serialize(gzip, Stamped(doc), Options);
         }
         MoveIntoPlace(temp, path);
     }
@@ -262,7 +278,7 @@ public static class DocJson
     /// callers where a copy must also prove it survives serialization.
     /// </para>
     /// </remarks>
-    public static byte[] ToSnapshot(Doc doc) => JsonSerializer.SerializeToUtf8Bytes(doc, Compact);
+    public static byte[] ToSnapshot(Doc doc) => JsonSerializer.SerializeToUtf8Bytes(Stamped(doc), Compact);
 
     /// <summary>Rebuild a document from <see cref="ToSnapshot"/>'s bytes.</summary>
     public static Doc FromSnapshot(byte[] bytes) => HeldDrawings.Relink(

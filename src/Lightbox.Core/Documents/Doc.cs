@@ -24,9 +24,29 @@ public sealed class Doc
     /// written before the key existed (none has been; every save writes it).
     /// </para>
     /// </remarks>
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
-    public int Version { get; set; } = CurrentVersion;
+    /// <summary>
+    /// The version every document had before a stroke list could hold a group,
+    /// and still has unless it holds one (Q265).
+    /// </summary>
+    public const int BaseVersion = 1;
+
+    /// <summary>
+    /// The version this document needs a build to read. Stamped when it is
+    /// written (<see cref="RequiredVersion"/>), so it is what the content
+    /// requires rather than whatever build last touched it: a document nobody
+    /// merged into a group is version 1 and opens anywhere.
+    /// </summary>
+    public int Version { get; set; } = BaseVersion;
+
+    /// <summary>
+    /// 2 when a stroke list anywhere in the document holds a group, 1 otherwise.
+    /// An older build has no name for that stroke kind and stops reading; the
+    /// version is what lets it say "from a newer Lightbox" before it does.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int RequiredVersion => StrokeGroups.Any(this) ? 2 : BaseVersion;
 
     /// <summary>
     /// Written by a build newer than this one, which may have put things here

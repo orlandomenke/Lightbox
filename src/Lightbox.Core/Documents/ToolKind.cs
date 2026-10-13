@@ -69,6 +69,26 @@ public enum ToolKind
     /// </para>
     /// </remarks>
     Text,
+
+    /// <summary>
+    /// Not a mark: a set of strokes kept together inside a drawing, with the
+    /// blend, opacity, clip, mask and effects a layer had (Q265).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// What a merge writes instead of flattening. Its strokes are in
+    /// <see cref="Stroke.Group"/>; its own <c>Points</c> are empty, which is
+    /// what makes every reader that does not know the kind do nothing with it
+    /// rather than something wrong — and is also why a reader that <em>edits</em>
+    /// geometry has to be taught to look inside, or it moves nothing.
+    /// </para>
+    /// <para>
+    /// Last in the enum, and a document that contains one is written as
+    /// version 2: a build from before this kind has no name for it and stops
+    /// reading, which is the honest refusal the format's rules ask for.
+    /// </para>
+    /// </remarks>
+    Group,
 }
 
 /// <summary>

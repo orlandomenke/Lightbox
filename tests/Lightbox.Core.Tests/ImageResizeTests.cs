@@ -721,6 +721,61 @@ public class ImageResizeTests
     }
 
     [Fact]
+    public void AGroupsStrokesScaleWithTheDrawingTheyArePartOf()
+    {
+        // Q265. A group holds a merged layer's strokes inside one entry of
+        // the list, and the entry has no points of its own — so a resize that
+        // reads only the top of the list leaves the whole merged drawing at
+        // the old size inside a doubled one.
+        var doc = DocWithAStroke(out _);
+        Stroke Mark() => new()
+        {
+            Points = [new StrokePoint(100, 50, 1)],
+            Brush = new BrushSettings { Size = 10 },
+        };
+        var inner = Mark();
+        var innermost = Mark();
+        var carve = Mark();
+        var group = new Stroke
+        {
+            Tool = ToolKind.Group,
+            Group = new StrokeGroup
+            {
+                Strokes = [inner, new Stroke { Tool = ToolKind.Group, Group = new StrokeGroup { Strokes = [innermost] } }],
+                PngBase64 = "under",
+                Mask = new LayerMask { Frame = new Frame { Strokes = [carve] } },
+            },
+        };
+        doc.Scene.Layers[0].Cels[0].Frame!.Strokes.Add(group);
+        var resampler = new FakeResampler();
+
+        ImageResize.Apply(doc, 1920, 1080, resampler);
+
+        Assert.Equal((200.0, 100.0, 20.0), (inner.Points[0].X, inner.Points[0].Y, inner.Brush.Size));
+        Assert.Equal((200.0, 20.0), (innermost.Points[0].X, innermost.Brush.Size));
+        Assert.Equal((200.0, 20.0), (carve.Points[0].X, carve.Brush.Size));
+        Assert.Equal("under@scaled", group.Group.PngBase64);
+        Assert.Contains(resampler.Calls, c => c.Png == "under");
+    }
+
+    [Fact]
+    public void AGroupUndoKeptFromBeforeTheResizeIsNotResizedWithIt()
+    {
+        var doc = DocWithAStroke(out _);
+        doc.Scene.Layers[0].Cels[0].Frame!.Strokes.Add(new Stroke
+        {
+            Tool = ToolKind.Group,
+            Group = new StrokeGroup { Strokes = [new Stroke { Points = [new StrokePoint(100, 50, 1)] }] },
+        });
+        var before = doc.Clone();
+
+        ImageResize.Apply(doc, 1920, 1080, new FakeResampler());
+
+        Assert.Equal(100, before.Scene.Layers[0].Cels[0].Frame!.Strokes[1].Group!.Strokes[0].Points[0].X);
+        Assert.Equal(200, doc.Scene.Layers[0].Cels[0].Frame!.Strokes[1].Group!.Strokes[0].Points[0].X);
+    }
+
+    [Fact]
     public void WhatUndoKeptFromBeforeTheResizeIsNotResizedWithIt()
     {
         // The resize writes in place, and undo holds a copy of the document
@@ -804,6 +859,8 @@ public class ImageResizeTests
             {
                 nameof(Stroke.Points), nameof(Stroke.Holes), nameof(Stroke.RestPoints), nameof(Stroke.Path),
                 nameof(Stroke.Symmetry), nameof(Stroke.Wrap), nameof(Stroke.Brush), nameof(Stroke.Baked),
+                // A merged layer's drawing, kept inside this entry (Q265).
+                nameof(Stroke.Group),
             },
             new[]
             {
@@ -812,6 +869,16 @@ public class ImageResizeTests
                 nameof(Stroke.AlphaLocked), nameof(Stroke.SimId), nameof(Stroke.TextId), nameof(Stroke.Label),
                 // Ratios between bones.
                 nameof(Stroke.Weights),
+            }],
+        [typeof(StrokeGroup),
+            new[] { nameof(StrokeGroup.Strokes), nameof(StrokeGroup.PngBase64), nameof(StrokeGroup.Mask) },
+            new[]
+            {
+                nameof(StrokeGroup.Unknown), nameof(StrokeGroup.Blend), nameof(StrokeGroup.Opacity),
+                nameof(StrokeGroup.Clip),
+                // The stack a layer had, and treated as a layer's is: a
+                // resize does not reach into an effect's parameters.
+                nameof(StrokeGroup.Effects),
             }],
         [typeof(Armature),
             new[] { nameof(Armature.Bones), nameof(Armature.Pins), nameof(Armature.PinCell) },
