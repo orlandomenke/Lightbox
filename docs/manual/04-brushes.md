@@ -618,8 +618,23 @@ this: whoever made it called them what suited them.
 
 ## Brush importers
 
-**.abr** (Photoshop), **.gbr** / **.gih** (GIMP) and **.kpp** (Krita) import
-directly. What comes across is what those formats actually carry.
+**.abr** (Photoshop), **.gbr** / **.gih** (GIMP), **.kpp** (Krita) and
+**.brushset** / **.brush** (Procreate) import directly. What comes across is what
+those formats actually carry.
+
+**A Procreate brush brings its name, its shape, a size, a spacing and an
+opacity**, and a set arrives in the order its author arranged it. Three things
+to expect:
+
+- **A brush built on one of Procreate's own shapes arrives round.** Those shapes
+  live inside Procreate, not in the file, so there is nothing to bring. Brushes
+  whose author drew their own shape bring it.
+- **The size is an estimate.** Procreate stores size in its own units and
+  publishes no scale for them. Check the size the first time you pick an imported
+  brush up, and set it to taste.
+- **Grain, pressure and tilt response, taper and the wet-paint behaviour do not
+  come across.** The mark's shape and density do; how Procreate's paint engine
+  moves it does not, and is set here with this app's own brush options.
 
 **A big collection takes real time, and the bar tells you how much.** The cost is
 the tip: decoding it and re-encoding it, per brush, and it grows with the tip's

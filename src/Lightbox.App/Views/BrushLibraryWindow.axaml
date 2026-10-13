@@ -17,7 +17,7 @@
     -->
     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="{StaticResource Space8}" Margin="0,0,0,10">
       <Button x:Name="ImportButton" Content="Import brushes…" Click="OnImport"
-              ToolTip.Tip="Photoshop .abr, GIMP .gbr/.gih and Krita .kpp. Tip shapes and basic settings come across; engine-specific behaviour does not map 1:1." />
+              ToolTip.Tip="Photoshop .abr, GIMP .gbr/.gih, Krita .kpp and Procreate .brushset/.brush. Tip shapes and basic settings come across; engine-specific behaviour does not map 1:1." />
       <Button x:Name="RemoveButton" Content="Remove" Click="OnRemove" IsEnabled="False"
               ToolTip.Tip="Removes the selected brushes. Brushes that ship with Lightbox are left alone — revert those from the brush options instead." />
       <TextBlock x:Name="CountLabel" VerticalAlignment="Center" Opacity="0.65" FontSize="{StaticResource TypeDense}" />

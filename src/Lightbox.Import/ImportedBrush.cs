@@ -28,6 +28,7 @@ public static class BrushImport
             ".gih" => GihReader.Read(bytes),
             ".abr" => AbrReader.Read(bytes),
             ".kpp" => [KppReader.Read(Path.GetFileNameWithoutExtension(fileName), bytes)],
+            ".brushset" or ".brush" => BrushsetReader.Read(fileName, bytes),
             _ => throw new FormatException($"Unsupported brush file type \"{ext}\"."),
         };
     }
