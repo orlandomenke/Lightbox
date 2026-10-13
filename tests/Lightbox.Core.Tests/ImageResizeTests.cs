@@ -399,6 +399,67 @@ public class ImageResizeTests
     }
 
     [Fact]
+    public void ADrawingHeldAcrossSeveralCelsIsScaledOnce()
+    {
+        // B463. A hold is one drawing standing in several cels — that is how
+        // an effect baked on 2s is stored — and the resize walked the cels,
+        // so it scaled that one drawing once for each cel holding it: twice
+        // the image, four times the smoke, on every held frame.
+        var held = new Frame
+        {
+            Strokes =
+            [
+                new Stroke
+                {
+                    Points = [new StrokePoint(100, 50, 1), new StrokePoint(200, 150, 1)],
+                    Brush = new BrushSettings { Size = 10 },
+                    Path = new StrokePath { Nodes = [PathNode.At(100, 50), PathNode.At(200, 150)] },
+                    Baked = new BakedSample { PngBase64 = "ink", X = 30, Y = 40 },
+                },
+            ],
+            PngBase64 = "scan",
+            Anchors = new Dictionary<string, AnchorPoint> { ["hand"] = new(60, 70) },
+        };
+        var alone = new Frame { Strokes = [new Stroke { Points = [new StrokePoint(10, 10, 1)] }] };
+        var doc = new Doc();
+        doc.Scene.Layers.Add(new Layer
+        {
+            Cels = [new Cel { Frame = held }, new Cel { Frame = held }, new Cel { Frame = held }, new Cel { Frame = alone }],
+        });
+        var resampler = new FakeResampler();
+
+        ImageResize.Apply(doc, doc.Scene.Width * 2, doc.Scene.Height * 2, resampler);
+
+        var stroke = held.Strokes[0];
+        Assert.Equal((200.0, 100.0), (stroke.Points[0].X, stroke.Points[0].Y));
+        Assert.Equal(20, stroke.Brush.Size);
+        Assert.Equal(200, stroke.Path!.Nodes[0].X);
+        Assert.Equal((60, 80), (stroke.Baked!.X, stroke.Baked.Y));
+        Assert.Equal(new AnchorPoint(120, 140), held.Anchors["hand"]);
+        // The pixels went through the resampler once each: a scan resampled
+        // three times is three times as soft.
+        Assert.Equal("scan@scaled", held.PngBase64);
+        Assert.Equal("ink@scaled", stroke.Baked.PngBase64);
+        Assert.Equal(2, resampler.Calls.Count);
+        // And the drawing beside it, held by one cel, is as it always was.
+        Assert.Equal(20, alone.Strokes[0].Points[0].X);
+    }
+
+    [Fact]
+    public void ADrawingThatIsAlsoItsLayersMaskIsScaledOnce()
+    {
+        // The same walk visits a layer's mask after its cels. Nothing makes
+        // one drawing both today; the walk should not depend on that.
+        var both = new Frame { Strokes = [new Stroke { Points = [new StrokePoint(100, 50, 1)] }] };
+        var doc = new Doc();
+        doc.Scene.Layers.Add(new Layer { Cels = [new Cel { Frame = both }], Mask = new LayerMask { Frame = both } });
+
+        ImageResize.Apply(doc, doc.Scene.Width * 2, doc.Scene.Height * 2, new FakeResampler());
+
+        Assert.Equal(200, both.Strokes[0].Points[0].X);
+    }
+
+    [Fact]
     public void APenPathStaysOnTheLineItDescribes()
     {
         // StrokePath's invariant is absolute: map the nodes with the points,
