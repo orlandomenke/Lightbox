@@ -994,7 +994,7 @@ public class ImageResizeTests
     [Fact]
     public void AShrunkLengthStopsAtTheLeastItsEffectWorksAt()
     {
-        // Q262. Find edges needs a radius of two: below it the blur underneath
+        // Q263. Find edges needs a radius of two: below it the blur underneath
         // does nothing, and the layer renders as a flat white shape with every
         // line gone. Halving the image would take a radius of 2 to 1, and of
         // 3 to 1.5; both stop at 2. A length above the least still scales

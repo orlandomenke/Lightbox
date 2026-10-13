@@ -289,7 +289,7 @@ public static class ImageResize
         // caller passes it in, and with no word nothing is touched. A length
         // points anywhere, so it takes the mark's one factor, keys and all.
         // What the caller answers is the least the length may be scaled down
-        // to (Q262): an effect that stops working below a radius of two is not
+        // to (Q263): an effect that stops working below a radius of two is not
         // shrunk through it. Nothing stops a length growing — a slider's end
         // is the slider's, and the renderer takes any size.
         if (effectLengths is not null)

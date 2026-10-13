@@ -619,7 +619,7 @@ public static class EffectRegistry
     /// length, and otherwise the least it may be scaled down to — the
     /// parameter's own minimum, which is there because the effect stops
     /// working below it (find edges and sharpen need a radius of two; under
-    /// that the blur beneath them does nothing). Q262.
+    /// that the blur beneath them does nothing). Q263.
     /// </summary>
     public static double? LengthFloor(string kind, string key)
     {

@@ -1,4 +1,4 @@
-# Q262 · What a resize does to an effect length that would fall below the least its effect works at — **answered 2026-10-13**
+# Q263 · What a resize does to an effect length that would fall below the least its effect works at — **answered 2026-10-13**
 
 Raised 2026-10-13 by the sensitivity review of B466 (an image resize scaling
 the effect parameters that are lengths), and asked with the prompt.
