@@ -241,11 +241,21 @@ public static class ImageResize
         if (doc.Sims is { } sims)
             foreach (var sim in sims.Values)
             {
-                // The grid stays the grid: the same cells over the same part
-                // of the drawing, each cell bigger. Emitters, wind and the
+                // The grid stays the grid: the same cells, each cell bigger,
+                // over the same part of the drawing. Emitters, wind and the
                 // solver's numbers are measured in cells and do not move.
-                sim.OriginX *= sx;
-                sim.OriginY *= sy;
+                //
+                // A cell is square, so it has one size and takes the mark's
+                // factor; the grid is then placed by its middle, which is a
+                // place on the paper and takes the axis factors. Scaled
+                // evenly that is simply the corner moving with everything
+                // else. Scaled unevenly, moving the corner alone would slide
+                // the whole effect off the smoke it had already drawn — the
+                // adversary measured 47 px on a small fire — where this keeps
+                // it centred on it, the right size on average.
+                var (halfWide, halfHigh) = (sim.GridWidth / 2.0 * sim.Scale, sim.GridHeight / 2.0 * sim.Scale);
+                sim.OriginX = (sim.OriginX + halfWide) * sx - halfWide * mark;
+                sim.OriginY = (sim.OriginY + halfHigh) * sy - halfHigh * mark;
                 sim.Scale *= mark;
                 // What the bake draws with is in document pixels, like any
                 // stroke's brush.

@@ -461,16 +461,22 @@ public class ImageResizeTests
             ["u"] = new() { Id = "u", Text = "there", Size = 24, X = 10, Y = 20 },
         };
 
-        ImageResize.Apply(doc, 1920, 1080, new FakeResampler());
+        // Twice as wide and the same height, so each number has to take the
+        // right factor: the place its own axis's, the sizes the mark's. (Resized
+        // evenly, the adversary swapped the axes and nothing noticed.)
+        ImageResize.Apply(doc, 1920, 540, new FakeResampler());
+        var mark = Math.Sqrt(2);
 
         var t = doc.Texts["t"];
-        Assert.Equal((200.0, 400.0, 96.0), (t.X, t.Y, t.Size));
-        Assert.Equal(120, t.LineHeight!.Value, 9);
+        Assert.Equal((200.0, 200.0), (t.X, t.Y));
+        Assert.Equal(48 * mark, t.Size, 9);
+        Assert.Equal(60 * mark, t.LineHeight!.Value, 9);
         // Thousandths of an em: a ratio, and it means the same at any size.
         Assert.Equal(25, t.Tracking);
         // Leading the typeface still decides stays undecided.
         Assert.Null(doc.Texts["u"].LineHeight);
-        Assert.Equal(48, doc.Texts["u"].Size);
+        Assert.Equal(24 * mark, doc.Texts["u"].Size, 9);
+        Assert.Equal((20.0, 20.0), (doc.Texts["u"].X, doc.Texts["u"].Y));
     }
 
     [Fact]
@@ -491,19 +497,48 @@ public class ImageResizeTests
             },
         };
 
-        ImageResize.Apply(doc, 1920, 1080, new FakeResampler());
+        // The middle of the grid, which is where the smoke is.
+        var (middleX, middleY) = (100 + 32 * 10.0, 60 + 18 * 10.0);
+
+        ImageResize.Apply(doc, 1920, 540, new FakeResampler());   // twice as wide, the same height
+        var mark = Math.Sqrt(2);
 
         var sim = doc.Sims["s"];
-        Assert.Equal((200.0, 120.0, 20.0), (sim.OriginX, sim.OriginY, sim.Scale));
-        // The grid is the same grid, covering the same part of the drawing:
-        // cells are not pixels, and everything measured in them stays.
+        // A cell is square and has one size; the grid is placed by its
+        // middle, which goes where that part of the drawing went — twice as
+        // far across and no further down.
+        Assert.Equal(10 * mark, sim.Scale, 9);
+        Assert.Equal(middleX * 2, sim.OriginX + 32 * sim.Scale, 9);
+        Assert.Equal(middleY, sim.OriginY + 18 * sim.Scale, 9);
+        // The grid is the same grid: cells are not pixels, and everything
+        // measured in them stays.
         Assert.Equal((64, 36), (sim.GridWidth, sim.GridHeight));
         var emitter = sim.Emitters[0];
         Assert.Equal((32.0, 30.0, 40.0, 30.0, 3.0), (emitter.X, emitter.Y, emitter.X2, emitter.Y2, emitter.Radius));
         // What it draws with is in document pixels, like any stroke's brush.
-        Assert.Equal(4, sim.Particles!.Size, 9);
-        Assert.Equal(12, sim.OutlineBrush!.Size, 9);
-        Assert.Equal(24, sim.OutlineBrush.TextureScale, 9);
+        Assert.Equal(2 * mark, sim.Particles!.Size, 9);
+        Assert.Equal(6 * mark, sim.OutlineBrush!.Size, 9);
+        Assert.Equal(12 * mark, sim.OutlineBrush.TextureScale, 9);
+    }
+
+    [Fact]
+    public void AnEvenResizeMovesAnEffectsGridByItsCornerLikeEverythingElse()
+    {
+        // The even case of the placement above, stated on its own because it
+        // is the one almost every resize is: nothing clever, the corner and
+        // the cell both double.
+        var doc = DocWithAStroke(out _);
+        doc.Sims = new Dictionary<string, SimElement>
+        {
+            ["s"] = new() { Id = "s", OriginX = 100, OriginY = 60, Scale = 10, GridWidth = 64, GridHeight = 36 },
+        };
+
+        ImageResize.Apply(doc, 1920, 1080, new FakeResampler());
+
+        var sim = doc.Sims["s"];
+        Assert.Equal(200, sim.OriginX, 9);
+        Assert.Equal(120, sim.OriginY, 9);
+        Assert.Equal(20, sim.Scale, 9);
     }
 
     [Fact]
