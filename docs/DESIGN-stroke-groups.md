@@ -145,8 +145,29 @@ Six would do something wrong:
 
 The AI reads a drawing through the cleaner, so teaching the cleaner to look
 through a group — its strokes, with its erasers applied — is what makes a merged
-drawing readable by the inbetweener. That is where `EraserCut` (Q264) ends up:
-not as a way to merge, but as how a group's erased strokes are *read*.
+drawing readable by the inbetweener. **As built**, the cleaner applies a group's
+erasers the way it applies any: a stroke they covered almost entirely is
+dropped, a partly erased one is sent whole. Sending the *cut* pieces instead —
+`EraserCut` (Q264) as the reader — is a better description of the page and is
+not built; it belongs with the *simplify* command in step 3, because both are
+the same cut.
+
+### Three more that turned up while building it
+
+The inventory was of code that reads `Frame.Strokes`. These read a *stroke*, and
+judged a group by points it does not have:
+
+| | What went wrong | Fixed |
+| --- | --- | --- |
+| `TransformErasures.RegionReading` | a selection drawn straight over a merged drawing caught nothing | the group is where the ink inside it is, read as a drawing of its own |
+| `VisibleDrawingBounds` | a drawing that is one group measured as empty: *"Nothing to transform in this scope"* | the box wraps what is visible inside its groups |
+| `TileFallback` | named a group as a smudge stroke in the render report | its own reason |
+
+The first is the one that would have made keeping strokes a step back: flattened
+pixels move under a selection (B433), and a group that did not would have cost
+the artist something the pixels could do. A group is therefore cut by a
+selection exactly as a single stroke is — two copies under complementary clips,
+the entry honouring its own `ClipId` over its finished result.
 
 ## The file
 
@@ -158,6 +179,14 @@ not as a way to merge, but as how a group's erased strokes are *read*.
   … in a way that silently drops what the older build did not understand"), so
   the version a document is written with goes up **only when it contains a
   group**. Everything else stays openable everywhere.
+- **What an older build actually says, checked rather than assumed:** *"Could
+  not open X: The JSON value could not be converted to …ToolKind"*. It is a
+  refusal, and it is safe — nothing is opened, so nothing is re-saved without
+  the drawing — but it is not *"saved by a newer Lightbox"*, because no build
+  before this one looked at the version before parsing. The number cannot fix
+  builds that already exist. It is still the right marker to write, and this
+  build reads it first from now on, so the next format change is refused in
+  plain words.
 - A committed fixture guards the format (W8), and loading a pre-group document
   changes no pixel (W5) — there is no migration, because nothing is rewritten.
 
@@ -165,11 +194,26 @@ not as a way to merge, but as how a group's erased strokes are *read*.
 
 - **A folder's shape carving the upper layer.** It depends on the other layers
   in the folder, which a drawing cannot carry with it. Rare, and named.
-- **Smudge or blur set to sample *all layers***, if that turns out to read
-  through the merge differently — to be measured in step 1 rather than assumed.
+- **A stroke sampling all layers *live*.** Looked at rather than assumed: the
+  frozen kind is exact inside a group, because the stroke carries its own
+  sample of what was beneath it, lower layer included. The live kind re-reads
+  the stack beneath the *merged* layer, which no longer contains the lower
+  drawing — a different picture.
 
-Nothing else. If that list grows during the build, it is recorded here with the
-reason, not left as a silent fallback.
+The list grew by two during the build, as this section said it might:
+
+- **A placed symbol on a drawing that needs a group** (or under one). A
+  placement lives on the frame and is drawn over every stroke of it; a group has
+  no slot for one. Kept on the frame it would escape the blend, mask or effects
+  of the layer it was placed on, or change places with the strokes that were
+  above it. The cure is a placement that can sit *in* the stroke list, which is
+  its own piece of work.
+- **A layer clipped onto a layer that has effects.** The compositor carves a
+  clipped layer by its base's content and mask, *before* the base's effects. A
+  clipped group is carved by what is on the drawing, which is after them. The
+  cure is a group that can name what it is clipped by.
+
+Nothing else flattens, and `LayerMerge.CanGroup` is this list as code.
 
 ## Steps
 
@@ -180,6 +224,17 @@ Each is its own branch and pull request, in this order (Q265):
    resizes, copies and deletes as a unit; the picker selects it; the AI reads
    through it; **Split group** puts it back on a layer of its own. Reshaping one
    stroke *inside* a group is not in this step.
+
+   **Landed in two parts, and the split is recorded because it was not the
+   plan.** The first pull request is everything that makes a merge keep strokes
+   and lose nothing the pixels could do: model, file, rendering, the consumers
+   above, merge writing groups, the AI reading through, and a group moving with
+   its drawing — whole, or cut by a selection. What it leaves for the second:
+   **Split group**, and the picker selecting, copying and deleting a group on
+   its own. Until then undo is the only way back from a merge. They were held
+   back because each is a command with a design of its own (a split has to
+   rebuild a layer's exposure sheet and decide what happens to marks drawn after
+   the merge), and neither changes what a merge writes.
 2. **Editing inside a group**, tool by tool: pick, reshape, width, recolour,
    path edit, stroke clipboard, bones. The inventory above is the checklist.
 3. **Retire the eraser dialog** (Q264). Merge is exact either way, so it stops

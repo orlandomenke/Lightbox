@@ -112,6 +112,8 @@ public class StrokeGroupTests
 
         Assert.Contains("\"version\": 2", json);
         Assert.Contains("\"tool\": \"group\"", json);
+        // What the content needs is worked out, never stored beside the version.
+        Assert.DoesNotContain("requiredVersion", json, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -197,6 +199,7 @@ public class StrokeGroupTests
         var doc = DocJson.Deserialize(File.ReadAllText(path));
 
         Assert.Equal(2, doc.Version);
+        Assert.Null(doc.Unknown);   // nothing in the fixture this build does not know
         var group = doc.Scene.Layers[0].Cels[0].Frame!.Strokes[1];
         Assert.Equal(ToolKind.Group, group.Tool);
         Assert.Equal(LayerBlendMode.Multiply, group.Group!.Blend);

@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "requiredVersion": 2,
   "scene": {
     "id": "scene_fixture",
     "name": "grouped fixture",

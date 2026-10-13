@@ -390,6 +390,57 @@ public class StrokeGroupRenderTests(ITestOutputHelper output)
     }
 
     [Fact]
+    [Trait("Category", "Performance")]
+    public void RepaintingARegionThroughAGroupCostsTheRegionNotTheDrawing()
+    {
+        // Invariant 6, measured rather than hoped: undo on a merged drawing
+        // rebuilds a rectangle, and a group in it must not turn that back
+        // into a replay of every stroke the group holds (B327's 3 s undo).
+        // A wide page of marks, a small rectangle in one corner.
+        const int w = 960, h = 540;
+        var marks = new List<Stroke>();
+        for (var i = 0; i < 400; i++)
+        {
+            var x = 20 + (i % 40) * 23;
+            var y = 20 + (i / 40) * 50;
+            marks.Add(new Stroke
+            {
+                Color = "#203040",
+                Points = [new StrokePoint(x, y, 1), new StrokePoint(x + 15, y + 30, 0.7)],
+                Brush = new BrushSettings { Size = 8, Hardness = 0.8, Opacity = 1, Flow = 1, Spacing = 0.1 },
+            });
+        }
+        var frame = new Frame
+        {
+            Strokes = [Bar(80, "#2040c0"), Group(new StrokeGroup { Strokes = marks, Blend = LayerBlendMode.Multiply })],
+        };
+        using var full = FrameRasterizer.Materialize(frame, w, h);
+        using var patched = full.Copy();
+        var region = new SKRectI(40, 40, 120, 120);
+
+        double Best(Action work)
+        {
+            var best = double.MaxValue;
+            for (var i = 0; i < 5; i++)
+            {
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                work();
+                best = Math.Min(best, clock.Elapsed.TotalMilliseconds);
+            }
+            return best;
+        }
+
+        var whole = Best(() => FrameRasterizer.Materialize(frame, w, h).Dispose());
+        var part = Best(() => Assert.True(FrameRasterizer.RepaintRegion(patched, frame, region, w, h)));
+
+        output.WriteLine($"whole drawing {whole:F2} ms, one 80 px rectangle {part:F2} ms, ratio {whole / part:F1}x");
+        Assert.True(full.Bytes.AsSpan().SequenceEqual(patched.Bytes), "the repainted rectangle is not the full render's");
+        // Loose on purpose: a replay of everything is ~1x, a bounded one is
+        // many times faster. Three is far from both.
+        Assert.True(part * 3 < whole, $"repainting a rectangle cost {part:F2} ms against {whole:F2} ms for the whole drawing");
+    }
+
+    [Fact]
     public void AGroupReachesAsFarAsItsStrokesDo()
     {
         var info = new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Premul);

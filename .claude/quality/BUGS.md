@@ -2977,7 +2977,7 @@ test reopens the bug.
   - P1 by reach: it is not an edge case, it is *opening your own work*. Masked for anyone who mostly created documents in-session and kept them open; found the day opening a saved file became the first thing the application asks you to do.
   - The regression test walks the whole route — open, draw, look in the record — because asserting the index alone would stay green if a second gate ever ate the stroke.
 
-- [x] **B469** `P2` `layers` Merging down appends a blur stroke, which then blurs the lower layer's marks `evidence: UpperBlur_Bakes_SoItCannotStartBlurringTheLowerLayer`
+- [x] **B469** `P2` `layers` Merging down appends a blur stroke, which then blurs the lower layer's marks `evidence: UpperBlur_IsKeptInAGroup_SoItCannotStartBlurringTheLowerLayer`
   - **Found by the adversary pass on the stroke-keeping merge (PR #732), 2026-10-13**, reading which strokes a merge may append as-is. `PairIsLossless` refused a smudge stroke — it reads what is underneath, and underneath gains the lower layer's marks — and let a blur stroke through, which reads what is underneath in exactly the same way. Two plain layers, the upper one with a blur stroke passing over a mark on the lower: merged by appending, the blur softens that mark's edges, which the picture before the merge never showed.
   - **Fix:** blur is refused beside smudge, so that drawing flattens and renders exactly as the pair did. One condition.
 
@@ -3045,7 +3045,7 @@ test reopens the bug.
   - **Restoring a *version* deliberately does not restore either.** `MainViewModel.Versions` zeroes the frame on purpose — *“a different record in the same slot: the framing and playhead of the replaced one are not this one’s”* (B67) — so the layer follows the playhead’s existing decision rather than inventing a different one.
   - New-document paths keep `FirstPaintableLayer`: a document nobody has saved has no layer to remember.
 
-- [x] **B286** `P2` `layers` Merge down drops live effect stacks from the render `evidence: LayerMergeTests, AMergeBakesALiveEffectStackIntoThePixels, AMergeBakesLayerStylesIntoThePixels`
+- [x] **B286** `P2` `layers` Merge down drops live effect stacks from the render `evidence: LayerMergeTests, AMergeCarriesALiveEffectStackIntoTheDrawing, AMergeCarriesLayerStylesIntoTheDrawing`
   - **Evidence.** `PairIsLossless` never checks `HasLiveEffects` and `BakedFrame` applies masks, clip and blend but no filter (read 2026-08-23, while giving the merge the style chain): merging a blurred or glowing layer concatenated its strokes, the upper layer's stack vanished with the layer, and the lower's kept applying to content it never described — a silent visual change on the exact gesture whose contract is "looks exactly like the two layers did".
   - Introduced with the effects record (#396), found and fixed while layer styles extended the same seam: `PairIsLossless` refuses a pair with a live stack, and `BakedFrame` runs each layer's content → filter → carve → style pipeline before compositing, clearing the baked stacks like it clears a baked mask.
 

@@ -29,3 +29,12 @@ Merge flattened for nine reasons, and eight of them are computed from the two dr
 - **Rendering a grouped drawing costs a surface per group**, bounded by the region being repainted, and a grouped drawing may fall off the tiled, checkpointed and region-repaint fast paths where its contents would have.
 - **One case still flattens**: a folder's shape carving the upper layer.
 - **The overview picture, layer roles and folder inbetweening wait behind it.**
+
+## What the first pull request did with that, and where it departs
+
+Recorded 2026-10-13 with the build, because three of the lines above turned out differently and a decision file that still says the plan is worse than none.
+
+- **"Whole-group editing" landed in part.** Built: a group moves, transforms and resizes with its drawing, and under a selection it is cut at the selection's edge like a single stroke — that last one was not in the plan and was added because flattened pixels already did it (B433), so a group that did not would have been a step back. **Not built yet: Split group, and the picker selecting, copying or deleting a group on its own.** Until they are, undo is the only way back from a merge. Nobody decided that; it is the order the work fell in, and it is the next branch.
+- **"One case still flattens" is four.** A folder's shape, as expected; a stroke sampling all layers live, which the design note said it would measure; and two found while building — a placed symbol on a drawing that needs a group, and a layer clipped onto a layer that has effects. Each is named in the design note with what would cure it.
+- **"An older build refuses a grouped one"** is true, and blunter than the answer assumed: it fails with a conversion error naming the stroke kind, not with "saved by a newer Lightbox", because no build before this one read the version before parsing. Nothing is lost by it. This build reads the version first from now on.
+- **The eraser dialog stayed, reworded.** Both of its answers keep strokes now: *cut the lines* (plain strokes, nearly exact) or *keep the erasers, in a group* (exact). It goes when a line inside a group can be picked on its own, which is when the two answers stop differing in what the artist can do next.
