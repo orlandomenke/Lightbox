@@ -16,11 +16,13 @@ namespace Lightbox.Core.Documents;
 /// </para>
 /// <para>
 /// <b>The owner's decision (Q260): a hold read back is a hold again.</b> Two
-/// cels carrying the same id <em>and the same content</em> are the same
-/// drawing written twice, so they are joined into one. Two that share an id
-/// and differ are two drawings — only a bug or a hand-edited file makes that —
-/// and joining them would throw one away, so the later one is kept and given
-/// an id of its own. Nothing is ever merged that was not already identical.
+/// cels of one layer carrying the same id <em>and the same content</em> are the
+/// same drawing written twice, so they are joined into one. Anything else that
+/// shares an id — a different drawing, a drawing on another layer, a layer's
+/// mask — is a different drawing, which only a bug or a hand-edited file makes;
+/// joining it would throw one away or tie two layers together, so it is kept
+/// and given an id of its own. Nothing is ever merged that was not already
+/// identical and already one layer's hold.
 /// </para>
 /// </remarks>
 public static class HeldDrawings
@@ -32,31 +34,60 @@ public static class HeldDrawings
     /// </summary>
     public static Doc Relink(Doc doc)
     {
-        var byId = new Dictionary<string, Frame>(StringComparer.Ordinal);
+        // Every id already given to a drawing somewhere in the document.
+        var taken = new HashSet<string>(StringComparer.Ordinal);
         foreach (var layer in doc.Scene.Layers)
         {
+            // This layer's drawings by the id the file gave them: the first one
+            // and any later ones that had to be renamed, so the rest of a hold
+            // that collided with another drawing still joins its own first cel.
+            var written = new Dictionary<string, List<Frame>>(StringComparer.Ordinal);
             foreach (var cel in layer.Cels)
-                if (cel.Frame is { } frame) cel.Frame = Resolve(frame);
-            // A mask is a drawing with an id like any other; it can only be
-            // joined with something it is identical to, which in practice is
-            // never, but it can collide with a cel's id and must not be
-            // mistaken for it.
-            if (layer.Mask is { } mask) mask.Frame = Resolve(mask.Frame);
+            {
+                // A file can say "cels": [null]; that is odd, and not this
+                // method's to fall over on.
+                if (cel?.Frame is not { } frame) continue;
+                var id = frame.Id;
+                if (written.TryGetValue(id, out var same))
+                {
+                    var match = same.Find(f => ReferenceEquals(f, frame) || ContentEquality.Same(Unnamed(f, id), frame));
+                    if (match is not null)
+                    {
+                        cel.Frame = match;
+                        continue;
+                    }
+                }
+                else
+                {
+                    written[id] = same = [];
+                }
+                if (!taken.Add(id))
+                {
+                    frame.Id = Ids.NewId("f");
+                    taken.Add(frame.Id);
+                }
+                same.Add(frame);
+            }
+            // A mask is never part of a hold; it only must not answer to a
+            // drawing's id.
+            if (layer.Mask?.Frame is { } mask && !taken.Add(mask.Id))
+            {
+                mask.Id = Ids.NewId("f");
+                taken.Add(mask.Id);
+            }
         }
         return doc;
+    }
 
-        Frame Resolve(Frame frame)
-        {
-            if (!byId.TryGetValue(frame.Id, out var first))
-            {
-                byId[frame.Id] = frame;
-                return frame;
-            }
-            if (ReferenceEquals(first, frame)) return frame;
-            if (ContentEquality.Same(first, frame)) return first;
-            frame.Id = Ids.NewId("f");
-            byId[frame.Id] = frame;
-            return frame;
-        }
+    /// <summary>
+    /// Compare a renamed drawing as it was written: its content against the
+    /// drawing being read, with the id it had in the file.
+    /// </summary>
+    private static Frame Unnamed(Frame frame, string writtenId)
+    {
+        if (frame.Id == writtenId) return frame;
+        var asWritten = frame.Clone();
+        asWritten.Id = writtenId;
+        return asWritten;
     }
 }

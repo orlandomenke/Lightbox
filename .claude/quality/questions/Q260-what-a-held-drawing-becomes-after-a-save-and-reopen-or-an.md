@@ -19,10 +19,20 @@ What it blocks: B467.
 
 ## What follows from it, not up for preference
 
-- **Nothing is joined that was not already identical.** Two drawings that
-  share an id and differ — which only a bug or a hand-edited file makes — are
-  two drawings: the later one is kept and given an id of its own. Joining by
-  id alone would throw one away.
+- **Nothing is joined that was not already identical, and already one
+  layer's hold.** Two drawings that share an id and differ, the same drawing
+  on two different layers, and a layer's mask that matches a drawing — which
+  only a bug or a hand-edited file makes — are separate drawings: the later
+  one is kept and given an id of its own. Joining by id alone would throw one
+  away; joining across layers would tie them together. (Narrowed after the
+  sensitivity review: the first version joined across layers and masks.)
+- **A hold that has to be renamed is renamed as one.** If a hold collides
+  with an earlier drawing's id, every cel of it gets the same new id and stays
+  one drawing.
+- **It stands on B463.** A resize used to scale a drawing once for every cel
+  holding it; with holds now surviving a save, that would shrink every saved
+  hold twice over. B467 merges after B463, never before
+  (`ResizingAReopenedHoldScalesItOnce`).
 - **A stroke drawn on a hold shows on every cel of it**, as it already did in
   the session that baked it. That is what a hold is.
 - **A document with no holds reads back exactly as it was written**

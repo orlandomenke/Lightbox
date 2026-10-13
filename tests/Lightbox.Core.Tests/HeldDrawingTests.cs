@@ -99,6 +99,107 @@ public class HeldDrawingTests
     }
 
     [Fact]
+    public void ResizingAReopenedHoldScalesItOnce()
+    {
+        // The sensitivity review's block: with holds now surviving a reopen,
+        // a resize that scaled a drawing once per cel would shrink every saved
+        // hold twice over. B463 is the fix this branch stands on; this is the
+        // case that makes it matter.
+        var reopened = DocJson.Deserialize(DocJson.Serialize(WithAHold(Drawing(50))));
+        Assert.Same(Held(reopened).Cels[0].Frame, Held(reopened).Cels[1].Frame);
+
+        ImageResize.Apply(reopened, reopened.Scene.Width * 2, reopened.Scene.Height * 2, new NoPixels());
+
+        Assert.Equal(100, Held(reopened).Cels[0].Frame!.Strokes[0].Points[0].X);
+    }
+
+    private sealed class NoPixels : IPixelResampler
+    {
+        public string? Resample(string pngBase64, double scaleX, double scaleY) => pngBase64;
+    }
+
+    [Fact]
+    public void TheSameDrawingOnTwoLayersIsTwoDrawings()
+    {
+        // A hold is one layer's cels. Two layers carrying an identical drawing
+        // under one id — which nothing in the app makes — are kept apart:
+        // joined, drawing on one layer would draw on the other.
+        var drawing = Drawing(50);
+        var copy = Drawing(50);
+        copy.Id = drawing.Id;
+        copy.Strokes[0].Id = drawing.Strokes[0].Id;
+        var doc = new Doc();
+        doc.Scene.Layers.Add(new Layer { Id = "a", Cels = [new Cel { Frame = drawing }] });
+        doc.Scene.Layers.Add(new Layer { Id = "b", Cels = [new Cel { Frame = copy }] });
+
+        var reopened = DocJson.Deserialize(DocJson.Serialize(doc));
+
+        var (onA, onB) = (reopened.Scene.Layers.Single(l => l.Id == "a").Cels[0].Frame!, reopened.Scene.Layers.Single(l => l.Id == "b").Cels[0].Frame!);
+        Assert.NotSame(onA, onB);
+        Assert.NotEqual(onA.Id, onB.Id);
+    }
+
+    [Fact]
+    public void AMaskIsNeverJoinedToADrawing()
+    {
+        var drawing = Drawing(50);
+        var mask = Drawing(50);
+        mask.Id = drawing.Id;
+        mask.Strokes[0].Id = drawing.Strokes[0].Id;
+        var doc = new Doc();
+        doc.Scene.Layers.Add(new Layer { Id = "layer-held", Cels = [new Cel { Frame = drawing }], Mask = new LayerMask { Frame = mask } });
+
+        var reopened = DocJson.Deserialize(DocJson.Serialize(doc));
+
+        var layer = Held(reopened);
+        Assert.NotSame(layer.Cels[0].Frame, layer.Mask!.Frame);
+        Assert.NotEqual(layer.Cels[0].Frame!.Id, layer.Mask.Frame.Id);
+    }
+
+    [Fact]
+    public void AHoldThatCollidedWithAnotherDrawingIsStillJoinedToItself()
+    {
+        // First a drawing with id x, then a hold of a different drawing that
+        // also says x. The hold is given a new id — and both of its cels must
+        // get the same one, or the hold is split after all.
+        var first = Drawing(10);
+        var held = Drawing(90);
+        held.Id = first.Id;
+        var heldAgain = Drawing(90);
+        heldAgain.Id = first.Id;
+        heldAgain.Strokes[0].Id = held.Strokes[0].Id;
+        var doc = new Doc();
+        doc.Scene.Layers.Add(new Layer
+        {
+            Id = "layer-held",
+            Cels = [new Cel { Frame = first }, new Cel { Frame = held }, new Cel { Frame = heldAgain }],
+        });
+
+        var reopened = DocJson.Deserialize(DocJson.Serialize(doc));
+
+        var cels = Held(reopened).Cels;
+        Assert.NotEqual(cels[0].Frame!.Id, cels[1].Frame!.Id);
+        Assert.Same(cels[1].Frame, cels[2].Frame);
+    }
+
+    [Fact]
+    public void AFileWithAnEmptyCelOrAMaskWithNoDrawingStillOpens()
+    {
+        // Odd input, not a crash: a file can say "cels": [null] or give a mask
+        // no drawing, and joining must not be what falls over on it.
+        var json = DocJson.Serialize(WithAHold(Drawing()));
+        var odd = json.Replace("\"cels\": [", "\"cels\": [null, ", StringComparison.Ordinal);
+        Assert.NotEqual(json, odd);
+
+        var doc = DocJson.Deserialize(odd);
+        Assert.NotNull(doc);
+
+        var masked = new Doc();
+        masked.Scene.Layers.Add(new Layer { Cels = [new Cel { Frame = Drawing() }], Mask = new LayerMask { Frame = null! } });
+        _ = HeldDrawings.Relink(masked);
+    }
+
+    [Fact]
     public void ADocumentWithNoHoldsComesBackExactlyAsItWent()
     {
         var doc = new Doc();
