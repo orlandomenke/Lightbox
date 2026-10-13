@@ -237,15 +237,30 @@ public sealed class CanvasOverlayTests : BrushStateIsolated
         // answer.
         var (_, vm) = Open();
         var row = vm.LayerRows.First(r => r.SceneIndex == vm.ActiveLayerIndex);
+        Assert.False(row.OnionEnabled); // a new layer starts off
+
+        vm.ActiveLayerOnion = true;
+
         Assert.True(row.OnionEnabled);
 
-        vm.ActiveLayerOnion = false;
-
-        Assert.False(row.OnionEnabled);
-
         // And the other way round.
-        row.OnionEnabled = true;
-        Assert.True(vm.ActiveLayerOnion);
+        row.OnionEnabled = false;
+        Assert.False(vm.ActiveLayerOnion);
+    }
+
+    /// <summary>
+    /// A layer added to a document starts with its onion skin off, on the canvas
+    /// toggle and in the Layers panel alike (owner, 2026-10-08).
+    /// </summary>
+    [AvaloniaFact]
+    public void AnAddedLayerStartsWithItsOnionOff()
+    {
+        var (_, vm) = Open();
+        vm.AddPaintedLayerCommand.Execute(null);
+
+        Assert.False(vm.Doc.Scene.Layers[vm.ActiveLayerIndex].OnionEnabled);
+        Assert.False(vm.ActiveLayerOnion);
+        Assert.False(vm.LayerRows.First(r => r.SceneIndex == vm.ActiveLayerIndex).OnionEnabled);
     }
 
     [AvaloniaFact]
@@ -305,11 +320,11 @@ public sealed class CanvasOverlayTests : BrushStateIsolated
     public void TheOnionToggleActsOnTheLayerBeingDrawnOn()
     {
         var (_, vm) = Open();
-        Assert.True(vm.ActiveLayerOnion);
+        Assert.False(vm.ActiveLayerOnion); // a new layer's onion starts off (2026-10-08)
 
-        vm.ActiveLayerOnion = false;
+        vm.ActiveLayerOnion = true;
 
-        Assert.False(vm.Doc.Scene.Layers[vm.ActiveLayerIndex].OnionEnabled);
+        Assert.True(vm.Doc.Scene.Layers[vm.ActiveLayerIndex].OnionEnabled);
     }
 
     [AvaloniaFact]

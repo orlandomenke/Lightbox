@@ -181,16 +181,36 @@ public class RoundTripTests
         Assert.DoesNotContain("\"pngBase64\"", DocJson.Serialize(doc));
     }
 
+    /// <summary>
+    /// A new layer starts with its onion skin off (owner, 2026-10-08): with every
+    /// layer on, a character's colour, shading and effects layers all ghosted at
+    /// once. Turned on per layer, it is saved and comes back on.
+    /// </summary>
+    [Fact]
+    public void ANewLayerStartsWithItsOnionOff_AndOnRoundTrips()
+    {
+        Assert.False(new Layer().OnionEnabled);
+
+        var doc = SampleDoc();
+        doc.Scene.Layers[0].OnionEnabled = true;
+        doc.Scene.Layers[1].OnionEnabled = false;
+        var restored = DocJson.Deserialize(DocJson.Serialize(doc));
+        Assert.True(restored.Scene.Layers[0].OnionEnabled);
+        Assert.False(restored.Scene.Layers[1].OnionEnabled);
+    }
+
     [Fact]
     public void OnionEnabled_RoundTrips_AndDefaultsTrueForOlderDocs()
     {
         var doc = SampleDoc();
         doc.Scene.Layers[0].OnionEnabled = false;
+        doc.Scene.Layers[1].OnionEnabled = true;
         var restored = DocJson.Deserialize(DocJson.Serialize(doc));
         Assert.False(restored.Scene.Layers[0].OnionEnabled);
         Assert.True(restored.Scene.Layers[1].OnionEnabled);
 
-        // Documents saved before the field existed keep onion skinning on.
+        // Documents saved before the field existed keep onion skinning on: the
+        // new-layer default must not reach a layer that was saved without the key.
         var legacy = """
         {
           "version": 1,

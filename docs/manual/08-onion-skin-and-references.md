@@ -10,6 +10,14 @@ so onion skin out of the box is one drawing each way — raise them to see furth
 belong to, so multi-layer onion reads correctly, and they are off during
 playback — the one thing playback has to show is the animation.
 
+**Two switches, and both have to be on.** The checkbox says whether onion skin
+is on at all; each layer's own ◉ (in the Layers panel, and on the shortcut bar
+for the layer you are drawing on) says whether *that* layer ghosts. **A new
+layer starts with its ◉ off** — the first layer of a new document included —
+so turning onion skin on shows nothing until you pick the layers worth
+ghosting: usually the line, rarely the colour, shading and effects underneath
+it. A document saved before this keeps every layer as it was.
+
 **The same controls are on both the Timeline and the X-sheet bars**, because
 onion skin belongs to you rather than to whichever view of the animation you
 have up. They used to be on the X-sheet's bar alone, which made the Timeline tab
