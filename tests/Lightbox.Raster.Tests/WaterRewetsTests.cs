@@ -341,6 +341,78 @@ public class WaterRewetsTests(ITestOutputHelper output)
         return result;
     }
 
+    /// <summary>
+    /// The live path keeps the stroke between pen events (<see cref="WetStroke"/>)
+    /// and redoes only what the moving tip changed. After every event the
+    /// layer is the whole render of the dabs so far, to the byte - with a tail
+    /// that smoothing rewrites, at three sizes - and an event late in a long
+    /// stroke redoes no more than one early in it.
+    /// </summary>
+    [Theory]
+    [InlineData(30)]
+    [InlineData(110)]
+    [InlineData(300)]
+    public void AStrokeKeptBetweenEventsIsTheWholeRender(int size)
+    {
+        using var layer = Render();
+        var brush = Water(size: size);
+        brush.TextureSurface = PaperKind.Fibre;
+        brush.TextureScale = 8;
+        brush.TextureSettle = 0.4;
+        brush.PressureFlowGamma = 0.6;
+        var pre = layer.GetPixelSpan().ToArray();
+        var dest = pre.ToArray();
+        var kept = new WetStroke(W, H, brush);
+        var walk = new LiveDabWalk();
+        var horizon = new LiveDabWalk();
+        const int Unsettled = 3;
+
+        var final = new List<StrokePoint>();
+        for (var i = 0; i <= 160; i++)
+        {
+            final.Add(new StrokePoint(30 + (i * 4.0), 230 + (Math.Sin(i * 0.09) * 170), 0.45 + (0.45 * Math.Sin(i * 0.05))));
+        }
+
+        int earlyMost = 0, lateMost = 0, checks = 0;
+        for (var n = 1; n <= final.Count; n++)
+        {
+            // What the stroke looks like after n samples: its newest points still moving, as with smoothing.
+            var seen = final.Take(n).ToList();
+            for (var back = 0; back < Unsettled && back < n - 1; back++)
+            {
+                var at = n - 1 - back;
+                var pull = (Unsettled - back) / (double)(Unsettled + 1);
+                seen[at] = new StrokePoint(seen[at].X + ((seen[at - 1].X - seen[at].X) * pull * 0.4), seen[at].Y + ((seen[at - 1].Y - seen[at].Y) * pull * 0.4), seen[at].Pressure);
+            }
+            var dabs = walk.Of(new Stroke { Tool = ToolKind.Brush, Brush = brush, Points = seen });
+            var keep = n - (Unsettled + 1);
+            var settled = 0;
+            if (keep > 0)
+            {
+                var without = horizon.Of(new Stroke { Tool = ToolKind.Brush, Brush = brush, Points = seen.Take(keep).ToList() });
+                settled = BrushEngine.SettledPrefix(dabs, without, 0, out _);
+            }
+            kept.Update(pre, W * 4, dabs, settled, dest, W * 4);
+            if (n is > 20 and <= 50) earlyMost = Math.Max(earlyMost, kept.PixelsRedone);
+            if (n > 130) lateMost = Math.Max(lateMost, kept.PixelsRedone);
+
+            if (n % 23 == 0 || n == final.Count)
+            {
+                var whole = new byte[W * H * 4];
+                WetBleed.Render(pre, W, H, W * 4, dabs, brush, new SKRectI(0, 0, W, H), whole);
+                var differing = 0;
+                for (var i = 0; i < whole.Length; i++)
+                {
+                    if (whole[i] != dest[i]) differing++;
+                }
+                Assert.True(differing == 0, $"size {size}, {n} samples: {differing} bytes differ from the whole render");
+                checks++;
+            }
+        }
+        output.WriteLine($"size {size}: {checks} checks equal; an event redid at most {earlyMost} pixels early and {lateMost} late");
+        Assert.True(lateMost <= (earlyMost * 2) + 2000, $"an event redid {earlyMost} pixels early in the stroke and {lateMost} late: the work grows with the stroke");
+    }
+
     [Fact]
     public void ItRendersTheSameTwice()
     {

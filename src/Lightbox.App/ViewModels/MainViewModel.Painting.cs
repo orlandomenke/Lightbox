@@ -2418,6 +2418,7 @@ public partial class MainViewModel
         _live.EffectDabs = null;
         _live.EffectSettled = 0;
         _live.WetSpread = null;
+        _live.Wet = null;
         _live.SmudgeCarry = default;
         _live.SmudgeRegion = null;
         _live.MixCarry = default;
@@ -2941,6 +2942,35 @@ public partial class MainViewModel
     {
         if (_live.Composite is not { } composite || _live.EffectBase is not { } before) return;
         int width = composite.Width, height = composite.Height;
+        if (live.ClipId is null)
+        {
+            // Kept between events: only the pixels the moving tip changed are
+            // redone. The dabs it may treat as final are the ones the paint path
+            // stamps for good - the same with the newest points taken away.
+            var settled = 0;
+            var points = live.Points;
+            var keepPoints = points.Count - (BrushEngine.SettleHorizonPoints + Math.Max(0, _stabilizer.SmoothingHorizon));
+            if (keepPoints > 0)
+            {
+                TrimmedInto(_live.HorizonPoints, points, keepPoints);
+                var without = _live.HorizonWalk.Of(new Stroke { Tool = live.Tool, Brush = live.Brush, Points = _live.HorizonPoints });
+                var known = first ? 0 : Math.Min(_live.HorizonAgreed, Math.Min(_live.Walk.Kept, _live.HorizonWalk.Kept));
+                settled = BrushEngine.SettledPrefix(dabs, without, known, out var agreed);
+                _live.HorizonAgreed = agreed;
+            }
+            if (_live.Wet is not { } wet || !wet.Fits(width, height, live.Brush))
+            {
+                _live.Wet = wet = new WetStroke(width, height, live.Brush);
+            }
+            var changed = wet.Update(before.GetPixelSpan(), before.RowBytes, dabs, settled, composite.GetPixelSpan(), composite.RowBytes);
+            if (changed.Width > 0 && changed.Height > 0)
+            {
+                composite.NotifyPixelsChanged();
+                _publish.MarkDirty(changed);
+            }
+            return;
+        }
+
         var kept = first ? 0 : _live.Walk.Kept;
         var region = WetBleed.Bounds(dabs, kept, dabs.Count, live.Brush, width, height);
         if (!first && _live.Walk.Replaced.Count > 0)

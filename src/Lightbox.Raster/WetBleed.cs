@@ -96,21 +96,100 @@ public static class WetBleed
         int rw = region.Width, rh = region.Height;
         if (rw <= 0 || rh <= 0) return;
 
-        // 1. Wetness: the most any one dab puts on each pixel.
+        // 1. Wetness: the most any one dab puts on each pixel. And where the
+        // brush was at all, whatever the pressure: its edge is the edge of the
+        // water. Wetness alone would not do - a lightly pressed stretch is half
+        // wet all over, and is not an edge anywhere.
         var mask = ArrayPool<float>.Shared.Rent(rw * rh);
         Array.Clear(mask, 0, rw * rh);
-        // And where the brush was at all, whatever the pressure: its edge is
-        // the edge of the water. Wetness alone would not do - a lightly pressed
-        // stretch is half wet all over, and is not an edge anywhere.
         var cover = ArrayPool<float>.Shared.Rent(rw * rh);
         Array.Clear(cover, 0, rw * rh);
+        var touched = Wetness(dabs, 0, dabs.Count, brush, region, mask, cover, scale, origin);
+        // Nothing wet in this rectangle: it is the layer as it was.
+        if (!touched)
+        {
+            for (var y = 0; y < rh; y++)
+            {
+                pre.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), rw * 4).CopyTo(dest.Slice(y * rw * 4, rw * 4));
+            }
+            ArrayPool<float>.Shared.Return(mask);
+            ArrayPool<float>.Shared.Return(cover);
+            return;
+        }
+
+        // 2. The spread: the layer blurred, over the rectangle.
+        var k = SpreadRadius(brush, scale);
+        var blurred = ArrayPool<byte>.Shared.Rent(rw * rh * 4);
+        (spread is { } kept && kept.Fits(width, height, k) ? kept : new Spread(width, height, k))
+            .Read(pre, rowBytes, region, blurred);
+
+        // 3. One expression per pixel.
+        var look = new Look(brush);
+        var clouds = look.Clouds;
+        var settle = look.Settle;
+        float[]? paper = null;
+        if (settle > 0)
+        {
+            paper = ArrayPool<float>.Shared.Rent(rw * rh);
+            // The sheet is fixed to the document, like every paper.
+            PaperField.Fill(
+                paper.AsSpan(0, rw * rh), rw, rh, region.Left + (int)Math.Round(origin.X * scale), region.Top + (int)Math.Round(origin.Y * scale),
+                brush.TextureSurface!.Value, Math.Max(1.5, brush.TextureScale * scale));
+        }
+        var coarse = look.Coarse;
+        var fine = look.Fine;
+        var columns = ArrayPool<double>.Shared.Rent(rw);
+        for (var x = 0; x < rw; x++) columns[x] = ((region.Left + x + 0.5) / scale) + origin.X;
+        for (var y = 0; y < rh; y++)
+        {
+            var src = pre.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), rw * 4);
+            var docY = ((region.Top + y + 0.5) / scale) + origin.Y;
+            coarse.Row(docY);
+            fine.Row(docY);
+            for (var x = 0; x < rw; x++)
+            {
+                var i = (y * rw) + x;
+                var o = i * 4;
+                var m = mask[i];
+                if (m <= 0)
+                {
+                    src.Slice(x * 4, 4).CopyTo(dest.Slice(o, 4));
+                    continue;
+                }
+
+                var docX = columns[x];
+                var c = clouds > 0 ? Math.Clamp((coarse.At(docX) * 0.68f) + (fine.At(docX) * 0.32f), 0f, 1f) : 0.5f;
+                Pixel(src.Slice(x * 4, 4), blurred.AsSpan(o, 4), m, cover[i], c, paper is null ? -1f : paper[i], look, dest.Slice(o, 4));
+            }
+        }
+
+        ArrayPool<double>.Shared.Return(columns);
+        if (paper is not null) ArrayPool<float>.Shared.Return(paper);
+        ArrayPool<byte>.Shared.Return(blurred);
+        ArrayPool<float>.Shared.Return(mask);
+        ArrayPool<float>.Shared.Return(cover);
+    }
+
+    /// <summary>
+    /// The most any one of dabs <paramref name="from"/> to <paramref name="to"/>
+    /// puts on each pixel of <paramref name="region"/>, merged into
+    /// <paramref name="mask"/> (wetness) and <paramref name="cover"/> (where the
+    /// brush was at all) by keeping the larger. True if any dab reached it.
+    /// A maximum, so the order the dabs come in, and how many calls they are
+    /// split across, does not change a single value.
+    /// </summary>
+    internal static bool Wetness(
+        IReadOnlyList<BrushEngine.Dab> dabs, int from, int to, BrushSettings brush, SKRectI region,
+        Span<float> mask, Span<float> cover, double scale = 1.0, SKPointI origin = default)
+    {
+        var rw = region.Width;
         var flow = Math.Clamp(brush.Flow, 0, 1);
         var touched = false;
         // No dab is wider than the brush's size (a pressure response is at most
         // one), so a dab further than that from the rectangle is passed over
         // before its radius is worked out - which with a curve is not cheap.
         var reach = (Math.Max(1, brush.Size) * scale / 2) + 1;
-        for (var di = 0; di < dabs.Count; di++)
+        for (var di = from; di < to; di++)
         {
             var d = dabs[di];
             double px = (d.Pos.X - origin.X) * scale, py = (d.Pos.Y - origin.Y) * scale;
@@ -163,97 +242,71 @@ public static class WetBleed
             }
         }
 
-        // Nothing wet in this rectangle: it is the layer as it was.
-        if (!touched)
+        return touched;
+    }
+
+    /// <summary>The settings one pixel of the result is made from, read off the brush once.</summary>
+    internal readonly struct Look
+    {
+        public readonly float Thin;
+        public readonly float Clouds;
+        public readonly float Gather;
+        public readonly float Settle;
+        public readonly double Cell;
+
+        public Look(BrushSettings brush)
         {
-            for (var y = 0; y < rh; y++)
-            {
-                pre.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), rw * 4).CopyTo(dest.Slice(y * rw * 4, rw * 4));
-            }
-            ArrayPool<float>.Shared.Return(mask);
-            ArrayPool<float>.Shared.Return(cover);
-            return;
+            var wet = brush.Wet ?? new WetSettings();
+            Thin = (float)Math.Clamp(wet.Thin, 0, 1);
+            Clouds = (float)Math.Clamp(wet.Cloud, 0, 1);
+            Gather = (float)Math.Clamp(wet.Gather, 0, 1);
+            Settle = brush.TextureSurface is null ? 0f : (float)Math.Clamp(brush.TextureSettle ?? 0, 0, 1);
+            Cell = Math.Max(6.0, brush.Size * 0.45);
         }
 
-        // 2. The spread: the layer blurred, over the rectangle.
-        var k = SpreadRadius(brush, scale);
-        var blurred = ArrayPool<byte>.Shared.Rent(rw * rh * 4);
-        (spread is { } kept && kept.Fits(width, height, k) ? kept : new Spread(width, height, k))
-            .Read(pre, rowBytes, region, blurred);
+        public Octave Coarse => new(Cell, 0x51ED27);
 
-        // 3. One expression per pixel.
-        var thin = (float)Math.Clamp(wet.Thin, 0, 1);
-        var clouds = (float)Math.Clamp(wet.Cloud, 0, 1);
-        var gather = (float)Math.Clamp(wet.Gather, 0, 1);
-        var settle = brush.TextureSurface is null ? 0f : (float)Math.Clamp(brush.TextureSettle ?? 0, 0, 1);
-        float[]? paper = null;
-        if (settle > 0)
+        public Octave Fine => new(Cell * 0.37, 0x2C1B3D);
+    }
+
+    /// <summary>
+    /// One pixel of the result: the layer as it was (<paramref name="src"/>),
+    /// the layer blurred, the wetness and where the brush was, how much water
+    /// pooled there, and the paper (negative for none). The only place the
+    /// expression is written, so a whole render and a pixel redone on its own
+    /// are the same arithmetic.
+    /// </summary>
+    internal static void Pixel(
+        ReadOnlySpan<byte> src, ReadOnlySpan<byte> blurred, float m, float covered, float c, float paper,
+        in Look look, Span<byte> dest)
+    {
+        var clouds = look.Clouds;
+        // Where water pooled the pigment is pushed out; beside a pool there is a little more.
+        var pool = Math.Clamp((c - 0.45f) * 2.2f, 0f, 1f);
+        var bank = Math.Clamp((0.45f - c) * 2.2f, 0f, 1f);
+        var carried = (1f - (0.9f * clouds * pool)) * (1f + (0.5f * clouds * bank));
+        var mix = m * (1f - clouds + (clouds * Math.Clamp(c * 1.6f, 0f, 1f)));
+        // The edge of the water: where the brush's own falloff passes
+        // through its middle, as strong as the brush was wet there.
+        var edge = 4f * covered * (1f - covered) * Math.Min(1f, m / Math.Max(covered, 0.05f));
+        var keep = 1f - (look.Thin * m);
+        var line = look.Gather * edge * (0.35f + c);
+        var sheet = paper < 0 ? 1f : 1f - (look.Settle * paper * m);
+
+        float a = 0;
+        for (var ch = 3; ch >= 0; ch--)
         {
-            paper = ArrayPool<float>.Shared.Rent(rw * rh);
-            // The sheet is fixed to the document, like every paper.
-            PaperField.Fill(
-                paper.AsSpan(0, rw * rh), rw, rh, region.Left + (int)Math.Round(origin.X * scale), region.Top + (int)Math.Round(origin.Y * scale),
-                brush.TextureSurface!.Value, Math.Max(1.5, brush.TextureScale * scale));
+            var p = src[ch];
+            var b = blurred[ch] * carried;
+            var v = (p + ((b - p) * mix)) * keep;
+            v += blurred[ch] * line;
+            v *= sheet;
+            v = Math.Clamp(v, 0f, 255f);
+            // Premultiplied: a colour channel can never exceed the alpha.
+            if (ch == 3) a = v;
+            else if (v > a) v = a;
+            dest[ch] = (byte)(v + 0.5f);
         }
-        var cell = Math.Max(6.0, brush.Size * 0.45);
-        var coarse = new Octave(cell, 0x51ED27);
-        var fine = new Octave(cell * 0.37, 0x2C1B3D);
-        var columns = ArrayPool<double>.Shared.Rent(rw);
-        for (var x = 0; x < rw; x++) columns[x] = ((region.Left + x + 0.5) / scale) + origin.X;
-        for (var y = 0; y < rh; y++)
-        {
-            var src = pre.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), rw * 4);
-            var docY = ((region.Top + y + 0.5) / scale) + origin.Y;
-            coarse.Row(docY);
-            fine.Row(docY);
-            for (var x = 0; x < rw; x++)
-            {
-                var i = (y * rw) + x;
-                var o = i * 4;
-                var m = mask[i];
-                if (m <= 0)
-                {
-                    src.Slice(x * 4, 4).CopyTo(dest.Slice(o, 4));
-                    continue;
-                }
-
-                var docX = columns[x];
-                var c = clouds > 0 ? Math.Clamp((coarse.At(docX) * 0.68f) + (fine.At(docX) * 0.32f), 0f, 1f) : 0.5f;
-                // Where water pooled the pigment is pushed out; beside a pool there is a little more.
-                var pool = Math.Clamp((c - 0.45f) * 2.2f, 0f, 1f);
-                var bank = Math.Clamp((0.45f - c) * 2.2f, 0f, 1f);
-                var carried = (1f - (0.9f * clouds * pool)) * (1f + (0.5f * clouds * bank));
-                var mix = m * (1f - clouds + (clouds * Math.Clamp(c * 1.6f, 0f, 1f)));
-                // The edge of the water: where the brush's own falloff passes
-                // through its middle, as strong as the brush was wet there.
-                var covered = cover[i];
-                var edge = 4f * covered * (1f - covered) * Math.Min(1f, m / Math.Max(covered, 0.05f));
-                var keep = 1f - (thin * m);
-                var line = gather * edge * (0.35f + c);
-                var sheet = paper is null ? 1f : 1f - (settle * paper[i] * m);
-
-                float a = 0;
-                for (var ch = 3; ch >= 0; ch--)
-                {
-                    var p = src[(x * 4) + ch];
-                    var b = blurred[o + ch] * carried;
-                    var v = (p + ((b - p) * mix)) * keep;
-                    v += blurred[o + ch] * line;
-                    v *= sheet;
-                    v = Math.Clamp(v, 0f, 255f);
-                    // Premultiplied: a colour channel can never exceed the alpha.
-                    if (ch == 3) a = v;
-                    else if (v > a) v = a;
-                    dest[o + ch] = (byte)(v + 0.5f);
-                }
-            }
-        }
-
-        ArrayPool<double>.Shared.Return(columns);
-        if (paper is not null) ArrayPool<float>.Shared.Return(paper);
-        ArrayPool<byte>.Shared.Return(blurred);
-        ArrayPool<float>.Shared.Return(mask);
-        ArrayPool<float>.Shared.Return(cover);
     }
 
     /// <summary>
@@ -313,9 +366,22 @@ public static class WetBleed
         public int CellsBlurred => _blurred.Count * Tile * Tile;
 
         /// <summary>The blurred layer over <paramref name="region"/>, premultiplied RGBA, tightly packed.</summary>
-        public void Read(ReadOnlySpan<byte> pre, int rowBytes, SKRectI region, Span<byte> dest)
+        public void Read(ReadOnlySpan<byte> pre, int rowBytes, SKRectI region, Span<byte> dest) =>
+            Read(pre, rowBytes, region, dest, default, 0, default);
+
+        /// <summary>
+        /// The same, for only the pixels <paramref name="wanted"/> marks - a
+        /// rectangle of flags <paramref name="wantedStride"/> wide whose corner is
+        /// <paramref name="wantedAt"/> - leaving the rest of <paramref name="dest"/>
+        /// as it was. Empty flags mean every pixel. Each pixel read is the value a
+        /// read of the whole rectangle gives it.
+        /// </summary>
+        public void Read(
+            ReadOnlySpan<byte> pre, int rowBytes, SKRectI region, Span<byte> dest,
+            ReadOnlySpan<bool> wanted, int wantedStride, SKPointI wantedAt)
         {
             int rw = region.Width, rh = region.Height;
+            var all = wanted.IsEmpty;
             if (_k <= 0)
             {
                 for (var y = 0; y < rh; y++)
@@ -348,8 +414,10 @@ public static class WetBleed
                 var fy = (float)(v - iy);
                 var rowA = (iy - gy) * gw;
                 var rowB = rowA + gw;
+                var flags = all ? 0 : ((region.Top + y - wantedAt.Y) * wantedStride) + (region.Left - wantedAt.X);
                 for (var x = 0; x < rw; x++)
                 {
+                    if (!all && !wanted[flags + x]) continue;
                     var ix = colIx[x];
                     var fx = colFx[x];
                     var a = (rowA + (ix - gx)) * 4;
@@ -507,7 +575,7 @@ public static class WetBleed
     /// row at a time, so the four corners are hashed when the pixel crosses
     /// into a new cell and not at every pixel.
     /// </summary>
-    private struct Octave(double cell, int salt)
+    internal struct Octave(double cell, int salt)
     {
         private int _y0;
         private float _fy;
