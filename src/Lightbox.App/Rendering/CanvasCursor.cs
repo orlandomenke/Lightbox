@@ -232,8 +232,25 @@ public static class CanvasCursor
         // the pointer inside it — so the eyedropper keeps every other place on
         // the canvas, which is nearly all of it.
         if (target.SelectionToMove && !target.OutsideSelection) return ToolId.Move;
+        // Ctrl+Shift is the layer pick: the click fetches no colour, so the pointer
+        // does not promise an eyedropper.
+        if (CanvasControl.IsLayerPick(modifiers)) return tool;
         return HeldPickerApplies(tool) ? ToolId.Picker : tool;
     }
+
+    /// <summary>
+    /// Whether a press with these keys, here, picks the layer under the pointer
+    /// and does nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Not with the Move tool and not inside a marquee: there the press starts a
+    /// move, and only a release that went nowhere turns it into a pick (Q256). The
+    /// pointer shows the move, which is what a drag from here will do.
+    /// </remarks>
+    public static bool PicksLayer(ToolId tool, KeyModifiers modifiers, CanvasTarget target = default) =>
+        CanvasControl.IsLayerPick(modifiers)
+        && tool != ToolId.Move
+        && !(target.SelectionToMove && !target.OutsideSelection);
 
     /// <summary>
     /// The tools the canvas lets Ctrl turn into an eyedropper — paint and fill,
@@ -255,6 +272,10 @@ public static class CanvasCursor
     public static CanvasCursorKind For(
         ToolId tool, CanvasTarget target, KeyModifiers modifiers = KeyModifiers.None)
     {
+        // A layer pick is not the tool acting, so it wears no tool's pointer and
+        // is not refused by the active layer's lock: the plain arrow, which says
+        // "this click does not draw" and is true.
+        if (PicksLayer(tool, modifiers, target)) return CanvasCursorKind.Default;
         var effective = Effective(tool, modifiers, target);
         return Refusal(effective, target) is not null
             ? CanvasCursorKind.Forbidden
@@ -363,6 +384,9 @@ public static class CanvasCursor
     public static string? Refusal(
         ToolId tool, CanvasTarget target, KeyModifiers modifiers = KeyModifiers.None)
     {
+        // The lock is on the active layer and the pick is about to change which
+        // layer that is: forbidding it here forbade a click that works.
+        if (PicksLayer(tool, modifiers, target)) return null;
         tool = Effective(tool, modifiers, target);
         if (!Paints(tool)) return null;
 

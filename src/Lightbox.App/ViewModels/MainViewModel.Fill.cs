@@ -530,21 +530,35 @@ public partial class MainViewModel
                 }
                 continue;
             }
-            var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
-            if (frame is null) continue;
-            // The fill and the eyedropper read the composite the artist sees,
-            // masks, clipping and effects included.
-            var shapes = LayerShapes.For(scene, layerIndex, CurrentFrameIndex);
-            if (shapes is { Count: 0 }) continue;
-            passes.Add(new RenderPass(
-                _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex), null, layer.Opacity,
-                SceneRenderer.ToSkia(layer.BlendMode),
-                Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex),
-                Effect: EffectPasses.SelfFilter(layer, CurrentFrameIndex),
-                Style: EffectPasses.SelfStyle(layer, CurrentFrameIndex)));
+            if (LayerPass(scene, layerIndex) is { } pass) passes.Add(pass);
         }
         if (EffectPasses.SceneStackPass(scene, CurrentFrameIndex) is { } grade) passes.Add(grade);
         return passes;
+    }
+
+    /// <summary>
+    /// One drawn layer as the compositor sees it at the playhead, or null when it
+    /// shows nothing there.
+    /// </summary>
+    /// <remarks>
+    /// Its own method so the layer pick (<see cref="PickLayerAt"/>) asks "what does
+    /// this layer show here" with the same answer the fill and the eyedropper get:
+    /// the cel the hold shows, masks, clipping and effects included. Same rule as
+    /// <see cref="VisiblePasses"/>: call it inside <c>HoldFetches</c>.
+    /// </remarks>
+    private RenderPass? LayerPass(Scene scene, int layerIndex)
+    {
+        var layer = scene.Layers[layerIndex];
+        var frame = ExposureSheet.ExposedFrame(layer, CurrentFrameIndex);
+        if (frame is null) return null;
+        var shapes = LayerShapes.For(scene, layerIndex, CurrentFrameIndex);
+        if (shapes is { Count: 0 }) return null;
+        return new RenderPass(
+            _cache.Get(frame, scene.Width, scene.Height, celIndex: CurrentFrameIndex), null, layer.Opacity,
+            SceneRenderer.ToSkia(layer.BlendMode),
+            Shapes: LayerShapes.Resolve(shapes, _cache, scene.Width, scene.Height, CurrentFrameIndex),
+            Effect: EffectPasses.SelfFilter(layer, CurrentFrameIndex),
+            Style: EffectPasses.SelfStyle(layer, CurrentFrameIndex));
     }
 
     /// <summary>

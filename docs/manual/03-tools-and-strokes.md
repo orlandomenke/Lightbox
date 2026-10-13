@@ -670,6 +670,12 @@ cutting the pixels out, so a stroke that crosses the edge travels whole. And a
 `Ctrl`-click that goes nowhere leaves nothing behind — no move in the history
 for a press that was only a press.
 
+**`Ctrl`+`Shift`+click finds the layer.** Click on a mark with both held and the
+layer it is on becomes the active one, whichever tool you have in hand: the
+quick way from "that line there" to its row in the Layers docker. See
+*Finding a layer from the canvas* under Layers. With both keys down the pointer
+becomes the plain arrow — this click draws nothing and fetches no colour.
+
 ### The eyedropper's ring
 
 With the eyedropper in hand — chosen, or borrowed with `Ctrl` — a ring follows

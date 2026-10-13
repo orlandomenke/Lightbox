@@ -124,7 +124,7 @@ public class ScannedPaperTests(ITestOutputHelper output)
     /// sheet's median: 0.75 on that strip, 0.94 on the cleaned sheet.
     /// Kraft is not here yet: it has the same fault at its left and top edges
     /// (0.74), and replacing a shipped sheet is the owner's decision each time
-    /// (Q254 decided Plain).
+    /// (Q256 decided Plain).
     /// </remarks>
     [Theory]
     [InlineData(PaperKind.Plain)]
@@ -198,7 +198,7 @@ public class ScannedPaperTests(ITestOutputHelper output)
     /// replaced scan needs a new kind, not a new file under an old name.
     /// </summary>
     [Theory]
-    [InlineData(PaperKind.Plain, "CDC033D29A16-CB96CDF0FA63-BB7E02EB9FDC")] // re-recorded 2026-10-12: the streaked strip cut out (Q254, B459)
+    [InlineData(PaperKind.Plain, "CDC033D29A16-CB96CDF0FA63-BB7E02EB9FDC")] // re-recorded 2026-10-12: the streaked strip cut out (Q256, B459)
     [InlineData(PaperKind.Kraft, "87A43F6260FF-12C28E384E5D-F45CB3CCDC7E")]
     [InlineData(PaperKind.Fibre, "CE10CA61DEA9-75DA70D559E5-B38548207CB5")]
     [InlineData(PaperKind.Linen, "01F02A42986A-F110512B6941-D1C47DF779F0")]

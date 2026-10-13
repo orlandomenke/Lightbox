@@ -95,6 +95,7 @@ public partial class MainWindow
     private void WireCanvasTools()
     {
         Canvas.PickClicked += _vm.PickColorAt;
+        Canvas.LayerPickClicked += OnLayerPickClicked;
         Canvas.GradientDragStarted += _vm.BeginGradient;
         Canvas.GradientDragMoved += _vm.MoveGradient;
         Canvas.GradientDragEnded += _vm.EndGradient;
@@ -965,5 +966,25 @@ public partial class MainWindow
         if (BrushPickerButton?.Flyout is { } picker) picker.Hide();
         await new BrushLibraryWindow(_vm).ShowDialog(this);
         RefreshBrushPickerButton();
+    }
+
+    /// <summary>
+    /// Ctrl+Shift+click on the canvas: make the layer under it active, and bring
+    /// its row into view.
+    /// </summary>
+    /// <remarks>
+    /// The scroll is the confirmation. A pick that lands on a row scrolled out of
+    /// the docker would otherwise change nothing the artist can see but the status
+    /// line (ui-critic, in review). Posted, because the row's highlight and any
+    /// rebuild of the list happen on the way out of the property change.
+    /// </remarks>
+    private void OnLayerPickClicked(double x, double y, double tolerance)
+    {
+        if (!_vm.PickLayerAt(x, y, tolerance)) return;
+        Dispatcher.Post(() =>
+        {
+            var row = _vm.LayerPanelItems.OfType<ViewModels.LayerRow>().FirstOrDefault(r => r.IsActive);
+            if (row is not null && LayerList.ContainerFromItem(row) is { } container) container.BringIntoView();
+        });
     }
 }
