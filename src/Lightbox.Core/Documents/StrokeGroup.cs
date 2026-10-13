@@ -106,6 +106,38 @@ public static class StrokeGroups
     public static bool Any(IEnumerable<Stroke> strokes) =>
         strokes.Any(s => s.Group is not null);
 
+    /// <summary>
+    /// Hand every piece of stored pixels inside the list's groups — a group's
+    /// baseline, its mask's — to <paramref name="resample"/>, which rewrites
+    /// the holder's <see cref="Frame.PngBase64"/> in place.
+    /// </summary>
+    /// <remarks>
+    /// A whole-drawing transform moves strokes in Core and resamples the
+    /// drawing's baseline where Skia is. A group's pixels are the same kind of
+    /// thing one level down, and the caller already has a routine that takes a
+    /// frame — so each is lent a frame to be resampled in, rather than every
+    /// caller learning a second shape.
+    /// </remarks>
+    public static void ResamplePixels(IEnumerable<Stroke> strokes, Action<Frame> resample)
+    {
+        foreach (var stroke in strokes)
+        {
+            if (stroke.Group is not { } group) continue;
+            if (!string.IsNullOrEmpty(group.PngBase64))
+            {
+                var holder = new Frame { PngBase64 = group.PngBase64 };
+                resample(holder);
+                group.PngBase64 = holder.PngBase64;
+            }
+            ResamplePixels(group.Strokes, resample);
+            if (group.Mask is { } mask)
+            {
+                if (!string.IsNullOrEmpty(mask.Frame.PngBase64)) resample(mask.Frame);
+                ResamplePixels(mask.Frame.Strokes, resample);
+            }
+        }
+    }
+
     /// <summary>Does this drawing hold a group anywhere?</summary>
     public static bool Any(Frame? frame) => frame is not null && Any(frame.Strokes);
 

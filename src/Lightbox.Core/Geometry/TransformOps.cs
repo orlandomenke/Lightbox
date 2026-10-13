@@ -123,6 +123,20 @@ public static class TransformOps
         Stroke stroke, PointMap map, double sizeScale = 1, Func<string, string>? mapClip = null,
         StrokeMover? mover = null)
     {
+        // A group has no points of its own (Q265): moving it is moving what
+        // is inside it — its strokes, and the mask it is carved by, or the
+        // drawing slides out from under its own carve. Its stored pixels, if
+        // it has any, are the caller's to resample, as a frame's are.
+        if (stroke.Group is { } group)
+        {
+            foreach (var child in group.Strokes) TransformStroke(child, map, sizeScale, mapClip, mover);
+            if (group.Mask is { } mask)
+            {
+                foreach (var carve in mask.Frame.Strokes) TransformStroke(carve, map, sizeScale, mapClip, mover);
+            }
+            return;
+        }
+
         if (mover is not null)
         {
             mover(stroke);
@@ -414,6 +428,20 @@ public static class TransformOps
         double minX = double.MaxValue, minY = double.MaxValue;
         double maxX = double.MinValue, maxY = double.MinValue;
         var any = false;
+        // A group is as big as the strokes inside it (Q265).
+        if (stroke.Group is { } group)
+        {
+            foreach (var child in group.Strokes)
+            {
+                if (Bounds(child) is not { } b) continue;
+                any = true;
+                if (b.MinX < minX) minX = b.MinX;
+                if (b.MinY < minY) minY = b.MinY;
+                if (b.MaxX > maxX) maxX = b.MaxX;
+                if (b.MaxY > maxY) maxY = b.MaxY;
+            }
+            return any ? (minX, minY, maxX, maxY) : null;
+        }
         var reach = stroke.Brush.Size / 2;
         foreach (var p in stroke.Points)
         {

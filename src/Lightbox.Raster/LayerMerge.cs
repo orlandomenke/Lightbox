@@ -338,7 +338,7 @@ public static class LayerMerge
         layer.HasLiveEffects && !layer.IsAdjustment ? layer.Effects : null;
 
     /// <summary>Redraw a materialized drawing through a filter, in place; null is identity.</summary>
-    private static void ApplyFilter(SKBitmap target, SKImageFilter? filter)
+    internal static void ApplyFilter(SKBitmap target, SKImageFilter? filter)
     {
         if (filter is null) return;
         using var source = target.Copy();
@@ -361,7 +361,7 @@ public static class LayerMerge
         Carve(target, coverage, mask.IsInverted);
     }
 
-    private static void Carve(SKBitmap target, SKBitmap coverage, bool inverted)
+    internal static void Carve(SKBitmap target, SKBitmap coverage, bool inverted)
     {
         using var canvas = new SKCanvas(target);
         using var paint = new SKPaint

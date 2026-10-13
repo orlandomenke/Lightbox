@@ -237,12 +237,27 @@ public static class BrushEngine
     /// is the only quantity that separates the two spaces, and getting it wrong
     /// moves the paper under the ink rather than failing loudly.
     /// </param>
+    /// <param name="frameIndex">
+    /// Which cel is being drawn. Only a group reads it, and only for an effect
+    /// it carries, whose parameters can be keyed (Q265). Every caller that has
+    /// no timeline position leaves it at zero, and the bounded paths refuse a
+    /// drawing whose pixels depend on it.
+    /// </param>
     public static void StampStroke(
         SKCanvas target, Stroke stroke, SKImageInfo info, SKBitmap? targetPixels = null,
         bool draft = false, double outputScale = 1.0, SKBitmap? backdrop = null,
         IReadOnlyList<Dab>? draftDabs = null, int draftFromDab = 0, SKPointI origin = default,
-        SKRectI? window = null)
+        SKRectI? window = null, int frameIndex = 0)
     {
+        // A group has no points of its own: it is the strokes inside it, drawn
+        // on a surface of their own and put onto this one (Q265).
+        if (stroke.Group is { } group)
+        {
+            StrokeGroupRenderer.Stamp(
+                target, group, info, targetPixels, draft ? 1.0 : outputScale, backdrop, origin, window, frameIndex);
+            return;
+        }
+
         if (stroke.Points.Count == 0) return;
 
         // All contours rather than paths, differing only in whether the region
@@ -4357,6 +4372,7 @@ public static class BrushEngine
     /// </remarks>
     public static SKRectI? CommitRegion(Stroke stroke, SKImageInfo info, SKPointI origin = default)
     {
+        if (stroke.Group is { } group) return StrokeGroupRenderer.Reach(group, info, origin);
         var surface = SKRectI.Create(0, 0, info.Width, info.Height);
         if (stroke.Tool == ToolKind.Gradient) return surface;
         if (ReachBounds(stroke) is not { } reach) return null;
@@ -4384,7 +4400,9 @@ public static class BrushEngine
     /// for a stroke with no points.
     /// </summary>
     public static SKRectI? ReachBounds(Stroke stroke) =>
-        RawBounds(stroke, CommitMargin(stroke));
+        stroke.Group is { } group
+            ? StrokeGroupRenderer.ReachBounds(group)
+            : RawBounds(stroke, CommitMargin(stroke));
 
     /// <summary>The margin around a stroke's points that its final render can reach.</summary>
     private static float CommitMargin(Stroke stroke)

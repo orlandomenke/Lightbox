@@ -122,8 +122,10 @@ public static class FrameCheckpoints
         if (frame.Strokes.Count < MinStrokes) return false;
         if (frame.HasBaseline) return false;
         if (frame.HasBoundStrokes || frame.HasCorrectives) return false;
-        foreach (var stroke in frame.Strokes)
-            if (stroke.Brush.SampleSource == SampleSource.AllLayersLive) return false;
+        if (StrokeGroupRenderer.SamplesLive(frame.Strokes)) return false;
+        // A group with an effect draws differently at each cel that shows it
+        // (Q265), and a checkpoint holds one.
+        if (StrokeGroupRenderer.DependsOnCel(frame.Strokes)) return false;
         return true;
     }
 
