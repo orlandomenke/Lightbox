@@ -460,7 +460,8 @@ public partial class MainViewModel
     /// <summary>
     /// Apply a resize the artist confirmed, as one undo step — more when type
     /// was still being typed, a pen line still being placed or a transform
-    /// still open, each of which is finished first as its own step.
+    /// still open, each of which is finished first as its own step. An image
+    /// resize clears the selection.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -485,7 +486,6 @@ public partial class MainViewModel
         // (B462's review). The path edit ends — every node drag was already
         // its own undo step — and the type is set, so what was typed is in
         // the document before the resize walks it rather than lost.
-        var (wasWide, wasHigh) = (Scene.Width, Scene.Height);
         if (choice.IsImage)
         {
             EndPathEdit();
@@ -499,21 +499,22 @@ public partial class MainViewModel
             if (TransformActive) CancelTransform();
             FinishPen();
             if (PenActive) CancelPen();
+            // The selection is drawn round part of the drawing at the old
+            // size, and it lives outside the document, so an undo of the
+            // resize cannot take it back down: scaled with the drawing, it was
+            // left at twice the size on the restored page (the adversary). It
+            // is cleared instead — a marquee is quick to draw again, and a
+            // wrong one clips every mark made inside it.
+            Deselect();
         }
         var changed = false;
         _editor.Perform(doc => changed = choice.Apply(doc, new Lightbox.Raster.PixelResampler()));
         if (!changed) return false;
 
-        // The selection is drawn round part of the drawing, so it goes where
-        // that part went (B465). A crop frame is a rectangle on the page, and
-        // the page is a different size now: it starts again on the new one,
-        // for either kind of resize.
-        if (choice.IsImage && HasSelection)
-        {
-            var (sx, sy) = ((double)Scene.Width / wasWide, (double)Scene.Height / wasHigh);
-            _selectionContours = [.. _selectionContours.Select(c => c.Select(p => p with { X = p.X * sx, Y = p.Y * sy }).ToList())];
-            NotifySelection();
-        }
+        // A crop frame is a rectangle on the page, and the page is a different
+        // size now: it starts again on the new one, for either kind of resize
+        // — and again after an undo or a redo that changes the page back
+        // (RestartCropFrameIfThePageMoved).
         if (CropFrame is not null) BeginCropFrame();
 
         RefreshDocumentOrigin();
