@@ -653,10 +653,11 @@ public class ImageResizeTests
     public void EveryPropertyThatCouldHoldAPlaceOnThePaperIsAccountedFor(Type type, string[] scaled, string[] notAPlace)
     {
         // The Scene guard below, for every other type a coordinate can live
-        // on. Four times a length was added to one of these and the resize
-        // was not told — a second rig, a joint zone, a drawn joint fix, a
-        // symmetry axis — and each time nothing went red, because the guard
-        // only read Scene. A property added to any of these types now fails
+        // on. Seven times a place or a length on one of these was left
+        // behind by the resize — a stroke's symmetry axis; a second rig, a
+        // joint zone and a drawn joint fix; a pen path, a text element and
+        // an effect — and each time nothing went red, because the guard only
+        // read Scene. A property added to any of these types now fails
         // here until somebody says which list it belongs in.
         var listed = scaled.Concat(notAPlace).ToList();
         Assert.Equal(listed.Count, listed.Distinct().Count());

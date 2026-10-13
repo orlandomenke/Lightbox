@@ -59,7 +59,7 @@ public interface IPixelResampler
 /// model's own property lists — the scene's, and those of the document, a
 /// frame, a stroke, a rig, a bone, a pin, a text element and an effect — so
 /// that adding a coordinate to any of them without handling it here is
-/// caught. It read the scene alone until B462, and five things slipped past
+/// caught. It read the scene alone until B462, and seven things slipped past
 /// it on the other types.
 /// </para>
 /// </remarks>
