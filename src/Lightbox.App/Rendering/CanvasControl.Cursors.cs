@@ -360,7 +360,11 @@ public sealed partial class CanvasControl
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         Services.InputTrace.Pointer(Services.InputTrace.Kind.Press, e, this);
-        try { OnPointerPressedCore(e); }
+        try
+        {
+            OnPointerPressedCore(e);
+            RememberLayerPickPress(e);
+        }
         finally { RefreshCanvasCursor(e.GetPosition(this), e.KeyModifiers); }
     }
 
@@ -368,7 +372,12 @@ public sealed partial class CanvasControl
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         Services.InputTrace.Pointer(Services.InputTrace.Kind.Release, e, this);
-        try { OnPointerReleasedCore(e); }
+        try
+        {
+            var pick = LayerPickIfItWasAClick(e);
+            OnPointerReleasedCore(e);
+            if (pick is { } at) LayerPickClicked?.Invoke(at.X, at.Y, DocTolerance(GrabPixels));
+        }
         finally { RefreshCanvasCursor(e.GetPosition(this), e.KeyModifiers); }
     }
 

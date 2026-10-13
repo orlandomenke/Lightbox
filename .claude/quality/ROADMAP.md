@@ -503,6 +503,13 @@ rounding cannot reach saved art. The two paths staying separate *is* the
 constraint — `RuntimeDeterminismTests` going red means it was broken, not that
 the test needs relaxing.
 
+- [x] Find a layer from the canvas: Ctrl+Shift+click `evidence: PickLayerAt, LayerPickFromCanvasTests, AClickOnALayersInkMakesThatLayerActive, WithTheMoveToolAClickPicksAndADragStillMoves`
+  - Asked for 2026-10-12. The topmost layer that shows something under the pointer becomes the active one, with any tool. Read from what the compositor draws at the playhead, one small compose per layer from the top down, so a fill, a pasted image and a masked or clipped layer all answer without the pick knowing about them.
+  - **Ctrl+Shift on a brush used to fetch a colour**, by accident: the held eyedropper reads Ctrl with `HasFlag`. The layer pick is asked first.
+  - **With the Move tool and inside a marquee the same keys already drag** (whole layer, or the selection, held to an axis), so there a click picks and a drag still moves (Q256): the pick is decided on release, under three screen pixels of travel, and the move the press began is taken back. Found by the adversary in review; the first cut took both gestures away without saying so.
+  - **The pointer is the plain arrow where the press picks**, and is not refused by a lock on the active layer, since that is the layer about to change. The first cut showed "forbidden" over a click that worked (ui-critic).
+  - **Known gaps.** A layer displaced by camera parallax is asked about where it is in the document, not where the camera draws it; the eyedropper shares this. A layer not in the frame cache (after playback) is rendered whole to answer, once per click, as the eyedropper's click is. No performance budget covers either click yet.
+  - Not in `ShortcutMap`, like every other mouse-and-modifier gesture on the canvas (the held eyedropper, Shift for a straight segment, Alt to erase): the registry is keyboard-only today, so none of them can be rebound. That is one gap, not this feature's.
 - [x] Layer masks `evidence: LayerMask, LayerShapes, PassShape, LayerMaskRecordTests, MaskAndClipCompositingTests, MaskEditingTests, AShapeCarvesThePassToItsCoverage, AStrokeLandsOnTheMaskAndUndoTakesItBackOffIt, TheLivePreviewShowsTheCarveBeforeThePenLifts, AMaskedLayerRefusesToFoldAndStillRenders, AMaskedUpperLayerBakesWithItsMaskApplied`
   - **A mask is strokes, like everything else (Q147)** — one `Frame` rendered
     to alpha through the one pixel path, so it is deterministic, undoable and
