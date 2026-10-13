@@ -392,4 +392,101 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
             $"{preset.Name}: the committed frame is not what its record renders ({gap.Differing} pixels, worst {gap.Worst}) — invariant 1");
         Assert.True(promoted, $"{preset.Name}: a mixing stroke was rendered again at pen-up — {vm.WhyReplayed}");
     }
+    public static IEnumerable<object[]> Erasing() =>
+        from how in new[] { "alt:builtin-ink", "alt:builtin-soft-round", "alt:builtin-pencil", "alt:builtin-watercolor-wet", "eraser", "towel", "towel-off-the-page", "faint" }
+        from size in new[] { 60, 200 }
+        from smooth in new[] { false, true }
+        select new object[] { how, size, smooth };
+
+    /// <summary>
+    /// An eraser stroke is kept at pen-up too. What is on screen while rubbing
+    /// out is the live mark taken out of the layer, which is the same last
+    /// draw a replay makes - so there was never a reason to render it again,
+    /// only a rule that kept brush strokes and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Found by the perf lab's rework-stroke scenario, 2026-10-12: every
+    /// eraser stroke was rendered again from its record at pen-up - 111, 175
+    /// and 177 ms at 60, 150 and 300 px for the Blot, 68 to 164 ms for plain
+    /// Alt-erase, where a painted stroke took 37 to 83. Erasing with the brush
+    /// in hand (Alt), the Eraser tool, and a towel-like eraser with a texture
+    /// and an opacity below one, over three bars of paint.
+    /// </remarks>
+    [AvaloniaTheory]
+    [MemberData(nameof(Erasing))]
+    public void AnEraserStrokeAcrossPaintIsKept(string how, int size, bool smooth)
+    {
+        var vm = Vm(smooth);
+        var scene = vm.Doc.Scene;
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-ink"));
+        vm.BrushSize = 60;
+        foreach (var (x, hex) in new[] { (300.0, "#c8301c"), (480.0, "#e2a11c"), (660.0, "#1c7a3a") })
+        {
+            vm.ColorHex = hex;
+            vm.BeginStroke(x, 150, 1);
+            for (var i = 1; i <= 12; i++) vm.MoveStroke(x + (i * 2), 150 + (i * 25), 1);
+            vm.EndStroke();
+            for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        using var painted = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height).Copy();
+        var strokesBefore = vm.PaintedCel().Strokes.Count;
+
+        var withAlt = how.StartsWith("alt:", StringComparison.Ordinal);
+        if (withAlt)
+        {
+            vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == how[4..]));
+        }
+        else
+        {
+            vm.IsEraser = true;
+            if (how == "faint")
+            {
+                // An opacity that does not land on a whole level: 0.29 of 255 is 73.95.
+                vm.CurrentToolSettingsForTest.Opacity = 0.29;
+            }
+            if (how.StartsWith("towel", StringComparison.Ordinal))
+            {
+                var towel = vm.CurrentToolSettingsForTest;
+                towel.Hardness = 0.6; towel.Opacity = 0.8; towel.Flow = 0.6; towel.Spacing = 0.1;
+                towel.PressureFlowGamma = 1.2;
+                towel.TextureSurface = PaperKind.Fibre; towel.TextureScale = 6; towel.TextureDepth = 0.6;
+            }
+        }
+        vm.BrushSize = size;
+        var before = vm.PromotedStrokes;
+
+        // Across the bars - and, for one case, from outside the page on the
+        // left to outside it on the right, where the mark's window is cut by
+        // the page's edge.
+        var offPage = how.EndsWith("off-the-page", StringComparison.Ordinal);
+        double x0 = offPage ? -90 : 180, step = offPage ? (scene.Width + 180) / 50.0 : 12.0;
+        vm.BeginStroke(x0, 300, 0.5, eraseWithCurrentBrush: withAlt);
+        for (var i = 1; i <= 50; i++)
+        {
+            vm.MoveStroke(x0 + (i * step), 300 + (Math.Sin(i * 0.2) * 60), 0.5 + (0.4 * i / 50.0));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        vm.EndStroke();
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        vm.IsEraser = false;
+
+        Assert.True(vm.PaintedCel().Strokes.Count == strokesBefore + 1, $"{how}: the eraser stroke was not recorded");
+        Assert.Equal(ToolKind.Eraser, vm.PaintedCel().Strokes[^1].Tool);
+
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        var gap = Compare(kept, replay);
+        var took = Compare(kept, painted);
+        var promoted = vm.PromotedStrokes - before == 1;
+        output.WriteLine(
+            $"ERASING {how,-28} size {size,4} {(smooth ? "smooth" : "raw"),-6} {(promoted ? "kept" : "REPLAYED: " + vm.WhyReplayed)}  "
+            + $"rubbed out {took.Differing} pixels, differing from the replay {gap.Differing} worst {gap.Worst}");
+
+        Assert.True(took.Differing > 500, $"{how}: the eraser took almost nothing ({took.Differing} pixels) - nothing was tested");
+        Assert.True(gap.Differing == 0,
+            $"{how}: the committed frame is not what its record renders ({gap.Differing} pixels, worst {gap.Worst}) - invariant 1");
+        Assert.True(promoted, $"{how} at {size}: an eraser stroke was rendered again at pen-up - {vm.WhyReplayed}");
+    }
 }

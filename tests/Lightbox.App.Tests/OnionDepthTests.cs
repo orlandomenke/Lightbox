@@ -52,6 +52,8 @@ public class OnionDepthTests(Xunit.ITestOutputHelper output) : BrushStateIsolate
     {
         var vm = VmLayers.BareVm();
         vm.SmoothStrokes = false;
+        // a new layer's onion starts off (2026-10-08); these ghost
+        vm.SetLayerOnionEnabled(vm.PaintLayer(), true);
         for (var i = 1; i < frames; i++) vm.InsertFrameAt(Cell(vm, i), FrameRole.Key);
         return vm;
     }

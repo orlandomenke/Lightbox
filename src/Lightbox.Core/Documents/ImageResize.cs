@@ -163,10 +163,12 @@ public static class ImageResize
             {
                 key.X *= sx;
                 key.Y *= sy;
-                // Zoom is a ratio against the scene, and the scene scaled with
-                // it — so the shot frames the same part of the drawing. Output
-                // size is the deliverable's resolution and is nothing to do
-                // with the document's.
+                // Zoom is left as it is, by the owner's decision (Q257) and
+                // against the recommendation. It maps document pixels to
+                // output pixels, so after a doubling the same key frames half
+                // the width of the drawing it did, and the shots of a resized
+                // document are re-keyed by hand. Output size is the
+                // deliverable's resolution and is left alone either way.
             }
 
         if (scene.Pivot is { } pivot)
@@ -266,11 +268,17 @@ public static class ImageResize
                 // What the bake draws with is in document pixels, like any
                 // stroke's brush.
                 if (sim.Particles is { } particles) particles.Size *= mark;
-                if (sim.OutlineBrush is { } outline)
-                {
-                    outline.Size *= mark;
-                    outline.TextureScale *= mark;
-                }
+                // An effect with no pen of its own draws with the default
+                // brush, which is the same six pixels at any size of document:
+                // its outlines on the paper were just scaled, and a re-bake
+                // would draw them at six again. So it is given the pen it was
+                // using, at the size it now needs (Q257). That writes a key
+                // the element did not have — after a resize the default is no
+                // longer what it draws with.
+                var outline = sim.OutlineBrush ??= new BrushSettings();
+                outline.Size *= mark;
+                outline.TextureScale *= mark;
+                ScaleMedium(outline, mark);
             }
 
         if (scene.PoseTrack is { } poses)
@@ -292,9 +300,31 @@ public static class ImageResize
                 strip.OffsetX *= sx;
                 strip.OffsetY *= sy;
                 strip.Scale *= mark;
+                // Except a cell's nudge: it registers one frame of the
+                // reference against the drawing, in document pixels, added
+                // outside the strip's scale — so it moves with the drawing.
+                foreach (var cell in strip.Cells)
+                {
+                    cell.Dx *= sx;
+                    cell.Dy *= sy;
+                }
             }
 
         return true;
+    }
+
+    /// <summary>
+    /// A simulated medium's paper grain is in document pixels and is read every
+    /// time the stroke renders, so an enlarged painting re-rendered on a finer
+    /// tooth than it was painted on (Q257). It is a size of a mark and takes
+    /// the mark's factor, as the brush's texture scale does. An untouched
+    /// medium is left untouched: scaling its grain would make it "used", and
+    /// an unused medium is what keeps twenty-one keys off every stroke.
+    /// </summary>
+    private static void ScaleMedium(BrushSettings brush, double mark)
+    {
+        if (brush.Medium.IsUntouched()) return;
+        brush.Medium.PaperScale *= mark;
     }
 
     private static void ScaleFrame(
@@ -360,12 +390,14 @@ public static class ImageResize
                 wrap.Height *= sy;
             }
 
-            // Size and TextureScale are the only two brush settings in
-            // document pixels. Spacing, smudge length and radius, minimum
-            // diameter and every jitter are fractions of one of them and
-            // therefore already scale.
+            // Size and TextureScale are the brush's own settings in document
+            // pixels; a medium's paper grain is the third, and ScaleMedium
+            // has it. Spacing, smudge length and radius, minimum diameter and
+            // every jitter are fractions of one of them and therefore already
+            // scale.
             stroke.Brush.Size *= mark;
             stroke.Brush.TextureScale *= mark;
+            ScaleMedium(stroke.Brush, mark);
 
             if (stroke.Baked is { PngBase64.Length: > 0 } baked)
             {

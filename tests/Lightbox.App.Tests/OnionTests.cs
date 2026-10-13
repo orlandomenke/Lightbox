@@ -20,7 +20,15 @@ namespace Lightbox.App.Tests;
 [Collection("BrushState")]
 public class OnionTests : BrushStateIsolated
 {
-    private static MainViewModel Vm() => new(null)
+    private static MainViewModel Vm()
+    {
+        var vm = NewVm();
+        // a new layer's onion starts off (2026-10-08); these ghost
+        foreach (var layer in vm.Doc.Scene.Layers.ToList()) vm.SetLayerOnionEnabled(layer, true);
+        return vm;
+    }
+
+    private static MainViewModel NewVm() => new(null)
     {
         SmoothStrokes = false,
         ColorHex = "#000000",

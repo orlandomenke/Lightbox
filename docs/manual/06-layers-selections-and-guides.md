@@ -108,6 +108,40 @@ folder whose layers are not next to each other — something older versions coul
 leave behind — its header simply appears again above the second part, rather
 than the layers being reordered on opening.
 
+### Finding a layer from the canvas
+
+**`Ctrl`+`Shift`+click on the drawing makes the layer you clicked on the active
+one**, with any tool in hand. Its row scrolls into view in the Layers docker and
+the status line names it.
+
+- **It picks the topmost layer that shows something there**: the mark your eye
+  is on. Where two layers overlap, the upper one.
+- **A hidden layer is looked through.** You cannot see it, so you did not click
+  on it. So is a layer turned down to almost nothing, and the background: that
+  is paper, not somewhere a mark lives.
+- **You do not have to hit a hairline to the pixel.** A click up to ten screen
+  pixels off still finds it. Zoomed far out the reach stops at 16 pixels of the
+  drawing, so that a click never finds something a long way off. A click
+  squarely on one layer's mark is never taken by another layer's line passing
+  close by.
+- **Bare paper changes nothing**, and the status line says there was nothing
+  there. Onion-skin ghosts and reference images are not layers, so a click on
+  one finds whatever layer is under it, or nothing.
+
+**With the Move tool, or inside a selection, the same keys already drag**:
+`Ctrl` moves the whole layer or what the selection holds, and `Shift` keeps it
+to one axis. So there a *click* finds the layer and a *drag* moves, the way it
+always did. A press that travels less than three screen pixels is a click, and
+moves nothing.
+
+Where it does not reach: on a guide while the Move tool or the Arrow has it, on
+a handle (the camera's, the symmetry axis's), and while the canvas is given over
+to something else — a transform, the reference grid, the rig.
+
+It selects that layer alone, the same as clicking its row, and it is looking
+rather than editing: nothing goes into the history. A layer you find this way
+may be locked; the pointer will say so when you go to draw on it.
+
 ### Working on several layers at once
 
 Click a row to make that layer active. **Ctrl+click** another row to add it to

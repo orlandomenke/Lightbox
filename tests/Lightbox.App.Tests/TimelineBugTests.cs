@@ -42,6 +42,8 @@ public class TimelineBugTests : BrushStateIsolated
         // bottom of the stack, fully opaque — painted over all of them.
         var vm = Vm();
         vm.OnionSkin = true;
+        // a new layer's onion starts off (2026-10-08); this one ghosts
+        vm.SetLayerOnionEnabled(vm.PaintLayer(), true);
         var paper = vm.Doc.Scene.Layers[0];
         Assert.True(paper.IsBackground, "this test is about the paper being present");
 

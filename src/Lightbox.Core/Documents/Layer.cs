@@ -311,7 +311,7 @@ public sealed class LayerMask
     }
 }
 
-public sealed class Layer
+public sealed class Layer : IJsonOnDeserializing
 {
     /// <summary>
     /// Keys a newer build wrote that this one does not know, carried through
@@ -474,7 +474,19 @@ public sealed class Layer
     [JsonIgnore] public bool HasLiveEffects => Effects is { } fx && fx.AppliesAnything;
 
     /// <summary>Whether this layer participates in onion-skin ghosting.</summary>
-    public bool OnionEnabled { get; set; } = true;
+    /// <remarks>
+    /// <b>Off for a new layer (owner, 2026-10-08).</b> The global switch says
+    /// whether onion skin is on at all; this one picks the layers worth
+    /// ghosting, and with every layer on by default a character's colour,
+    /// shading and effects layers all ghosted at once. A layer read from a file
+    /// starts on instead (<see cref="OnDeserializing"/>): files have written the
+    /// key since it existed, so a saved layer keeps what it was, and one saved
+    /// before it existed keeps the on it always had.
+    /// </remarks>
+    public bool OnionEnabled { get; set; }
+
+    /// <summary>A layer from a file without the onion key was ghosted; it stays so.</summary>
+    void IJsonOnDeserializing.OnDeserializing() => OnionEnabled = true;
 
     /// <summary>
     /// Pinned to the Timeline and the X-sheet (Q227): with the scene's

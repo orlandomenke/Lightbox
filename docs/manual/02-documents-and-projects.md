@@ -80,7 +80,16 @@ everything scales with it — line positions, brush sizes, textures, guides,
 symbol placements. So does what a drawing is edited through: skeletons and
 their poses, pen paths, type and effects all come to the new size, so a line
 can still be reshaped by its nodes, a word retyped and an effect baked again
-where it stands. **Keep proportions** is on by default here, because scaling
+where it stands — an effect that had no pen of its own is given one at the
+size its outlines now are, so the effects window shows that size where it
+said "default" — clearing it goes back to the six-pixel default. The paper
+grain of a simulated medium (watercolour, gouache, oil) grows with it; the
+grain of a flat brush does not. The
+one thing that does not follow is a **camera**: its keys move with the drawing
+but keep their zoom, so after an enlargement every shot frames a smaller part
+of the drawing and wants re-keying. An edit you had open — a line you were
+reshaping, type you were still typing — is finished first, so nothing comes
+back at the old size. **Keep proportions** is on by default here, because scaling
 the two axes differently distorts the drawing and is almost never meant. This
 is also where **PPI** lives: it says how large these pixels print, so it belongs
 to the artwork rather than to the paper. Changing only the PPI is a valid

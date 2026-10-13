@@ -189,6 +189,8 @@ public sealed class StopOnTilesTests : BrushStateIsolated
     {
         var vm = Vm();
         vm.Onion.Enabled = true;
+        // a new layer's onion starts off (2026-10-08); this one ghosts
+        vm.SetLayerOnionEnabled(vm.PaintLayer(), true);
         vm.Workspace.NavigatorVisible = true;
         RenderSnapshot? latest = null;
         vm.SnapshotChanged += s => latest = s;
@@ -228,6 +230,8 @@ public sealed class StopOnTilesTests : BrushStateIsolated
     {
         var vm = Vm();
         vm.Onion.Enabled = true;
+        // a new layer's onion starts off (2026-10-08); this one ghosts
+        vm.SetLayerOnionEnabled(vm.PaintLayer(), true);
         vm.PublishSnapshot();
         Settle(vm);
         vm.FrameCache.Clear();
