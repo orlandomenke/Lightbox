@@ -121,15 +121,21 @@ public static class ImageResize
         scene.OriginX = Scaled(scene.OriginX, sx);
         scene.OriginY = Scaled(scene.OriginY, sy);
 
+        // Each drawing once, however many cels hold it. A hold is one Frame
+        // standing in several cels — an effect baked on 2s is stored that way
+        // — and walking the cels scaled it once for each: twice the image,
+        // four times the smoke (B463). By identity, not by id: two drawings
+        // are the same drawing only when they are the same object.
+        var scaled = new HashSet<Frame>(ReferenceEqualityComparer.Instance);
         foreach (var layer in scene.Layers)
         {
             foreach (var cel in layer.Cels)
-                if (cel.Frame is { } frame)
+                if (cel.Frame is { } frame && scaled.Add(frame))
                     ScaleFrame(frame, sx, sy, mark, resampler);
             // The mask is a drawing like any other (Q147) and it lives on the
             // layer, not in a cel — left unscaled, the content would slide
             // out from under its own carve.
-            if (layer.Mask is { } mask) ScaleFrame(mask.Frame, sx, sy, mark, resampler);
+            if (layer.Mask is { } mask && scaled.Add(mask.Frame)) ScaleFrame(mask.Frame, sx, sy, mark, resampler);
         }
 
         foreach (var region in doc.ClipRegions.Values)
