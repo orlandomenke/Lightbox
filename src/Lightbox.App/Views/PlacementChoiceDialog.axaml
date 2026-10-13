@@ -13,13 +13,13 @@
     <StackPanel Spacing="{StaticResource Space8}">
       <RadioButton x:Name="ImportOption" Content="Import all frames into the timeline" IsChecked="True" />
       <TextBlock Text="Creates keyframes for each symbol frame, allowing you to edit them individually and move the whole group together on the timeline."
-                 TextWrapping="Wrap" Margin="24,0,0,0" Opacity="0.7" />
+                 TextWrapping="Wrap" Margin="{StaticResource OptionDetailIndent}" Opacity="0.7" />
     </StackPanel>
 
     <StackPanel Spacing="{StaticResource Space8}">
       <RadioButton x:Name="ReferenceOption" Content="Reference with animation cycling" />
       <TextBlock Text="Places a single instance that cycles through the symbol's frames automatically at render time."
-                 TextWrapping="Wrap" Margin="24,0,0,0" Opacity="0.7" />
+                 TextWrapping="Wrap" Margin="{StaticResource OptionDetailIndent}" Opacity="0.7" />
     </StackPanel>
 
     <CheckBox x:Name="DontAskAgain" Content="Remember this choice" Margin="{StaticResource SectionGap}" />

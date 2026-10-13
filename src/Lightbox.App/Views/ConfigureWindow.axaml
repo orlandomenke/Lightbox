@@ -353,6 +353,18 @@
     <ScrollViewer x:Name="DrawingPage" Grid.Column="2" Margin="{StaticResource PagePadding}" IsVisible="False"
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="{StaticResource Space16}">
+        <!--
+          Q264. The merge dialog carries "Remember this choice"; this is where
+          the stored answer is shown and taken back, for B373's reason.
+        -->
+        <StackPanel Spacing="{StaticResource Space6}">
+          <TextBlock Text="Merging a layer whose drawings have erasing in them" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
+                     Text="An eraser merged into the layer below would start rubbing out that layer's marks too. Lightbox can keep the drawing as strokes by cutting the lines where you erased them — nearly exact, still editable, still readable by the AI — or flatten it to pixels, which is exact. It asks each time unless you tell it not to." />
+          <ComboBox x:Name="MergeErasersBox" Width="{StaticResource SizeSettingsCombo}" HorizontalAlignment="Left"
+                    SelectionChanged="OnMergeErasersChanged" />
+        </StackPanel>
+
         <StackPanel Spacing="{StaticResource Space6}">
           <TextBlock Text="What smudge and blur read" FontWeight="SemiBold" />
           <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"

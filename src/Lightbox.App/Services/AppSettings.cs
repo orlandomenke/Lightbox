@@ -327,6 +327,20 @@ public sealed class AppSettings
     public string? SymbolPlacementChoice { get; set; }
 
     /// <summary>
+    /// What a merge does with a drawing whose erasers would reach the layer
+    /// below, once the artist has said "remember this" (Q264): keep its strokes
+    /// by cutting them, or flatten it to pixels. Absent until they do.
+    /// </summary>
+    /// <remarks>
+    /// Absent means ask, for <see cref="SymbolPlacementChoice"/>'s reason — and a
+    /// string for the same reason too: a value this build does not know falls
+    /// back to asking rather than refusing to load the file.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? MergeEraserChoice { get; set; }
+
+    /// <summary>
     /// Memory for pictures, in megabytes, when the artist has set it (Q221).
     /// </summary>
     /// <remarks>
