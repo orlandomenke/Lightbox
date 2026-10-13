@@ -71,7 +71,13 @@ public static class WetBleed
     }
 
     /// <summary>How far outside a rectangle the layer has to be read to render it: three box passes.</summary>
-    public static int ReadMargin(BrushSettings brush, double scale = 1.0) => SpreadRadius(brush, scale) * 3;
+    public static int ReadMargin(BrushSettings brush, double scale = 1.0)
+    {
+        var k = SpreadRadius(brush, scale);
+        if (k <= 0) return 0;
+        var d = Cell(k);
+        return ((Math.Max(1, (int)Math.Round(k / (double)d)) * 3) + 3) * d;
+    }
 
     /// <summary>
     /// Render <paramref name="region"/> of the stroke's result into
@@ -217,10 +223,21 @@ public static class WetBleed
     }
 
     /// <summary>
-    /// Three box passes of radius <paramref name="k"/> over <paramref name="region"/>,
-    /// reading as far outside it as they need and nothing where the layer ends.
-    /// Integer sums throughout, so a pixel's value does not depend on which
-    /// rectangle it was computed as part of.
+    /// How many pixels a cell of the spread's working grid is across. A wide
+    /// blur has no detail finer than a fraction of its radius, so it is
+    /// computed on a coarser grid and read back smoothly: a sixteenth of the
+    /// work at a radius of thirty, and nothing an eye can find.
+    /// </summary>
+    internal static int Cell(int k) => k >= 32 ? 8 : k >= 16 ? 4 : k >= 8 ? 2 : 1;
+
+    /// <summary>
+    /// The layer blurred, over <paramref name="region"/>: averaged onto a grid
+    /// of <see cref="Cell"/>-pixel cells fixed to the layer's origin, three box
+    /// passes there, and read back between cell centres. It reads as far
+    /// outside the rectangle as that needs, and nothing where the layer ends.
+    /// Integer sums on the grid and one expression per pixel off it, so a
+    /// pixel's value does not depend on which rectangle it was computed as
+    /// part of.
     /// </summary>
     private static void Blur(
         ReadOnlySpan<byte> pre, int width, int height, int rowBytes, SKRectI region, int k, Span<byte> dest)
@@ -235,51 +252,69 @@ public static class WetBleed
             return;
         }
 
-        // The working rectangle: the region and what three passes reach, wherever
-        // that falls - outside the layer there is no paint, and that is read as none.
-        var margin = k * 3;
-        int wx = region.Left - margin, wy = region.Top - margin, ww = rw + (margin * 2), wh = rh + (margin * 2);
-        var a = ArrayPool<int>.Shared.Rent(ww * wh);
-        var b = ArrayPool<int>.Shared.Rent(ww * wh);
-        var window = (2 * k) + 1;
+        var d = Cell(k);
+        var ks = Math.Max(1, (int)Math.Round(k / (double)d));
+        // The cells the rectangle is read from (one beyond it each way, for the
+        // read-back between centres), and what three passes reach beyond those.
+        var margin = (ks * 3) + 1;
+        int gx = FloorDiv(region.Left, d) - 1 - margin, gy = FloorDiv(region.Top, d) - 1 - margin;
+        int gw = FloorDiv(region.Right - 1, d) + 1 + margin - gx + 1, gh = FloorDiv(region.Bottom - 1, d) + 1 + margin - gy + 1;
+        var a = ArrayPool<int>.Shared.Rent(gw * gh);
+        var b = ArrayPool<int>.Shared.Rent(gw * gh);
+        var window = (2 * ks) + 1;
+        var area = d * d;
         for (var ch = 0; ch < 4; ch++)
         {
-            for (var y = 0; y < wh; y++)
+            // Each cell: the mean of the pixels under it, sixteen times over so
+            // the rounded divisions that follow lose nothing an eye could find.
+            for (var cy = 0; cy < gh; cy++)
             {
-                var sy = wy + y;
-                var row = y * ww;
-                if (sy < 0 || sy >= height)
+                var py0 = (gy + cy) * d;
+                for (var cx = 0; cx < gw; cx++)
                 {
-                    Array.Clear(a, row, ww);
-                    continue;
-                }
-                var line = pre.Slice(sy * rowBytes, width * 4);
-                for (var x = 0; x < ww; x++)
-                {
-                    var sx = wx + x;
-                    // Sixteen times the byte, so three rounded divisions lose nothing an eye could find.
-                    a[row + x] = sx < 0 || sx >= width ? 0 : line[(sx * 4) + ch] << 4;
+                    var px0 = (gx + cx) * d;
+                    var sum = 0;
+                    for (var y = Math.Max(0, py0); y < Math.Min(height, py0 + d); y++)
+                    {
+                        var line = pre.Slice(y * rowBytes, width * 4);
+                        for (var x = Math.Max(0, px0); x < Math.Min(width, px0 + d); x++) sum += line[(x * 4) + ch];
+                    }
+                    a[(cy * gw) + cx] = ((sum << 4) + (area >> 1)) / area;
                 }
             }
 
             for (var pass = 0; pass < 3; pass++)
             {
-                BoxRows(a, b, ww, wh, k, window);
-                BoxColumns(b, a, ww, wh, k, window);
+                BoxRows(a, b, gw, gh, ks, window);
+                BoxColumns(b, a, gw, gh, ks, window);
             }
 
+            // Read back between cell centres.
             for (var y = 0; y < rh; y++)
             {
-                var row = (y + margin) * ww;
+                var v = ((region.Top + y + 0.5) / d) - 0.5;
+                var iy = (int)Math.Floor(v);
+                var fy = (float)(v - iy);
+                var rowA = (iy - gy) * gw;
+                var rowB = rowA + gw;
                 for (var x = 0; x < rw; x++)
                 {
-                    dest[(((y * rw) + x) * 4) + ch] = (byte)Math.Min(255, (a[row + x + margin] + 8) >> 4);
+                    var u = ((region.Left + x + 0.5) / d) - 0.5;
+                    var ix = (int)Math.Floor(u);
+                    var fx = (float)(u - ix);
+                    var c0 = ix - gx;
+                    var top = a[rowA + c0] + ((a[rowA + c0 + 1] - a[rowA + c0]) * fx);
+                    var bottom = a[rowB + c0] + ((a[rowB + c0 + 1] - a[rowB + c0]) * fx);
+                    var value = (top + ((bottom - top) * fy)) / 16f;
+                    dest[(((y * rw) + x) * 4) + ch] = (byte)Math.Clamp(value + 0.5f, 0f, 255f);
                 }
             }
         }
         ArrayPool<int>.Shared.Return(a);
         ArrayPool<int>.Shared.Return(b);
     }
+
+    private static int FloorDiv(int value, int by) => (int)Math.Floor(value / (double)by);
 
     private static void BoxRows(int[] from, int[] to, int w, int h, int k, int window)
     {
