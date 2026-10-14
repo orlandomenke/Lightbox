@@ -337,18 +337,43 @@ public partial class MainWindow
     /// </summary>
     private async void RequestMergeDown(Lightbox.Core.Documents.Layer? layer)
     {
-        if (_vm.AiEnabled && _vm.MergeWouldBake(layer))
+        var below = _vm.MergeTargetOf(layer);
+
+        // Q264: erasing in a drawing no longer has to mean pixels. Asked only
+        // when the answer changes the result, and not at all once remembered —
+        // Configure ▸ Drawing shows the stored answer and takes it back.
+        var erasers = Lightbox.Raster.EraserMerge.Flatten;
+        if (_vm.MergeErasersDecide(layer))
         {
-            var below = _vm.MergeTargetOf(layer);
+            if (_vm.MergeErasersPreference is { } remembered)
+            {
+                erasers = remembered;
+            }
+            else
+            {
+                var answer = await new MergeErasersDialog()
+                    .Describe(below?.Name ?? "the layer below")
+                    .ShowDialog<MergeErasersAnswer?>(this);
+                if (answer is null) return;
+                erasers = answer.Erasers;
+                if (answer.Remember) _vm.MergeErasersPreference = erasers;
+            }
+        }
+
+        if (_vm.AiEnabled && _vm.MergeWouldBake(layer, erasers))
+        {
             var go = await AskImportChoice(
                 "Merge layer down?",
-                $"Blend modes, opacity or erasers here mean the merged drawings become pixels. "
-                + $"The AI inbetweener reads strokes and cannot read pixels, so it will skip "
-                + $"what lands on “{below?.Name}”.",
+                // After "Flatten" the artist has just chosen pixels for the
+                // erasing, so naming it again would be the same question twice.
+                (erasers == Lightbox.Raster.EraserMerge.Flatten && _vm.MergeErasersDecide(layer)
+                    ? "The drawings you chose to flatten, and any with a blend mode, opacity or clip, become pixels. "
+                    : "Some drawings here still become pixels — a blend mode, opacity, a clip, or erasing that reaches a fill. ")
+                + $"The AI inbetweener reads strokes and cannot read pixels, so it will skip those on “{below?.Name}”.",
                 ("Merge", "The drawings that need it are flattened to pixels; the rest keep their strokes.", true));
             if (go != true) return;
         }
-        _vm.MergeLayerDown(layer);
+        _vm.MergeLayerDown(layer, erasers);
     }
 
     // Three states rather than a checkbox, because "leave it to the export" and

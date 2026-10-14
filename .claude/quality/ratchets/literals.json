@@ -22,7 +22,7 @@
   "src/Lightbox.App/Views/NewProjectPanel.axaml": 1,
   "src/Lightbox.App/Views/NoticeDialog.axaml": 3,
   "src/Lightbox.App/Views/OnionBar.axaml": 7,
-  "src/Lightbox.App/Views/PlacementChoiceDialog.axaml": 4,
+  "src/Lightbox.App/Views/PlacementChoiceDialog.axaml": 2,
   "src/Lightbox.App/Views/ProjectWindow.axaml": 61,
   "src/Lightbox.App/Views/ResizeDialog.axaml": 3,
   "src/Lightbox.App/Views/RigSetEditor.axaml": 2,

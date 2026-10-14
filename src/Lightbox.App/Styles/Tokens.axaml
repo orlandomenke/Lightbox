@@ -105,6 +105,10 @@
   <!-- ===== Dialogs and secondary windows (step 2, area 3) ===== -->
   <!-- A dialog's content inset. -->
   <Thickness x:Key="DialogPadding">16</Thickness>
+  <!-- The sentence under a dialog's radio button, set in under its label: the
+       radio's glyph and the gap after it come to 24, so the sentence starts
+       where the label's first letter does. -->
+  <Thickness x:Key="OptionDetailIndent">24,0,0,0</Thickness>
   <!-- A dialog with a paragraph and a list to read: the crash-recovery offer (B394). -->
   <x:Double x:Key="SizeDialogWidth">480</x:Double>
   <!-- A dialog's label column, its small text field, its buttons' floor.

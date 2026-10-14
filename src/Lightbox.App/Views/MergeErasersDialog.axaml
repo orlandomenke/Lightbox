@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lightbox.App.Views.MergeErasersDialog"
+        Title="Merge layer down"
+        Width="{StaticResource SizeDialogWidth}" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    Q264. Asked only when it changes the result: a drawing on the layer being
+    merged has erasing in it and nothing else stands in the way of keeping its
+    strokes. Keeping strokes is first and the default, because a line-art
+    drawing nearly always has erasing in it and flattening it is the answer an
+    artist regrets later — but it is the nearly-exact answer, and the dialog
+    says so rather than letting the picture change by a hair unannounced.
+  -->
+  <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
+    <TextBlock x:Name="Explanation" TextWrapping="Wrap" />
+
+    <StackPanel Spacing="{StaticResource Space8}">
+      <RadioButton x:Name="KeepOption" Content="Keep strokes" IsChecked="True" />
+      <TextBlock Text="Lines are cut where you erased them and the erasers are dropped. Those drawings stay strokes: editable, and readable by the AI. Nearly exact — a soft eraser becomes a hard cut."
+                 TextWrapping="Wrap" Margin="{StaticResource OptionDetailIndent}" Opacity="0.7" />
+    </StackPanel>
+
+    <StackPanel Spacing="{StaticResource Space8}">
+      <RadioButton x:Name="FlattenOption" Content="Flatten to pixels" />
+      <TextBlock Text="Those drawings become pictures: exact, but no longer strokes."
+                 TextWrapping="Wrap" Margin="{StaticResource OptionDetailIndent}" Opacity="0.7" />
+    </StackPanel>
+
+    <CheckBox x:Name="Remember" Content="Remember this choice" Margin="{StaticResource SectionGap}" />
+
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="{StaticResource Space8}" HorizontalAlignment="Right">
+      <Button Classes="tertiary" Content="Cancel" IsCancel="True" Click="OnCancel"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="primary" Content="Merge" IsDefault="True" Click="OnMerge"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+    </UniformGrid>
+  </StackPanel>
+</Window>

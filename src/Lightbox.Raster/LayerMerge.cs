@@ -47,7 +47,8 @@ public static class LayerMerge
     /// layer carved by one that the lower is not carved by keeps its look
     /// only by baking the carve in.
     /// </remarks>
-    public static bool WouldBakePixels(Layer upper, Layer lower, Scene? scene = null)
+    public static bool WouldBakePixels(
+        Layer upper, Layer lower, Scene? scene = null, EraserMerge erasers = EraserMerge.Flatten)
     {
         var carve = scene is null ? CarveOf(upper, lower) : CarveOf(scene, upper, lower);
         var count = CelSpan(upper, lower);
@@ -57,7 +58,33 @@ public static class LayerMerge
             var below = ExposureSheet.ExposedFrame(lower, t);
             var above = ExposureSheet.ExposedFrame(upper, t);
             if (above is null && below is null) continue;
-            if (!PairIsLossless(upper, lower, below, above, carve)) return true;
+            if (!PairIsLossless(upper, lower, below, above, carve, erasers, cuts: null, out _)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Is there a drawing here that would flatten for its erasers and for
+    /// nothing else — one the artist's choice between <see cref="EraserMerge"/>
+    /// values actually decides? False when no drawing has an eraser in the
+    /// way, and false when something else flattens it whatever is chosen, so
+    /// the question is only ever asked when the answer changes the result.
+    /// </summary>
+    public static bool ErasersDecide(Layer upper, Layer lower, Scene? scene = null)
+    {
+        var carve = scene is null ? CarveOf(upper, lower) : CarveOf(scene, upper, lower);
+        var count = CelSpan(upper, lower);
+        for (var t = 0; t < count; t++)
+        {
+            if (!IsExposureBoundary(upper, lower, t)) continue;
+            var below = ExposureSheet.ExposedFrame(lower, t);
+            var above = ExposureSheet.ExposedFrame(upper, t);
+            if (above is null && below is null) continue;
+            if (!PairIsLossless(upper, lower, below, above, carve, EraserMerge.Flatten, cuts: null, out _)
+                && PairIsLossless(upper, lower, below, above, carve, EraserMerge.KeepStrokes, cuts: null, out _))
+            {
+                return true;
+            }
         }
         return false;
     }
@@ -67,11 +94,21 @@ public static class LayerMerge
     /// walking both exposure patterns. The caller removes
     /// <paramref name="upper"/> from the scene (inside the same undo step).
     /// </summary>
-    public static void MergeDown(Scene scene, Layer upper, Layer lower)
+    /// <param name="erasers">
+    /// What to do with a drawing whose erasers would reach the lower layer:
+    /// flatten it (exact, the default) or cut its strokes and keep them
+    /// (<see cref="EraserCut"/>, nearly exact). Everything else that flattens
+    /// a drawing still does, whatever is chosen here.
+    /// </param>
+    public static void MergeDown(
+        Scene scene, Layer upper, Layer lower, EraserMerge erasers = EraserMerge.Flatten)
     {
         var carve = CarveOf(scene, upper, lower);
         var count = CelSpan(upper, lower);
         var merged = new List<Cel>(count);
+        // A drawing held while the other layer keys is merged once per key it
+        // spans; its erasers are cut once and the answer reused.
+        var cuts = new Dictionary<Frame, List<Stroke>?>(ReferenceEqualityComparer.Instance);
         for (var t = 0; t < count; t++)
         {
             if (!IsExposureBoundary(upper, lower, t))
@@ -81,7 +118,7 @@ public static class LayerMerge
             }
             var below = ExposureSheet.ExposedFrame(lower, t);
             var above = ExposureSheet.ExposedFrame(upper, t);
-            merged.Add(new Cel { Frame = MergedFrame(scene, upper, lower, below, above, t, carve) });
+            merged.Add(new Cel { Frame = MergedFrame(scene, upper, lower, below, above, t, carve, erasers, cuts) });
         }
         lower.Cels = merged;
         // An applying mask on the lower layer was baked into every merged
@@ -193,11 +230,12 @@ public static class LayerMerge
         || ExposureSheet.FrameAtExactIndex(lower, t) is not null;
 
     private static Frame? MergedFrame(
-        Scene scene, Layer upper, Layer lower, Frame? below, Frame? above, int t, MergeCarve carve)
+        Scene scene, Layer upper, Layer lower, Frame? below, Frame? above, int t, MergeCarve carve,
+        EraserMerge erasers, Dictionary<Frame, List<Stroke>?> cuts)
     {
         if (above is null && below is null) return null;
-        return PairIsLossless(upper, lower, below, above, carve)
-            ? ConcatenatedFrame(below, above)
+        return PairIsLossless(upper, lower, below, above, carve, erasers, cuts, out var cut)
+            ? ConcatenatedFrame(below, above, cut)
             : BakedFrame(scene, upper, lower, below, above, t, carve);
     }
 
@@ -205,9 +243,23 @@ public static class LayerMerge
     /// Can this pair merge by appending the upper drawing's strokes after the
     /// lower's, with the render staying identical?
     /// </summary>
+    /// <param name="cuts">
+    /// Where the cuts made so far in this merge are kept, by drawing — or null
+    /// when the caller only wants to know <em>whether</em> the pair can keep
+    /// its strokes, which is decided without cutting anything
+    /// (<see cref="EraserCut.CanCut"/>). The question is asked before a dialog,
+    /// on the UI thread, and must not cost a merge to answer.
+    /// </param>
+    /// <param name="cut">
+    /// The upper drawing's strokes with its erasers applied as cuts, when
+    /// <paramref name="erasers"/> asked for that and it was what made the pair
+    /// mergeable; null when the upper drawing's own record is what to append.
+    /// </param>
     private static bool PairIsLossless(
-        Layer upper, Layer lower, Frame? below, Frame? above, MergeCarve carve)
+        Layer upper, Layer lower, Frame? below, Frame? above, MergeCarve carve,
+        EraserMerge erasers, Dictionary<Frame, List<Stroke>?>? cuts, out List<Stroke>? cut)
     {
+        cut = null;
         // A mask on the lower layer is baked into every merged drawing —
         // including the ones the upper layer leaves untouched — because the
         // merge clears the mask afterwards, and a cleared mask must already
@@ -243,11 +295,20 @@ public static class LayerMerge
         // drawing's symbols used to sit under the upper layer's marks; adding
         // strokes above them would reorder the stack.
         if (below.HasPlacements && above.Strokes.Count > 0) return false;
+        var erased = false;
         foreach (var stroke in above.Strokes)
         {
             // Anything that reads or removes what is underneath changes
             // meaning when "underneath" gains the lower layer's marks.
-            if (stroke.Tool is ToolKind.Eraser or ToolKind.ClearRegion) return false;
+            if (stroke.Tool is ToolKind.Eraser or ToolKind.ClearRegion)
+            {
+                // …unless the artist asked for the erasers to be applied to
+                // this drawing's own strokes first, which leaves none to reach
+                // anything (decided below, once nothing else has ruled it out).
+                if (erasers != EraserMerge.KeepStrokes) return false;
+                erased = true;
+                continue;
+            }
             if (stroke.AlphaLocked) return false;
             // Smudge drags what is underneath and blur softens it (B469): both
             // would start working on the lower layer's marks.
@@ -255,6 +316,15 @@ public static class LayerMerge
             // A mixing stroke replayed over the lower layer's marks would pick
             // them up, which the picture before the merge never did.
             if (stroke.Brush.Mixing is not null) return false;
+        }
+        if (erased)
+        {
+            // Refused when the cut would not be the picture — an erasure that
+            // reaches a fill, one used inside a selection — and then this
+            // drawing flattens as it always did.
+            if (cuts is null) return EraserCut.CanCut(above.Strokes);
+            if (!cuts.TryGetValue(above, out cut)) cuts[above] = cut = EraserCut.Resolve(above.Strokes);
+            if (cut is null) return false;
         }
         return true;
     }
@@ -303,7 +373,11 @@ public static class LayerMerge
     }
 
     /// <summary>Lower drawing's content with the upper drawing's stamped after it.</summary>
-    private static Frame ConcatenatedFrame(Frame? below, Frame? above)
+    /// <param name="aboveStrokes">
+    /// What to append for the upper drawing instead of its own record — its
+    /// strokes after <see cref="EraserCut"/> — or null for the record itself.
+    /// </param>
+    private static Frame ConcatenatedFrame(Frame? below, Frame? above, List<Stroke>? aboveStrokes = null)
     {
         var frame = new Frame
         {
@@ -319,7 +393,7 @@ public static class LayerMerge
         // Fresh stroke ids: a drawing held on one layer while the other keys
         // gets merged more than once, and ids key caches across the document.
         if (below is not null) frame.Strokes.AddRange(below.Strokes.Select(s => s.Clone()));
-        if (above is not null) frame.Strokes.AddRange(above.Strokes.Select(s => s.Clone()));
+        if (above is not null) frame.Strokes.AddRange((aboveStrokes ?? above.Strokes).Select(s => s.Clone()));
         frame.Placements = ConcatPlacements(below, above);
         (frame.Anchors, frame.Shapes) = UnionMarkers(below, above);
         return frame;
