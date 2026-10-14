@@ -216,10 +216,11 @@ picked, and the paste is one undo step. An empty folder copies too.
 What a copy does not keep is what tied the original to other layers: it does not
 join the original's link or fluid group, and it is never the paper.
 
-Two limits. A layer can only be pasted **into the document it was copied from**
-— pasting into another says so and does nothing. And the keys mean a layer only
-while a layer row or a layer name has focus: on a cel, **Ctrl+C is still the
-cel clipboard**, and with lines selected on the canvas it is still the lines.
+A layer can only be pasted **into the document it was copied from** — pasting
+into another says so and does nothing. **With nothing selected, Ctrl+C copies
+the active layer this way wherever the focus is** — see *Copying lines out, and
+pasting them back* below. While a layer row or a layer name has focus, Ctrl+C
+and Ctrl+V mean layers even with a selection up on the canvas.
 **Copy the selected layers** and **Paste the copied layers** are also in
 **Edit → Configure → Shortcuts**, unbound, for a key that is always a layer.
 
@@ -854,13 +855,17 @@ keeps its shape between them; drawn strokes already have plenty.
 
 ### Copying lines out, and pasting them back
 
-**Ctrl+C copies what you have selected; Ctrl+V pastes it onto a new layer.**
+**Ctrl+C copies what you have selected; Ctrl+V pastes it onto a new layer**
+(unless a layer row has focus — then they are the layer keys above).
 It works with whichever tool made the selection — a box or lasso from the
-Select tool, or lines picked with either arrow — and the two gestures mean
-slightly different things, on purpose:
+Select tool, or lines picked with either arrow — and whatever the drawing is
+made of: lines, and **pixels too**, which is what a merged, imported or
+flattened layer holds. The two gestures mean slightly different things, on
+purpose:
 
 - **A region copies what you boxed.** Draw a box across half a line and the
-  paste shows that half. The line is not cut in two to do it: it travels whole
+  paste shows that half; draw it over pixels and the paste is the pixels inside
+  the box, cut at its edge. The line is not cut in two to do it: it travels whole
   with your selection carried along as its clip, so the record still holds one
   line, and a later change of mind can still reach the rest of it.
 - **Picked lines copy whole.** Clicking a line with the arrow means that line,
@@ -869,8 +874,8 @@ slightly different things, on purpose:
 When both a box and some picked lines are up, the box wins — the same order the
 transform tool uses, so the two never disagree about what "selected" means.
 
-**The paste lands on a new layer directly above the one you are on, in the
-place it was copied from.** In place because the usual reason to copy a drawing
+**The paste lands on a new layer directly above the one you are on — inside
+its folder if it is in one — in the place it was copied from.** In place because the usual reason to copy a drawing
 is to carry it to another frame or another shot, where landing anywhere else
 means lining it up by hand every time; move it afterwards with any of the tools
 if that is what you wanted. On its own layer because a paste is not part of the
@@ -881,20 +886,31 @@ another and paste. It is Lightbox's own clipboard, not the system one, so
 nothing leaves the app and nothing arrives from outside it.
 
 **Ctrl+X cuts**: it copies, then takes the same content out. A boxed region is
-cleared and lines crossing the edge keep the part that was outside; picked
-lines are removed entirely.
+cleared — lines and pixels alike — and lines crossing the edge keep the part
+that was outside; picked lines are removed entirely.
+
+**A selection with nothing in it copies nothing.** The status line says so,
+and neither key reaches past the selection to the rest of the drawing.
 
 **Ink you have erased is never copied.** A line rubbed out along its whole
 length is not on the canvas, so a box drawn over where it used to be picks up
 nothing — the same rule that stops it being clicked, or moved.
 
-**Ctrl+C, Ctrl+X and Ctrl+V still copy, cut and paste a whole *cel* when
-nothing is selected.** With a selection up they mean the lines. If you want the
-cel while a selection is up, press **Ctrl+D** first, or use the timeline's own
-right-click menu, which is always the cel. Pasting takes whichever of the two
-you copied most recently. Both sets of verbs also have menu entries — the lines
-on the **Select** menu, the cel on **Animation** — and *Configure → Shortcuts*
-has keys for the line-only forms if you would rather they never meant the cel.
+**With nothing selected, Ctrl+C copies the whole layer** — every drawing and
+hold, as **Copy layer** does, or the folder or layers picked in the docker — and **Ctrl+X copies it and empties it**: the
+layer stays where it is with its mask, effects and settings, and its drawings
+go, as one undo step. **Ctrl+V always pastes onto a new layer above the active
+one**, taking whichever you copied most recently — lines, a layer, or cels.
+
+**Cels are the exception, by name.** The timeline's right-click **Copy** and
+**Paste** are always the cel, and paste onto the cel you opened the menu on.
+With nothing selected on the canvas, a cel with keyboard focus, or several
+cels picked in the timeline with the playhead's among them, make Ctrl+C and
+Ctrl+X mean those cels too; Ctrl+V
+still pastes them onto a new layer, starting at the playhead. The verbs also
+have menu entries — the lines on the **Select** menu, the cel on
+**Animation** — and *Configure → Shortcuts* has keys for the line-only forms if
+you would rather they never meant the layer.
 
 **To crop the paper to a selection**, see *Cropping* under
 [Documents and projects](02-documents-and-projects.md) — it is on the **Image**

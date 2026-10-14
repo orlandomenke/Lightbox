@@ -194,7 +194,8 @@ re-timing wants the first; copying a beat wants this.
 
 **Copy selected keys** and **Paste keys at playhead** are in **Edit →
 Configure → Shortcuts** under Timeline, unbound by default — Ctrl+C already
-means the cel clipboard, and a second silent reading of it would be a trap.
+means the selection, the cels or the layer, and a further silent reading of it
+would be a trap.
 
 ## The key inspector
 
@@ -455,6 +456,10 @@ sequence of drawings on one layer; copying a picked-out set takes the cels you
 chose in order and pastes them consecutively, holes closed up. If the selection
 reached other layers, the status line says which were not copied rather than
 pretending otherwise.
+
+The right-click **Paste** pastes onto the cel it was opened on. **Ctrl+V**
+pastes copied cels onto a **new layer** above the active one instead, starting
+at the playhead, so nothing already on the sheet is replaced.
 
 ## Timing presets
 

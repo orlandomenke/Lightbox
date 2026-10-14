@@ -456,9 +456,10 @@
         <!--
           The line clipboard. Here and not on Animation because these act on the
           SELECTION, where Animation's Copy/Cut/Paste are the cel — same three
-          words, two subjects, each kept on the menu that names its own. The keys
-          are shared: Ctrl+C/X/V mean these with a selection up and the cel
-          without one.
+          words, two subjects, each kept on the menu that names its own. Ctrl+C
+          and Ctrl+X mean these with a selection up and the whole layer without
+          one; Ctrl+V pastes whatever was copied last, so it is shown on none of
+          the paste entries (B474).
         -->
         <MenuItem Header="Cop_y lines" Command="{Binding CopyLinesCommand}"
                   IsEnabled="{Binding HasCopyableSelection}" InputGesture="Ctrl+C"
@@ -467,7 +468,6 @@
                   IsEnabled="{Binding HasCopyableSelection}" InputGesture="Ctrl+X"
                   ToolTip.Tip="Copy, and take the same content out of the drawing" />
         <MenuItem Header="_Paste lines" Command="{Binding PasteLinesCommand}"
-                  InputGesture="Ctrl+V"
                   ToolTip.Tip="Onto a new layer above this one, in the place they were copied from" />
         <Separator />
         <MenuItem Header="Delete _contents" Command="{Binding DeleteSelectionContentsCommand}"
@@ -517,9 +517,9 @@
         <MenuItem Header="_Extend exposure (+1 hold)" Click="OnMenuExtendExposure" ToolTip.Tip="Hold the drawing under the playhead one frame longer" />
         <MenuItem Header="Re_duce exposure (−1 hold)" Click="OnMenuReduceExposure" />
         <Separator />
-        <MenuItem Header="_Copy cel" Click="OnMenuCopyCel" InputGesture="Ctrl+C" />
-        <MenuItem Header="Cu_t cel" Click="OnMenuCutCel" InputGesture="Ctrl+X" />
-        <MenuItem Header="Pa_ste cel" Click="OnMenuPasteCel" InputGesture="Ctrl+V" />
+        <MenuItem Header="_Copy cel" Click="OnMenuCopyCel" />
+        <MenuItem Header="Cu_t cel" Click="OnMenuCutCel" />
+        <MenuItem Header="Pa_ste cel" Click="OnMenuPasteCel" />
         <MenuItem Header="De_lete" Click="OnMenuClearCel"
                   ToolTip.Tip="The drawings go and the cels become holds; nothing after them moves (Delete over the X-sheet)" />
         <MenuItem Header="Delete and p_ull" Click="OnMenuDeleteCel"

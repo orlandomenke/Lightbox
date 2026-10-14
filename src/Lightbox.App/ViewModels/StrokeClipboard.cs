@@ -33,17 +33,25 @@ namespace Lightbox.App.ViewModels;
 /// inside one session and produce strokes clipped by nothing the moment the
 /// pasted document was saved and reopened somewhere else.
 /// </para>
+/// <para>
+/// <b>Pixels travel too (B474).</b> A drawing can be a baseline of pixels as
+/// well as strokes — what an import or a merge leaves — and a selection over
+/// it means those pixels. They are held as the baseline cut at the selection,
+/// in the baseline's own space, so a paste lays them back exactly where they
+/// were. A copy that looked only at strokes found nothing on a merged layer
+/// and fell through to copying the whole cel.
+/// </para>
 /// </remarks>
 internal static class StrokeClipboard
 {
-    /// <summary>One copy: the lines, and the clips they are carved by.</summary>
+    /// <summary>One copy: the lines, the clips they are carved by, and the pixels under them.</summary>
     internal sealed record Payload(
-        IReadOnlyList<Stroke> Strokes, IReadOnlyDictionary<string, ClipRegion> Clips);
+        IReadOnlyList<Stroke> Strokes, IReadOnlyDictionary<string, ClipRegion> Clips, string? Pixels = null);
 
     private static Payload? _held;
     private static long _order;
 
-    internal static bool HasContent => _held is { Strokes.Count: > 0 };
+    internal static bool HasContent => _held is { } held && (held.Strokes.Count > 0 || held.Pixels is not null);
 
     /// <summary>
     /// When this clipboard was last filled, on a counter it shares with the
@@ -62,13 +70,17 @@ internal static class StrokeClipboard
     /// <summary>The next value on the shared order, for the cel clipboard to stamp itself with.</summary>
     internal static long NextOrder() => ++_order;
 
+    /// <summary>Whether what is held includes pixels, for the status line.</summary>
+    internal static bool HasPixels => _held?.Pixels is not null;
+
     /// <summary>How many lines are held, for the status line.</summary>
     internal static int Count => _held?.Strokes.Count ?? 0;
 
     /// <summary>
-    /// Take a copy of these strokes, with every clip they reference.
+    /// Take a copy of these strokes, with every clip they reference, and the
+    /// selected part of the baseline when there is one.
     /// </summary>
-    internal static void Put(IEnumerable<Stroke> strokes, Func<string, ClipRegion?> resolve)
+    internal static void Put(IEnumerable<Stroke> strokes, Func<string, ClipRegion?> resolve, string? pixels = null)
     {
         var copies = new List<Stroke>();
         var clips = new Dictionary<string, ClipRegion>();
@@ -83,7 +95,7 @@ internal static class StrokeClipboard
                 if (resolve(id) is { } region) clips[id] = region.Clone();
             }
         }
-        _held = new Payload(copies, clips);
+        _held = new Payload(copies, clips, pixels);
         Stamp = NextOrder();
     }
 
@@ -93,7 +105,7 @@ internal static class StrokeClipboard
     /// </summary>
     internal static Payload? Take()
     {
-        if (_held is not { Strokes.Count: > 0 } held) return null;
+        if (!HasContent || _held is not { } held) return null;
         return held with
         {
             Strokes = [.. held.Strokes.Select(s => s.Clone())],
