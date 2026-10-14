@@ -181,6 +181,54 @@ public sealed partial class CanvasControl
     private Core.Timeline.MotionArcOverlay? _motionArc;
 
     /// <summary>
+    /// The Match lines overlay (Q271), or null outside the mode: pushed from
+    /// the window when the view model says it changed, like <see cref="MotionArc"/>.
+    /// </summary>
+    public ViewModels.LineMatchOverlay? LineMatch
+    {
+        get => _lineMatch;
+        set
+        {
+            if (ReferenceEquals(_lineMatch, value)) return;
+            _lineMatch = value;
+            InvalidateVisual();
+        }
+    }
+
+    private ViewModels.LineMatchOverlay? _lineMatch;
+
+    /// <summary>
+    /// Whether a press matches lines instead of drawing (Q271). A mode for the
+    /// rig's reason: every modifier already means something on the canvas.
+    /// </summary>
+    public bool LineMatchMode { get; set; }
+
+    /// <summary>A press while matching lines: document x and y, Shift held, and the view scale.</summary>
+    public event Action<double, double, bool, double>? LineMatchPressed;
+
+    /// <summary>A right-click while matching lines: document x and y, and the view scale.</summary>
+    public event Action<double, double, double>? LineMatchRightPressed;
+
+    /// <summary>Routes a right-click to the Match lines mode; true when it was taken.</summary>
+    private bool RightPressLineMatch(Avalonia.Point at, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        if (!LineMatchMode) return false;
+        var (x, y) = ViewToDoc(at);
+        LineMatchRightPressed?.Invoke(x, y, FitScale() * _zoom);
+        e.Handled = true;
+        return true;
+    }
+
+    /// <summary>Routes a press to the Match lines mode; true when it was taken.</summary>
+    private bool PressLineMatch(double x, double y, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        if (!LineMatchMode) return false;
+        LineMatchPressed?.Invoke(x, y, e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift), FitScale() * _zoom);
+        e.Handled = true;
+        return true;
+    }
+
+    /// <summary>
     /// Whether a press should edit the rig instead of drawing.
     /// </summary>
     /// <remarks>

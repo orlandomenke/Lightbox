@@ -391,6 +391,9 @@ dictionary cannot be read; a test holds its accent to the palette's.
   camera's name.
 - **A dashed line is a copy, not the thing**: the spokes of a rotational
   symmetry beside its mirror line. The casing under a dashed line stays whole.
+  One second use, in the same spirit: in Match lines (Q271) the **next key's**
+  lines are dashed, because they are the other drawing shown for reference,
+  not the one being drawn on.
 - **A guide at rest is one faint pass**, not a styled line: a perspective rig of
   thirty lines must not read as thirty selections — lines in a quiet blue, a
   guide's own marks and its label in the amber turned down. With the Move tool

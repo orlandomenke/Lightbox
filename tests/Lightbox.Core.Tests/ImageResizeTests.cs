@@ -849,6 +849,8 @@ public class ImageResizeTests
             new[]
             {
                 nameof(Frame.Unknown), nameof(Frame.Id), nameof(Frame.Role), nameof(Frame.Ai),
+                // Which lines go together, named by stroke id and piece: no place on the paper (Q271).
+                nameof(Frame.Matches),
                 // Spacing as fractions between two extremes.
                 nameof(Frame.Chart),
                 // Derived pixels, trusted only while they match the strokes

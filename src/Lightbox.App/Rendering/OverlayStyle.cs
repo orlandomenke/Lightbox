@@ -68,6 +68,19 @@ public static class OverlayStyle
     /// </summary>
     public static readonly SKColor Reference = new(0xFF, 0xB0, 0x20);
 
+    /// <summary>
+    /// The colours of matched lines in Match lines (Q271), one per match: a
+    /// palette rather than one colour because a match is told from the next by
+    /// colour alone. Hues only from the two bands nothing else on the canvas
+    /// owns — greens, and violets to pinks — so none reads as onion red or
+    /// blue, the camera's orange, the reference amber or the accent cyan; and
+    /// each next to the one before it is across the wheel.
+    /// </summary>
+    private static readonly float[] MatchHues = [100, 290, 145, 255, 70, 320];
+
+    /// <summary>The colour of match <paramref name="index"/>; the palette repeats after six.</summary>
+    public static SKColor Match(int index) => SKColor.FromHsv(MatchHues[((index % MatchHues.Length) + MatchHues.Length) % MatchHues.Length], 80, 85);
+
     /// <summary>The camera's colour. The palette's <c>CameraTrack</c>.</summary>
     public static readonly SKColor CameraOrange = new(0xFF, 0x9F, 0x45);
 

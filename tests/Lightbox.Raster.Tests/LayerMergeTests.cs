@@ -463,4 +463,22 @@ public class LayerMergeTests
         Assert.Equal(0, merged.GetPixel(160, 78).Alpha);
         Assert.Equal(0, merged.GetPixel(160, 100).Alpha);
     }
+
+    [Fact]
+    public void LineMatchesOnTheLowerKeySurviveAMergeThatGroups()
+    {
+        // Q271: the matches name strokes by id, and travel with the drawing the
+        // way the timing chart does.
+        var scene = TestScene();
+        var lower = LayerOf(Key(Bar(100, "#808080")));
+        var upper = LayerOf(Key(Bar(100, "#808080")));
+        upper.BlendMode = LayerBlendMode.Multiply;
+        var keyStroke = ((Frame)lower.Cels[0].Frame!).Strokes[0].Id;
+        ((Frame)lower.Cels[0].Frame!).Matches = [new LineMatch { A = [new PieceRef(keyStroke, 0)], B = [new PieceRef("next", 0)] }];
+
+        LayerMerge.MergeDown(scene, upper, lower);
+
+        var merged = (Frame)lower.Cels[0].Frame!;
+        Assert.Equal(keyStroke, Assert.Single(merged.Matches!).A[0].Stroke);
+    }
 }

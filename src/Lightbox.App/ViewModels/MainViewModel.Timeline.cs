@@ -1754,7 +1754,7 @@ public partial class MainViewModel
         var span = (double)(run[^1] - aIndex);
         var stops = run
             .Select(i => new Inbetweener.RunStop(
-                (i - aIndex) / span, StrokesOf(layer.Cels[i].Frame!)))
+                (i - aIndex) / span, StrokesOf(layer.Cels[i].Frame!), layer.Cels[i].Frame!.Matches))
             .ToList();
 
         // The opening extreme's timing chart wins over the bar's count and

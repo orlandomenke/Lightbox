@@ -647,6 +647,7 @@ public partial class MainWindow
             case "select.cancel":
                 _vm.CancelPolygon();
                 _vm.CancelGradient();
+                _vm.LineMatchMode = false;   // Q271: Esc finishes matching
                 return; // leave Escape unhandled so open flyouts still close
             case "docker.deleteLayer":
                 _vm.DeleteActiveLayerCommand.Execute(null);
@@ -656,6 +657,12 @@ public partial class MainWindow
                 break;
             case "docker.mergeDown":
                 RequestMergeDown(null); // null = the active layer
+                break;
+            case "timeline.matchLines":
+                _vm.LineMatchMode = !_vm.LineMatchMode;
+                break;
+            case "timeline.redrawInbetweens":
+                _vm.RedrawInbetweensCommand.Execute(null);
                 break;
             case "docker.splitGroup":
                 _vm.SplitGroupCommand.Execute(null);

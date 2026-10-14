@@ -44,6 +44,77 @@ it fills the gap you are in rather than the whole run. Sending the model a third
 drawing costs materially more per request, and that trade has not been taken
 yet.
 
+### Telling the inbetweener which line is which
+
+The inbetweener pairs each line of one key with a line of the next by where it
+sits and what shape it has. When you drew the two keys with the same strokes,
+that is almost always right. When you did not — the outline of a leg in one
+stroke in one key and in three in the next, a line drawn the other way round, a
+drawing traced from pixels — it can pair the wrong lines, and the inbetween
+scrambles. **Match lines** is how you tell it.
+
+Put the playhead on an inbetween (or on the key before it) and turn on **Match
+lines**: the toggle beside **＋ Inbetween**, or **Animation ▸ Match lines between
+keys**. Both keys appear over the canvas in your onion skin colours — the key
+before in its colour, the key after dashed in its own — with each stroke shown
+cut into pieces where another line meets it and at sharp corners, so one piece
+is one line of the drawing. Your strokes are not changed; the pieces are only
+for matching.
+
+- **Click a line of the first key**, then **click the line or lines it becomes in
+  the second key**. The pair takes a colour of its own, and the inbetweens of
+  the run redraw at once.
+- **Shift-click** more lines of the first key to match several to the same
+  lines — a line you drew as two pieces in one key and one in the other.
+- **Click a matched line** to take it out of its match; a match with nothing
+  left on one side is removed.
+- **Right-click a matched line** to switch its match between **one solid
+  object** and **lines that bend** (below). A solid match is drawn on a dark
+  outline.
+- **Click empty canvas** to stop adding to the open match, and **Esc** to leave
+  Match lines.
+
+Every click that changes a match is one step to undo, and it redraws the
+inbetweens with it. Lines you have not matched are paired the usual way, so you
+only need to match the ones it got wrong.
+
+**Solid objects and bending lines.** A long line drawn in pieces — the front of
+a leg — bends from its shape in one key to its shape in the next. A part made of
+many small lines — a shoe, a cuff, a waistband — is treated as **one solid
+object** instead: the whole thing moves, turns and scales between the keys, and
+each inbetween shows the shoe you drew in the nearer key, put in place, rather
+than lines bending towards each other into a tangle. Lightbox decides which a
+match is from its lines; right-click a matched line to say otherwise.
+
+**Your own inbetweens are left alone.** A match redraws only the inbetweens
+Lightbox drew and nobody has changed since. One you drew yourself, touched up,
+or got from **✦ AI Inbetween** keeps your drawing, and the status bar says how
+many were left as they are. Matching on a hidden or locked layer is refused,
+as drawing on one is.
+
+The matches are saved on the first key, for the gap to the next one, the way a
+timing chart is: they survive saving and reopening, merging the layer down and
+splitting a group. A match that names a line you have since erased is dropped
+rather than guessed at. One thing to watch: the pieces of a line are counted
+from where other lines meet it, so drawing a new line that ends on a matched
+line, or erasing one that did, can shift which piece a match names — check the
+colours in Match lines after changing a key. A document in which you never
+match a line saves nothing extra.
+
+**Redraw inbetweens** (Animation menu) redraws the inbetweens of the run under
+the playhead from its keys, breakdowns and matches as they are now, without
+inserting any new frames — use it after changing a key. Unlike a match, it
+replaces **every** inbetween in the run, **including one you drew or touched up
+by hand**; undo brings it back.
+
+**Nothing is invented.** Only lines you drew are inbetweened. Once you have
+matched lines in a gap, a line you did not match is paired with a line of the
+other key only when the two are clearly the same line — about the same length
+and shape, and for a tiny mark, in the same place — and, for a detail drawn on
+a matched part (a crease on a knee), only where that part carried it. A line only one key has — a
+sock the other key hides behind a leg, a speck — fades out (or in) where you
+drew it; it is never turned into a mark that neither key has.
+
 ## AI inbetweens
 
 **✦ AI Inbetween** asks the model for the frames between two keys. It needs a
