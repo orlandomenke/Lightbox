@@ -118,6 +118,8 @@ public sealed class PoseGuideVmTests : BrushStateIsolated
         var shin = Assert.Single(guide.Bones);
         Assert.InRange(shin.Width, 25, 35);   // 30 in both keys
         Assert.False(guide.Editable);         // joints are dragged on the keys
+        vm.PoseEditMode = true;
+        Assert.False(vm.PoseGuideView!.Editable);
     }
 
     [AvaloniaFact]
@@ -126,7 +128,10 @@ public sealed class PoseGuideVmTests : BrushStateIsolated
         var (vm, _) = Keys();
         vm.PaintLayer().Cels[0].Frame!.Pose = Shin();
         vm.CurrentFrameIndex = 0;
+        Assert.False(vm.PoseGuideView!.Editable);    // not until the guide is being edited
+        Assert.False(vm.PosePress(100, 300, 6));
 
+        vm.PoseEditMode = true;
         Assert.True(vm.PoseGuideView!.Editable);
         Assert.True(vm.PosePress(100, 300, 6));      // the ankle in key A
         vm.PoseDrag(120, 310);
@@ -146,6 +151,7 @@ public sealed class PoseGuideVmTests : BrushStateIsolated
         var (vm, _) = Keys();
         vm.PaintLayer().Cels[0].Frame!.Pose = Shin();
         vm.CurrentFrameIndex = 2;
+        vm.PoseEditMode = true;
 
         Assert.True(vm.PosePress(200, 200, 6));
         vm.PoseRelease(210, 190);

@@ -255,6 +255,39 @@ characters — a sentence or two is what the model can use.
 Both commands are in **Edit ▸ Configure ▸ Shortcuts** under Timeline, with no
 key set, for anyone who wants one.
 
+### A pose to draw over
+
+When the inbetween is yours to draw, the model can still tell you where things
+go. Put the playhead between two keys, open the **arrow** beside **✦ AI
+Inbetween** and choose **Read pose**. The model looks at both keys and reports
+where the subject's moving parts are: a leg as hip, knee, ankle and toe, a tail
+from its base to its tip, a lamp's arm from its foot to its head. It does not
+have to be a person; it names whatever moves.
+
+Every frame between the two keys then shows a **pose guide** in the amber of a
+reference: the joints as small rings, the bones between them as thin lines, and
+around each bone a faint tube as wide as that part is in your keys — measured
+from your own lines, so a thick thigh stays thick and a thin wrist stays thin
+halfway. The pose moves the way a limb does: each bone swings around its joint
+rather than sliding straight, so a swinging shin does not shrink at the middle
+of its arc. Where the key has a timing chart, the guide follows it.
+
+**The guide never draws anything.** It is not in a render, an export or the
+onion skin, and the drawing on the frame is untouched. It is a construction to
+draw over, the way an animator roughs in a skeleton before the line.
+
+**When the model gets a joint wrong, move it.** Turn on **Edit pose guide** in
+the same menu, go to either key, and drag the joint's ring to where it belongs;
+every frame between follows. Each drag is one undo step. Editing is a mode so
+that drawing near a joint never moves it by accident; turn it off again to
+draw. **Show pose guide** hides and shows it.
+
+The pose is kept with the first key and saved with the document. Reading it
+sends a picture of each key to your provider — the two keys' drawings on that
+layer, cropped to them, nothing else. A provider that cannot see pictures, such
+as a local Ollama text model, says so rather than guessing. All three commands
+are in **Edit ▸ Configure ▸ Shortcuts** under Timeline, with no key set.
+
 ## Reading a folder
 
 Right-click a folder in the **Project** panel and choose **Read this folder…**.

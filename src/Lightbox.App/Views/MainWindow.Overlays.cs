@@ -61,6 +61,17 @@ public partial class MainWindow
         Canvas.LineMatchRightPressed += (x, y, scale) => _vm.LineMatchToggleSolid(x, y, LineMatchReachPixels / scale);
         _vm.RefreshMotionTrail();
 
+        // Q274: the pose guide, pushed the same way. A press takes a joint only
+        // while the guide is being edited, so drawing near one never drags it.
+        _vm.PoseGuideChanged += guide => Canvas.PoseGuide = guide;
+        _vm.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(MainViewModel.PoseEditMode)) Canvas.PoseEditMode = _vm.PoseEditMode;
+        };
+        Canvas.PoseHit = (x, y, scale) => _vm.PosePress(x, y, LineMatchReachPixels / scale);
+        Canvas.PoseDragged += _vm.PoseDrag;
+        Canvas.PoseReleased += _vm.PoseRelease;
+
         // The armature overlay follows the rig's pattern exactly: pushed
         // snapshots, window-mediated hits, one editor step per gesture.
         _vm.PropertyChanged += (_, args) =>

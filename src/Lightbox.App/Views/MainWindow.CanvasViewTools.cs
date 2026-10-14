@@ -758,6 +758,15 @@ public partial class MainWindow
             case "ai.revise":
                 _ = _vm.AiReviseCommand.ExecuteAsync(null);
                 break;
+            case "ai.readPose":
+                _ = _vm.ReadPoseCommand.ExecuteAsync(null);
+                break;
+            case "ai.showPoseGuide":
+                _vm.PoseGuideVisible = !_vm.PoseGuideVisible;
+                break;
+            case "ai.editPoseGuide":
+                _vm.PoseEditMode = !_vm.PoseEditMode;
+                break;
             case "timeline.pinnedOnly":
                 _vm.SheetPinnedOnly = !_vm.SheetPinnedOnly;
                 break;

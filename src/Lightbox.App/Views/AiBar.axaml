@@ -27,16 +27,25 @@
       <Button Classes="icon"
               IsEnabled="{Binding CanUseAi}"
               VerticalAlignment="Stretch"
-              ToolTip.Tip="Inbetween with a direction, or revise AI frames">
+              ToolTip.Tip="Inbetween with a direction, revise AI frames, or read a pose guide">
         <Path Classes="icon" Width="{StaticResource SizeIcon9}" Height="{StaticResource SizeIcon9}"
               Data="{StaticResource IconChevronDown}" />
         <Button.Flyout>
           <!-- Click handlers, not Command bindings: a flyout's items live in a
                popup, and a binding that has to find its view model from there
                finds nothing. -->
-          <MenuFlyout Placement="BottomEdgeAlignedLeft">
+          <MenuFlyout Placement="BottomEdgeAlignedLeft" Opening="OnFlyoutOpening">
             <MenuItem Header="AI Inbetween with a direction…" Click="OnAiInbetweenWithDirection" />
             <MenuItem Header="Revise AI frames…" Click="OnAiRevise" />
+            <Separator />
+            <!-- Q274: the model reads the pose in the two keys; the artist
+                 draws the inbetween over the guide. Ticks are set as the menu
+                 opens, for the same reason the items use Click. -->
+            <MenuItem Header="Read pose" Click="OnReadPose"
+                      ToolTip.Tip="Ask the model where the parts are in the keys either side, and show the pose and its volumes on every frame between" />
+            <MenuItem x:Name="ShowPoseGuideItem" Header="Show pose guide" ToggleType="CheckBox" Click="OnTogglePoseGuide" />
+            <MenuItem x:Name="EditPoseGuideItem" Header="Edit pose guide" ToggleType="CheckBox" Click="OnTogglePoseEdit"
+                      ToolTip.Tip="On a key, drag a joint of the guide to correct it" />
           </MenuFlyout>
         </Button.Flyout>
       </Button>

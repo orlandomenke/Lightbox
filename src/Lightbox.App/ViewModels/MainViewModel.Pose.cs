@@ -16,7 +16,8 @@ public sealed record PoseGuideJoint(string Part, string Name, StrokePoint At, in
 
 /// <summary>
 /// What the pose guide shows on the frame under the playhead: each part's
-/// bones with their volumes, and its joints; draggable on a key.
+/// bones with their volumes, and its joints; draggable on a key while the
+/// guide is being edited.
 /// </summary>
 public sealed record PoseGuideOverlay(IReadOnlyList<PoseGuideBone> Bones, IReadOnlyList<PoseGuideJoint> Joints, bool Editable);
 
@@ -38,6 +39,13 @@ public partial class MainViewModel
     [ObservableProperty]
     private bool _poseGuideVisible = true;
 
+    /// <summary>
+    /// Whether a press on a key's joint drags it. A mode rather than always on,
+    /// so drawing the inbetween near a joint never moves the guide by accident.
+    /// </summary>
+    [ObservableProperty]
+    private bool _poseEditMode;
+
     /// <summary>Raised when what the pose guide shows may have changed, for the window to push to the canvas.</summary>
     public event Action<PoseGuideOverlay?>? PoseGuideChanged;
 
@@ -45,6 +53,8 @@ public partial class MainViewModel
     private (int Part, int Joint, int Key, PosePoint At)? _poseDrag;
 
     partial void OnPoseGuideVisibleChanged(bool value) => RaisePoseGuideChanged();
+
+    partial void OnPoseEditModeChanged(bool value) => RaisePoseGuideChanged();
 
     /// <summary>Tell the canvas the guide may have changed: the playhead moved, the document changed, a joint is being dragged.</summary>
     private void RaisePoseGuideChanged()
@@ -74,7 +84,7 @@ public partial class MainViewModel
             var posed = PoseGuides.At(pose, t);
             var bones = volumes.SelectMany((part, p) => part.Select(v => new PoseGuideBone(v.From, v.To, v.Width, p))).ToList();
             var joints = posed.SelectMany((part, p) => part.Joints.Select((j, k) => new PoseGuideJoint(part.Name, j.Name, j.At, p, k))).ToList();
-            return new PoseGuideOverlay(bones, joints, CurrentFrameIndex == a || CurrentFrameIndex == b);
+            return new PoseGuideOverlay(bones, joints, PoseEditMode && (CurrentFrameIndex == a || CurrentFrameIndex == b));
         }
     }
 

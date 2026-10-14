@@ -44,4 +44,28 @@ public partial class AiBar : UserControl
 
     private void OnAiRevise(object? sender, RoutedEventArgs e) =>
         _ = Vm?.AiReviseCommand.ExecuteAsync(null);
+
+    private void OnReadPose(object? sender, RoutedEventArgs e) =>
+        _ = Vm?.ReadPoseCommand.ExecuteAsync(null);
+
+    private void OnTogglePoseGuide(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm) vm.PoseGuideVisible = !vm.PoseGuideVisible;
+    }
+
+    private void OnTogglePoseEdit(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm) vm.PoseEditMode = !vm.PoseEditMode;
+    }
+
+    /// <summary>The ticks are read from the view model as the menu opens: a binding from inside the popup finds nothing.</summary>
+    private void OnFlyoutOpening(object? sender, EventArgs e)
+    {
+        if (Vm is not { } vm || sender is not MenuFlyout flyout) return;
+        foreach (var item in flyout.Items.OfType<MenuItem>())
+        {
+            if (item.Name == "ShowPoseGuideItem") item.IsChecked = vm.PoseGuideVisible;
+            else if (item.Name == "EditPoseGuideItem") item.IsChecked = vm.PoseEditMode;
+        }
+    }
 }

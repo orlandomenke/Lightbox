@@ -2384,7 +2384,9 @@ subject reading.
   - **Blocker:** Depends on subject reading being built (uses part placements to measure proportions)
   - **Adoption:** Directors + lead animators use daily; prevents surprises on export
 
-- [?] Inbetween guide generation
+- [x] Inbetween guide generation: a pose to draw over, read by the model from the two keys (Q274) `evidence: PoseGuide, PoseGuides, PoseReading, PoseRequest, ReadPoseAsync, PoseGuidePainter, PoseGuideOverlay, PoseGuideTests, PoseReadingTests, PoseGuideVmTests, PoseGuidePainterTests, ReadingThePoseKeepsItOnKeyAInSceneCoordinates, TheInbetweenShowsThePoseAtItsPointWithEachPartsVolume, OnAKeyTheGuideIsThatKeysPoseAndCanBeDragged, TheVolumeIsAFaintTubeAsWideAsThePart`
+  - **Why a guide and not a drawing** (Q274, 2026-10-14): every attempt at the model drawing the inbetween lost what makes it the artist's — Claude's geometry was weak, an image model copied a key — but Claude's *reading* of where the joints are was accurate, and the owner found the halfway pose useful as an overlay on its own. So the model reads the pose in both keys (any subject: a person, an animal, an object with moving parts), the engine swings each bone around its joint to the frame's point, each bone carries a volume measured from the artist's own lines in the keys, and the artist draws over it. Overlay only, never exported; joints corrected by dragging on a key.
+  - **Still to come:** dragging a joint on an inbetween as a breakdown for the guide alone; reading the pose without a model, from the artist's armature, where one exists.
 - [?] Secondary motion assistant
 - [?] Smear frame assistant
 - [?] Smart line cleanup suggestions

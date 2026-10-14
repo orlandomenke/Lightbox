@@ -1886,7 +1886,7 @@ public sealed partial class CanvasControl : Control
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
             BoneChromes, BonesArePosed, HeatPoints, _hoveredLines,
             FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints, MotionArc,
-            CropSurfaceRect(), Symmetry, TiledPreview, LineMatch));
+            CropSurfaceRect(), Symmetry, TiledPreview, LineMatch, PoseGuide));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -2338,6 +2338,7 @@ public sealed partial class CanvasControl : Control
             }
 
             if (PressLineMatch(x, y, e)) return;   // Q271: matching, not drawing
+            if (PressPose(x, y, e)) return;   // Q274: a joint of the pose guide
 
             // B58. Rig editing comes next, for the reason alignment comes first:
             // while the mode is on the canvas is a place to place sockets and
@@ -2986,6 +2987,7 @@ public sealed partial class CanvasControl : Control
                 return;
             }
 
+            if (MovePose(e)) return;
             if (ContinueBoneGesture(e)) return;
 
             // A single mark being dragged. It has never previewed either — B112 is
@@ -3386,6 +3388,7 @@ public sealed partial class CanvasControl : Control
             e.Handled = true;
             return;
         }
+        if (ReleasePose(e)) return;
         if (EndBoneGesture(e)) return;
         // B58. On release with the total delta, because DragRig is one editor step
         // per call — reporting per pointer move would be a hundred undo entries for
@@ -3891,7 +3894,7 @@ public sealed partial class CanvasControl : Control
         SKColor fillPreviewColor = default,
         TrailOverlay? trail = null, Core.Timeline.MotionArcOverlay? motionArc = null,
         SKRect? cropFrame = null, Core.Documents.SymmetryAxis? symmetry = null, bool tiled = false,
-        ViewModels.LineMatchOverlay? lineMatch = null) : ICustomDrawOperation
+        ViewModels.LineMatchOverlay? lineMatch = null, ViewModels.PoseGuideOverlay? pose = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4041,6 +4044,7 @@ public sealed partial class CanvasControl : Control
             ArmatureOverlayPainter.Paint(canvas, bones, view.Scale, bonesArePosed);
             // Under the ants: a committed selection outranks a would-be one.
             FillPreviewPainter.Draw(canvas, fillPreview, fillPreviewWand, fillPreviewColor, view.Scale);
+            PoseGuidePainter.Paint(canvas, pose, view.Scale);   // Q274: drawn over, never exported
             LineMatchPainter.Paint(canvas, lineMatch, view.Scale);
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
