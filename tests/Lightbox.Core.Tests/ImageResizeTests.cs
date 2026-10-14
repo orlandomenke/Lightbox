@@ -844,7 +844,7 @@ public class ImageResizeTests
             new[]
             {
                 nameof(Frame.Strokes), nameof(Frame.PngBase64), nameof(Frame.Placements), nameof(Frame.Anchors),
-                nameof(Frame.Shapes), nameof(Frame.Correctives),
+                nameof(Frame.Shapes), nameof(Frame.Correctives), nameof(Frame.Pose),
             },
             new[]
             {

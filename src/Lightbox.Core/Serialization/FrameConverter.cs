@@ -107,6 +107,9 @@ public sealed class FrameConverter : JsonConverter<Frame>
                 case "chart":
                     frame.Chart = JsonSerializer.Deserialize<List<double>>(ref reader, options);
                     break;
+                case "pose":
+                    frame.Pose = JsonSerializer.Deserialize<PoseGuide>(ref reader, options);
+                    break;
                 case "matches":
                     frame.Matches = LineMatch.Readable(JsonSerializer.Deserialize<List<LineMatch?>>(ref reader, options));
                     break;
@@ -195,6 +198,12 @@ public sealed class FrameConverter : JsonConverter<Frame>
         {
             writer.WritePropertyName("chart");
             JsonSerializer.Serialize(writer, value.Chart, options);
+        }
+
+        if (value.Pose is { Parts.Count: > 0 })
+        {
+            writer.WritePropertyName("pose");
+            JsonSerializer.Serialize(writer, value.Pose, options);
         }
 
         if (value.Matches is { Count: > 0 })

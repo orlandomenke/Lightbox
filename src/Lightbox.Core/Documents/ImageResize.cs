@@ -403,6 +403,14 @@ public static class ImageResize
                 // guide and a bone have under a non-uniform stretch.
                 anchors[id] = anchors[id] with { X = anchors[id].X * sx, Y = anchors[id].Y * sy };
 
+        // Q274: the pose guide is places on the paper, in both keys.
+        if (frame.Pose is { } pose)
+            foreach (var joint in pose.Parts.SelectMany(p => p.Joints))
+            {
+                joint.A = new PosePoint(joint.A.X * sx, joint.A.Y * sy);
+                joint.B = new PosePoint(joint.B.X * sx, joint.B.Y * sy);
+            }
+
         if (frame.Shapes is { } shapes)
             foreach (var id in shapes.Keys.ToList())
             {

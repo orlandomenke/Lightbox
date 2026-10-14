@@ -186,6 +186,13 @@ public sealed class Frame
     public List<LineMatch>? Matches { get; set; }
 
     /// <summary>
+    /// The pose of the subject in this key and the next (Q274), the guide the
+    /// artist draws the inbetweens over; null, and no key in the file, until
+    /// one is read. On the frame for the chart's reason.
+    /// </summary>
+    public PoseGuide? Pose { get; set; }
+
+    /// <summary>
     /// Which AI produced this drawing, or null for every frame an artist drew.
     /// </summary>
     /// <remarks>
@@ -292,6 +299,7 @@ public sealed class Frame
         copy.Shapes = Shapes is null ? null : new Dictionary<string, ShapeBox>(Shapes);
         copy.Chart = Chart is null ? null : [.. Chart];
         copy.Matches = Matches?.Select(m => m.Clone()).ToList();
+        copy.Pose = Pose?.Clone();
         copy.Correctives = Correctives?.Select(c => c.Clone()).ToList();
         return copy;
     }
