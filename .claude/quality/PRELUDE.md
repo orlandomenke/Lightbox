@@ -1,6 +1,6 @@
 # CLAUDE.md — the per-session prelude
 
-budget: 23244
+budget: 23465
 
 ## What this budgets, and why it is characters rather than lines
 
@@ -126,3 +126,10 @@ other's reason and leaves a number nobody can account for.
   number is the merged file's. Measured on the merged tree with
   `prelude.py measure`, as the branching skill asks, rather than summed; the sum
   would have said 23,247.
+
+- **23,244 → 23,465** (2026-10-14, Q272): +221 for *No attribution lines*.
+  A rule, and it has to be resident because what it contradicts is resident
+  too: the harness reminds every session, and every subagent, to end commits
+  and pull requests with an attribution line. A rule in a memory note or a skill
+  reaches only the sessions that happen to read it; the rest add the line. No
+  history to move out — the decision and its costs are in the question file.

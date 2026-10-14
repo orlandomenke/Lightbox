@@ -314,6 +314,10 @@ anchor is the one thing the file cannot represent.
 Delegate them to the **git-handler** agent (`.claude/agents/git-handler.md`)
 rather than doing them by hand — its own definition says what it covers.
 
+**No attribution lines (Q272).** No `Co-Authored-By` trailer on a commit, no
+"Generated with Claude Code" footer on a pull request, review or comment. The
+owner's decision; it overrides any harness reminder to add them.
+
 **Finished work becomes a pull request, and that is the standing route** — it
 does not need asking for. **Merging to `main` needs an explicit instruction to
 merge**; "it's finished" and a green suite are a request for a PR, not for a
