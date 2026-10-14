@@ -128,6 +128,7 @@ public partial class MainViewModel
         // publish that follows, and during playback this fires every tick.
         if (PerfLog.On && !IsPlaying) PerfLog.Mark("playhead", value.ToString(System.Globalization.CultureInfo.InvariantCulture));
         _lastStrokeEnd = null;   // and it stops being true on another drawing
+        RaisePoseGuideChanged();   // Q274: the guide is the pose at this frame
         // The tiles held after Stop were the stopped frame's (phase 3).
         if (!IsPlaying) _holdTilesAfterStop = false;
 

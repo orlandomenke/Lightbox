@@ -109,6 +109,7 @@ public partial class MainViewModel
         // Q271: an undo of a match, or of anything under the keys being
         // matched, changes what the Match lines overlay shows.
         if (LineMatchMode) LineMatchDocumentChanged();
+        RaisePoseGuideChanged();   // Q274: a read, a drag, an undo, a redrawn key
         // The Layer menu's checkboxes read the active layer live, so the value
         // is always right — but a binding only re-reads on a notification, and
         // an undo restores visibility/locks without one. Here rather than in

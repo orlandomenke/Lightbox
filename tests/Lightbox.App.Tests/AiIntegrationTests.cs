@@ -45,6 +45,16 @@ internal sealed class FakeArtist : IAiArtist
         LastSubjectRequest = request;
         return Task.FromResult(SubjectResult ?? AiResult<SubjectTaxonomy>.Error("unscripted", false));
     }
+
+    /// <summary>Answers a pose request (Q274); given the request, so a test can answer in its pictures' pixels.</summary>
+    public Func<PoseRequest, AiResult<PoseReading>>? PoseAnswer { get; set; }
+    public PoseRequest? LastPoseRequest { get; private set; }
+
+    public Task<AiResult<PoseReading>> ReadPoseAsync(PoseRequest request, CancellationToken ct)
+    {
+        LastPoseRequest = request;
+        return Task.FromResult(PoseAnswer?.Invoke(request) ?? AiResult<PoseReading>.Error("unscripted", false));
+    }
 }
 
 public class AiIntegrationTests
