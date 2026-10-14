@@ -40,6 +40,41 @@ public static class LineMatchPainter
     /// <summary>The colour of match <paramref name="index"/> (<see cref="OverlayStyle.Match"/>).</summary>
     public static SKColor MatchColour(int index) => OverlayStyle.Match(index);
 
+    /// <summary>An overlay's lines in drawing order, each with its path built once.</summary>
+    internal sealed class Built(List<(LineMatchLine Line, SKPath Path)> lines)
+    {
+        public List<(LineMatchLine Line, SKPath Path)> Lines { get; } = lines;
+    }
+
+    /// <summary>
+    /// The paths of each overlay, built the first time it is painted and kept
+    /// while the overlay lives. The overlay is replaced, never changed, when a
+    /// match does, so a repaint while panning or zooming reuses them: rebuilt
+    /// every frame, 300 lines cost 12-20 ms a repaint (perf-warden, 2026-10-14).
+    /// </summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<LineMatchOverlay, Built> Paths = new();
+
+    /// <summary>The overlay's lines in drawing order — unmatched under matched, the open match on top — with their paths.</summary>
+    internal static Built PathsFor(LineMatchOverlay overlay) => Paths.GetValue(overlay, Build);
+
+    private static Built Build(LineMatchOverlay overlay)
+    {
+        var ordered = new List<(LineMatchLine, SKPath)>(overlay.Lines.Count);
+        foreach (var layer in new[] { 0, 1, 2 })
+        {
+            foreach (var line in overlay.Lines)
+            {
+                if ((line.Pending ? 2 : line.Match is null ? 0 : 1) != layer || line.Points.Count == 0) continue;
+                var path = new SKPath();
+                path.MoveTo((float)line.Points[0].X, (float)line.Points[0].Y);
+                for (var i = 1; i < line.Points.Count; i++) path.LineTo((float)line.Points[i].X, (float)line.Points[i].Y);
+                if (line.Points.Count == 1) path.LineTo((float)line.Points[0].X + 0.01f, (float)line.Points[0].Y);
+                ordered.Add((line, path));
+            }
+        }
+        return new Built(ordered);
+    }
+
     /// <summary>Paint the overlay; expects the canvas in document space. Null draws nothing.</summary>
     public static void Paint(SKCanvas canvas, LineMatchOverlay? overlay, float scale)
     {
@@ -50,15 +85,8 @@ public static class LineMatchPainter
         using var dash = SKPathEffect.CreateDash([6 * px, 4 * px], 0);
         using var paint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Round };
 
-        // Unmatched under matched, and the open match on top of everything.
-        foreach (var line in overlay.Lines.OrderBy(l => l.Pending ? 2 : l.Match is null ? 0 : 1))
+        foreach (var (line, path) in PathsFor(overlay).Lines)
         {
-            if (line.Points.Count == 0) continue;
-            using var path = new SKPath();
-            path.MoveTo((float)line.Points[0].X, (float)line.Points[0].Y);
-            foreach (var p in line.Points.Skip(1)) path.LineTo((float)p.X, (float)p.Y);
-            if (line.Points.Count == 1) path.LineTo((float)line.Points[0].X + 0.01f, (float)line.Points[0].Y);
-
             var width = (line.Pending ? OpenWidth : line.Match is null ? Width : MatchedWidth) * px;
             // The open match, and a match the artist made solid, sit on the
             // style's dark casing, unbroken under a dashed line (DESIGN.md).

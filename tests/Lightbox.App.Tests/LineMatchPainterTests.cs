@@ -64,4 +64,22 @@ public sealed class LineMatchPainterTests
             Assert.True(Math.Min(apart, 360 - apart) > 60, $"matches {i} and {i + 1} are {apart:0} degrees apart");
         }
     }
+
+    [Fact]
+    public void AnOverlayIsBuiltOnceAndRepaintedFromWhatWasBuilt()
+    {
+        // Panning and zooming repaint the same overlay many times a second:
+        // its paths are built the first time, not on every frame.
+        var overlay = new LineMatchOverlay([Line(20, 0), Line(60, 1, match: 0), Line(80, 0, pending: true)], "#d04040", "#3060c0");
+
+        var first = LineMatchPainter.PathsFor(overlay);
+        var again = LineMatchPainter.PathsFor(overlay);
+        var changed = LineMatchPainter.PathsFor(overlay with { Lines = [.. overlay.Lines] });
+
+        Assert.Same(first, again);
+        Assert.NotSame(first, changed);
+        // Unmatched under matched, the open match on top.
+        Assert.Equal([null, 0, null], first.Lines.Select(l => l.Line.Match));
+        Assert.True(first.Lines[^1].Line.Pending);
+    }
 }
