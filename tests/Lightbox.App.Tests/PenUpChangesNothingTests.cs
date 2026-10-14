@@ -739,6 +739,9 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
     [InlineData("builtin-smudge", SmoothingMode.MovingAverage)]
     [InlineData("builtin-blender", SmoothingMode.MovingAverage)]
     [InlineData("builtin-smudge", SmoothingMode.SavitzkyGolay)]
+    // A blur stamps its settled dabs for good the same way (B475).
+    [InlineData("builtin-blur", SmoothingMode.Laplacian)]
+    [InlineData("builtin-blur", SmoothingMode.MovingAverage)]
     public void ASmudgeWhoseStampedDabsChangedIsRenderedFromItsRecord(string presetId, SmoothingMode smoothing)
     {
         var vm = Vm(smooth: true);
@@ -783,5 +786,260 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
         output.WriteLine($"STALE {presetId} {smoothing}: {(vm.WhyReplayed is null ? "kept" : "rendered from the record: " + vm.WhyReplayed)}; kept vs replay {record.Differing} (worst {record.Worst})");
         Assert.True(record.Differing == 0,
             $"{presetId}: the committed frame is not what its record renders ({record.Differing} pixels, worst {record.Worst}) - invariant 1");
+    }
+
+    /// <summary>
+    /// A Blur stroke: what is on screen at the end of the stroke is what is
+    /// kept, and what its record renders (B475).
+    /// </summary>
+    /// <remarks>
+    /// Found beside B473, 2026-10-14: on a layer with nothing clipped to it, a
+    /// Blur stroke across a bar changed 91 pixels at pen-up, worst 46 levels.
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData(0, false)]
+    [InlineData(0, true)]
+    [InlineData(40, false)]
+    [InlineData(40, true)]
+    [InlineData(150, false)]
+    [InlineData(150, true)]
+    public void ABlurStrokeUnderThePenIsWhatIsKept(int size, bool smooth)
+    {
+        var vm = Vm(smooth);
+        var scene = vm.Doc.Scene;
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-ink"));
+        vm.BrushSize = 60;
+        foreach (var (x, hex) in new[] { (300.0, "#c8301c"), (370.0, "#e2a11c"), (440.0, "#1c7a3a") })
+        {
+            vm.ColorHex = hex;
+            vm.BeginStroke(x, 150, 1);
+            for (var i = 1; i <= 12; i++) vm.MoveStroke(x + (i * 2), 150 + (i * 25), 1);
+            vm.EndStroke();
+            for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        using var painted = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height).Copy();
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-blur"));
+        if (size > 0) vm.BrushSize = size;
+        var before = vm.PromotedStrokes;
+
+        // Out across the bars, round, and back over its own path.
+        vm.BeginStroke(240, 260, 0.7);
+        for (var i = 1; i <= 70; i++)
+        {
+            var back = i > 45;
+            var t = back ? 45 - ((i - 45) * 1.5) : i;
+            vm.MoveStroke(240 + (t * 6.0), (back ? 300 : 250) + (Math.Sin(i * 0.25) * 45), 0.5 + (0.4 * i / 70.0));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        using var underThePen = vm.LiveCompositeForTests!.Copy();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        vm.EndStroke();
+        var penUp = clock.Elapsed.TotalMilliseconds;
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var live = Compare(underThePen, kept);
+        var record = Compare(kept, replay);
+        var did = Compare(kept, painted);
+        var promoted = vm.PromotedStrokes - before == 1;
+        output.WriteLine(
+            $"BLUR size {vm.BrushSize,4:0} {(smooth ? "smooth" : "raw"),-6} {(promoted ? "kept" : "REPLAYED: " + vm.WhyReplayed)}  "
+            + $"changed {did.Differing} pixels; under the pen vs kept {live.Differing} (worst {live.Worst}), kept vs replay {record.Differing} (worst {record.Worst}); pen-up {penUp:0.0} ms");
+
+        Assert.True(did.Differing > 300, $"the blur changed almost nothing ({did.Differing} pixels) - nothing was tested");
+        Assert.True(record.Differing == 0,
+            $"the committed frame is not what its record renders ({record.Differing} pixels, worst {record.Worst}) - invariant 1");
+        Assert.True(live.Differing == 0,
+            $"lifting the pen changed {live.Differing} pixels (worst {live.Worst}): what was on screen is not what was kept");
+        Assert.True(promoted, $"a blur stroke at {vm.BrushSize:0} was rendered again at pen-up - {vm.WhyReplayed}");
+    }
+
+    /// <summary>
+    /// A long, smoothed blur or smudge stroke at a large size is kept to its
+    /// last dab: nothing it stamped for good is nudged afterwards, so the guard
+    /// that would send it back to a full render never has cause to (B475).
+    /// </summary>
+    /// <remarks>
+    /// Found measuring B475's cost: a dab settled by position alone moved 3e-5 px
+    /// at the end of a smoothed 600-event stroke, and a Blur at 150 and 300 px
+    /// was rendered from its record at pen-up - 0.2 to 0.9 s - instead of kept.
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData("builtin-blur", 150, 0.35)]
+    [InlineData("builtin-blur", 300, 0.35)]
+    [InlineData("builtin-blur", 300, 1.0)]
+    [InlineData("builtin-smudge", 150, 0)]
+    public void ALongSmoothedEffectStrokeIsKeptToItsLastDab(string presetId, int size, double flow)
+    {
+        var vm = Vm(smooth: true);
+        var scene = vm.Doc.Scene;
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-ink"));
+        vm.BrushSize = 80;
+        foreach (var x in new[] { 200.0, 400.0, 600.0 })
+        {
+            vm.BeginStroke(x, 60, 1);
+            for (var i = 1; i <= 20; i++) vm.MoveStroke(x + i, 60 + (i * 22), 1);
+            vm.EndStroke();
+            for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == presetId));
+        vm.BrushSize = size;
+        if (flow > 0) vm.CurrentToolSettingsForTest.Flow = flow;
+        var before = vm.PromotedStrokes;
+
+        vm.BeginStroke(100, 270, 0.7);
+        for (var i = 1; i <= 600; i++)
+        {
+            vm.MoveStroke(480 + (Math.Cos(i * 0.02) * 330), 270 + (Math.Sin(i * 0.031) * 200), 0.7);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        using var underThePen = vm.LiveCompositeForTests!.Copy();
+        vm.EndStroke();
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var live = Compare(underThePen, kept);
+        var record = Compare(kept, replay);
+        var promoted = vm.PromotedStrokes - before == 1;
+        output.WriteLine(
+            $"LONG {presetId} size {size} flow {flow}: {(promoted ? "kept" : "REPLAYED: " + vm.WhyReplayed)}; "
+            + $"under the pen vs kept {live.Differing} (worst {live.Worst}), kept vs replay {record.Differing} (worst {record.Worst})");
+        Assert.True(record.Differing == 0,
+            $"the committed frame is not what its record renders ({record.Differing} pixels, worst {record.Worst}) - invariant 1");
+        Assert.True(live.Differing == 0, $"lifting the pen changed {live.Differing} pixels (worst {live.Worst})");
+        Assert.True(promoted, $"{presetId} at {size}: rendered again at pen-up - {vm.WhyReplayed}");
+    }
+
+    /// <summary>
+    /// A blur through a tip that turns with the stroke, with pressure taking
+    /// some dabs to nothing: the heading a dab is turned by is the one a
+    /// replay turns it by, so the mark kept is the mark a reload draws (B475,
+    /// from review - a dab of no size moves the replay's "previous" and not
+    /// the live walk's).
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(40, "tip-builtin-paintbrush")]
+    [InlineData(120, "tip-builtin-paintbrush")]
+    [InlineData(60, "tip-builtin-bristle")]
+    public void ATippedBlurThatTurnsWithTheStrokeIsWhatIsKept(int size, string tip)
+    {
+        var vm = Vm(smooth: false);
+        var scene = vm.Doc.Scene;
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-ink"));
+        vm.BrushSize = 60;
+        foreach (var (x, hex) in new[] { (300.0, "#c8301c"), (370.0, "#e2a11c"), (440.0, "#1c7a3a") })
+        {
+            vm.ColorHex = hex;
+            vm.BeginStroke(x, 150, 1);
+            for (var i = 1; i <= 12; i++) vm.MoveStroke(x + (i * 2), 150 + (i * 25), 1);
+            vm.EndStroke();
+            for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-blur"));
+        vm.BrushSize = size;
+        var brush = vm.CurrentToolSettingsForTest;
+        brush.TipId = tip;
+        brush.AngleFollowsDirection = true;
+        // Flat, so a turn of a few degrees moves pixels.
+        brush.Roundness = 0.25;
+        brush.Flow = 1;
+        brush.PressureEnabled = true;
+        // Nothing below half pressure: the engine floors pressure above zero,
+        // so a dab of no size takes a curve that says so.
+        brush.Curves = new()
+        {
+            // A step, so the first dab after a run of nothing is full size and its turn shows.
+            [BrushDynamic.Size] = new ResponseCurve { Points = [new(0, 0), new(0.5, 0), new(0.52, 1), new(1, 1)] },
+        };
+
+        // A zigzag through the bars, with the pen lifting off to nothing and
+        // back - so the step from the dab just before differs from the step
+        // from the last dab that was drawn.
+        var pressures = new[] { 0.8, 0.0, 0.0, 0.6, 1.0, 0.0, 0.4, 0.9, 0.0, 0.0, 0.7 };
+        vm.BeginStroke(240, 260, pressures[0]);
+        for (var i = 1; i <= 60; i++)
+        {
+            vm.MoveStroke(240 + (i * 6.0), 260 + (i % 2 == 0 ? 40 : -40) + (Math.Sin(i * 0.2) * 30), pressures[i % pressures.Length]);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        using var underThePen = vm.LiveCompositeForTests!.Copy();
+        vm.EndStroke();
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var live = Compare(underThePen, kept);
+        var record = Compare(kept, replay);
+        var underVsReplay = Compare(underThePen, replay);
+        var recorded = vm.PaintedCel().Strokes[^1];
+        var walked = BrushEngine.WalkDabs(recorded);
+        var nothing = walked.Count(d => BrushEngine.RadiusAt(recorded.Brush, d.Pressure) <= 0);
+        output.WriteLine(
+            $"TIPPED BLUR size {size} {tip}: {walked.Count} dabs, {nothing} of no size; {(vm.WhyReplayed is null ? "kept" : "rendered from the record: " + vm.WhyReplayed)}; "
+            + $"under the pen vs kept {live.Differing} (worst {live.Worst}), kept vs replay {record.Differing} (worst {record.Worst}), "
+            + $"under the pen vs replay {underVsReplay.Differing} (worst {underVsReplay.Worst})");
+        Assert.True(record.Differing == 0,
+            $"the committed frame is not what its record renders ({record.Differing} pixels, worst {record.Worst}) - invariant 1");
+        Assert.True(live.Differing == 0,
+            $"lifting the pen changed {live.Differing} pixels (worst {live.Worst})");
+    }
+
+    /// <summary>
+    /// Erasing with a blur or smudge brush in hand erases - live as well as at
+    /// pen-up. The commit has always taken an eraser stroke past the blur and
+    /// smudge paths; the live path asked only what kind of brush it was.
+    /// </summary>
+    /// <remarks>Found by review of B475.</remarks>
+    [AvaloniaTheory]
+    [InlineData("builtin-blur")]
+    [InlineData("builtin-smudge")]
+    public void ErasingWithABlurOrSmudgeInHandShowsTheErase(string presetId)
+    {
+        var vm = Vm(smooth: false);
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-ink"));
+        vm.BrushSize = 60;
+        foreach (var (x, hex) in new[] { (300.0, "#c8301c"), (370.0, "#e2a11c"), (440.0, "#1c7a3a") })
+        {
+            vm.ColorHex = hex;
+            vm.BeginStroke(x, 150, 1);
+            for (var i = 1; i <= 12; i++) vm.MoveStroke(x + (i * 2), 150 + (i * 25), 1);
+            vm.EndStroke();
+            for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == presetId));
+        vm.BrushSize = 40;
+
+        Lightbox.App.Rendering.RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+        vm.BeginStroke(240, 260, 0.8, eraseWithCurrentBrush: true);
+        for (var i = 1; i <= 40; i++)
+        {
+            vm.MoveStroke(240 + (i * 6.0), 260 + (Math.Sin(i * 0.25) * 45), 0.8);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.NotNull(latest);
+        using var during = SKBitmap.FromImage(latest!.Image);
+        vm.EndStroke();
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        using var after = SKBitmap.FromImage(latest!.Image);
+
+        Assert.Equal(ToolKind.Eraser, vm.PaintedCel().Strokes[^1].Tool);
+        var shown = Compare(during, after);
+        output.WriteLine($"ERASE with {presetId}: lifting the pen changed {shown.Differing} pixels on screen (worst {shown.Worst})");
+        Assert.True(shown.Differing == 0,
+            $"{presetId}: erasing showed something else under the pen - {shown.Differing} pixels changed at pen-up (worst {shown.Worst})");
     }
 }

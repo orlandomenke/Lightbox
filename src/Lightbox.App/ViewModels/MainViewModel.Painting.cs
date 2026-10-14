@@ -1592,15 +1592,15 @@ public partial class MainViewModel
         if (BrushEngine.WritesTheLayerItself(stroke))
         {
             if (_live.SettledDabChanged) return No($"a settled dab changed ({_live.WhySettledDabChanged})");
-            // A rewetting stroke or a smudge: the working copy of the layer holds
-            // the result - rendered rectangle by rectangle from the layer as it
-            // was (Q255), or smeared dab range by dab range as a replay smears it.
+            // A rewetting stroke, a smudge or a blur: the working copy of the layer
+            // holds the result - rendered rectangle by rectangle from the layer as
+            // it was (Q255), or stamped dab range by dab range as a replay stamps it.
             if (_live.Composite is not { } composite || _live.EffectDabs is not { Count: > 0 } wetDabs)
             {
                 return No("nothing was worked into the layer live");
             }
             var layerInfo = new SKImageInfo(composite.Width, composite.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-            var wetRegion = stroke.Brush.Kind == BrushKind.Smudge
+            var wetRegion = stroke.Brush.Wet is null
                 ? BrushEngine.RangeBounds(wetDabs, 0, stroke.Brush, layerInfo) ?? SKRectI.Empty
                 : WetBleed.Bounds(wetDabs, 0, wetDabs.Count, stroke.Brush, composite.Width, composite.Height);
             if (wetRegion.Width <= 0 || wetRegion.Height <= 0) return No("the stroke is off the paper");
@@ -2253,7 +2253,12 @@ public partial class MainViewModel
         // it names for the key that was held (Q255). Everything below asks
         // this, never the tool, so an alternate is set up as the brush it is.
         var strokeSettings = _strokeAlternate?.Settings ?? CurrentToolSettings;
-        if (EditingLayerMask && strokeSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
+        var tool = _strokeAlternate?.Tool ?? (IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush);
+        // An eraser erases whatever brush it borrows: the commit takes an eraser
+        // stroke past the blur and smudge paths (StampStroke), so the live path
+        // does too, or the pen shows a blur and lifts to an erase (B475 review).
+        var reworks = (strokeSettings.Kind is BrushKind.Blur or BrushKind.Smudge) && tool != ToolKind.Eraser;
+        if (EditingLayerMask && reworks)
         {
             AiStatus = "Blur and smudge don't work on a layer mask — paint or erase its coverage instead.";
             return;
@@ -2267,8 +2272,7 @@ public partial class MainViewModel
         // alpha-locked layer paints only where there is paint — on a blank
         // page each would do nothing and leave the frame empty. Both act on
         // what the hold shows, so both start from a copy.
-        var reworksWhatIsThere = strokeSettings.Kind is BrushKind.Blur or BrushKind.Smudge
-            || ActiveLayer is { AlphaLocked: true };
+        var reworksWhatIsThere = reworks || ActiveLayer is { AlphaLocked: true };
         if (PaintTargetOrKey(editsWhatTheHoldShows: reworksWhatIsThere) is not { } target) return;
         // A press in a neighbour of the tiled preview is a press on the page,
         // shifted by whole tiles — decided here, once, and applied to every
@@ -2312,7 +2316,7 @@ public partial class MainViewModel
         _strokeBuilder.Smoothing ??= points => _stabilizer.PostProcess(points);
         _strokeBuilder.SmoothingShape ??= () => _stabilizer.Shape;
         _strokeBuilder.Begin(
-            _strokeAlternate?.Tool ?? (IsEraser || eraseWithCurrentBrush ? ToolKind.Eraser : ToolKind.Brush),
+            tool,
             ColorHex,
             strokeSettings.Clone(),
             startX, startY, pressure,
@@ -2347,7 +2351,7 @@ public partial class MainViewModel
         _live.EffectBase = null;
         _live.MixBeneath?.Dispose();
         _live.MixBeneath = null;
-        if (strokeSettings.Kind is BrushKind.Blur or BrushKind.Smudge)
+        if (reworks)
         {
             // Blur and smudge read the pixels they sit on, so they need a real
             // copy of the layer to work into. Without this a smudge preview
@@ -2792,12 +2796,21 @@ public partial class MainViewModel
             // a walk of the whole stroke and a comparison of every dab on every pointer event,
             // the cost that stopped a long line following the pen (B449), left standing here
             // when paint was fixed. The paths are exclusive - a stroke is an effect or paint -
-            // so they share the one kept walk. Position alone settles a dab here, as before.
+            // so they share the one kept walk.
             var firstEffectWalk = _live.EffectDabs is null;
             var walk = _live.Walk.Of(live);
             var settled = firstEffectWalk
                 ? (walk.Count == 0 ? 0 : 1)
                 : BrushEngine.StablePositions(walk, _live.Walk.Kept, _live.Walk.Replaced);
+            // B475: a blur or smudge stamps a settled dab for good, so it settles no
+            // further than the paint path's horizon - a position that agreed across
+            // two events can still be nudged by smoothing. Never backwards: what is
+            // stamped for good stays, and the guard below watches it. Water asks the
+            // horizon itself (StampLiveWet), and a walk of it must not run twice.
+            if (live.Brush.Wet is null)
+            {
+                settled = Math.Max(_live.EffectSettled, Math.Min(settled, HorizonSettled(live, walk, firstEffectWalk)));
+            }
             _live.WalkWork = _live.Walk.LastWalked + Math.Max(0, walk.Count - _live.Walk.Kept);
 
             // A smudge settles a dab by its place alone, and stamps it for good.
@@ -2808,7 +2821,9 @@ public partial class MainViewModel
             // that does this - review reasoned it possible on a ruled line under
             // a wide smoothing window, and five such cases stay exact - so this
             // is a guard and costs a comparison of the rewritten tail.
-            if (!firstEffectWalk && live.Brush.Kind == BrushKind.Smudge && !_live.SettledDabChanged)
+            // A blur stamps its settled dabs for good the same way (B475).
+            if (!firstEffectWalk && !_live.SettledDabChanged
+                && (live.Brush.Kind == BrushKind.Smudge || (live.Brush.Kind == BrushKind.Blur && live.Brush.Wet is null)))
             {
                 var keptDabs = _live.Walk.Kept;
                 var replaced = _live.Walk.Replaced;
@@ -2822,7 +2837,7 @@ public partial class MainViewModel
                 {
                     if (walk[i].Equals(replaced[i - keptDabs])) continue;
                     _live.SettledDabChanged = true;
-                    _live.WhySettledDabChanged = $"smudge dab {i} of {walk.Count} changed after it was stamped";
+                    _live.WhySettledDabChanged = $"{live.Brush.Kind.ToString().ToLowerInvariant()} dab {i} of {walk.Count} changed after it was stamped";
                 }
             }
 
@@ -2833,15 +2848,9 @@ public partial class MainViewModel
                 // changed is rendered on its own and is what a replay draws there.
                 StampLiveWet(live, walk, firstEffectWalk);
             }
-            else if (live.Brush.Kind == BrushKind.Blur)
-            {
-                // A blur's dabs are independent — each reads the pre-stroke pixels — so the range
-                // is all it needs, and StampBlurDraft restores under the tail itself.
-                FrameRasterizer.AppendDraft(_live.Composite, live, _live.EffectBase, walk, _live.EffectSettled);
-            }
             else
             {
-                StampLiveSmudge(live, walk, settled);
+                StampLiveRework(live, walk, settled);
             }
 
             _live.EffectSettled = settled;
@@ -2969,6 +2978,31 @@ public partial class MainViewModel
     /// the rectangle has to be touched and what is on screen at pen-up is what
     /// the record replays.
     /// </remarks>
+    /// <summary>
+    /// How many of the stroke's dabs no later input can move: the dabs a walk of
+    /// the stroke with its newest points taken away - the settle horizon and the
+    /// smoothing's reach - agrees with. The paint path's rule, and the one every
+    /// stroke that stamps dabs for good settles by.
+    /// </summary>
+    /// <remarks>
+    /// B475: a blur or smudge used to settle a dab once its position agreed
+    /// across two events, and smoothing can still nudge such a dab - by 3e-5 px
+    /// at the end of a smoothed stroke, enough for the stamped-dab guard to send
+    /// the stroke back to a full render at pen-up (0.2 to 0.9 s at 150 to 300 px).
+    /// </remarks>
+    private int HorizonSettled(Stroke live, IReadOnlyList<BrushEngine.Dab> dabs, bool first)
+    {
+        var points = live.Points;
+        var keepPoints = points.Count - (BrushEngine.SettleHorizonPoints + Math.Max(0, _stabilizer.SmoothingHorizon));
+        if (keepPoints <= 0) return 0;
+        TrimmedInto(_live.HorizonPoints, points, keepPoints);
+        var without = _live.HorizonWalk.Of(new Stroke { Tool = live.Tool, Brush = live.Brush, Points = _live.HorizonPoints });
+        var known = first ? 0 : Math.Min(_live.HorizonAgreed, Math.Min(_live.Walk.Kept, _live.HorizonWalk.Kept));
+        var settled = BrushEngine.SettledPrefix(dabs, without, known, out var agreed);
+        _live.HorizonAgreed = agreed;
+        return settled;
+    }
+
     private void StampLiveWet(Stroke live, IReadOnlyList<BrushEngine.Dab> dabs, bool first)
     {
         if (_live.Composite is not { } composite || _live.EffectBase is not { } before) return;
@@ -2978,17 +3012,7 @@ public partial class MainViewModel
             // Kept between events: only the pixels the moving tip changed are
             // redone. The dabs it may treat as final are the ones the paint path
             // stamps for good - the same with the newest points taken away.
-            var settled = 0;
-            var points = live.Points;
-            var keepPoints = points.Count - (BrushEngine.SettleHorizonPoints + Math.Max(0, _stabilizer.SmoothingHorizon));
-            if (keepPoints > 0)
-            {
-                TrimmedInto(_live.HorizonPoints, points, keepPoints);
-                var without = _live.HorizonWalk.Of(new Stroke { Tool = live.Tool, Brush = live.Brush, Points = _live.HorizonPoints });
-                var known = first ? 0 : Math.Min(_live.HorizonAgreed, Math.Min(_live.Walk.Kept, _live.HorizonWalk.Kept));
-                settled = BrushEngine.SettledPrefix(dabs, without, known, out var agreed);
-                _live.HorizonAgreed = agreed;
-            }
+            var settled = HorizonSettled(live, dabs, first);
             if (_live.Wet is not { } wet || !wet.Fits(width, height, live.Brush))
             {
                 _live.Wet = wet = new WetStroke(width, height, live.Brush);
@@ -3066,11 +3090,27 @@ public partial class MainViewModel
         _publish.MarkDirty(region);
     }
 
-    private void StampLiveSmudge(Stroke live, IReadOnlyList<BrushEngine.Dab> dabs, int settled)
+    /// <summary>
+    /// Bring a smudge's or a blur's working copy of the layer up to date: settled
+    /// dabs for good, the tail on loan over a copy taken back next event - so each
+    /// dab lands once, in order, as a replay lands it.
+    /// </summary>
+    /// <remarks>
+    /// A blur needs no carry, since every dab reads the layer as it was; what it
+    /// needed was not to be taken back under the tail, which is what its draft
+    /// did (B475).
+    /// </remarks>
+    private void StampLiveRework(Stroke live, IReadOnlyList<BrushEngine.Dab> dabs, int settled)
     {
         if (_live.Composite is not { } composite) return;
         var info = new SKImageInfo(
             composite.Width, composite.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        var blur = live.Brush.Kind == BrushKind.Blur;
+        // Every blur dab reads the layer as it was, never the copy being drawn
+        // into - StampBlurRange reads it through a view, not a copy. BeginStroke
+        // always makes it for a blur.
+        if (blur && _live.EffectBase is null) return;
+        var before = _live.EffectBase!;
         using var canvas = new SKCanvas(composite);
 
         // 1. Take back the tail lent out last time, so the composite is the settled prefix again.
@@ -3110,8 +3150,15 @@ public partial class MainViewModel
         //    becomes the checkpoint the next event resumes from.
         if (settled > _live.EffectSettled)
         {
-            _live.SmudgeCarry = BrushEngine.StampSmudgeRange(
-                canvas, composite, live, dabs, _live.EffectSettled, settled, _live.SmudgeCarry);
+            if (blur)
+            {
+                BrushEngine.StampBlurRange(canvas, before, live, info, dabs, _live.EffectSettled, settled);
+            }
+            else
+            {
+                _live.SmudgeCarry = BrushEngine.StampSmudgeRange(
+                    canvas, composite, live, dabs, _live.EffectSettled, settled, _live.SmudgeCarry);
+            }
         }
 
         // 3. The rest on loan, so the smear reaches the pen tip. Backed up first, because a smudge
@@ -3148,10 +3195,17 @@ public partial class MainViewModel
                 }
             }
 
-            // The returned carry is deliberately dropped: these dabs are provisional, so the
-            // checkpoint must stay at the settled boundary.
-            BrushEngine.StampSmudgeRange(
-                canvas, composite, live, dabs, settled, dabs.Count, _live.SmudgeCarry, checkpoint: false);
+            if (blur)
+            {
+                BrushEngine.StampBlurRange(canvas, before, live, info, dabs, settled, dabs.Count);
+            }
+            else
+            {
+                // The returned carry is deliberately dropped: these dabs are provisional, so the
+                // checkpoint must stay at the settled boundary.
+                BrushEngine.StampSmudgeRange(
+                    canvas, composite, live, dabs, settled, dabs.Count, _live.SmudgeCarry, checkpoint: false);
+            }
             canvas.Flush();
         }
     }

@@ -580,11 +580,10 @@ the flow.
 **That now includes smudge, blender and blur.** They were the last to hold out:
 because they rework pixels already on the layer rather than adding new ones, each
 piece of the preview restarted not only the brush but the colour it was dragging,
-so a smear reached further after you let go than it had while you drew. Smudge and
-blender are exact now — the same pixels, live and committed. Blur is exact in the
-area it touches and can differ by a shade at the very rim of the mark, which is a
-deliberate trade: making it exact means re-blurring the whole stroke on every
-movement, and that is slower than you can draw.
+so a smear reached further after you let go than it had while you drew. Smudge,
+blender and blur are exact now — the same pixels, live and committed — and
+nothing is redrawn when you lift the pen. Blur used to differ by a shade at the
+rim of the mark; it no longer does, and costs no more to draw.
 
 The one thing you may notice: on a fast flick the very tip of the mark settles a
 fraction behind the cursor. That is the last stroke of the brush waiting until it
