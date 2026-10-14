@@ -150,11 +150,24 @@ public sealed record StrokeOverlay(
 /// a folder's shape is every layer beneath, so it is this one <em>or</em> any
 /// of these. Members' own <see cref="Inverted"/> is not read.
 /// </param>
+/// <param name="Live">
+/// The stroke in flight on the layer whose render <paramref name="Mask"/> is
+/// - a clipping base, or a member of a folder's shape, being drawn on (B473).
+/// Drawn over the render before it carves, exactly as it is drawn over that
+/// layer's own pass, so what clips to a layer follows the eraser, the paint and
+/// the alpha lock while the pen is down instead of at pen-up.
+/// </param>
+/// <param name="CarveScratch">
+/// <paramref name="Scratch"/>'s counterpart for <paramref name="Carve"/>: the
+/// dabs on a folder-shape member's own mask while it is being painted (B473).
+/// </param>
 public sealed record PassShape(
     SKBitmap Mask, bool Inverted = false,
     SKBitmap? Scratch = null, bool ScratchErases = false,
     SKBitmap? Carve = null, bool CarveInverted = false,
-    IReadOnlyList<PassShape>? Or = null);
+    IReadOnlyList<PassShape>? Or = null,
+    StrokeOverlay? Live = null,
+    SKBitmap? CarveScratch = null, bool CarveScratchErases = false);
 
 /// <param name="Shapes">
 /// Alpha shapes carving this pass — a layer mask, a clipping base — or null
@@ -590,12 +603,7 @@ public static class SceneRenderer
             return;
         }
 
-        using var strokePaint = new SKPaint
-        {
-            Color = SKColors.White.WithAlpha(
-                (byte)Math.Round(Math.Clamp(overlay.Opacity, 0, 1) * 255)),
-            BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
-        };
+        using var strokePaint = StrokePaint(overlay);
 
         // Isolation is only needed when the stroke must combine with its
         // own layer before that layer meets the ones below — an eraser
@@ -681,6 +689,18 @@ public static class SceneRenderer
                 canvas.Restore();
                 continue;
             }
+            if (shape.Live is { } live)
+            {
+                // A base being drawn on: its render and the stroke in flight are
+                // one coverage, grouped before the carve as the base's own pass
+                // groups them (B473).
+                canvas.SaveLayer(carve);
+                DrawLayer(canvas, shape.Mask, null);
+                using var livePaint = StrokePaint(live);
+                DrawStroke(canvas, shape.Mask, live, livePaint);
+                canvas.Restore();
+                continue;
+            }
             if (shape.Scratch is null)
             {
                 DrawLayer(canvas, shape.Mask, carve);
@@ -703,20 +723,52 @@ public static class SceneRenderer
     /// <summary>One member's coverage, added to the union being built: its render, carved by its own mask.</summary>
     private static void DrawCoverage(SKCanvas canvas, PassShape member)
     {
-        if (member.Carve is null)
+        if (member.Carve is null && member.Live is null)
         {
             DrawLayer(canvas, member.Mask, null);
             return;
         }
         canvas.SaveLayer();
         DrawLayer(canvas, member.Mask, null);
-        using var carve = new SKPaint
+        if (member.Live is { } live)
         {
-            BlendMode = member.CarveInverted ? SKBlendMode.DstOut : SKBlendMode.DstIn,
-        };
-        DrawLayer(canvas, member.Carve, carve);
+            using var livePaint = StrokePaint(live);
+            DrawStroke(canvas, member.Mask, live, livePaint);
+        }
+        if (member.Carve is { } mask)
+        {
+            using var carve = new SKPaint
+            {
+                BlendMode = member.CarveInverted ? SKBlendMode.DstOut : SKBlendMode.DstIn,
+            };
+            if (member.CarveScratch is { } dabs)
+            {
+                // The member's mask being painted: its coverage and the dabs in
+                // flight are one carve, grouped as ApplyShapes groups a mask's.
+                canvas.SaveLayer(carve);
+                DrawLayer(canvas, mask, null);
+                using var dabPaint = new SKPaint
+                {
+                    BlendMode = member.CarveScratchErases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+                };
+                DrawLayer(canvas, dabs, dabPaint);
+                canvas.Restore();
+            }
+            else
+            {
+                DrawLayer(canvas, mask, carve);
+            }
+        }
         canvas.Restore();
     }
+
+    /// <summary>How a live stroke meets its layer: over it at its opacity, or out of it for an eraser.</summary>
+    private static SKPaint StrokePaint(StrokeOverlay overlay) => new()
+    {
+        Color = SKColors.White.WithAlpha(
+            (byte)Math.Round(Math.Clamp(overlay.Opacity, 0, 1) * 255)),
+        BlendMode = overlay.Erases ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+    };
 
     /// <summary>
     /// Draw the in-progress stroke over its layer, masked the way the commit

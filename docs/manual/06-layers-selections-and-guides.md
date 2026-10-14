@@ -598,6 +598,12 @@ the base has a mask of its own, the clipped layers respect it too. A clipped
 layer with nothing below it, or whose base shows nothing on this frame,
 simply shows nothing there.
 
+**What clips to a layer follows the pen on it.** Erase the base and the
+clipped layers go with it as you erase; paint on the base and they cover the
+new paint as it goes down. The same is true of smudging or wetting the base,
+of painting its mask, and of a layer that is part of a folder's shape. Nothing
+changes when you lift the pen.
+
 ### Keeping a folder's layers inside a shape
 
 This is the colouring setup: flats at the bottom of a folder, and shading,
