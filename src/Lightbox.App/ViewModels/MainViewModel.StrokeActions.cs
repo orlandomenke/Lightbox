@@ -112,6 +112,13 @@ public partial class MainViewModel
 
         var moving = strokes.Where(s => Selection.IsStrokeSelected(s.Id)).ToList();
         if (moving.Count == 0) return 0;
+        // A group's stored pixels are resampled by the transform, not offset
+        // here; moving its strokes alone would split the picture (the adversary).
+        if (moving.Any(s => s.Group is not null && StrokeGroups.HoldsPixels([s])))
+        {
+            AiStatus = "That group holds pixels as well as lines — move it with the transform (Ctrl+T), which carries both.";
+            return 0;
+        }
 
         // Snapshotted before the closure runs, so undo has the exact bits back.
         var before = moving.ToDictionary(

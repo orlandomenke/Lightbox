@@ -29,6 +29,61 @@ namespace Lightbox.Raster;
 /// </remarks>
 public static class GroupSplit
 {
+    /// <summary>
+    /// Why <paramref name="target"/> cannot be split out of <paramref name="layer"/>,
+    /// in words for the status line — or null when it can. Asked before the
+    /// split rather than discovered inside it, so a refusal records no undo step.
+    /// </summary>
+    public static string? WhyNot(Scene scene, Layer layer, Stroke target)
+    {
+        if (target.Group is not { } chosen) return "That is not a merged group.";
+        if (!scene.Layers.Contains(layer)) return "That layer is not in this scene.";
+        // The merged layer's own drawing, wrapped for its mask or effects so
+        // they kept applying to it alone. What was merged into it lies on top
+        // of it, so split above it would be painted in the wrong order.
+        if (chosen.From == layer.Id)
+        {
+            return $"That group is “{layer.Name}”'s own drawing, kept with its mask or effects — there is no other layer to give it back to.";
+        }
+        var found = Found(layer, target);
+        if (!found.Any(f => ReferenceEquals(f.Frame.Strokes[f.Position], target)))
+        {
+            return "That group is not the topmost one from its merge in this drawing, or not at the top of the drawing at all. Split the one above it first.";
+        }
+        var groups = found.Select(f => f.Frame.Strokes[f.Position].Group!).ToList();
+        var first = groups[0];
+        if (groups.Any(g => g.Blend != first.Blend || g.Opacity != first.Opacity || g.Clip != first.Clip))
+        {
+            return "Its drawings land with different blend modes, opacities or clips, so no one layer can take them all back.";
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Every cel's group from the same merge as <paramref name="target"/>, at
+    /// the top of its drawing — the last one, if a drawing holds two. A group
+    /// with no record of its layer (written before groups kept one) is a merge
+    /// of one: nothing says any other group came with it.
+    /// </summary>
+    private static List<(int Cel, Frame Frame, int Position)> Found(Layer layer, Stroke target)
+    {
+        var from = target.Group!.From;
+        var found = new List<(int Cel, Frame Frame, int Position)>();
+        for (var cel = 0; cel < layer.Cels.Count; cel++)
+        {
+            if (layer.Cels[cel].Frame is not { } frame) continue;
+            for (var i = frame.Strokes.Count - 1; i >= 0; i--)
+            {
+                var entry = frame.Strokes[i];
+                if (entry.Group is not { } group) continue;
+                if (from is null ? !ReferenceEquals(entry, target) : group.From != from) continue;
+                found.Add((cel, frame, i));
+                break;
+            }
+        }
+        return found;
+    }
+
     /// <summary>What a split made, for the status line and the tests.</summary>
     /// <param name="Layer">The new layer, already in the scene directly above.</param>
     /// <param name="Cels">How many drawings gave a group to it.</param>
@@ -45,31 +100,13 @@ public static class GroupSplit
     /// </summary>
     public static Result? Split(Scene scene, Layer layer, Stroke target)
     {
-        if (target.Group is not { } chosen) return null;
+        if (WhyNot(scene, layer, target) is not null) return null;
+        var chosen = target.Group!;
         var at = scene.Layers.IndexOf(layer);
-        if (at < 0) return null;
         var info = new SKImageInfo(scene.Width, scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-
-        // Every cel's group from the same merge, at the top of its drawing —
-        // the last one, if a drawing somehow holds two.
-        var found = new List<(int Cel, Frame Frame, int Position)>();
-        var targetIsAtTheTop = false;
-        for (var cel = 0; cel < layer.Cels.Count; cel++)
-        {
-            if (layer.Cels[cel].Frame is not { } frame) continue;
-            for (var i = frame.Strokes.Count - 1; i >= 0; i--)
-            {
-                if (frame.Strokes[i].Group is not { } group || group.From != chosen.From) continue;
-                found.Add((cel, frame, i));
-                targetIsAtTheTop |= ReferenceEquals(frame.Strokes[i], target);
-                break;
-            }
-        }
-        if (!targetIsAtTheTop) return null;
-
+        var found = Found(layer, target);
         var groups = found.Select(f => f.Frame.Strokes[f.Position].Group!).ToList();
         var first = groups[0];
-        if (groups.Any(g => g.Blend != first.Blend || g.Opacity != first.Opacity || g.Clip != first.Clip)) return null;
         // The mask and the stack go on the layer when every copy agrees, and
         // stay with each drawing when one was moved or changed on its own.
         var liftMask = groups.All(g => ContentEquality.Same(g.Mask, first.Mask));
@@ -79,6 +116,10 @@ public static class GroupSplit
         {
             Name = first.Name ?? "Split group",
             Kind = layer.Kind,
+            // In the merged layer's folder: inserted inside its span and
+            // belonging to none, it would escape the folder's blend, opacity,
+            // mask and visibility (the adversary).
+            GroupId = layer.GroupId,
             BlendMode = first.Blend ?? LayerBlendMode.Normal,
             Opacity = first.Opacity ?? 1,
             ClipToBelow = first.Clip == true ? true : null,
@@ -106,10 +147,22 @@ public static class GroupSplit
 
             var entry = frame.Strokes[hit.Position];
             var group = entry.Group!;
-            var drawing = new Frame { Role = frame.Role };
+            // What the drawing said about itself goes with it: the model's
+            // marking above all, or its output would pass as hand-drawn (A6).
+            // The merge kept one marking for the pair; split, both keep it,
+            // which errs toward saying so.
+            var drawing = new Frame
+            {
+                Role = frame.Role,
+                Ai = frame.Ai,
+                Chart = frame.Chart is null ? null : [.. frame.Chart],
+            };
             var keepWrapped = !liftMask && group.Mask is not null
                 || !liftEffects && group.Effects is not null
-                || entry.ClipId is not null;
+                || entry.ClipId is not null
+                // A newer build's keys on the group may say how it lands, and
+                // unwrapping would drop them (Q230): it stays whole.
+                || entry.Unknown is not null || group.Unknown is not null;
             if (keepWrapped)
             {
                 // Its own mask, stack or selection clip stays with it; how it

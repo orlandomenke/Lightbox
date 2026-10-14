@@ -34,10 +34,20 @@ public partial class MainViewModel
         var key = ExposureSheet.KeyIndexAtOrBefore(layer, CurrentFrameIndex);
         var frame = key < 0 ? null : layer.Cels[key].Frame;
         var selected = frame?.Strokes.Where(s => s.Group is not null && Selection.IsStrokeSelected(s.Id)).ToList() ?? [];
-        var target = selected.Count == 1 ? selected[0] : frame?.Strokes.LastOrDefault(s => s.Group is not null);
+        // Without a selection, the topmost group that came from another layer —
+        // not the layer's own drawing kept for its mask, which has nowhere to go.
+        var target = selected.Count == 1
+            ? selected[0]
+            : frame?.Strokes.LastOrDefault(s => s.Group is { } g && g.From != layer.Id);
         if (frame is null || target is null)
         {
             AiStatus = $"Nothing on “{layer.Name}” here was kept as a group by a merge.";
+            return false;
+        }
+        // Asked before the editor records a step, so a refusal leaves undo alone.
+        if (Lightbox.Raster.GroupSplit.WhyNot(Scene, layer, target) is { } why)
+        {
+            AiStatus = why;
             return false;
         }
 
@@ -51,11 +61,7 @@ public partial class MainViewModel
             if (inDoc is null || stroke is null) return;
             result = Lightbox.Raster.GroupSplit.Split(doc.Scene, inDoc, stroke);
         });
-        if (result is null)
-        {
-            AiStatus = "Those drawings were merged from layers with different settings, so no one layer can take them back.";
-            return false;
-        }
+        if (result is null) return false;   // asked above; unreachable unless the document changed under it
 
         ClearStrokeSelection();
         ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == result.Layer.Id);

@@ -315,6 +315,117 @@ public class SplitGroupTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void ASplitLayerStaysInTheMergedLayersFolder()
+    {
+        // The adversary: inserted inside the folder's span but belonging to
+        // no folder, the split layer lost the folder's opacity, blend and mask.
+        var lower = LayerOf("Ink", Key(Bar(60, "#2040c0")));
+        var upper = LayerOf("Lines", Key(Bar(100, "#c02040"), Down(100, ToolKind.Eraser, 10)));
+        var folder = new LayerGroup { Name = "Arm" };
+        lower.GroupId = folder.Id;
+        upper.GroupId = folder.Id;
+        var scene = SceneOf(lower, upper);
+        scene.LayerGroups.Add(folder);
+        Merge(scene, upper, lower);
+
+        var result = GroupSplit.Split(scene, lower, GroupIn(lower));
+
+        Assert.Equal(folder.Id, result!.Layer.GroupId);
+    }
+
+    [Fact]
+    public void TheMergedLayersOwnDrawingIsNotSplitAbove()
+    {
+        // The lower drawing goes in a group of its own when its layer has a
+        // mask, and the upper strokes follow it. Split above, it would land on
+        // top of the drawing that was drawn over it (the adversary).
+        var lower = LayerOf("Ink", Key(Bar(100, "#2040c0")));
+        lower.Mask = new LayerMask { Frame = new Frame { Strokes = [Soft(90, "#000000")] } };
+        var upper = LayerOf("Lines", Key(Down(100)));
+        var scene = SceneOf(lower, upper);
+        Merge(scene, upper, lower);
+        var own = lower.Cels[0].Frame!.Strokes.Single(s => s.Group is not null);
+        Assert.Equal(lower.Id, own.Group!.From);
+
+        Assert.NotNull(GroupSplit.WhyNot(scene, lower, own));
+        Assert.Null(GroupSplit.Split(scene, lower, own));
+        Assert.Single(scene.Layers);
+    }
+
+    [Fact]
+    public void AGroupWithNoRecordOfItsLayerSplitsAlone()
+    {
+        // Written before groups remembered their layer: nothing says two of
+        // them came from the same merge, so only the one asked for comes out.
+        var lower = LayerOf("Ink", Key(Bar(40, "#2040c0")));
+        Stroke Anonymous(double y) => new()
+        {
+            Tool = ToolKind.Group,
+            Group = new StrokeGroup { Strokes = [Bar(y, "#c02040")], Blend = LayerBlendMode.Multiply },
+        };
+        lower.Cels[0].Frame!.Strokes.Add(Anonymous(100));
+        lower.Cels[0].Frame!.Strokes.Add(Anonymous(140));
+        var scene = SceneOf(lower);
+
+        var result = GroupSplit.Split(scene, lower, GroupIn(lower));
+
+        Assert.Equal(1, result!.Cels);
+        Assert.Single(lower.Cels[0].Frame!.Strokes, s => s.Group is not null);
+        Assert.Equal(140, result.Layer.Cels[0].Frame!.Strokes.Single().Points[0].Y);
+    }
+
+    [Fact]
+    public void ARefusalSaysWhyAndChangesNothing()
+    {
+        var lower = LayerOf("Ink", Key(Bar(40, "#2040c0")), Key(Bar(60, "#2040c0")));
+        var upper = LayerOf("Lines", Key(Bar(100, "#c02040")), Key(Bar(120, "#c02040")));
+        upper.Opacity = 0.5;
+        var scene = SceneOf(lower, upper);
+        Merge(scene, upper, lower);
+        GroupIn(lower, 1).Group!.Opacity = 0.8;   // no one layer can say both
+        var before = Lightbox.Core.Serialization.DocJson.Serialize(new Doc { Scene = scene });
+
+        var why = GroupSplit.WhyNot(scene, lower, GroupIn(lower));
+
+        Assert.Contains("different", why);
+        Assert.Null(GroupSplit.Split(scene, lower, GroupIn(lower)));
+        Assert.Equal(before, Lightbox.Core.Serialization.DocJson.Serialize(new Doc { Scene = scene }));
+    }
+
+    [Fact]
+    public void ASplitDrawingKeepsItsAiMarking()
+    {
+        // The sensitivity review (A6): split, the model's drawings must still
+        // say they are the model's — not pass as hand-drawn.
+        var lower = LayerOf("Clean", Key(Bar(60, "#2040c0")));
+        var upper = LayerOf("Inbetweens", Key(Bar(100, "#c02040"), Down(100, ToolKind.Eraser, 10)));
+        upper.Cels[0].Frame!.Ai = new AiProvenance("claude-cli", "claude-opus-5", 1, null);
+        var scene = SceneOf(lower, upper);
+        Merge(scene, upper, lower);
+
+        var result = GroupSplit.Split(scene, lower, GroupIn(lower));
+
+        Assert.NotNull(result!.Layer.Cels[0].Frame!.Ai);
+    }
+
+    [Fact]
+    public void AGroupCarryingKeysThisBuildDoesNotKnowStaysWhole()
+    {
+        // Q230: a newer build may have said something about how the group
+        // lands. Unwrapped, that would be dropped; kept whole, it survives.
+        var lower = LayerOf("Ink", Key(Bar(60, "#2040c0")));
+        var upper = LayerOf("Lines", Key(Bar(100, "#c02040"), Down(100, ToolKind.Eraser, 10)));
+        var scene = SceneOf(lower, upper);
+        Merge(scene, upper, lower);
+        GroupIn(lower).Group!.Unknown = new() { ["later"] = System.Text.Json.JsonDocument.Parse("1").RootElement.Clone() };
+
+        var result = GroupSplit.Split(scene, lower, GroupIn(lower));
+
+        var kept = Assert.Single(result!.Layer.Cels[0].Frame!.Strokes);
+        Assert.NotNull(kept.Group!.Unknown);
+    }
+
+    [Fact]
     public void AGroupNestedInsideAnotherIsNotSplitFromHere()
     {
         // Only a group at the top of a drawing's list is a layer's worth of

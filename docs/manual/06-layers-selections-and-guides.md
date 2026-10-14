@@ -424,8 +424,11 @@ right-click menu, takes the drawing that was merged in back out of every cel of
 the layer, onto a new layer directly above, named as it was and with the blend
 mode, opacity, clip, mask and effects it had. It works on the group you have
 selected, or the topmost one in the drawing at the playhead, and it is one
-undo step. Before you draw anything more, the two layers look exactly as the
-merged one did. Anything you drew on the merged layer afterwards stays there:
+undo step. Before you draw anything more, the two layers look exactly as they
+did before the merge — which is also how the merged one looked, unless the
+merged layer itself has a blend mode, an opacity below 100% or a clip. A
+group that is the merged layer's *own* drawing, kept with its mask or effects,
+has no other layer to go back to and is left alone. Anything you drew on the merged layer afterwards stays there:
 an eraser stroke that reached the group is copied onto the split layer too, so
 what you rubbed out stays rubbed out, but a mark you drew *over* the group now
 sits under it — the status bar says how many. It has no key by default; give

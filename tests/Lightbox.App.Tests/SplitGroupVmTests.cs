@@ -63,6 +63,45 @@ public class SplitGroupVmTests
     }
 
     [AvaloniaFact]
+    public void ARefusedSplitLeavesNoUndoStep()
+    {
+        // The adversary: the split ran inside the editor's step, so a refusal
+        // still recorded one — undo walked over nothing and redo was cleared.
+        var vm = Merged(out _);
+        var group = Drawing(vm).Strokes.Single(s => s.Group is not null);
+        Drawing(vm).Strokes.Add(group.Clone(newId: true));   // two groups from one merge in one drawing
+        vm.PickStrokeAt(100, 120, 4);
+        var picked = vm.SelectedStrokes[0];
+        // Pick the lower copy, which is not the topmost of its merge.
+        vm.ClearStrokeSelection();
+        vm.Selection.SelectStrokes([group.Id]);
+        Assert.NotEqual(picked.Id, group.Id);
+        var undoBefore = vm.UndoCommand.CanExecute(null);
+
+        Assert.False(vm.SplitGroupOn(null));
+
+        Assert.Single(vm.Doc.Scene.Layers);
+        vm.UndoCommand.Execute(null);   // undoes the merge, not a phantom split
+        Assert.Equal(2, vm.Doc.Scene.Layers.Count);
+        Assert.True(undoBefore);
+    }
+
+    [AvaloniaFact]
+    public void AGroupHoldingPixelsIsNotNudgedAwayFromThem()
+    {
+        var vm = Merged(out _);
+        var group = Drawing(vm).Strokes.Single(s => s.Group is not null);
+        group.Group!.PngBase64 = "AAAA";
+        vm.PickStrokeAt(100, 120, 4);
+        var x = group.Group.Strokes[0].Points[0].X;
+
+        Assert.Equal(0, vm.MoveSelectedStrokes(5, 0));
+
+        Assert.Equal(x, Drawing(vm).Strokes.Single(s => s.Group is not null).Group!.Strokes[0].Points[0].X);
+        Assert.Contains("transform", vm.AiStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [AvaloniaFact]
     public void WithNothingToSplitItSaysSo()
     {
         var vm = VmLayers.BareVm();
