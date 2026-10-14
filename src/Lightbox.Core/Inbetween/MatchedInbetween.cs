@@ -213,7 +213,16 @@ public static class MatchedInbetween
     /// sole, a lace across a shoe) are tied into a zigzag, and two zigzags
     /// strung differently tween into a knot. Found on a traced leg, 2026-10-14.
     /// </remarks>
-    private static bool IsCluster(List<Stroke> a, List<Stroke> b) =>
+    private static bool IsCluster(List<Stroke> a, List<Stroke> b) => Clustered(a, b);
+
+    /// <summary>
+    /// Whether a match of these lines is one solid object when the artist has
+    /// not said (Q271): a part of many small lines, or of lines that do not join
+    /// up end to end - a shoe, a cuff - rather than one line drawn in pieces.
+    /// </summary>
+    public static bool SolidByDefault(IReadOnlyList<Stroke> a, IReadOnlyList<Stroke> b) => Clustered([.. a], [.. b]);
+
+    private static bool Clustered(List<Stroke> a, List<Stroke> b) =>
         a.Count >= 4 || b.Count >= 4 || Jumps(Strung(a)) > 0.25 || Jumps(Strung(b)) > 0.25;
 
     /// <summary>How much of a chain is the jumps between its pieces, as a share of its length.</summary>

@@ -8,7 +8,8 @@ using Lightbox.Core.Timeline;
 namespace Lightbox.App.ViewModels;
 
 /// <summary>One piece of a key in the Match lines overlay: its points, which key (0 for A, 1 for B), the match it is in, and whether it is in the match being made.</summary>
-public sealed record LineMatchLine(IReadOnlyList<StrokePoint> Points, int Key, int? Match, bool Pending);
+/// <param name="Solid">The artist's word on the line's match - solid object or bending - or null where the engine decides.</param>
+public sealed record LineMatchLine(IReadOnlyList<StrokePoint> Points, int Key, int? Match, bool Pending, bool? Solid = null);
 
 /// <summary>What the Match lines mode shows: both keys' pieces, and the onion colours an unmatched piece of each key is drawn in.</summary>
 public sealed record LineMatchOverlay(IReadOnlyList<LineMatchLine> Lines, string TintA, string TintB);
@@ -215,7 +216,18 @@ public partial class MainViewModel
     {
         var layer = Scene.Layers.First(l => l.Id == gap.Layer);
         var saved = matches.Count == 0 ? null : matches;
-        var replacements = Redrawn(layer, gap.A, i => i == gap.A ? saved : layer.Cels[i].Frame!.Matches);
+        // Only what the engine drew and nobody changed is redrawn: an inbetween
+        // the artist drew or touched up, or one the AI drew, differs from what
+        // the engine gives for the matches as they were, and is kept (W4).
+        var asItWas = Redrawn(layer, gap.A, i => layer.Cels[i].Frame!.Matches).ToDictionary(r => r.Cel, r => r.Frame);
+        var all = Redrawn(layer, gap.A, i => i == gap.A ? saved : layer.Cels[i].Frame!.Matches);
+        var replacements = all
+            .Where(r => asItWas.TryGetValue(r.Cel, out var engine) && EngineDrawn(layer.Cels[r.Cel].Frame!, engine))
+            .ToList();
+        var kept = all.Count - replacements.Count;
+        AiStatus = kept == 0
+            ? ""
+            : $"{Plural(kept, "inbetween")} you changed {(kept == 1 ? "was" : "were")} left as {(kept == 1 ? "it is" : "they are")} - Redraw inbetweens replaces them too.";
         _editor.Perform(doc =>
         {
             var target = doc.Scene.Layers.First(l => l.Id == gap.Layer);
@@ -224,6 +236,57 @@ public partial class MainViewModel
         }, "Match lines");
         RefreshLineMatch();
     }
+
+    /// <summary>
+    /// Whether <paramref name="current"/> is exactly what the engine drew -
+    /// <paramref name="engine"/>, the engine's drawing for the same cel - with
+    /// nothing added: same strokes, same points, no pixels, no AI marking.
+    /// </summary>
+    private static bool EngineDrawn(Frame current, Frame engine)
+    {
+        if (current.PngBase64 is not null || current.Ai is not null || current.Placements is { Count: > 0 }) return false;
+        if (current.Strokes.Count != engine.Strokes.Count) return false;
+        for (var i = 0; i < current.Strokes.Count; i++)
+        {
+            var (p, q) = (current.Strokes[i].Points, engine.Strokes[i].Points);
+            if (p.Count != q.Count) return false;
+            for (var k = 0; k < p.Count; k++)
+            {
+                if (Math.Abs(p[k].X - q[k].X) > 1e-3 || Math.Abs(p[k].Y - q[k].Y) > 1e-3) return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// A right-click while matching: the match of the line under it switches
+    /// between one solid object and lines that bend (Q271). A line in no match
+    /// is left alone.
+    /// </summary>
+    public void LineMatchToggleSolid(double x, double y, double reach)
+    {
+        if (_matchGap is not { } gap || Gap(gap) is not { } frames)
+        {
+            LineMatchMode = false;
+            return;
+        }
+        var point = new StrokePoint(x, y, 0);
+        var (key, piece) = Nearest(_piecesA, point, reach) is { } a ? (0, a) : (1, Nearest(_piecesB, point, reach));
+        if (piece is null) return;
+        var matches = (frames.A.Matches ?? []).Select(m => m.Clone()).ToList();
+        var reference = new PieceRef(piece.Source, piece.Ordinal);
+        var owner = matches.FindIndex(m => (key == 0 ? m.A : m.B).Contains(reference));
+        if (owner < 0) return;
+        var match = matches[owner];
+        var solid = match.Solid ?? MatchedInbetween.SolidByDefault(Side(_piecesA, match.A), Side(_piecesB, match.B));
+        match.Solid = !solid;
+        var pending = _pending;
+        SaveMatches(gap, matches);
+        _pending = pending;
+    }
+
+    private static List<Stroke> Side(List<LinePiece> pieces, List<PieceRef> refs) =>
+        [.. pieces.Where(p => refs.Contains(new PieceRef(p.Source, p.Ordinal))).Select(p => p.Stroke)];
 
     /// <summary>Rebuild the pieces and the overlay from the document; clears both outside the mode.</summary>
     private void RefreshLineMatch()
@@ -245,12 +308,13 @@ public partial class MainViewModel
             var i = matches.FindIndex(m => (key == 0 ? m.A : m.B).Contains(r));
             return i < 0 ? null : i;
         }
+        bool? SolidOf(LinePiece p, int key) => MatchOf(p, key) is { } i ? matches[i].Solid : null;
         bool Pending(LinePiece p, int key) =>
             _pending is not null && (key == 0 ? _pending.A : _pending.B).Contains(new PieceRef(p.Source, p.Ordinal));
         LineMatchView = new LineMatchOverlay(
         [
-            .. _piecesA.Select(p => new LineMatchLine(p.Stroke.Points, 0, MatchOf(p, 0), Pending(p, 0))),
-            .. _piecesB.Select(p => new LineMatchLine(p.Stroke.Points, 1, MatchOf(p, 1), Pending(p, 1))),
+            .. _piecesA.Select(p => new LineMatchLine(p.Stroke.Points, 0, MatchOf(p, 0), Pending(p, 0), SolidOf(p, 0))),
+            .. _piecesB.Select(p => new LineMatchLine(p.Stroke.Points, 1, MatchOf(p, 1), Pending(p, 1), SolidOf(p, 1))),
         ], Onion.PreviousTint, Onion.NextTint);
         LineMatchChanged?.Invoke(LineMatchView);
     }

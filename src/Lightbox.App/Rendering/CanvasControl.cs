@@ -2308,6 +2308,7 @@ public sealed partial class CanvasControl : Control
             // Right-click anywhere else: offer a taped-up reference's stack
             // menu, if one is under the pointer. The window decides — a
             // right-click over bare canvas stays what it always was, nothing.
+            if (kind == PointerUpdateKind.RightButtonPressed && !_painting && RightPressLineMatch(pp.Position, e)) return;
             if (kind == PointerUpdateKind.RightButtonPressed && !_painting)
             {
                 var (rx, ry) = ViewToDoc(pp.Position);

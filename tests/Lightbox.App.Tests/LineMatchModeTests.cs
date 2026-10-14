@@ -186,4 +186,64 @@ public sealed class LineMatchModeTests : BrushStateIsolated
 
         Assert.Contains(vm.LineMatchView!.Lines, l => l.Key == 1 && l.Match is null);
     }
+
+    [AvaloniaFact]
+    public void AnInbetweenTheArtistChangedIsLeftAloneAndTheStatusSaysSo()
+    {
+        // The artist touched up the inbetween: one extra line. A match must
+        // not redraw over it (the sensitivity review's W4, 2026-10-14).
+        var vm = OnTheInbetween();
+        Draw(vm, (300, 300), (340, 320));
+        var touched = vm.PaintLayer().Cels[1].Frame;
+        vm.LineMatchMode = true;
+
+        MatchTheL(vm);
+
+        Assert.Same(touched, vm.PaintLayer().Cels[1].Frame);
+        Assert.NotNull(vm.PaintLayer().Cels[0].Frame!.Matches);   // the match itself is saved
+        Assert.Contains("left as", vm.AiStatus);
+    }
+
+    [AvaloniaFact]
+    public void AnInbetweenTheEngineDrewAndNobodyChangedIsRedrawn()
+    {
+        var vm = OnTheInbetween();
+        var drawn = vm.PaintLayer().Cels[1].Frame;
+        vm.LineMatchMode = true;
+
+        MatchTheL(vm);
+
+        Assert.NotSame(drawn, vm.PaintLayer().Cels[1].Frame);
+        Assert.DoesNotContain("left as", vm.AiStatus);
+    }
+
+    [AvaloniaFact]
+    public void RightClickingAMatchedLineSwitchesItsMatchBetweenSolidAndBending()
+    {
+        var vm = OnTheInbetween();
+        vm.LineMatchMode = true;
+        MatchTheL(vm);
+        var match = Assert.Single(vm.PaintLayer().Cels[0].Frame!.Matches!);
+        Assert.Null(match.Solid);   // left to the engine
+
+        vm.LineMatchToggleSolid(100, 150, Reach);
+        var flipped = Assert.Single(vm.PaintLayer().Cels[0].Frame!.Matches!).Solid;
+        vm.LineMatchToggleSolid(140, 150, Reach);   // either side of the match will do
+        var back = Assert.Single(vm.PaintLayer().Cels[0].Frame!.Matches!).Solid;
+
+        Assert.NotNull(flipped);
+        Assert.Equal(!flipped, back);
+        Assert.Contains(vm.LineMatchView!.Lines, l => l.Match == 0 && l.Solid == back);
+    }
+
+    [AvaloniaFact]
+    public void RightClickingAnUnmatchedLineDoesNothing()
+    {
+        var vm = OnTheInbetween();
+        vm.LineMatchMode = true;
+
+        vm.LineMatchToggleSolid(100, 150, Reach);
+
+        Assert.Null(vm.PaintLayer().Cels[0].Frame!.Matches);
+    }
 }

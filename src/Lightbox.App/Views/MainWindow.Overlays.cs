@@ -58,6 +58,7 @@ public partial class MainWindow
             if (args.PropertyName is nameof(MainViewModel.LineMatchMode)) Canvas.LineMatchMode = _vm.LineMatchMode;
         };
         Canvas.LineMatchPressed += (x, y, shift, scale) => _vm.LineMatchPress(x, y, shift, LineMatchReachPixels / scale);
+        Canvas.LineMatchRightPressed += (x, y, scale) => _vm.LineMatchToggleSolid(x, y, LineMatchReachPixels / scale);
         _vm.RefreshMotionTrail();
 
         // The armature overlay follows the rig's pattern exactly: pushed

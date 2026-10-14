@@ -206,6 +206,19 @@ public sealed partial class CanvasControl
     /// <summary>A press while matching lines: document x and y, Shift held, and the view scale.</summary>
     public event Action<double, double, bool, double>? LineMatchPressed;
 
+    /// <summary>A right-click while matching lines: document x and y, and the view scale.</summary>
+    public event Action<double, double, double>? LineMatchRightPressed;
+
+    /// <summary>Routes a right-click to the Match lines mode; true when it was taken.</summary>
+    private bool RightPressLineMatch(Avalonia.Point at, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        if (!LineMatchMode) return false;
+        var (x, y) = ViewToDoc(at);
+        LineMatchRightPressed?.Invoke(x, y, FitScale() * _zoom);
+        e.Handled = true;
+        return true;
+    }
+
     /// <summary>Routes a press to the Match lines mode; true when it was taken.</summary>
     private bool PressLineMatch(double x, double y, Avalonia.Input.PointerPressedEventArgs e)
     {
