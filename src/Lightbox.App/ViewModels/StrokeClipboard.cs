@@ -34,7 +34,7 @@ namespace Lightbox.App.ViewModels;
 /// pasted document was saved and reopened somewhere else.
 /// </para>
 /// <para>
-/// <b>Pixels travel too (B473).</b> A drawing can be a baseline of pixels as
+/// <b>Pixels travel too (B474).</b> A drawing can be a baseline of pixels as
 /// well as strokes — what an import or a merge leaves — and a selection over
 /// it means those pixels. They are held as the baseline cut at the selection,
 /// in the baseline's own space, so a paste lays them back exactly where they

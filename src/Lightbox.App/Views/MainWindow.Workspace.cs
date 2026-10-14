@@ -1293,7 +1293,7 @@ public partial class MainWindow : IFollowsUiScale
     /// <summary>
     /// The cel whose timeline or X-sheet button holds keyboard focus, or null —
     /// the cel counterpart of <see cref="LayerSurfaceHasFocus"/>, and the reason
-    /// Ctrl+C on a cel is still the cel's (B473).
+    /// Ctrl+C on a cel is still the cel's (B474).
     /// </summary>
     private FrameCell? FocusedCel()
     {

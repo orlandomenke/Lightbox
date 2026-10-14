@@ -45,13 +45,13 @@ public partial class MainViewModel
     /// show ink the original was not showing.
     /// </remarks>
     /// <param name="inkAlreadyTaken">
-    /// Pixels inside the selection are being taken with the strokes (B473), so
+    /// Pixels inside the selection are being taken with the strokes (B474), so
     /// an erasure carving them is carving something and comes along.
     /// </param>
     /// <param name="keyAHold">
     /// False for a copy, which only reads: on a hold it takes the drawing the
     /// hold shows rather than keying a copy of it, so Ctrl+C never edits the
-    /// document (B473).
+    /// document (B474).
     /// </param>
     private List<Stroke>? SelectedStrokesForAnOperation(bool inkAlreadyTaken = false, bool keyAHold = true)
     {
@@ -173,7 +173,7 @@ public partial class MainViewModel
     /// Returns false when the selection held nothing to take.
     /// </summary>
     /// <remarks>
-    /// <b>A region takes the pixels in it too (B473).</b> A merged or imported
+    /// <b>A region takes the pixels in it too (B474).</b> A merged or imported
     /// drawing is a baseline of pixels, and a copy that read only strokes found
     /// nothing in a box over one — whereupon Ctrl+C fell through to the whole
     /// cel, which is the opposite of what a selection asks for.
@@ -243,7 +243,7 @@ public partial class MainViewModel
     /// <b>Directly above means in the active layer's folder</b> — where a new
     /// layer goes (<see cref="NewLayerPlacement"/>). Inserted by index, a
     /// paste beside a layer inside a folder belonged to no folder and split
-    /// the folder in two (B473).
+    /// the folder in two (B474).
     /// </para>
     /// <para>
     /// The clips come with it (invariant 3): a partial copy is only the shape

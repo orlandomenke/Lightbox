@@ -591,7 +591,7 @@ public partial class MainWindow
                 _vm.SelectAllCommand.Execute(null);
                 break;
             // Ctrl+C/X/V: the selection when one is up, else the whole layer,
-            // and a paste is always a new layer above the active one (B473).
+            // and a paste is always a new layer above the active one (B474).
             // The decision is the view model's, where it can be tested.
             // A layer row or an X-sheet layer name having focus is the one case
             // where the key can only mean a layer, so it is checked first — the

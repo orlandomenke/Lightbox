@@ -31,7 +31,7 @@ public partial class MainViewModel
 
     public bool HasLayerClipboard => _layerClipboard is not null;
 
-    /// <summary>When the layer clipboard was filled, on the order the other two share (B473).</summary>
+    /// <summary>When the layer clipboard was filled, on the order the other two share (B474).</summary>
     private long _layerClipboardStamp;
 
     /// <summary>

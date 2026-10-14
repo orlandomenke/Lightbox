@@ -459,7 +459,7 @@
           words, two subjects, each kept on the menu that names its own. Ctrl+C
           and Ctrl+X mean these with a selection up and the whole layer without
           one; Ctrl+V pastes whatever was copied last, so it is shown on none of
-          the paste entries (B473).
+          the paste entries (B474).
         -->
         <MenuItem Header="Cop_y lines" Command="{Binding CopyLinesCommand}"
                   IsEnabled="{Binding HasCopyableSelection}" InputGesture="Ctrl+C"

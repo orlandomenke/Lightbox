@@ -7,7 +7,7 @@ using SkiaSharp;
 namespace Lightbox.App.Tests;
 
 /// <summary>
-/// B473: what Ctrl+C, Ctrl+X and Ctrl+V take and where they put it.
+/// B474: what Ctrl+C, Ctrl+X and Ctrl+V take and where they put it.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -188,7 +188,7 @@ public class SelectionClipboardTests(ITestOutputHelper output) : BrushStateIsola
     public void CopyingOnAHoldReadsTheHeldDrawingWithoutKeyingIt()
     {
         // A copy only reads: on a hold it takes what the hold shows, and must
-        // not key a copy of it the way a mark there would (adversary, B473).
+        // not key a copy of it the way a mark there would (adversary, B474).
         var vm = Fresh();
         Drag(vm, (60, 60), (240, 60));
         var layer = vm.PaintLayer();

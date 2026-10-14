@@ -6,7 +6,7 @@ namespace Lightbox.App.ViewModels;
 /// <summary>Part of MainViewModel — what Ctrl+C, Ctrl+X and Ctrl+V mean.</summary>
 /// <remarks>
 /// <para>
-/// <b>The owner's rule (B473), in three lines.</b> With a selection up, copy
+/// <b>The owner's rule (B474), in three lines.</b> With a selection up, copy
 /// and cut take only what was selected. With none, they take the whole content
 /// of the layer. And a paste always lands as a new layer directly above the
 /// active one. The timeline's right-click Copy and Paste are the exception,
@@ -102,7 +102,7 @@ public partial class MainViewModel
     /// settings kept. One undo step for the emptying.
     /// </summary>
     /// <remarks>
-    /// Emptied rather than removed (owner's choice, B473): a Ctrl+X that slips
+    /// Emptied rather than removed (owner's choice, B474): a Ctrl+X that slips
     /// should not take a layer out of the stack, and the layer's place, mask
     /// and effects are usually what the artist wants to draw into again.
     /// </remarks>

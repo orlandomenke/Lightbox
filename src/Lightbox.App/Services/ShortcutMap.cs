@@ -406,7 +406,7 @@ public sealed class ShortcutMap
             new("timeline.prevKey", "Flip to previous key", "Timeline", G(Key.D1)),
             new("timeline.nextKey", "Flip to next key", "Timeline", G(Key.D2)),
             // These three take THE SELECTION when one is up and the whole layer
-            // when none is, and a paste is always a new layer above (B473) —
+            // when none is, and a paste is always a new layer above (B474) —
             // one key for the thing an artist means, which is why the labels
             // say both. The ids keep their old names so a saved remap applies.
             // The line-only forms are below, for anyone who wants a key that is

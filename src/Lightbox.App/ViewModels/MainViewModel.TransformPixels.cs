@@ -73,7 +73,7 @@ public partial class MainViewModel
 
     /// <summary>
     /// The selection, moved from the paper's pixels onto the baseline's, whether
-    /// or not a transform is open — the copy cuts by it too (B473).
+    /// or not a transform is open — the copy cuts by it too (B474).
     /// </summary>
     private SKPath? SelectionOnBaseline()
     {
@@ -89,7 +89,7 @@ public partial class MainViewModel
     /// none of its pixels.
     /// </summary>
     /// <remarks>
-    /// What a copy takes from pixels (B473) — the same hard cut a transform
+    /// What a copy takes from pixels (B474) — the same hard cut a transform
     /// under the selection moves, so a copy and a move never disagree about
     /// which pixels were selected.
     /// </remarks>
