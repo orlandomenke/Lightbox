@@ -435,10 +435,22 @@ public partial class MainViewModel
     {
         for (var i = 0; i < passes.Count; i++)
         {
+            // B473: a layer clipped to the one being drawn on carries the same
+            // scratch in its shape.
             System.Diagnostics.Debug.Assert(
-                passes[i].Overlay is null,
+                passes[i].Overlay is null && !CarriesALiveStroke(passes[i].Shapes),
                 "B170: a live stroke's scratch is crossing to the render thread "
                 + "on the culled route — record how this publish came about.");
+        }
+
+        static bool CarriesALiveStroke(IReadOnlyList<PassShape>? shapes)
+        {
+            if (shapes is null) return false;
+            for (var s = 0; s < shapes.Count; s++)
+            {
+                if (shapes[s].Live is not null || CarriesALiveStroke(shapes[s].Or)) return true;
+            }
+            return false;
         }
     }
 

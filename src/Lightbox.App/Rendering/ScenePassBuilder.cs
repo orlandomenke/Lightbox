@@ -113,7 +113,22 @@ internal static class ScenePassBuilder
         bool MaskScratchErases = false,
         Lightbox.Core.Effects.EffectStack? Fx = null,
         bool Adjusts = false,
-        PassMesh? Mesh = null);
+        PassMesh? Mesh = null,
+        LiveBase? BaseLive = null);
+
+    /// <summary>
+    /// The edit in flight on the active layer, as the layers carved by it need
+    /// it: whatever clips to the active layer, or keeps inside a folder shape it
+    /// belongs to, is carved by its render <em>and</em> the stroke being made on
+    /// it (B473).
+    /// </summary>
+    /// <param name="Drawing">The active layer's drawing at the playhead; a shape fetching this frame is the active layer.</param>
+    /// <param name="Composite">A blur, smudge or rewetting stroke's working copy of the layer, which replaces its render.</param>
+    /// <param name="Overlay">Any other stroke in flight, drawn over the render as on the layer's own pass.</param>
+    /// <param name="Mask">The active layer's mask while it is being painted, and the dabs on it.</param>
+    internal sealed record LiveBase(
+        Frame Drawing, SKBitmap? Composite, StrokeOverlay? Overlay,
+        Frame? Mask = null, SKBitmap? MaskScratch = null, bool MaskErases = false);
 
     /// <summary>
     /// The described pass list, plus where the active layer's own contribution
@@ -270,6 +285,10 @@ internal static class ScenePassBuilder
             // and a mask edit only exists on a layer that does.
             shapes[0] = shapes[0] with { Scratch = scratch, ScratchErases = spec.MaskScratchErases };
         }
+        if (shapes is { Count: > 0 } && spec.BaseLive is { } live)
+        {
+            WithLiveBase(spec.Shapes!, shapes, live);
+        }
         return new(
             spec.CelFrame is { } frame
                 ? cache.Get(frame, width, height, celIndex: spec.CelIndex)
@@ -285,6 +304,72 @@ internal static class ScenePassBuilder
                 ? null
                 : Lightbox.Raster.Effects.EffectRegistry.StyleFor(spec.Fx, spec.CelIndex),
             Mesh: spec.Mesh);
+    }
+
+    /// <summary>
+    /// Give every shape that is the active layer's drawing, or its mask, the
+    /// edit in flight on it. <paramref name="resolved"/> is
+    /// <paramref name="described"/> fetched, in the same order, members and all.
+    /// </summary>
+    private static void WithLiveBase(
+        IReadOnlyList<LayerShapes.ShapeSpec> described, IList<PassShape> resolved, LiveBase live)
+    {
+        for (var i = 0; i < described.Count; i++)
+        {
+            var spec = described[i];
+            var shape = resolved[i];
+            if (ReferenceEquals(spec.Frame, live.Drawing))
+            {
+                shape = live.Composite is { } composite
+                    ? shape with { Mask = composite }
+                    : shape with { Live = live.Overlay };
+            }
+            else if (live.MaskScratch is { } dabs && ReferenceEquals(spec.Frame, live.Mask))
+            {
+                shape = shape with { Scratch = dabs, ScratchErases = live.MaskErases };
+            }
+            // A folder-shape member carries its own mask as its carve.
+            if (live.MaskScratch is { } carveDabs && spec.Carve is { } carve && ReferenceEquals(carve, live.Mask))
+            {
+                shape = shape with { CarveScratch = carveDabs, CarveScratchErases = live.MaskErases };
+            }
+            if (spec.Or is { Count: > 0 } members && shape.Or is { } fetched)
+            {
+                var copy = fetched.ToList();
+                WithLiveBase(members, copy, live);
+                shape = shape with { Or = copy };
+            }
+            resolved[i] = shape;
+        }
+    }
+
+    /// <summary>
+    /// The active layer's edit in flight, for the layers its shape carves — or
+    /// null on the common publish, with nothing under the pen.
+    /// </summary>
+    private static LiveBase? LiveBaseOf(Scene scene, State state, LiveEdit live)
+    {
+        if (state.ActiveLayerId is not { } id) return null;
+        if (live.Composite is null && live.Scratch is null) return null;
+        Layer? active = null;
+        for (var i = 0; i < scene.Layers.Count && active is null; i++)
+        {
+            if (scene.Layers[i].Id == id) active = scene.Layers[i];
+        }
+        if (active is null || ExposureSheet.ExposedFrame(active, state.FrameIndex) is not { } drawing) return null;
+
+        if (live.MaskEditing)
+        {
+            if (active.Mask is null || live.BrushStroke is null) return null;
+            var dabs = live.PostStampedPoints > 0 && live.PostScratch is not null ? live.PostScratch : live.Scratch;
+            return dabs is null
+                ? null
+                : new LiveBase(drawing, null, null, active.Mask.Frame, dabs, live.BrushStroke.Tool == ToolKind.Eraser);
+        }
+
+        var composite = live.Composite is not null && live.BrushStroke is not null ? live.Composite : null;
+        var overlay = OverlayFor(live, isActive: true);
+        return composite is null && overlay is null ? null : new LiveBase(drawing, composite, overlay);
     }
 
     /// <summary>
@@ -648,6 +733,25 @@ internal static class ScenePassBuilder
         {
             passes.Add(new PassSpec(
                 null, state.FrameIndex, null, null, 1.0, Fx: sceneFx, Adjusts: true));
+        }
+
+        // B473: a layer carved by the active one - clipped to it, or kept inside
+        // a folder shape it is part of - is carved by what the pen is doing to
+        // it, not only by its last commit. The active layer's own passes are
+        // left alone: their mask scratch is already theirs. A document with no
+        // shaped pass beside the active layer pays the scan and nothing more.
+        var shaped = false;
+        for (var i = 0; i < passes.Count && !shaped; i++)
+        {
+            shaped = (i < activeStart || i >= activeEnd) && passes[i].Shapes is { Count: > 0 };
+        }
+        if (shaped && LiveBaseOf(scene, state, live) is { } liveBase)
+        {
+            for (var i = 0; i < passes.Count; i++)
+            {
+                if (i >= activeStart && i < activeEnd) continue;
+                if (passes[i].Shapes is { Count: > 0 }) passes[i] = passes[i] with { BaseLive = liveBase };
+            }
         }
 
         return new Plan(passes, activeStart, activeEnd, tileNativeDoc);

@@ -834,6 +834,17 @@ which is a weak test and still far better than none.
   - Bounded, and only on import: nothing in the paint path does this, and a
     document already imported pays none of it again.
 
+### layers
+
+- [x] **B473** `P2` `layers` A layer clipped to the one below does not follow a stroke on its base until pen-up `evidence: WhatTheClippedLayerShowsUnderThePenIsWhatItShowsAfter, AnEraserOnTheBaseCarvesWhatClipsToIt, PaintOnAMemberOfAFolderShapeWidensIt`
+  - **Reported by the owner, 2026-10-14:** erasing on a layer works, *"but if a layer above inherits the alpha that is not directly visually erased. Making it so that it is hard to see what we are erasing."* The clipped colour stayed where the eraser had been and vanished at pen-up.
+  - **Cause:** a clipped layer is carved by its base's render, fetched from the frame cache (`LayerShapes.For`), and the stroke in flight is an overlay on the base's own pass that the carve never saw. Not only the eraser: paint on the base showed in its own colour until pen-up and was then covered by the clipped layer; a smudge or Water stroke, and painting the base's mask, did the same; and so did a layer kept inside a folder shape whose member was being drawn on. Measured at pen-up in the stroke's neighbourhood: 1245 pixels changed for the eraser, 3892 for paint, 2615 for a smudge, 1290 for the base's mask.
+  - **Fix:** `ScenePassBuilder.LiveBase` carries the active layer's edit in flight to every shaped pass that is not its own, and `Materialize` gives each shape that is the active layer's drawing that edit - its working copy for a smudge or Water, the stroke overlay otherwise, the mask scratch for its mask. `PassShape.Live` draws the stroke over the base's render before the carve, the way the base's own pass draws it, so opacity, alpha lock and selection apply the same.
+  - **Held:** `WhatTheClippedLayerShowsUnderThePenIsWhatItShowsAfter`, five strokes (eraser, paint, smudge, Water, the base's mask), each with the band clipped to the base and with it kept inside a folder whose shape is the base - zero pixels change at pen-up in all ten, against the counts above before. The two compositor tests pin the clip and the folder-shape union directly.
+  - **Review (adversary) found the folder half incomplete:** a folder-shape member carries its own mask as the shape's carve, not as a shape of its own, so painting that mask still changed 1290 pixels at pen-up; `PassShape.CarveScratch` closes it, and the folder case of the theory fails without it. It also asked for the cost to be gated and for B170's debug tripwire to see a live stroke riding in a shape - both done.
+  - **Cost:** a publish with nothing shaped beside the active layer pays one scan of the pass list. With a clipped or shaped layer over the one being drawn on, it is one isolated group per such pass inside the region already being repainted.
+  - **Found beside it, not part of it:** plain Blur differs at pen-up on a layer with nothing clipped to it (91 pixels in the same test), so it is not in the theory; it gets its own branch next.
+
 ### project
 
 - [ ] **B295** `P1` `project` `ids --fix` renumbers both entries of a duplicate filed inside this branch's own range, so the duplicate survives at the new number `evidence: _keeping_spots,cmd_selftest`
