@@ -108,6 +108,7 @@ public static class MatchedInbetween
         var claimedA = new HashSet<int>();
         var claimedB = new HashSet<int>();
         var drawn = new List<Stroke>();
+        var matched = new List<(List<Stroke> A, List<Stroke> B)>();
 
         foreach (var part in parts)
         {
@@ -115,6 +116,7 @@ public static class MatchedInbetween
             var pb = Claim(part.B, b, claimedB);
             if (pa.Count > 0 && pb.Count > 0)
             {
+                matched.Add((pa, pb));
                 var cluster = IsCluster(pa, pb);
                 drawn.AddRange((part.Solid ?? cluster) ? Solid(pa, pb, et) : cluster ? Together(pa, pb, et) : Tween(pa, pb, et));
             }
@@ -124,7 +126,7 @@ public static class MatchedInbetween
 
         var restA = a.Where((_, i) => !claimedA.Contains(i)).ToList();
         var restB = b.Where((_, i) => !claimedB.Contains(i)).ToList();
-        if (restA.Count > 0 || restB.Count > 0) drawn.AddRange(Leftovers(restA, restB, et));
+        if (restA.Count > 0 || restB.Count > 0) drawn.AddRange(Leftovers(restA, restB, et, matched));
         return drawn;
     }
 
@@ -144,12 +146,14 @@ public static class MatchedInbetween
     /// paired into a speck in the empty space between. A gap with no matches
     /// at all never comes here, and keeps the ordinary matcher's answer.
     /// </remarks>
-    private static IEnumerable<Stroke> Leftovers(List<Stroke> a, List<Stroke> b, double et)
+    private static IEnumerable<Stroke> Leftovers(
+        List<Stroke> a, List<Stroke> b, double et, List<(List<Stroke> A, List<Stroke> B)> matched)
     {
         var pen = Math.Max(a.Concat(b).Select(s => s.Brush.Size).DefaultIfEmpty(1).Max(), 1);
+        var parts = matched.Select(m => (A: Frame(m.A), B: Frame(m.B), Ink: m.A.SelectMany(s => s.Points).ToList())).ToList();
         foreach (var pair in StrokeMatcher.Match(a, b))
         {
-            if (pair.A is { } pa && pair.B is { } pb && Convincing(pa, pb, pen))
+            if (pair.A is { } pa && pair.B is { } pb && Convincing(pa, pb, pen) && TravelsWithItsPart(pa, pb, parts))
             {
                 yield return StrokeInterpolator.Interpolate(pa, pb, et);
                 continue;
@@ -163,6 +167,36 @@ public static class MatchedInbetween
                 foreach (var s in Fade([onlyB], Math.Max(0, et * 2 - 1))) yield return s;
             }
         }
+    }
+
+    /// <summary>
+    /// Whether a leftover line of key B sits where the matched part nearest
+    /// the key A line carried it — a detail travels with the part it is drawn
+    /// on. Within half the part's size, and never less than 24px. A line not
+    /// on any matched part — further from the nearest than that part's own
+    /// size — has no part to go by, and any place will do.
+    /// </summary>
+    /// <remarks>
+    /// The owner, 2026-10-14, of the traced run: "the diagonal/vertical line
+    /// in the upper leg of the back leg". A crease at the knee in one key and a
+    /// look-alike mark on the other leg in the next are the same length and
+    /// shape, so they passed as one line, and their halfway version sat in the
+    /// middle of the thigh where neither key has anything.
+    /// </remarks>
+    private static bool TravelsWithItsPart(
+        Stroke a, Stroke b, List<((StrokePoint Centre, double Spread) A, (StrokePoint Centre, double Spread) B, List<StrokePoint> Ink)> parts)
+    {
+        if (parts.Count == 0 || a.Points.Count == 0 || b.Points.Count == 0) return true;
+        var ca = GeometryOps.Centroid(a.Points);
+        var nearest = parts.MinBy(p => p.Ink.Count == 0 ? double.MaxValue : p.Ink.Min(q => GeometryOps.Dist(q, ca)));
+        var reach = Math.Max(24, nearest.A.Spread * 0.5);
+        // A line nowhere near any matched part is not on one: it is its own
+        // thing, with its own motion, and no part's motion says where it goes.
+        if (nearest.Ink.Count == 0 || nearest.Ink.Min(q => GeometryOps.Dist(q, ca)) > Math.Max(reach, nearest.A.Spread)) return true;
+        var expected = new StrokePoint(
+            ca.X + nearest.B.Centre.X - nearest.A.Centre.X,
+            ca.Y + nearest.B.Centre.Y - nearest.A.Centre.Y, 0);
+        return GeometryOps.Dist(GeometryOps.Centroid(b.Points), expected) <= reach;
     }
 
     /// <summary>Shorter than this, a line is a speck: it pairs only with a speck in about the same place.</summary>

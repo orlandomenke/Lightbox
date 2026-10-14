@@ -396,4 +396,33 @@ public class MatchedInbetweenTests(ITestOutputHelper output)
 
         Assert.DoesNotContain(half, s => s.Points.Any(p => p.X is > 520 and < 680));
     }
+
+    [Fact]
+    public void ALeftoverDetailPairsOnlyWithOneWhereItsPartCarriedIt()
+    {
+        // The owner, 2026-10-14, of the traced run: "the diagonal/vertical line
+        // in the upper leg of the back leg". Key A's crease sits at the L's
+        // corner; key B's look-alike sits far up the other side. Same length,
+        // same shape - but the L moved 40 to the right, and that crease did
+        // not go with it, so the two are not one line, and their halfway
+        // version would sit where neither key has anything.
+        var a = new List<Stroke> { L(0), Path((110, 280), (110, 250)) };
+        var b = new List<Stroke> { L(40), Path((330, 80), (330, 50)) };
+
+        var half = MatchedInbetween.Inbetween(a, b, [new PartMatch([0], [0])], 0.5, Easing.Linear);
+
+        Assert.DoesNotContain(half, s => s.Points.Any(p => p.X is > 160 and < 320 && p.Y < 260));
+    }
+
+    [Fact]
+    public void ALeftoverDetailThatMovesWithItsPartStillTweens()
+    {
+        var a = new List<Stroke> { L(0), Path((110, 280), (110, 250)) };
+        var b = new List<Stroke> { L(40), Path((150, 280), (150, 250)) };
+
+        var half = MatchedInbetween.Inbetween(a, b, [new PartMatch([0], [0])], 0.5, Easing.Linear);
+
+        var crease = Assert.Single(half, s => s.Points.All(p => p.Y is > 245 and < 285) && s.Points[0].X < 200);
+        Assert.Equal(130, crease.Points[0].X, 0);
+    }
 }

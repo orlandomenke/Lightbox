@@ -110,7 +110,8 @@ by hand**; undo brings it back.
 **Nothing is invented.** Only lines you drew are inbetweened. Once you have
 matched lines in a gap, a line you did not match is paired with a line of the
 other key only when the two are clearly the same line — about the same length
-and shape, and for a tiny mark, in the same place. A line only one key has — a
+and shape, and for a tiny mark, in the same place — and, for a detail drawn on
+a matched part (a crease on a knee), only where that part carried it. A line only one key has — a
 sock the other key hides behind a leg, a speck — fades out (or in) where you
 drew it; it is never turned into a mark that neither key has.
 
