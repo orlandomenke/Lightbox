@@ -308,7 +308,11 @@ public static class LayerMerge
         var frame = new Frame
         {
             Role = below?.Role ?? above!.Role,
-            PngBase64 = below?.PngBase64,
+            // With nothing underneath, the upper drawing carries over whole —
+            // its pixels as well as its strokes (B471). With a lower drawing an
+            // upper baseline never gets here: there is one slot and the lower
+            // content has it, so that pair is not appended at all.
+            PngBase64 = below is null ? above?.PngBase64 : below.PngBase64,
             Chart = Copy(below?.Chart) ?? Copy(above?.Chart),
             Ai = below?.Ai ?? above?.Ai,
         };
