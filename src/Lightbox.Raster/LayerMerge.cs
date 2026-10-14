@@ -310,7 +310,9 @@ public static class LayerMerge
                 continue;
             }
             if (stroke.AlphaLocked) return false;
-            if (stroke.Brush.Kind == BrushKind.Smudge) return false;
+            // Smudge drags what is underneath and blur softens it (B469): both
+            // would start working on the lower layer's marks.
+            if (stroke.Brush.Kind is BrushKind.Smudge or BrushKind.Blur) return false;
             // A mixing stroke replayed over the lower layer's marks would pick
             // them up, which the picture before the merge never did.
             if (stroke.Brush.Mixing is not null) return false;
@@ -380,7 +382,11 @@ public static class LayerMerge
         var frame = new Frame
         {
             Role = below?.Role ?? above!.Role,
-            PngBase64 = below?.PngBase64,
+            // With nothing underneath, the upper drawing carries over whole —
+            // its pixels as well as its strokes (B471). With a lower drawing an
+            // upper baseline never gets here: there is one slot and the lower
+            // content has it, so that pair is not appended at all.
+            PngBase64 = below is null ? above?.PngBase64 : below.PngBase64,
             Chart = Copy(below?.Chart) ?? Copy(above?.Chart),
             Ai = below?.Ai ?? above?.Ai,
         };

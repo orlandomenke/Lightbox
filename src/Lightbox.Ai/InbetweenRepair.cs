@@ -139,6 +139,13 @@ public static class InbetweenRepair
                     best.Strokes[i] ?? [],
                     Fault(best, i, discarded))).ToList(),
                 Settled = NeighbourContext(best, refused, ts),
+                // Q261: a revision's earlier drawings, cut to the ts still being
+                // asked about — the settled ones are not redrawn, and their old
+                // drawing is not worth paying for twice. Fixed is the artist's
+                // choice of what stays and survives the loop untouched.
+                Earlier = request.Earlier?
+                    .Where(e => refused.Any(i => Math.Abs(ts[i] - e.T) < 1e-9))
+                    .ToList() is { Count: > 0 } still ? still : null,
             };
 
             var answer = await artist.GenerateInbetweensAsync(repairRequest, ct);
@@ -175,7 +182,9 @@ public static class InbetweenRepair
             var accepted = best.IsAccepted(i);
             frames.Add(new RepairedFrame(
                 ts[i],
-                accepted ? best.Strokes[i] : null,
+                // B468: the artist's brush back on each stroke, after judging —
+                // the verifier reads geometry, and the brush is not the model's.
+                accepted ? AiBrushes.Restore(best.Strokes[i]!, request.KeyframeA, request.KeyframeB, request.Scene, ts[i]) : null,
                 accepted ? null : best.Refusals[i] ?? NothingReturned,
                 accepted ? acceptedAt[i] : calls,
                 best.Notes[i],

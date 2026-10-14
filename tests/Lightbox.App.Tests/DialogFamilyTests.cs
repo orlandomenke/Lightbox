@@ -44,7 +44,7 @@ public class DialogFamilyTests(Xunit.ITestOutputHelper output)
         nameof(NewDocumentDialog), nameof(NewProjectDialog), nameof(PlacementChoiceDialog),
         nameof(RecoveryDialog), nameof(SaveFirstDialog), nameof(ResizeDialog),
         nameof(UpdateFromTemplateWindow), nameof(VersionHistoryWindow),
-        nameof(SaveImageDialog), nameof(ImageSequenceWindow), nameof(ExportWindow), nameof(VideoExportWindow),
+        nameof(SaveImageDialog), nameof(ImageSequenceWindow), nameof(ExportWindow), nameof(VideoExportWindow), nameof(DirectionDialog),
         nameof(MergeErasersDialog),
     ];
 
@@ -63,6 +63,7 @@ public class DialogFamilyTests(Xunit.ITestOutputHelper output)
         nameof(ExportWindow) => new ExportWindow(),
         nameof(VideoExportWindow) => new VideoExportWindow(),
         nameof(MergeErasersDialog) => new MergeErasersDialog(),
+        nameof(DirectionDialog) => new DirectionDialog(),
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, "not a dialog this test knows"),
     };
 

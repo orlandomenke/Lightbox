@@ -323,7 +323,19 @@ public class ABrushHasAlternatesTests : BrushStateIsolated
         foreach (var id in new[] { "builtin-watercolor-wet", "builtin-ink-wash" })
         {
             Assert.Equal("builtin-blot", shipped.Single(p => p.Id == id).SecondAlternate);
+            Assert.Equal("builtin-water", shipped.Single(p => p.Id == id).Alternate);
         }
+        // Gouache works its paint again with the Damp brush, and lifts with the same Blot.
+        var gouache = shipped.Single(p => p.Id == "builtin-gouache-body");
+        Assert.Equal("builtin-damp-brush", gouache.Alternate);
+        Assert.Equal("builtin-blot", gouache.SecondAlternate);
+        var damp = shipped.Single(p => p.Id == "builtin-damp-brush").Settings;
+        Assert.Equal(BrushKind.Smudge, damp.Kind);
+        Assert.Equal(SmudgeMode.Dulling, damp.SmudgeMode);
+        Assert.Equal(0, damp.ColorRate);
+        Assert.Equal(gouache.Settings.TipId, damp.TipId);
+        Assert.True(damp.Flow <= 0.35, "the damp brush was chosen for being gentle");
+
         // Everything else keeps Alt as it was.
         Assert.Null(shipped.Single(p => p.Id == "builtin-ink").Alternate);
         Assert.Null(shipped.Single(p => p.Id == "builtin-pencil").SecondAlternate);

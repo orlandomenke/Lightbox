@@ -464,8 +464,20 @@ you are painting at.
 
 | | A brush that names no alternate | Watercolor and Ink wash |
 | --- | --- | --- |
-| **Alt** | Erases with the brush itself - its size, shape and dynamics, unlike **E**, which brings the eraser's own. | The same, for now. *Planned:* a water brush that rewets - the paint bleeds out into the wet area and thins. |
+| **Alt** | Erases with the brush itself - its size, shape and dynamics, unlike **E**, which brings the eraser's own. | **Water.** |
 | **Ctrl+Alt** | Picks a colour, as **Ctrl** does. | **Blot.** |
+
+**Water** is clean water on paint that has already dried. Where it goes the
+paint softens and bleeds out into the wet area, thinning as it spreads; the
+water pools unevenly, pushing pigment out of the pools, and what it pushed
+gathers in a faint line where the water stopped. Paper that was bare beside
+the paint picks up a pale wash of it; paper far from any paint stays bare,
+because water lays no colour of its own. Press harder for wetter. Go over the
+same place again in a new stroke and it spreads further. It is also in the
+brush list on its own. In the editor its **Water** option sets how far the
+paint spreads, how much it thins, how unevenly it pools, and how much gathers
+at the edge; it is a blur brush underneath, and turning Water off leaves a
+plain blur.
 
 **Blot** is a paper towel. Dab an edge and it lifts the paint there: more the
 harder you press, and never all of it in one dab - a firm press takes about
@@ -489,7 +501,15 @@ to switch to, and Ctrl+Alt picks a colour. And inside a selection Ctrl still
 takes hold of what is selected, so Ctrl+Alt there moves it and does not blot;
 Alt is unaffected.
 
-*Planned:* a damp brush for Gouache that drags and blends what is there.
+**Gouache** has its own pair: **Alt** is the **Damp brush**, **Ctrl+Alt** the
+Blot. The Damp brush works dried body colour again, the way a damp bristle
+brush reactivates gouache: where two colours meet under it they blend into
+each other, laid down in the gouache brush's own tip, a short way along the
+stroke. It lays no colour of its own, so the colour you are painting with does
+not matter. It is gentle on purpose - one pass moves a little, and going over
+the same place does more. Where it runs out over bare paper the paint thins,
+because there is nothing there to blend with. It is in the brush list on its
+own as well, as a smudge brush you can retune.
 
 ## Colour mixing
 

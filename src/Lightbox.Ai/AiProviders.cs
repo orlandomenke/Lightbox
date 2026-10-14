@@ -95,6 +95,7 @@ public static class AiProviders
                     "From console.anthropic.com. Stored in your settings file, never in a document.",
                     "ANTHROPIC_API_KEY"),
                 Model(AnthropicArtist.Model),
+                AiEffort.Field,
             ]),
 
         new(ClaudeCli, "Claude Code (your account)", AiTransport.Cli,
@@ -115,6 +116,7 @@ public static class AiProviders
                 new("model", "Model", AiFieldKind.Model, Required: false, AnthropicArtist.Model,
                     "The same model the Claude API route uses. Name another — opus, sonnet, or a full "
                     + "model name — to change it."),
+                AiEffort.Field,
             ]),
 
         new(OpenAi, "GPT (OpenAI)", AiTransport.Api,

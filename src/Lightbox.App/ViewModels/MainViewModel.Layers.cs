@@ -938,6 +938,7 @@ public partial class MainViewModel
         // it lands would step over it and then have it reappear.
         CommitSwatchEdit();
         ApplyEditScope(WhileApplyingScope(_editor.UndoScoped));
+        RestartCropFrameIfThePageMoved();
     }
 
     [RelayCommand]
@@ -951,6 +952,7 @@ public partial class MainViewModel
         }
         CommitSwatchEdit();
         ApplyEditScope(WhileApplyingScope(_editor.RedoScoped));
+        RestartCropFrameIfThePageMoved();
     }
 
     /// <summary>The History docker, built on first use and following the active tab.</summary>

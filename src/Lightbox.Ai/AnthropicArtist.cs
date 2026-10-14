@@ -26,8 +26,12 @@ public sealed class AnthropicArtist : IAiArtist
     private readonly AnthropicClient _client;
     private readonly string _model;
 
-    public AnthropicArtist(string apiKey, string? model = null)
+    /// <summary>How hard the model thinks — low unless the artist raised it (Q262).</summary>
+    public string Effort { get; }
+
+    public AnthropicArtist(string apiKey, string? model = null, string? effort = null)
     {
+        Effort = AiEffort.Normalize(effort);
         _client = new AnthropicClient { ApiKey = apiKey };
         _model = string.IsNullOrWhiteSpace(model) ? Model : model.Trim();
     }
@@ -62,6 +66,14 @@ public sealed class AnthropicArtist : IAiArtist
     private async Task<AiResult<string>> CallAsync(
         string system, string user, string schemaJson, IReadOnlyList<string>? referenceImages, CancellationToken ct)
     {
+        var parameters = Parameters(system, user, schemaJson, referenceImages);
+        return await SendAsync(parameters, ct);
+    }
+
+    /// <summary>The request as it will be sent — separate so a test can read it without a network.</summary>
+    internal MessageCreateParams Parameters(
+        string system, string user, string schemaJson, IReadOnlyList<string>? referenceImages)
+    {
         var schema = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(schemaJson)
                      ?? throw new InvalidOperationException("Bad schema constant.");
 
@@ -76,18 +88,23 @@ public sealed class AnthropicArtist : IAiArtist
         }
         content.Add(new TextBlockParam { Text = user });
 
-        var parameters = new MessageCreateParams
+        var output = new OutputConfig { Format = new JsonOutputFormat { Schema = schema } };
+        // Q262: low unless the artist raised it; nothing at all for "model", for
+        // a model that does not take the setting.
+        if (AiEffort.Sent(Effort) is { } effort) output = output with { Effort = effort };
+
+        return new MessageCreateParams
         {
             Model = _model,
             MaxTokens = MaxTokens,
             System = new List<TextBlockParam> { new() { Text = system } },
             Messages = [new() { Role = Role.User, Content = content }],
-            OutputConfig = new OutputConfig
-            {
-                Format = new JsonOutputFormat { Schema = schema },
-            },
+            OutputConfig = output,
         };
+    }
 
+    private async Task<AiResult<string>> SendAsync(MessageCreateParams parameters, CancellationToken ct)
+    {
         try
         {
             var text = new StringBuilder();
@@ -134,7 +151,8 @@ public sealed class AnthropicArtist : IAiArtist
         }
         catch (AnthropicApiException e)
         {
-            return AiResult<string>.Error($"API error: {e.Message}", retryable: false);
+            return AiResult<string>.Error(
+                AiEffort.Rejection(e.Message, Effort) ?? $"API error: {e.Message}", retryable: false);
         }
         catch (AnthropicIOException e)
         {

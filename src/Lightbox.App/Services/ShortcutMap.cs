@@ -383,6 +383,12 @@ public sealed class ShortcutMap
             new("canvas.walkReport", "Show walk cycle readout", "Canvas", null),
             new("timeline.nudgeToSpacing", "Nudge drawing to its spacing target", "Timeline", null),
             new("timeline.detectContacts", "Detect contacts and mark them", "Timeline", null),
+            // Q261. No default gesture on either: Shift+click on AI Inbetween and
+            // the arrow beside it are the ways in, and an AI request is not
+            // something to fire by a stray key. Registered so both can be found,
+            // searched and bound by whoever wants one.
+            new("ai.inbetweenWithDirection", "AI Inbetween with a direction…", "Timeline", null),
+            new("ai.revise", "Revise AI frames…", "Timeline", null),
             // Pinning (Q227). No default gestures: which rows the sheet shows
             // is set up once per scene, not reached for mid-stroke, and a key
             // spent here is a key the drawing verbs cannot have.
