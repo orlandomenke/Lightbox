@@ -333,16 +333,18 @@ public partial class MainWindow
     /// Merge a layer into the one below, asking first when the merge would
     /// turn drawings into pixels — the Q52 warning, shown only when AI is
     /// enabled because "the inbetweener cannot read pixels" is noise without
-    /// one. A merge that keeps every stroke record just happens.
+    /// one. A merge that keeps every stroke record just happens, and since
+    /// Q265 that is nearly every merge.
     /// </summary>
     private async void RequestMergeDown(Lightbox.Core.Documents.Layer? layer)
     {
         var below = _vm.MergeTargetOf(layer);
 
-        // Q264: erasing in a drawing no longer has to mean pixels. Asked only
-        // when the answer changes the result, and not at all once remembered —
-        // Configure ▸ Drawing shows the stored answer and takes it back.
-        var erasers = Lightbox.Raster.EraserMerge.Flatten;
+        // Q264: cut the lines where they were erased, or keep the erasers
+        // with their drawing in a group (Q265). Asked only when the answer
+        // changes the result, and not at all once remembered — Configure ▸
+        // Drawing shows the stored answer and takes it back.
+        var erasers = Lightbox.Raster.EraserMerge.Group;
         if (_vm.MergeErasersDecide(layer))
         {
             if (_vm.MergeErasersPreference is { } remembered)
@@ -364,13 +366,12 @@ public partial class MainWindow
         {
             var go = await AskImportChoice(
                 "Merge layer down?",
-                // After "Flatten" the artist has just chosen pixels for the
-                // erasing, so naming it again would be the same question twice.
-                (erasers == Lightbox.Raster.EraserMerge.Flatten && _vm.MergeErasersDecide(layer)
-                    ? "The drawings you chose to flatten, and any with a blend mode, opacity or clip, become pixels. "
-                    : "Some drawings here still become pixels — a blend mode, opacity, a clip, or erasing that reaches a fill. ")
-                + $"The AI inbetweener reads strokes and cannot read pixels, so it will skip those on “{below?.Name}”.",
-                ("Merge", "The drawings that need it are flattened to pixels; the rest keep their strokes.", true));
+                // What is left that a drawing cannot carry with it (Q265).
+                "Some drawings will become pixels here: one inside a folder's shape, one with a placed symbol "
+                + "that would otherwise need a group, one clipped onto a layer with effects, or one whose smudge "
+                + "or blur reads all layers live. "
+                + $"The AI inbetweener cannot read pixels, so it will skip those on “{below?.Name}”.",
+                ("Merge", "Those drawings are flattened to pixels; the rest keep their strokes.", true));
             if (go != true) return;
         }
         _vm.MergeLayerDown(layer, erasers);

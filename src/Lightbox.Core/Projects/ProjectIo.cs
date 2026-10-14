@@ -749,6 +749,9 @@ public static class ProjectIo
             // were carrying rather than the ones it was painted in.
             .Concat(symbols.SelectMany(s => s.AllFrames).SelectMany(StrokesOf))
             .ToList();
+        // And the strokes inside groups (Q265), which name swatches and
+        // gradients like any others.
+        strokes = [.. StrokeGroups.Everything(strokes)];
 
         var swatches = strokes.Select(s => s.SwatchId).OfType<string>().ToHashSet();
         if (swatches.Count > 0)

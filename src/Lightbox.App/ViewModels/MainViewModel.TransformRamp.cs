@@ -408,6 +408,7 @@ public partial class MainViewModel
                     travels.Add(travel);
                     TransformOps.TransformFrame(target, map, parts.SizeScale, null, travel.Carry, movers[i]);
                     if (target is Frame { PngBase64.Length: > 0 } painted) ResampleBaseline(painted, MatrixOf(parts));
+                    StrokeGroups.ResamplePixels(target.Strokes, held => ResampleBaseline(held, MatrixOf(parts)));
                 }
                 foreach (var travel in travels)
                 {

@@ -328,7 +328,9 @@ public partial class MainViewModel
             {
                 if (layer.Cels[cel].Frame is not { } frame) continue;
 
-                if (frame.HasBaseline)
+                // A group's pixels count as a drawing's do (Q265): a trim
+                // that measured only strokes would cut them off.
+                if (frame.HasBaseline || StrokeGroups.HoldsPixels(frame.Strokes))
                 {
                     Take(Scene.Left, Scene.Top,
                          Scene.Left + Scene.Width, Scene.Top + Scene.Height);

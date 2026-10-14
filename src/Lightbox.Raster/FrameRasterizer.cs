@@ -173,10 +173,11 @@ public static class FrameRasterizer
             // only what came before. A smudge whose dabs sample across the region
             // edge would therefore drag future ink into the past. No coordinate
             // fixes that, so the whole repaint goes back to the slow path.
-            if (stroke.Brush.Kind is BrushKind.Smudge or BrushKind.Blur) return false;
             // A mixing brush reads what it sits on too, and would carry the
             // later strokes outside the region into the pickup (the adversary).
-            if (stroke.Brush.Mixing is not null) return false;
+            // Inside a group as well (Q265): its surface is stamped only where
+            // the window reaches, so a reader there sees ink missing instead.
+            if (StrokeGroupRenderer.ReadsPixels(stroke)) return false;
             replay.Add(stroke);
         }
 
@@ -222,10 +223,17 @@ public static class FrameRasterizer
     /// it live</b> is never cached in the first place — <c>FrameBitmapCache.Get</c>
     /// drops it on every read — so there is no bitmap here to patch.
     /// </remarks>
+    /// <remarks>
+    /// A <b>group</b> (Q265) takes part — its strokes are replayed into the
+    /// rectangle like any others — unless it holds stored pixels or a filter,
+    /// which is the first refusal again one level down: neither is bounded by
+    /// the strokes that reach the rectangle.
+    /// </remarks>
     public static bool CanRepaintRegion(Frame frame) =>
         string.IsNullOrEmpty(frame.PngBase64)
         && frame.Placements is not { Count: > 0 }
-        && !frame.Strokes.Any(s => s.Brush.SampleSource == SampleSource.AllLayersLive);
+        && !StrokeGroupRenderer.SamplesLive(frame.Strokes)
+        && !StrokeGroupRenderer.HasUnboundedGroup(frame.Strokes);
 
     /// <summary>A reach in stroke coordinates as surface pixels.</summary>
     private static SKRectI Scale(SKRectI rect, double outputScale)
@@ -302,31 +310,12 @@ public static class FrameRasterizer
             // nothing has been drawn on. B137's rule (see `CheckpointCodec`).
         }
 
-        if (!string.IsNullOrEmpty(frame.PngBase64))
-        {
-            // The one thing here that cannot be re-rendered sharp: a baseline
-            // is stored pixels, so above 1x it magnifies. Nothing in the app
-            // creates one — the only writer rewrites an already-nonempty
-            // baseline — but a document that carries one will show it.
-            using var baseline = PngCodec.Decode(frame.PngBase64);
-            using var image = SKImage.FromBitmap(baseline);
-            // On paper nobody has resized this is the whole surface, as it
-            // always was. Once there is an origin the baseline is no longer
-            // the size of the paper: it is laid out in stroke coordinates,
-            // corner at zero, its own size — so it is placed there, and the
-            // paper's corner decides where that lands on the surface.
-            var dest = origin == default
-                ? new SKRect(0, 0, scaled.Width, scaled.Height)
-                : SKRect.Create(
-                    (float)(-origin.X * outputScale), (float)(-origin.Y * outputScale),
-                    (float)(baseline.Width * outputScale), (float)(baseline.Height * outputScale));
-            canvas.DrawImage(image, dest, new SKSamplingOptions(SKFilterMode.Linear));
-        }
+        DrawBaseline(canvas, frame.PngBase64, scaled, outputScale, origin);
         for (var i = replayFrom; i < frame.Strokes.Count; i++)
         {
             BrushEngine.StampStroke(
                 canvas, frame.Strokes[i], info, bitmap, outputScale: outputScale, backdrop: backdrop,
-                origin: origin);
+                origin: origin, frameIndex: celIndex);
         }
         // Placements last, over the strokes. A placement is a drawing put on
         // top of this cel, not one mixed into it — and the ordering has to be
@@ -343,6 +332,34 @@ public static class FrameRasterizer
         if (origin != default) canvas.Restore();
         canvas.Flush();
         return bitmap;
+    }
+
+    /// <summary>
+    /// Stored pixels under a stroke list — a frame's baseline, or a group's
+    /// (Q265) — drawn onto a surface nothing has been stamped on yet. Nothing
+    /// for a drawing that has none, which is nearly all of them.
+    /// </summary>
+    internal static void DrawBaseline(
+        SKCanvas canvas, string? pngBase64, SKImageInfo scaled, double outputScale, SKPointI origin)
+    {
+        if (string.IsNullOrEmpty(pngBase64)) return;
+        // The one thing here that cannot be re-rendered sharp: a baseline
+        // is stored pixels, so above 1x it magnifies. Nothing in the app
+        // creates one — the only writer rewrites an already-nonempty
+        // baseline — but a document that carries one will show it.
+        using var baseline = PngCodec.Decode(pngBase64);
+        using var image = SKImage.FromBitmap(baseline);
+        // On paper nobody has resized this is the whole surface, as it
+        // always was. Once there is an origin the baseline is no longer
+        // the size of the paper: it is laid out in stroke coordinates,
+        // corner at zero, its own size — so it is placed there, and the
+        // paper's corner decides where that lands on the surface.
+        var dest = origin == default
+            ? new SKRect(0, 0, scaled.Width, scaled.Height)
+            : SKRect.Create(
+                (float)(-origin.X * outputScale), (float)(-origin.Y * outputScale),
+                (float)(baseline.Width * outputScale), (float)(baseline.Height * outputScale));
+        canvas.DrawImage(image, dest, new SKSamplingOptions(SKFilterMode.Linear));
     }
 
     /// <summary>

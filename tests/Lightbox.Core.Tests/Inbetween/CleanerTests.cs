@@ -56,6 +56,101 @@ public class StrokeRecordCleanerTests
         Assert.Same(s2, result[1]);
     }
 
+    // ---- Q265: a merged drawing is read through its groups ----------------------
+
+    private static Stroke Group(params Stroke[] strokes) => new()
+    {
+        Tool = ToolKind.Group,
+        Group = new StrokeGroup { Strokes = [.. strokes] },
+    };
+
+    [Fact]
+    public void AGroupIsReadAsTheStrokesInsideIt()
+    {
+        // Sent as it stands, a group reaches a model as one "brush" stroke
+        // with no points — and the merged line art it holds as nothing.
+        var below = Line(0, 10, 100, 10);
+        var inner = Line(0, 50, 100, 50);
+        var innermost = Line(0, 70, 100, 70);
+        var after = Line(0, 90, 100, 90);
+
+        var result = StrokeRecordCleaner.EffectiveStrokes([below, Group(inner, Group(innermost)), after]);
+
+        Assert.Equal([below, inner, innermost, after], result);
+        Assert.DoesNotContain(result, s => s.Tool == ToolKind.Group);
+    }
+
+    [Fact]
+    public void AnEraserInsideAGroupErasesOnlyInsideIt()
+    {
+        // The same line drawn on both layers; the upper layer rubbed its own
+        // out. The lower one is still on the page.
+        var below = Line(10, 50, 90, 50);
+        var above = Line(10, 50, 90, 50);
+        var eraser = Line(5, 50, 95, 50, size: 20, tool: ToolKind.Eraser);
+
+        var result = StrokeRecordCleaner.EffectiveStrokes([below, Group(above, eraser)]);
+
+        Assert.Same(below, Assert.Single(result));
+    }
+
+    [Fact]
+    public void AnEraserAfterAGroupErasesWhatIsInsideIt()
+    {
+        // Drawn after the merge, it acts on the whole drawing.
+        var below = Line(10, 20, 90, 20);
+        var inner = Line(10, 50, 90, 50);
+        var eraser = Line(5, 50, 95, 50, size: 20, tool: ToolKind.Eraser);
+
+        var result = StrokeRecordCleaner.EffectiveStrokes([below, Group(inner), eraser]);
+
+        Assert.Same(below, Assert.Single(result));
+    }
+
+    [Fact]
+    public void AGroupNobodyCanSeeIsNotRead()
+    {
+        // Q266. A group at zero opacity, or behind a mask with nothing painted
+        // on it, shows no ink at all — and a model sent its lines would
+        // inbetween a drawing that is not on the page.
+        var shown = Line(0, 10, 100, 10);
+        var transparent = Group(Line(0, 50, 100, 50));
+        transparent.Group!.Opacity = 0;
+        var maskedOut = Group(Line(0, 70, 100, 70));
+        maskedOut.Group!.Mask = new LayerMask();
+        var nested = Group(Group(Line(0, 80, 100, 80)));
+        nested.Group!.Strokes[0].Group!.Opacity = 0;
+
+        Assert.Equal([shown], StrokeRecordCleaner.EffectiveStrokes([shown, transparent, maskedOut, nested]));
+    }
+
+    [Fact]
+    public void AGroupThatIsOnlyPartlyHiddenIsStillReadWhole()
+    {
+        // What was decided, and its limit: the reader does not cut lines by a
+        // mask. A faint group, a partly masked one, a mask that is switched
+        // off and an inverted empty mask (which hides nothing) are all read.
+        var faint = Group(Line(0, 10, 100, 10));
+        faint.Group!.Opacity = 0.05;
+        var partly = Group(Line(0, 30, 100, 30));
+        partly.Group!.Mask = new LayerMask { Frame = new Frame { Strokes = [Line(0, 30, 10, 30)] } };
+        var off = Group(Line(0, 50, 100, 50));
+        off.Group!.Mask = new LayerMask { Disabled = true };
+        var inverted = Group(Line(0, 70, 100, 70));
+        inverted.Group!.Mask = new LayerMask { Inverted = true };
+
+        Assert.Equal(4, StrokeRecordCleaner.EffectiveStrokes([faint, partly, off, inverted]).Count);
+    }
+
+    [Fact]
+    public void ADrawingWithNoGroupIsReadExactlyAsBefore()
+    {
+        var a = Line(0, 10, 100, 10);
+        var b = Line(0, 90, 100, 90);
+
+        Assert.Equal([a, b], StrokeRecordCleaner.EffectiveStrokes([a, b]));
+    }
+
     // ---- B233: a cleared region is an erasure too -----------------------------
 
     /// <summary>A square emptied out of the drawing — the "clear selection" stroke.</summary>

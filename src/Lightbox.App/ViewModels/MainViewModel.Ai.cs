@@ -247,7 +247,8 @@ public partial class MainViewModel
     /// </para>
     /// </remarks>
     private static string? UnseenByTheModel(Frame a, Frame b) =>
-        (a.HasBaseline || b.HasBaseline, a.HasPlacements || b.HasPlacements) switch
+        (a.HasBaseline || b.HasBaseline || StrokeGroups.HoldsPixels(a.Strokes) || StrokeGroups.HoldsPixels(b.Strokes),
+            a.HasPlacements || b.HasPlacements) switch
         {
             (true, true) => "imported pixels and placed symbols",
             (true, false) => "imported pixels",

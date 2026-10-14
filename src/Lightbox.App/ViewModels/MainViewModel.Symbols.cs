@@ -361,7 +361,7 @@ public sealed partial class MainViewModel
         var symbol = new Symbol { Name = trimmed, Kind = kind, Layers = captured };
         // Q173: whatever those strokes are clipped by travels with them.
         var clips = symbol.AllFrames
-            .SelectMany(f => f.Strokes)
+            .SelectMany(f => StrokeGroups.Everything(f.Strokes))
             .Select(k => k.ClipId)
             .OfType<string>()
             .Distinct()

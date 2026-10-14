@@ -126,6 +126,7 @@ public class ContentEqualityTests(ITestOutputHelper output)
         output.WriteLine($"{sites.Count} properties, {skipped.Count} skipped, {noOps.Count} changes the file does not show");
         foreach (var s in noOps) output.WriteLine($"  no-op {s}");
         foreach (var s in skipped) output.WriteLine($"  skipped {s}");
+        foreach (var s in missed) output.WriteLine($"  missed {s}");
         Assert.True(sites.Count > 60, $"only {sites.Count} properties reached — the walk is not looking");
         Assert.Contains(sites, s => s.Name.EndsWith("Strokes[0].Points"));
         Assert.Contains(sites, s => s.Name.EndsWith("Strokes[0].Brush.Size"));
@@ -234,6 +235,27 @@ public class ContentEqualityTests(ITestOutputHelper output)
     private static T Inflate<T>(T obj, int depth = 0) where T : class
     {
         if (depth > 5) return obj;
+        // A type that can hold itself (a group's strokes may be groups, a mask
+        // is a drawing) is filled once. Each type is compared by one function
+        // whatever it sits inside, so a second level proves nothing — and it
+        // pushes the innermost copy past the depth limit half-filled, where an
+        // empty dictionary cannot be changed and reads as a property nobody tested.
+        if (!(Filling ??= []).Add(obj.GetType())) return obj;
+        try
+        {
+            Fill(obj, depth);
+        }
+        finally
+        {
+            Filling.Remove(obj.GetType());
+        }
+        return obj;
+    }
+
+    [ThreadStatic] private static HashSet<Type>? Filling;
+
+    private static void Fill(object obj, int depth)
+    {
         foreach (var p in WrittenProperties(obj.GetType()))
         {
             var current = p.GetValue(obj);
@@ -257,7 +279,6 @@ public class ContentEqualityTests(ITestOutputHelper output)
             if (current is not null && !IsLeaf(p.PropertyType) && !p.PropertyType.IsValueType && !IsCollection(p.PropertyType))
                 Inflate(current, depth + 1);
         }
-        return obj;
     }
 
     private static Type? ElementType(Type t) =>

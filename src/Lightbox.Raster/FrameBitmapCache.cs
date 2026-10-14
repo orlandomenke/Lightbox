@@ -379,7 +379,10 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         // on a rigged LAYER carries no weights of its own (Q90) — it would key
         // by id alone and every frame of the walk cycle would come back as
         // whichever pose rendered first.
-        return frame.HasPlacements || Rig.IsPosed(frame)
+        //
+        // A group with an effect is the third (Q265): the effect's parameters
+        // can be keyed, and are read at the cel being drawn.
+        return frame.HasPlacements || Rig.IsPosed(frame) || StrokeGroupRenderer.DependsOnCel(frame.Strokes)
             ? string.Create(CultureInfo.InvariantCulture, $"{key}#{celIndex}")
             : key;
     }
@@ -558,8 +561,7 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
 
     /// <summary>Whether anything on this frame reads the layers beneath it, live.</summary>
     private static bool SamplesLive(Frame frame) =>
-        frame is Frame p
-        && p.Strokes.Any(s => s.Brush.SampleSource == SampleSource.AllLayersLive);
+        frame is Frame p && StrokeGroupRenderer.SamplesLive(p.Strokes);
 
     /// <summary>
     /// Whether a render of this frame at this exact size and scale is already

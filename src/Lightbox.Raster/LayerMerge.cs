@@ -21,14 +21,23 @@ namespace Lightbox.Raster;
 /// strokes — inbetweenable, editable, invariant 1 intact.
 /// </para>
 /// <para>
-/// Everything else is baked: both drawings are materialized, the upper is
-/// composited over the lower through the upper layer's blend and opacity, and
-/// the result becomes the merged frame's pixel baseline — exactly the
-/// "imported or flattened pixels" a baseline exists to carry. That is what
-/// merging <em>means</em> for a Multiply layer at 60%; the cost (the AI cannot
-/// read pixels) is what the Q52 warning names before this runs. As in
-/// Photoshop, a non-Normal blend is baked against the layer below only, so a
-/// mark whose blend was interacting with layers deeper in the stack can shift.
+/// <b>Everywhere else the strokes are kept in a group (Q265).</b> Each of
+/// those reasons is computed from the two drawings and a handful of layer
+/// attributes, so they are kept — the upper drawing's strokes in a
+/// <see cref="StrokeGroup"/> with the blend, opacity, clip, mask and effects
+/// its layer had — and the computation runs when the drawing is rendered
+/// instead of once, here. The picture is exact and the record is still
+/// strokes. As in Photoshop, a non-Normal blend lands against the layer
+/// below only, so a mark whose blend was interacting with layers deeper in
+/// the stack can shift.
+/// </para>
+/// <para>
+/// <b>What still flattens</b> is what a drawing cannot carry with it
+/// (<see cref="CanGroup"/>, and <c>docs/DESIGN-stroke-groups.md</c>): a
+/// folder's shape, a placed symbol, a stroke sampling the layers beneath it
+/// live, and a clip onto a layer with effects. Those are rendered and stored
+/// as the merged frame's pixel baseline, and the Q52 warning names the cost —
+/// the AI cannot read pixels — before this runs.
 /// </para>
 /// <para>
 /// The decision is taken per exposed pair, not per layer, so one baked
@@ -39,8 +48,9 @@ public static class LayerMerge
 {
     /// <summary>
     /// Would merging <paramref name="upper"/> into <paramref name="lower"/>
-    /// turn any drawing into pixels? Feeds the Q52 warning, which is shown
-    /// before the merge and only when AI is enabled.
+    /// turn any drawing into pixels — one that can neither append its strokes
+    /// nor keep them in a group? Feeds the Q52 warning, which is shown before
+    /// the merge and only when AI is enabled.
     /// </summary>
     /// <remarks>
     /// Pass <paramref name="scene"/> to count a folder's shape (Q215): an upper
@@ -48,7 +58,7 @@ public static class LayerMerge
     /// only by baking the carve in.
     /// </remarks>
     public static bool WouldBakePixels(
-        Layer upper, Layer lower, Scene? scene = null, EraserMerge erasers = EraserMerge.Flatten)
+        Layer upper, Layer lower, Scene? scene = null, EraserMerge erasers = EraserMerge.Group)
     {
         var carve = scene is null ? CarveOf(upper, lower) : CarveOf(scene, upper, lower);
         var count = CelSpan(upper, lower);
@@ -58,17 +68,22 @@ public static class LayerMerge
             var below = ExposureSheet.ExposedFrame(lower, t);
             var above = ExposureSheet.ExposedFrame(upper, t);
             if (above is null && below is null) continue;
-            if (!PairIsLossless(upper, lower, below, above, carve, erasers, cuts: null, out _)) return true;
+            if (!PairIsLossless(upper, lower, below, above, carve, erasers, cuts: null, out _)
+                && !CanGroup(upper, lower, below, above, carve))
+            {
+                return true;
+            }
         }
         return false;
     }
 
     /// <summary>
-    /// Is there a drawing here that would flatten for its erasers and for
+    /// Is there a drawing here that would need a group for its erasers and for
     /// nothing else — one the artist's choice between <see cref="EraserMerge"/>
     /// values actually decides? False when no drawing has an eraser in the
-    /// way, and false when something else flattens it whatever is chosen, so
-    /// the question is only ever asked when the answer changes the result.
+    /// way, and false when something else puts it in a group whatever is
+    /// chosen, so the question is only ever asked when the answer changes the
+    /// result.
     /// </summary>
     public static bool ErasersDecide(Layer upper, Layer lower, Scene? scene = null)
     {
@@ -80,7 +95,7 @@ public static class LayerMerge
             var below = ExposureSheet.ExposedFrame(lower, t);
             var above = ExposureSheet.ExposedFrame(upper, t);
             if (above is null && below is null) continue;
-            if (!PairIsLossless(upper, lower, below, above, carve, EraserMerge.Flatten, cuts: null, out _)
+            if (!PairIsLossless(upper, lower, below, above, carve, EraserMerge.Group, cuts: null, out _)
                 && PairIsLossless(upper, lower, below, above, carve, EraserMerge.KeepStrokes, cuts: null, out _))
             {
                 return true;
@@ -96,12 +111,13 @@ public static class LayerMerge
     /// </summary>
     /// <param name="erasers">
     /// What to do with a drawing whose erasers would reach the lower layer:
-    /// flatten it (exact, the default) or cut its strokes and keep them
-    /// (<see cref="EraserCut"/>, nearly exact). Everything else that flattens
-    /// a drawing still does, whatever is chosen here.
+    /// keep them with its strokes in a group (exact, the default) or cut its
+    /// strokes and drop the erasers (<see cref="EraserCut"/>, nearly exact).
+    /// A drawing that needs a group for another reason gets one whatever is
+    /// chosen here.
     /// </param>
     public static void MergeDown(
-        Scene scene, Layer upper, Layer lower, EraserMerge erasers = EraserMerge.Flatten)
+        Scene scene, Layer upper, Layer lower, EraserMerge erasers = EraserMerge.Group)
     {
         var carve = CarveOf(scene, upper, lower);
         var count = CelSpan(upper, lower);
@@ -234,9 +250,136 @@ public static class LayerMerge
         EraserMerge erasers, Dictionary<Frame, List<Stroke>?> cuts)
     {
         if (above is null && below is null) return null;
-        return PairIsLossless(upper, lower, below, above, carve, erasers, cuts, out var cut)
-            ? ConcatenatedFrame(below, above, cut)
+        if (PairIsLossless(upper, lower, below, above, carve, erasers, cuts, out var cut))
+        {
+            return ConcatenatedFrame(below, above, cut);
+        }
+        return CanGroup(upper, lower, below, above, carve)
+            ? GroupedFrame(upper, lower, below, above, carve, erasers, cuts)
             : BakedFrame(scene, upper, lower, below, above, t, carve);
+    }
+
+    /// <summary>
+    /// Can a pair that will not append keep its strokes in groups instead
+    /// (Q265)? Nearly always. These are the cases a drawing cannot carry with
+    /// it, each named in <c>docs/DESIGN-stroke-groups.md</c>.
+    /// </summary>
+    private static bool CanGroup(Layer upper, Layer lower, Frame? below, Frame? above, MergeCarve carve)
+    {
+        // Groups nest one level per merge that needs one, and the file has a
+        // depth it will not write past. Counted as though both drawings were
+        // wrapped, masks included — a level early at worst, never a level late.
+        var deepest = Math.Max(
+            Math.Max(StrokeGroups.Depth(below?.Strokes), StrokeGroups.Depth(above?.Strokes)),
+            Math.Max(StrokeGroups.Depth(lower.Mask?.Frame.Strokes), StrokeGroups.Depth(upper.Mask?.Frame.Strokes)));
+        if (deepest + 1 > StrokeGroups.MaxDepth) return false;
+        // A drawing that samples the layers beneath it live is re-rendered on
+        // every read rather than cached. As a picture that was a decode; in a
+        // group it would be a group render per pointer event.
+        if (below is not null && (lower.IsMasked || LiveStack(lower) is not null))
+        {
+            foreach (var stroke in StrokeGroups.Flatten(below.Strokes))
+            {
+                if (stroke.Brush.SampleSource == SampleSource.AllLayersLive) return false;
+            }
+        }
+        // A placement lives on the frame and is drawn over every stroke of it.
+        // A group has no slot for one, so a symbol would escape the blend, mask
+        // or effects of the layer it was placed on, or change places with the
+        // strokes that were above it.
+        if ((below?.HasPlacements ?? false) || (above?.HasPlacements ?? false)) return false;
+        if (above is null) return true;
+        // The shape is the *other* layers in the folder.
+        if (carve.FolderShape) return false;
+        // The compositor carves a clipped layer by its base's content and mask,
+        // before the base's effects. A clipped group is carved by what is on
+        // the drawing, which is after them.
+        if (carve.ClippedToLower && LiveStack(lower) is not null) return false;
+        // "Beneath" included the lower layer, and inside the merged drawing it
+        // no longer does: the stroke would read a different picture.
+        foreach (var stroke in StrokeGroups.Flatten(above.Strokes))
+        {
+            if (stroke.Brush.SampleSource == SampleSource.AllLayersLive) return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// The pair with whatever will not append kept in groups: the lower drawing
+    /// in one when its layer's mask or effects have to stay on it alone, the
+    /// upper drawing in one carrying what its layer did to it.
+    /// </summary>
+    private static Frame GroupedFrame(
+        Layer upper, Layer lower, Frame? below, Frame? above, MergeCarve carve,
+        EraserMerge erasers, Dictionary<Frame, List<Stroke>?> cuts)
+    {
+        var frame = new Frame
+        {
+            Role = below?.Role ?? above!.Role,
+            Chart = Copy(below?.Chart) ?? Copy(above?.Chart),
+            Ai = below?.Ai ?? above?.Ai,
+        };
+        // MergeDown takes these off the layer afterwards, where they would
+        // start applying to the upper drawing too.
+        var lowerStack = LiveStack(lower);
+        var lowerMask = lower.Mask is { Applies: true } m ? m : null;
+        if (below is not null)
+        {
+            if (lowerMask is not null || lowerStack is not null)
+            {
+                frame.Strokes.Add(GroupOf(below, mask: lowerMask, effects: lowerStack));
+            }
+            else
+            {
+                frame.PngBase64 = below.PngBase64;
+                frame.Strokes.AddRange(below.Strokes.Select(s => s.Clone()));
+            }
+        }
+        if (above is not null)
+        {
+            // With the lower layer's own reasons dealt with above, the upper
+            // drawing may need nothing: its strokes then follow as they are.
+            if (PairIsLossless(upper, lower, below, above, carve, erasers, cuts, out var cut, lowerWrapped: true))
+            {
+                if (below is null) frame.PngBase64 = above.PngBase64;
+                frame.Strokes.AddRange((cut ?? above.Strokes).Select(s => s.Clone()));
+            }
+            else
+            {
+                frame.Strokes.Add(GroupOf(
+                    above,
+                    blend: upper.BlendMode == LayerBlendMode.Normal ? null : upper.BlendMode,
+                    opacity: upper.Opacity < 1 ? upper.Opacity : null,
+                    clip: carve.ClippedToLower ? true : null,
+                    mask: upper.Mask is { Applies: true } mask ? mask : null,
+                    effects: LiveStack(upper)));
+            }
+        }
+        (frame.Anchors, frame.Shapes) = UnionMarkers(below, above);
+        return frame;
+    }
+
+    /// <summary>
+    /// A drawing as one entry: its strokes and its baseline, with the layer
+    /// attributes given. Copies throughout, with fresh ids — the layer it
+    /// came from is about to go, undo holds the original, and a held drawing
+    /// is merged once for every key the other layer has across it.
+    /// </summary>
+    private static Stroke GroupOf(
+        Frame drawing, LayerBlendMode? blend = null, double? opacity = null, bool? clip = null,
+        LayerMask? mask = null, Core.Effects.EffectStack? effects = null)
+    {
+        var group = new StrokeGroup
+        {
+            Strokes = drawing.Strokes,
+            PngBase64 = string.IsNullOrEmpty(drawing.PngBase64) ? null : drawing.PngBase64,
+            Blend = blend,
+            Opacity = opacity,
+            Clip = clip,
+            Mask = mask,
+            Effects = effects,
+        };
+        return new Stroke { Tool = ToolKind.Group, Group = group.Clone() };
     }
 
     /// <summary>
@@ -255,20 +398,28 @@ public static class LayerMerge
     /// <paramref name="erasers"/> asked for that and it was what made the pair
     /// mergeable; null when the upper drawing's own record is what to append.
     /// </param>
+    /// <param name="lowerWrapped">
+    /// The lower drawing is already going into a group of its own with its
+    /// layer's mask and effects (<see cref="GroupedFrame"/>), so those are no
+    /// longer a reason — the question left is whether the upper drawing can
+    /// follow that group as plain strokes.
+    /// </param>
     private static bool PairIsLossless(
         Layer upper, Layer lower, Frame? below, Frame? above, MergeCarve carve,
-        EraserMerge erasers, Dictionary<Frame, List<Stroke>?>? cuts, out List<Stroke>? cut)
+        EraserMerge erasers, Dictionary<Frame, List<Stroke>?>? cuts, out List<Stroke>? cut,
+        bool lowerWrapped = false)
     {
         cut = null;
-        // A mask on the lower layer is baked into every merged drawing —
-        // including the ones the upper layer leaves untouched — because the
-        // merge clears the mask afterwards, and a cleared mask must already
-        // be in the pixels everywhere.
-        if (lower.IsMasked) return false;
-        // A live effect stack is applied at composite time and strokes
-        // cannot carry a filter — either layer having one forces the bake,
-        // which runs the content → filter → carve → style pipeline (B286).
-        if (LiveStack(upper) is not null || LiveStack(lower) is not null) return false;
+        // A mask on the lower layer goes into every merged drawing — including
+        // the ones the upper layer leaves untouched — because the merge clears
+        // the mask afterwards, and a cleared mask must already be in each one.
+        if (lower.IsMasked && !lowerWrapped) return false;
+        // A live effect stack is applied at composite time and plain strokes
+        // cannot carry a filter — either layer having one rules out appending,
+        // and the content → filter → carve → style pipeline runs in a group
+        // instead (B286, Q265).
+        if (LiveStack(upper) is not null) return false;
+        if (LiveStack(lower) is not null && !lowerWrapped) return false;
         if (above is null) return true; // the lower drawing carries over untouched
         // A folder's shape carved the upper drawing, and strokes cannot carry
         // that carve onto a layer the shape no longer touches (Q215).
@@ -298,6 +449,15 @@ public static class LayerMerge
         var erased = false;
         foreach (var stroke in above.Strokes)
         {
+            // A group from an earlier merge that is clipped by, or blended
+            // against, what is under it meant the upper drawing's own strokes.
+            // Appended, "under it" gains the lower layer's (the adversary).
+            // One that is Normal and unclipped is self-contained and follows.
+            if (stroke.Group is { } held
+                && (held.Clip == true || (held.Blend ?? LayerBlendMode.Normal) != LayerBlendMode.Normal))
+            {
+                return false;
+            }
             // Anything that reads or removes what is underneath changes
             // meaning when "underneath" gains the lower layer's marks.
             if (stroke.Tool is ToolKind.Eraser or ToolKind.ClearRegion)
@@ -319,9 +479,13 @@ public static class LayerMerge
         }
         if (erased)
         {
+            // An erasure after a group would have to cut the strokes inside
+            // it, and the cutter does not look there: that drawing keeps its
+            // erasers, in a group of its own.
+            if (StrokeGroups.Any(above.Strokes)) return false;
             // Refused when the cut would not be the picture — an erasure that
             // reaches a fill, one used inside a selection — and then this
-            // drawing flattens as it always did.
+            // drawing keeps its erasers too.
             if (cuts is null) return EraserCut.CanCut(above.Strokes);
             if (!cuts.TryGetValue(above, out cut)) cuts[above] = cut = EraserCut.Resolve(above.Strokes);
             if (cut is null) return false;
@@ -338,7 +502,7 @@ public static class LayerMerge
         layer.HasLiveEffects && !layer.IsAdjustment ? layer.Effects : null;
 
     /// <summary>Redraw a materialized drawing through a filter, in place; null is identity.</summary>
-    private static void ApplyFilter(SKBitmap target, SKImageFilter? filter)
+    internal static void ApplyFilter(SKBitmap target, SKImageFilter? filter)
     {
         if (filter is null) return;
         using var source = target.Copy();
@@ -361,7 +525,7 @@ public static class LayerMerge
         Carve(target, coverage, mask.IsInverted);
     }
 
-    private static void Carve(SKBitmap target, SKBitmap coverage, bool inverted)
+    internal static void Carve(SKBitmap target, SKBitmap coverage, bool inverted)
     {
         using var canvas = new SKCanvas(target);
         using var paint = new SKPaint

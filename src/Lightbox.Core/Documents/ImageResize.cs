@@ -379,7 +379,53 @@ public static class ImageResize
                             correction.Offsets[i] = new PointOffset(
                                 correction.Offsets[i].X * sx, correction.Offsets[i].Y * sy);
 
-        foreach (var stroke in frame.Strokes)
+        ScaleStrokes(frame.Strokes, sx, sy, mark, resampler);
+
+        if (frame.PngBase64 is { Length: > 0 } baseline)
+            frame.PngBase64 = resampler.Resample(baseline, sx, sy);
+
+        if (frame.Placements is { } placements)
+            foreach (var placement in placements)
+            {
+                placement.X *= sx;
+                placement.Y *= sy;
+                // A symbol keeps its own coordinate space — it is shared, and
+                // rescaling this document must not reach into it. The
+                // placement's scale is where the change belongs.
+                placement.ScaleX *= sx;
+                placement.ScaleY *= sy;
+            }
+
+        if (frame.Anchors is { } anchors)
+            foreach (var id in anchors.Keys.ToList())
+                // `with`, so the angle is carried: rotation is not a length
+                // and does not scale — the same accepted limit an angled
+                // guide and a bone have under a non-uniform stretch.
+                anchors[id] = anchors[id] with { X = anchors[id].X * sx, Y = anchors[id].Y * sy };
+
+        if (frame.Shapes is { } shapes)
+            foreach (var id in shapes.Keys.ToList())
+            {
+                var box = shapes[id];
+                shapes[id] = box with { X = box.X * sx, Y = box.Y * sy, W = box.W * sx, H = box.H * sy };
+            }
+    }
+
+    /// <summary>
+    /// Every stroke in a list, and — through a group — every stroke in the
+    /// lists inside it (Q265).
+    /// </summary>
+    /// <remarks>
+    /// A group is a merged layer's drawing kept in one entry, so it is scaled
+    /// as that layer would have been: its strokes here, its baseline by the
+    /// resampler, its mask as the drawing a mask is. The entry has no points
+    /// of its own, which is why a walk of the top of the list alone leaves the
+    /// whole merged drawing behind.
+    /// </remarks>
+    private static void ScaleStrokes(
+        List<Stroke> strokes, double sx, double sy, double mark, IPixelResampler resampler)
+    {
+        foreach (var stroke in strokes)
         {
             ScalePoints(stroke.Points, sx, sy);
             if (stroke.Holes is { } holes)
@@ -453,36 +499,15 @@ public static class ImageResize
                         Y = (int)Math.Round(baked.Y * sy),
                     };
             }
+
+            if (stroke.Group is { } group)
+            {
+                ScaleStrokes(group.Strokes, sx, sy, mark, resampler);
+                if (group.PngBase64 is { Length: > 0 } under)
+                    group.PngBase64 = resampler.Resample(under, sx, sy);
+                if (group.Mask is { } mask) ScaleFrame(mask.Frame, sx, sy, mark, resampler);
+            }
         }
-
-        if (frame.PngBase64 is { Length: > 0 } baseline)
-            frame.PngBase64 = resampler.Resample(baseline, sx, sy);
-
-        if (frame.Placements is { } placements)
-            foreach (var placement in placements)
-            {
-                placement.X *= sx;
-                placement.Y *= sy;
-                // A symbol keeps its own coordinate space — it is shared, and
-                // rescaling this document must not reach into it. The
-                // placement's scale is where the change belongs.
-                placement.ScaleX *= sx;
-                placement.ScaleY *= sy;
-            }
-
-        if (frame.Anchors is { } anchors)
-            foreach (var id in anchors.Keys.ToList())
-                // `with`, so the angle is carried: rotation is not a length
-                // and does not scale — the same accepted limit an angled
-                // guide and a bone have under a non-uniform stretch.
-                anchors[id] = anchors[id] with { X = anchors[id].X * sx, Y = anchors[id].Y * sy };
-
-        if (frame.Shapes is { } shapes)
-            foreach (var id in shapes.Keys.ToList())
-            {
-                var box = shapes[id];
-                shapes[id] = box with { X = box.X * sx, Y = box.Y * sy, W = box.W * sx, H = box.H * sy };
-            }
     }
 
     private static void ScalePoints(List<StrokePoint> points, double sx, double sy)

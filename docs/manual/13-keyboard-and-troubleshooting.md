@@ -488,6 +488,7 @@ report says which, in one line:
 | *frames carry imported or flattened pixels* | Imported artwork and flattened frames are held whole. Keep imported reference on its own layer rather than flattened into the animation. |
 | *frames place symbols* | Placed symbols are drawn whole. Fewer placements on the animated layers, or draw them in. |
 | *frames contain smudge or blur strokes* | Smudge and blur have to read the pixels around them, which a tile does not hold. Keep them off the layers that animate, or flatten that pass when it is finished. |
+| *frames hold a merged drawing kept as a group* | A group is drawn on a surface of its own, which a tile does not hold. Nothing to fix — and nothing lost: the drawing is still strokes. If playback of that layer matters more than its lines, merge it with **Cut the lines** rather than **Keep exact**, which leaves plain strokes; a blend, mask or opacity still makes a group. |
 
 The percentage beside it is **layer passes, not frames** — a two-layer drawing
 is asked twice for every frame you see. So 50% often means one layer of two,

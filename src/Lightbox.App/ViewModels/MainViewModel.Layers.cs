@@ -1584,12 +1584,13 @@ public partial class MainViewModel
 
     /// <summary>
     /// Merge the active layer into the one below it (Ctrl+E). A remembered
-    /// answer about erasers applies here too; with none, it flattens — the
-    /// window is what asks, and this is the path with no window.
+    /// answer about erasers applies here too; with none, it takes the exact
+    /// one — a group — since the window is what asks, and this is the path
+    /// with no window.
     /// </summary>
     [RelayCommand]
     private void MergeActiveLayerDown() =>
-        MergeLayerDown(ActiveLayer, MergeErasersPreference ?? Lightbox.Raster.EraserMerge.Flatten);
+        MergeLayerDown(ActiveLayer, MergeErasersPreference ?? Lightbox.Raster.EraserMerge.Group);
 
     /// <summary>
     /// What to do with a drawing whose erasers would reach the layer below,
@@ -1617,7 +1618,7 @@ public partial class MainViewModel
 
     /// <summary>
     /// Is the eraser choice one this merge actually has — a drawing that would
-    /// flatten for its erasers and nothing else? The window asks only then.
+    /// need a group for its erasers and nothing else? The window asks only then.
     /// </summary>
     public bool MergeErasersDecide(Layer? layer)
     {
@@ -1646,7 +1647,7 @@ public partial class MainViewModel
     /// "the inbetweener cannot read pixels" is noise to an artist without one.
     /// </summary>
     public bool MergeWouldBake(
-        Layer? layer, Lightbox.Raster.EraserMerge erasers = Lightbox.Raster.EraserMerge.Flatten)
+        Layer? layer, Lightbox.Raster.EraserMerge erasers = Lightbox.Raster.EraserMerge.Group)
     {
         layer ??= ActiveLayer;
         return MergeTargetOf(layer) is { } below
@@ -1659,11 +1660,11 @@ public partial class MainViewModel
     /// layer's name, opacity, blend mode and folder.
     /// </summary>
     /// <param name="erasers">
-    /// Flatten a drawing whose erasers would reach the lower layer, or cut its
-    /// strokes and keep them. Everything else that flattens still does.
+    /// Keep a drawing whose erasers would reach the lower layer in a group
+    /// with them, or cut its strokes and drop the erasers.
     /// </param>
     public void MergeLayerDown(
-        Layer? layer, Lightbox.Raster.EraserMerge erasers = Lightbox.Raster.EraserMerge.Flatten)
+        Layer? layer, Lightbox.Raster.EraserMerge erasers = Lightbox.Raster.EraserMerge.Group)
     {
         layer ??= ActiveLayer;
         if (MergeTargetOf(layer) is not { } below)

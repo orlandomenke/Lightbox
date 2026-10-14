@@ -22,6 +22,13 @@ public sealed class Stroke
 
     public ToolKind Tool { get; set; } = ToolKind.Brush;
 
+    /// <summary>
+    /// The strokes this entry holds, when it is a <see cref="ToolKind.Group"/>
+    /// — a layer's drawing kept inside another, as a merge leaves it (Q265).
+    /// Null, and absent from the file, for every stroke that is a mark.
+    /// </summary>
+    public StrokeGroup? Group { get; set; }
+
     /// <summary>CSS-style hex color, e.g. "#1a1a1a".</summary>
     public string Color { get; set; } = "#1a1a1a";
 
@@ -313,6 +320,10 @@ public sealed class Stroke
         // cel shared it too, and was scaled once per sharer.
         copy.Symmetry = Symmetry?.Clone();
         copy.Wrap = Wrap?.Clone();
+        // Deep, and with the same choice about ids all the way down: a shared
+        // group would let reshaping one copy of a duplicated cel reshape the
+        // other, and let an undo snapshot change under the live document.
+        copy.Group = Group?.Clone(newId);
         return copy;
     }
 }

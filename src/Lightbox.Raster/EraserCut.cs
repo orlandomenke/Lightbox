@@ -6,12 +6,16 @@ namespace Lightbox.Raster;
 /// <summary>How a merge treats a drawing whose erasers would reach the layer below.</summary>
 public enum EraserMerge
 {
-    /// <summary>Flatten that drawing to pixels: exactly what the two layers looked like.</summary>
-    Flatten,
+    /// <summary>
+    /// Keep that drawing's strokes and its erasers together in a group (Q265):
+    /// exactly what the two layers looked like, and still strokes. Until Q265
+    /// this flattened the drawing to pixels, and was called that.
+    /// </summary>
+    Group,
 
     /// <summary>
     /// Cut the drawing's own strokes where its erasers crossed them and drop the
-    /// erasers: still strokes, and nearly what the two layers looked like.
+    /// erasers: plain strokes, and nearly what the two layers looked like.
     /// </summary>
     KeepStrokes,
 }

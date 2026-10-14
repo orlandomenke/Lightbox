@@ -35,16 +35,75 @@ public static class DocJson
         return o;
     }
 
-    public static string Serialize(Doc doc) => JsonSerializer.Serialize(doc, Options);
+    public static string Serialize(Doc doc) => JsonSerializer.Serialize(Stamped(doc), Options);
+
+    /// <summary>
+    /// The document with the version its content needs written on it. Every
+    /// path that turns a document into bytes goes through here, so the number
+    /// in the file is a fact about the file.
+    /// </summary>
+    /// <remarks>
+    /// A document from a build newer than this one keeps the version it came
+    /// with: this build cannot know what that content needs, and Q237's
+    /// <c>savedByFormat</c> marker depends on the number staying put.
+    /// </remarks>
+    private static Doc Stamped(Doc doc)
+    {
+        if (!doc.IsFromANewerBuild) doc.Version = doc.RequiredVersion;
+        return doc;
+    }
 
     /// <remarks>
     /// Every way a document is read back ends in <see cref="HeldDrawings.Relink"/>:
     /// the file writes a held drawing once per cel, and the reader has to make
     /// it one drawing again (B467, Q260).
     /// </remarks>
-    public static Doc Deserialize(string json) => HeldDrawings.Relink(
-        JsonSerializer.Deserialize<Doc>(json, Options)
-        ?? throw new JsonException("Document deserialized to null."));
+    public static Doc Deserialize(string json)
+    {
+        try
+        {
+            return HeldDrawings.Relink(
+                JsonSerializer.Deserialize<Doc>(json, Options)
+                ?? throw new JsonException("Document deserialized to null."));
+        }
+        catch (JsonException e)
+        {
+            throw Explained(e, json.AsSpan(0, Math.Min(json.Length, VersionIsWithin)));
+        }
+    }
+
+    /// <summary>How far into a document its version is looked for. It is written first.</summary>
+    private const int VersionIsWithin = 256;
+
+    /// <summary>
+    /// A document that would not parse, with the reason an artist can act on
+    /// when there is one: it was saved by a newer Lightbox (Q265).
+    /// </summary>
+    /// <remarks>
+    /// A newer document that parses is opened and says so (Q234). One that does
+    /// not — a stroke kind this build has no name for is the case that made
+    /// this — failed with <i>"the JSON value could not be converted to
+    /// ToolKind"</i>, because the version was only ever read off the finished
+    /// document. Refused either way, so nothing was lost; this is what makes
+    /// the refusal say why. Read from the head of the text rather than by
+    /// parsing again: the parse is what just failed.
+    /// </remarks>
+    private static JsonException Explained(JsonException e, ReadOnlySpan<char> head)
+    {
+        const string key = "\"version\"";
+        var at = head.IndexOf(key);
+        if (at < 0) return e;
+        var rest = head[(at + key.Length)..].TrimStart();
+        if (rest.Length == 0 || rest[0] != ':') return e;
+        rest = rest[1..].TrimStart();
+        var digits = 0;
+        while (digits < rest.Length && char.IsAsciiDigit(rest[digits])) digits++;
+        if (!int.TryParse(rest[..digits], out var version) || version <= Doc.CurrentVersion) return e;
+        return new JsonException(
+            $"it was saved by a newer Lightbox (format {version}; this one reads up to format "
+            + $"{Doc.CurrentVersion}) and holds something this version cannot read. Open it in the newer version.",
+            e);
+    }
 
     /// <summary>Write the document as gzip-compressed JSON, atomically.</summary>
     /// <remarks>
@@ -83,7 +142,7 @@ public static class DocJson
         using (var file = File.Create(temp))
         using (var gzip = new GZipStream(file, CompressionLevel.Fastest))
         {
-            JsonSerializer.Serialize(gzip, doc, Options);
+            JsonSerializer.Serialize(gzip, Stamped(doc), Options);
         }
         MoveIntoPlace(temp, path);
     }
@@ -193,11 +252,35 @@ public static class DocJson
             // refused rather than read until memory runs out.
             var limit = Math.Max(InflationFloorBytes, file.Length * MaxInflationRatio);
             using var capped = new InflationCap(gzip, limit, file.Length);
-            return HeldDrawings.Relink(JsonSerializer.Deserialize<Doc>(capped, Options)
-                ?? throw new JsonException("Document deserialized to null."));
+            try
+            {
+                return HeldDrawings.Relink(JsonSerializer.Deserialize<Doc>(capped, Options)
+                    ?? throw new JsonException("Document deserialized to null."));
+            }
+            catch (JsonException e)
+            {
+                throw Explained(e, HeadOf(file));
+            }
         }
         using var reader = new StreamReader(file, leaveOpen: true);
         return Deserialize(reader.ReadToEnd());
+    }
+
+    /// <summary>The first characters of a gzipped document, or nothing if they will not read.</summary>
+    private static string HeadOf(Stream file)
+    {
+        try
+        {
+            file.Position = 0;
+            using var gzip = new GZipStream(file, CompressionMode.Decompress, leaveOpen: true);
+            var bytes = new byte[VersionIsWithin];
+            var read = gzip.ReadAtLeast(bytes, bytes.Length, throwOnEndOfStream: false);
+            return System.Text.Encoding.UTF8.GetString(bytes, 0, read);
+        }
+        catch (Exception inner) when (inner is IOException or InvalidDataException)
+        {
+            return "";
+        }
     }
 
     /// <summary>
@@ -262,7 +345,7 @@ public static class DocJson
     /// callers where a copy must also prove it survives serialization.
     /// </para>
     /// </remarks>
-    public static byte[] ToSnapshot(Doc doc) => JsonSerializer.SerializeToUtf8Bytes(doc, Compact);
+    public static byte[] ToSnapshot(Doc doc) => JsonSerializer.SerializeToUtf8Bytes(Stamped(doc), Compact);
 
     /// <summary>Rebuild a document from <see cref="ToSnapshot"/>'s bytes.</summary>
     public static Doc FromSnapshot(byte[] bytes) => HeldDrawings.Relink(

@@ -2991,7 +2991,7 @@ test reopens the bug.
   - **Found 2026-10-13 while writing the grouped merge (PR #735)**, by a test of an upper drawing with a pixel baseline merged over an empty cel: 14,742 bytes of the picture differed. `PairIsLossless` says a pair with nothing underneath "carries over as-is", and `ConcatenatedFrame` then built the merged drawing from the *lower* drawing's baseline only — null, when there is no lower drawing. An imported picture, a PSD layer or an earlier flattened merge, merged down onto a layer that has no drawing at that cel, lost its pixels and kept only the strokes drawn over them. Undo brought them back; nothing said they had gone. Present since baselines and merge first met; the eraser-over-nothing case beside it was tested and this one was not.
   - **Fix:** with nothing underneath, the merged drawing takes the upper drawing's baseline. One expression.
 
-- [x] **B469** `P2` `layers` Merging down appends a blur stroke, which then blurs the lower layer's marks `evidence: UpperBlur_Bakes_SoItCannotStartBlurringTheLowerLayer`
+- [x] **B469** `P2` `layers` Merging down appends a blur stroke, which then blurs the lower layer's marks `evidence: UpperBlur_IsKeptInAGroup_SoItCannotStartBlurringTheLowerLayer`
   - **Found by the adversary pass on the stroke-keeping merge (PR #732), 2026-10-13**, reading which strokes a merge may append as-is. `PairIsLossless` refused a smudge stroke — it reads what is underneath, and underneath gains the lower layer's marks — and let a blur stroke through, which reads what is underneath in exactly the same way. Two plain layers, the upper one with a blur stroke passing over a mark on the lower: merged by appending, the blur softens that mark's edges, which the picture before the merge never showed.
   - **Fix:** blur is refused beside smudge, so that drawing flattens and renders exactly as the pair did. One condition.
 
@@ -3059,7 +3059,7 @@ test reopens the bug.
   - **Restoring a *version* deliberately does not restore either.** `MainViewModel.Versions` zeroes the frame on purpose — *“a different record in the same slot: the framing and playhead of the replaced one are not this one’s”* (B67) — so the layer follows the playhead’s existing decision rather than inventing a different one.
   - New-document paths keep `FirstPaintableLayer`: a document nobody has saved has no layer to remember.
 
-- [x] **B286** `P2` `layers` Merge down drops live effect stacks from the render `evidence: LayerMergeTests, AMergeBakesALiveEffectStackIntoThePixels, AMergeBakesLayerStylesIntoThePixels`
+- [x] **B286** `P2` `layers` Merge down drops live effect stacks from the render `evidence: LayerMergeTests, AMergeCarriesALiveEffectStackIntoTheDrawing, AMergeCarriesLayerStylesIntoTheDrawing`
   - **Evidence.** `PairIsLossless` never checks `HasLiveEffects` and `BakedFrame` applies masks, clip and blend but no filter (read 2026-08-23, while giving the merge the style chain): merging a blurred or glowing layer concatenated its strokes, the upper layer's stack vanished with the layer, and the lower's kept applying to content it never described — a silent visual change on the exact gesture whose contract is "looks exactly like the two layers did".
   - Introduced with the effects record (#396), found and fixed while layer styles extended the same seam: `PairIsLossless` refuses a pair with a live stack, and `BakedFrame` runs each layer's content → filter → carve → style pipeline before compositing, clearing the baked stacks like it clears a baked mask.
 

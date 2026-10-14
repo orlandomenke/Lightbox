@@ -198,6 +198,7 @@ public static class TransformErasures
         private (bool Inside, bool Outside, bool Any) Across(int position)
         {
             var stroke = _strokes[position];
+            if (stroke.Group is { } group) return AcrossGroup(stroke, group);
             var raw = IsErasure(stroke) || stroke.Tool == ToolKind.Gradient;
             var (inside, outside, any) = AlongThePath(position, stroke, raw);
             // B432: the path is where the pen went, not where the ink is. A
@@ -210,6 +211,50 @@ public static class TransformErasures
             if (any && !inside && !raw && InkReaches(position, stroke)) inside = true;
             return (inside, outside, any);
         }
+
+        /// <summary>
+        /// A group is where the ink inside it is (Q265): the entry has no
+        /// points of its own, and judged by them a selection drawn straight
+        /// over a merged drawing found nothing to move.
+        /// </summary>
+        /// <remarks>
+        /// Read as a drawing of its own — a reading of the group's record, so
+        /// an eraser inside the group takes ink away from the answer exactly as
+        /// it does on the page, and a group inside it is read the same way.
+        /// Erasures <em>after</em> the group in this record are not applied to
+        /// what is inside it: the group is judged by its own record. That errs
+        /// toward catching it, and what a caught group does is be cut at the
+        /// region's edge, under which its erased ink is still erased — the
+        /// erasure that took it is a stroke in this record and is caught, or
+        /// left holding it down, by the rules above.
+        /// </remarks>
+        private (bool Inside, bool Outside, bool Any) AcrossGroup(Stroke stroke, StrokeGroup group)
+        {
+            if (_groupVerdicts.TryGetValue(stroke, out var known)) return known;
+            var within = new RegionReading(group.Strokes, _mask, _w, _h);
+            bool inside = false, outside = false, any = false;
+            for (var i = 0; i < group.Strokes.Count; i++)
+            {
+                // An erasure has no ink: it says nothing about where the group is.
+                if (IsErasure(group.Strokes[i])) continue;
+                var (childInside, childOutside, childAny) = within.Across(i);
+                inside |= childInside;
+                outside |= childOutside;
+                any |= childAny;
+                if (inside && outside) break;
+            }
+            // Stored pixels can be anywhere on the page: on both sides of any
+            // region that is not the whole of it.
+            if (!string.IsNullOrEmpty(group.PngBase64))
+            {
+                any = true;
+                inside |= Array.IndexOf(_mask, true) >= 0;
+                outside |= Array.IndexOf(_mask, false) >= 0;
+            }
+            return _groupVerdicts[stroke] = (inside, outside, any);
+        }
+
+        private readonly Dictionary<Stroke, (bool Inside, bool Outside, bool Any)> _groupVerdicts = [];
 
         private (bool Inside, bool Outside, bool Any) AlongThePath(int position, Stroke stroke, bool raw)
         {
@@ -497,10 +542,16 @@ public static class TransformErasures
     /// pose-space write-back for a rigged drawing. Every stroke this method
     /// moves goes through it, the travelling half of a split one included.
     /// </param>
+    /// <param name="moved">
+    /// Told each stroke that travelled, after it has — for what a transform
+    /// carries that is not geometry. A group's stored pixels are the case
+    /// (Q265): they are resampled where Skia and the matrix are, and only the
+    /// half of a cut group that moved may be.
+    /// </param>
     public static int TransformFrame(
         Frame frame, TransformOps.PointMap map, double sizeScale, Func<Stroke, bool> filter,
         Func<Stroke, RegionClips?>? split = null, Func<string, string>? mapClip = null,
-        TransformOps.StrokeMover? mover = null)
+        TransformOps.StrokeMover? mover = null, Action<Stroke>? moved = null)
     {
         var strokes = TransformOps.StrokesOf(frame);
         // Every filter decision is taken before anything moves: the region
@@ -544,10 +595,18 @@ public static class TransformErasures
                 stroke.ClipId = clips.Stayed;
                 result.Add(stroke);
 
-                var moved = stroke.Clone();
-                moved.ClipId = clips.Moved;
-                TransformOps.TransformStroke(moved, map, sizeScale, mover: mover);
-                result.Add(moved);
+                var travelling = stroke.Clone();
+                travelling.ClipId = clips.Moved;
+                // A group's own clip is the split's, as any stroke's is — but
+                // the strokes inside it carry clips of their own that the split
+                // never saw, and those travel with them (Q265).
+                TransformOps.TransformStroke(
+                    travelling, map, sizeScale, travelling.Group is null ? null : mapClip, mover);
+                // …and the entry's own is the split's, already carried to
+                // where the half is going: put back, not carried twice.
+                travelling.ClipId = clips.Moved;
+                moved?.Invoke(travelling);
+                result.Add(travelling);
                 count++;
                 continue;
             }
@@ -560,6 +619,7 @@ public static class TransformErasures
                 result.Add(stroke.Clone());
             }
             TransformOps.TransformStroke(stroke, map, sizeScale, mapClip, mover);
+            moved?.Invoke(stroke);
             result.Add(stroke);
             count++;
         }
@@ -579,6 +639,8 @@ public static class TransformErasures
         // Baseline pixels never move under a region-limited transform, and the
         // record cannot say where their ink is.
         if (frame.HasBaseline) return true;
+        // Nor where a group's are (Q265).
+        if (StrokeGroups.HoldsPixels(record)) return true;
 
         var erasure = ReachBounds(record[index]);
         // Replay order: an erasure only takes paint from what was laid before it.

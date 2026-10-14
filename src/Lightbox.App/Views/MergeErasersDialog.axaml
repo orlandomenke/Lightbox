@@ -7,25 +7,27 @@
         WindowStartupLocation="CenterOwner">
 
   <!--
-    Q264. Asked only when it changes the result: a drawing on the layer being
-    merged has erasing in it and nothing else stands in the way of keeping its
-    strokes. Keeping strokes is first and the default, because a line-art
-    drawing nearly always has erasing in it and flattening it is the answer an
-    artist regrets later — but it is the nearly-exact answer, and the dialog
-    says so rather than letting the picture change by a hair unannounced.
+    Q264, reworded by Q265. Asked only when it changes the result: a drawing
+    on the layer being merged has erasing in it and nothing else stands in the
+    way of appending its strokes. Both answers keep the strokes now; what is
+    chosen is whether each line stays its own (cut, nearly exact) or the
+    drawing stays exactly as it was (a group, which moves as one for now).
+    Cutting is first and the default, as the owner chose when the other answer
+    was pixels — and the dialog still says it is the nearly-exact one rather
+    than letting the picture change by a hair unannounced.
   -->
   <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
     <TextBlock x:Name="Explanation" TextWrapping="Wrap" />
 
     <StackPanel Spacing="{StaticResource Space8}">
-      <RadioButton x:Name="KeepOption" Content="Keep strokes" IsChecked="True" />
-      <TextBlock Text="Lines are cut where you erased them and the erasers are dropped. Those drawings stay strokes: editable, and readable by the AI. Nearly exact — a soft eraser becomes a hard cut."
+      <RadioButton x:Name="KeepOption" Content="Cut the lines" IsChecked="True" />
+      <TextBlock Text="Each line is cut where you erased it and the erasers are dropped. Each line stays editable on its own. Nearly exact: a soft eraser becomes a hard cut."
                  TextWrapping="Wrap" Margin="{StaticResource OptionDetailIndent}" Opacity="0.7" />
     </StackPanel>
 
     <StackPanel Spacing="{StaticResource Space8}">
-      <RadioButton x:Name="FlattenOption" Content="Flatten to pixels" />
-      <TextBlock Text="Those drawings become pictures: exact, but no longer strokes."
+      <RadioButton x:Name="GroupOption" Content="Keep exact" />
+      <TextBlock Text="The strokes and erasers stay together as one group: exact, and the AI still reads every line. The group moves as one piece; its lines cannot be picked singly yet."
                  TextWrapping="Wrap" Margin="{StaticResource OptionDetailIndent}" Opacity="0.7" />
     </StackPanel>
 

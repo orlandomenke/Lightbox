@@ -69,6 +69,10 @@ public static class TiledRasterizer
     {
         foreach (var stroke in strokes)
         {
+            // A group (Q265) stamps its strokes on a surface of its own and
+            // puts that on the tile at the tile's corner — B59's assumption,
+            // one level down. It takes the whole-frame path.
+            if (stroke.Group is not null) return false;
             if (stroke.Brush.Kind is BrushKind.Smudge or BrushKind.Blur) return false;
             // A mixing brush reads the layer under its dabs at document
             // offsets, exactly the assumption B59 measured as wrong per tile.

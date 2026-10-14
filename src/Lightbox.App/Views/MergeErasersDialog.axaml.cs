@@ -32,8 +32,8 @@ public partial class MergeErasersDialog : Window
 
     private void OnMerge(object? sender, RoutedEventArgs e) =>
         Close(new MergeErasersAnswer(
-            this.FindControl<RadioButton>("FlattenOption")!.IsChecked == true
-                ? EraserMerge.Flatten
+            this.FindControl<RadioButton>("GroupOption")!.IsChecked == true
+                ? EraserMerge.Group
                 : EraserMerge.KeepStrokes,
             this.FindControl<CheckBox>("Remember")!.IsChecked == true));
 

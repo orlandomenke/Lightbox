@@ -42,11 +42,12 @@ public static class FrameTranslate
 {
     /// <summary>Whether any stroke carries a baked raster, so a caller can round the offset to whole pixels first.</summary>
     public static bool HasBakedRaster(Frame frame) =>
-        frame.Strokes.Any(s => s.Baked is { PngBase64.Length: > 0 });
+        StrokeGroups.Everything(frame.Strokes).Any(s => s.Baked is { PngBase64.Length: > 0 });
 
     /// <summary>Whether any stroke is clip-limited, so a caller can refuse rather than move ink out from under its mask.</summary>
+    /// <remarks>Through groups (Q265), and a group's own clip counts: a selection cut it.</remarks>
     public static bool HasClippedStrokes(Frame frame) =>
-        frame.Strokes.Any(s => s.ClipId is not null);
+        StrokeGroups.Everything(frame.Strokes).Any(s => s.ClipId is not null);
 
     /// <summary>
     /// Translate the drawing in place. False when the frame has a pixel
@@ -55,9 +56,14 @@ public static class FrameTranslate
     public static bool Apply(Frame frame, double dx, double dy)
     {
         if (frame.HasBaseline) return false;
+        // Stored pixels inside a group (Q265) are a baseline one level in, and
+        // cannot be moved from here either. A mask's own baseline likewise.
+        if (StrokeGroups.HoldsPixels(frame.Strokes)) return false;
         if (dx == 0 && dy == 0) return true;
 
-        foreach (var stroke in frame.Strokes)
+        // Through groups: the entry has no points, and what is inside it —
+        // its strokes and the mask it is carved by — is the drawing.
+        foreach (var stroke in StrokeGroups.Everything(frame.Strokes))
         {
             stroke.Points = [.. stroke.Points.Select(p => p with { X = p.X + dx, Y = p.Y + dy })];
             stroke.Holes = stroke.Holes?
