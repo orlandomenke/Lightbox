@@ -27,6 +27,15 @@ more control to learn and a setting to store per gap).
 
 - A deliberate change of output for ＋ Inbetween on any gap where a line turns;
   a gap where lines only move or bend in place is unchanged.
-- The joint is a guess — the end that moves least. A line whose two ends move
-  alike has no joint and turns about its middle, which is the old behaviour for
-  a line that only moves.
+- The joint is a blend of the line's two ends and its middle, weighted by how
+  little each moves (a still hip wins, a still middle wins; ends that move
+  alike put it between them). Picking "the end that moves least" outright was
+  tried first and failed review: the joint flipped on a pixel, and a line
+  turning about its middle drifted 20px.
+- Lines that meet at both keys are welded so they meet between them — a
+  thigh's and a shin's knee ends travel on two different arcs otherwise and
+  parted 10px (the art-director).
+- **Known limits, not fixed:** a turn of more than half a circle (a windmilling
+  arm, a wheel) takes the short way round, because each pair of keys is judged
+  alone; and a line that both turns a lot and changes shape a lot can bulge,
+  because the change of shape is blended on top of the turn.

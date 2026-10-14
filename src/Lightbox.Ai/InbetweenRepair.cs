@@ -36,10 +36,11 @@ public sealed record RepairedRun(IReadOnlyList<RepairedFrame> Frames, int Calls)
     /// </summary>
     /// <remarks>
     /// It matters most on a repaired frame, which is why it is surfaced by a
-    /// loop rather than by the verifier's caller. Flattening toward the
-    /// deterministic chord is the one move that passes every geometric check
-    /// by construction, so it is the path of least resistance for a model
-    /// being pushed to correct itself. Q33 says that is a note and never a
+    /// loop rather than by the verifier's caller. Copying the deterministic
+    /// answer — the engine's arc since Q272, a chord before — is the one move
+    /// that passes every geometric check by construction, so it is the path of
+    /// least resistance for a model being pushed to correct itself. A plain
+    /// chord no longer counts here: it reads as a departure from the arc. Q33 says that is a note and never a
     /// veto — but a note nobody can see is not a note, and repair is what
     /// gives a model a reason to take that path.
     /// </remarks>

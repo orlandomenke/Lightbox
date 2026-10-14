@@ -14,6 +14,10 @@ follows a curve instead of sliding along a straight line and shrinking on the
 way. Whatever else changes between your keys, a bend straightening, a line
 growing, is blended in on top, and at the keys themselves the line is exactly
 what you drew. A line that only moves, without turning, moves as it always did.
+Lines that meet in both keys — a thigh and a shin at the knee — still meet in
+every inbetween. Two limits: a line that turns more than half a circle between
+two keys goes the short way round (add a breakdown to steer it), and a line
+that turns a lot *and* changes shape a lot can bulge on the way.
 
 **A run is extreme to extreme, and a breakdown is a stop along the way rather
 than the end of it.** Mark a cel as a breakdown and **＋ Inbetween** fills every

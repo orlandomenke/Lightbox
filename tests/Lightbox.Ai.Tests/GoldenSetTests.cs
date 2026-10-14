@@ -132,9 +132,24 @@ public class GoldenSetTests(ITestOutputHelper output)
         Assert.All(chord.Outcomes.Where(o => o.Category == GoldenCategory.Arc), o => Assert.True(o.Accepted));
         Assert.All(arcing.Outcomes.Where(o => o.Category == GoldenCategory.Arc), o => Assert.True(o.Accepted));
 
-        Assert.Contains("the free engine's own answer", Row(chord));
+        Assert.Contains("the free engine's own arc", Row(chord));
         Assert.Contains("departed", Row(arcing));
         Assert.NotEqual(Row(chord), Row(arcing));
+    }
+
+    /// <summary>
+    /// A model that only lerps — the free engine before Q272 — is still named
+    /// as one. Departure from the engine alone cannot say it: since the engine
+    /// arcs, a chord departs from it as an arc does (the ai-engineer, 2026-10-14).
+    /// </summary>
+    [Fact]
+    public async Task TheArcRowStillNamesAChord()
+    {
+        var chord = await Profile(new ArcingArtist(0), GoldenSet.Short());
+
+        var row = chord.Categories.Single(c => c.Category == GoldenCategory.Arc).Headline;
+        output.WriteLine(row);
+        Assert.Contains("along the chord", row);
     }
 
     /// <summary>
@@ -307,7 +322,9 @@ public class GoldenSetTests(ITestOutputHelper output)
         /// Q272 the free engine swings its own lines on arcs, so this is still a
         /// model whose motion differs from the engine's and is between the keys.
         /// It bowed downward before, the wrong way for this pendulum, which the
-        /// chord engine could not see and the arc engine refuses (50px off).
+        /// chord engine could not see and the arc engine refuses (50px off);
+        /// and it lifted the whole rod, pivot included, which the anchor check
+        /// refuses once it reads the engine's arc.
         /// </remarks>
         public override Task<AiResult<List<InbetweenFrameResult>>> GenerateInbetweensAsync(
             InbetweenRequest request, CancellationToken ct)
@@ -324,8 +341,12 @@ public class GoldenSetTests(ITestOutputHelper output)
                     if (pair.A is null || pair.B is null) continue;
                     var (pa, pb) = Core.Inbetween.StrokeInterpolator.Aligned(pair.A, pair.B);
                     var chord = pair.A.Clone();
+                    // Lifted along the rod, from nothing at its first point (the
+                    // pendulum's pivot, which the keys hold still) to the full
+                    // bulge at its tip: moving the pivot is a fault of its own.
                     chord.Points = [.. pa.Select((p, i) => new StrokePoint(
-                        p.X + (pb[i].X - p.X) * et, p.Y + (pb[i].Y - p.Y) * et - bulge, p.Pressure))];
+                        p.X + (pb[i].X - p.X) * et,
+                        p.Y + (pb[i].Y - p.Y) * et - bulge * i / Math.Max(1, pa.Count - 1), p.Pressure))];
                     strokes.Add(chord);
                 }
                 frames.Add(new InbetweenFrameResult(t, strokes));

@@ -106,4 +106,84 @@ public class ArcTests(ITestOutputHelper output)
         output.WriteLine($"halfway length {length:0.0}");
         Assert.InRange(length, 192, 204);
     }
+
+    /// <summary>
+    /// A leg with its foot planted: the thigh swings forward from the hip, the
+    /// shin turns about the ankle. Each line on its own would put the knee on
+    /// its own arc, and they would part (the art-director, 2026-10-14).
+    /// </summary>
+    [Fact]
+    public void TwoLinesThatMeetAtBothKeysStillMeetBetweenThem()
+    {
+        var thighA = Line((100, 100), (100, 150), (100, 200));
+        var shinA = Line((100, 200), (100, 250), (100, 300));
+        var knee = (X: 100 + 100 * Math.Sin(Math.PI / 4), Y: 100 + 100 * Math.Cos(Math.PI / 4));
+        var thighB = Line((100, 100), ((100 + knee.X) / 2, (100 + knee.Y) / 2), (knee.X, knee.Y));
+        var shinB = Line((knee.X, knee.Y), ((knee.X + 100) / 2, (knee.Y + 300) / 2), (100, 300));
+
+        var half = Inbetweener.Inbetween([thighA, shinA], [thighB, shinB], 0.5, Easing.Linear);
+
+        var thigh = half.Single(s => GeometryOps.Dist(s.Points[0], new StrokePoint(100, 100, 0)) < 2);
+        var shin = half.Single(s => s != thigh);
+        var gap = new[] { shin.Points[0], shin.Points[^1] }.Min(p => GeometryOps.Dist(p, thigh.Points[^1]));
+        output.WriteLine($"knee gap {gap:0.00}px; thigh {GeometryOps.PathLength(thigh.Points):0.0}, shin {GeometryOps.PathLength(shin.Points):0.0}");
+        Assert.True(gap < 1, $"the knee came apart by {gap:0.0}px");
+        // The hip and the planted ankle stay where they are.
+        Assert.True(GeometryOps.Dist(thigh.Points[0], new StrokePoint(100, 100, 0)) < 1);
+        Assert.Contains(new[] { shin.Points[0], shin.Points[^1] }, p => GeometryOps.Dist(p, new StrokePoint(100, 300, 0)) < 1);
+    }
+
+    [Fact]
+    public void AThrownRodKeepsItsLengthAndItsMiddleNearlyOnAStraightPath()
+    {
+        // A club thrown across, turning a quarter turn on the way.
+        var a = Line((100, 200), (200, 200));
+        var b = Line((350, 150), (350, 250));
+
+        var half = StrokeInterpolator.Interpolate(a, b, 0.5);
+
+        var middle = half.Points[half.Points.Count / 2];
+        output.WriteLine($"middle at ({middle.X:0.0}, {middle.Y:0.0}); length {GeometryOps.PathLength(half.Points):0.0}");
+        // Its ends do not move alike (255 and 158px for a quarter turn in flight),
+        // so the joint sits between the nearer end and the middle: within a few
+        // pixels of the straight path, measured 4.2.
+        Assert.True(GeometryOps.Dist(middle, new StrokePoint(250, 200, 0)) < 6);
+        Assert.InRange(GeometryOps.PathLength(half.Points), 97, 103);
+    }
+
+    [Fact]
+    public void AJointDoesNotJumpWhenTheTwoEndsMoveNearlyAlike()
+    {
+        // A bar turning 10 degrees about its middle while its ends move the same
+        // 8.8px; the second take nudges one end of key B by a pixel. Picking
+        // "the end that moves least" flipped the joint on that pixel; a blend
+        // gives nearly the same drawing.
+        var a = Line((100, 200), (200, 200));
+        var b1 = Line((101.63, 191.39), (200.11, 208.76));
+        var b2 = Line((102.63, 191.39), (200.11, 208.76));
+
+        var h1 = StrokeInterpolator.Interpolate(a, b1, 0.5);
+        var h2 = StrokeInterpolator.Interpolate(a, b2, 0.5);
+
+        var worst = h1.Points.Zip(h2.Points).Max(z => GeometryOps.Dist(z.First, z.Second));
+        output.WriteLine($"two takes differ by at most {worst:0.0}px");
+        Assert.True(worst < 3, $"{worst:0.0}px");
+    }
+
+    [Fact]
+    public void ALineTurningAboutItsMiddleKeepsItsMiddleStill()
+    {
+        // The golden set's cross: a bar turning a quarter turn about its
+        // centre (the ai-engineer, 2026-10-14). Hung from an end, its middle
+        // drifted 20px and a model's correct answer was refused.
+        var a = Line((60, 128), (196, 128));
+        var b = Line((128, 60), (128, 196));
+
+        var half = StrokeInterpolator.Interpolate(a, b, 0.5);
+
+        var middle = GeometryOps.Centroid(half.Points);
+        output.WriteLine($"middle at ({middle.X:0.0}, {middle.Y:0.0}), length {GeometryOps.PathLength(half.Points):0.0}");
+        Assert.True(GeometryOps.Dist(middle, new StrokePoint(128, 128, 0)) < 2);
+        Assert.InRange(GeometryOps.PathLength(half.Points), 130, 142);
+    }
 }

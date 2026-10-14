@@ -42,11 +42,16 @@ public static class Inbetweener
         for (var i = 0; i < eb.Count; i++) indexInB[eb[i].Id] = i;
 
         var ordered = new List<(int Key, Stroke Stroke)>();
+        var swung = new List<(Stroke Line, StrokePoint A0, StrokePoint AN, StrokePoint B0, StrokePoint BN)>();
         foreach (var pair in StrokeMatcher.Match(ea, eb))
         {
             if (pair.A is not null && pair.B is not null)
             {
-                ordered.Add((indexInA[pair.A.Id], StrokeInterpolator.Interpolate(pair.A, pair.B, et)));
+                var line = StrokeInterpolator.Interpolate(pair.A, pair.B, et);
+                ordered.Add((indexInA[pair.A.Id], line));
+                // The ends as the interpolation lined them up, for the weld below.
+                var (pa, pb) = StrokeInterpolator.Aligned(pair.A, pair.B);
+                if (pa.Count > 0 && pb.Count > 0) swung.Add((line, pa[0], pa[^1], pb[0], pb[^1]));
             }
             else if (pair.A is not null)
             {
@@ -71,6 +76,11 @@ public static class Inbetweener
                 }
             }
         }
+        // Lines that meet at both keys meet between them (Q272): each swings
+        // about its own joint, and a knee shared by a thigh and a shin would
+        // otherwise part halfway.
+        var pen = ea.Concat(eb).Select(s => s.Brush.Size).DefaultIfEmpty(1).Max();
+        Arc.Weld(swung, Math.Max(3, pen * 1.5));
         return ordered.OrderBy(x => x.Key).Select(x => x.Stroke).ToList();
     }
 

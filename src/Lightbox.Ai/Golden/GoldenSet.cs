@@ -15,7 +15,7 @@ public enum GoldenCategory
     /// <summary>Can it place a drawing between two keys at all.</summary>
     Swing,
 
-    /// <summary>Does it arc, or interpolate along the chord like the free engine.</summary>
+    /// <summary>Does it arc, as the free engine does since Q272, or interpolate along the chord.</summary>
     Arc,
 
     /// <summary>Does it keep correspondence when the drawing turns rather than travels.</summary>
