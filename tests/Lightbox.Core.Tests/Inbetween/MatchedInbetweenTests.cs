@@ -213,7 +213,8 @@ public class MatchedInbetweenTests(ITestOutputHelper output)
         // any line of key B's: it goes, but it goes with the shoe.
         var a = Box(0, 0);
         a.Add(Path((140, 130), (160, 130)));
-        var frame = MatchedInbetween.Inbetween(a, Box(60, 20), [new PartMatch([0, 1, 2, 3, 4], [0, 1, 2, 3])], 0.25, Easing.Linear);
+        // Told to bend: a solid object shows its key's lace whole until halfway instead.
+        var frame = MatchedInbetween.Inbetween(a, Box(60, 20), [new PartMatch([0, 1, 2, 3, 4], [0, 1, 2, 3], Solid: false)], 0.25, Easing.Linear);
 
         var lace = frame.Single(s => s.Brush.Opacity < 1);
         output.WriteLine($"lace at ({lace.Points[0].X:0}, {lace.Points[0].Y:0})");
@@ -248,5 +249,96 @@ public class MatchedInbetweenTests(ITestOutputHelper output)
         output.WriteLine($"{frame.Count} strokes, outline worst {outline:0.0}px from the box halfway");
         // Pairing pieces one to one, the version this replaced, was 13.0px.
         Assert.True(outline < 4, $"worst {outline:0.0}px");
+    }
+
+    /// <summary>A shoe-like object: an outline in four lines, a sole line and a lace, turned about its middle and moved.</summary>
+    private static List<Stroke> Shoe(double angleDeg, double dx, double dy, bool redrawn)
+    {
+        var c = (X: 150.0, Y: 130.0);
+        var a = angleDeg * Math.PI / 180;
+        (double X, double Y) P(double x, double y) =>
+            (c.X + dx + (x - c.X) * Math.Cos(a) - (y - c.Y) * Math.Sin(a),
+             c.Y + dy + (x - c.X) * Math.Sin(a) + (y - c.Y) * Math.Cos(a));
+        if (!redrawn)
+        {
+            return
+            [
+                Path(P(100, 100), P(200, 100)), Path(P(200, 100), P(200, 160)),
+                Path(P(200, 160), P(100, 160)), Path(P(100, 160), P(100, 100)),
+                Path(P(105, 150), P(195, 150)), Path(P(130, 115), P(170, 125)),
+            ];
+        }
+        // The same shoe drawn another way: two corners, the sole backwards, the lace first.
+        return
+        [
+            Path(P(170, 125), P(130, 115)),
+            Path(P(100, 100), P(200, 100), P(200, 160)),
+            Path(P(195, 150), P(105, 150)),
+            Path(P(200, 160), P(100, 160), P(100, 100)),
+        ];
+    }
+
+    private static double OffShoe(IEnumerable<Stroke> drawn, List<Stroke> shoe) =>
+        drawn.SelectMany(s => s.Points).Max(p => shoe.Min(e => DistanceTo(p, e)));
+
+    [Fact]
+    public void ASolidObjectTurnsAndMovesAsOneDrawingTheNearerKeysLines()
+    {
+        // Turned 40 degrees and moved; halfway-ish it is the same shoe turned
+        // part of the way and moved part of the way — whichever key it shows.
+        var a = Shoe(0, 0, 0, redrawn: false);
+        var b = Shoe(40, 80, 30, redrawn: true);
+        List<PartMatch> solid = [new PartMatch([0, 1, 2, 3, 4, 5], [0, 1, 2, 3], Solid: true)];
+
+        var early = MatchedInbetween.Inbetween(a, b, solid, 0.25, Easing.Linear);
+        var late = MatchedInbetween.Inbetween(a, b, solid, 0.75, Easing.Linear);
+
+        var offEarly = OffShoe(early, Shoe(10, 20, 7.5, redrawn: false));
+        var offLate = OffShoe(late, Shoe(30, 60, 22.5, redrawn: false));
+        output.WriteLine($"t 0.25: {early.Count} strokes, {offEarly:0.0}px off; t 0.75: {late.Count} strokes, {offLate:0.0}px off");
+        Assert.Equal(6, early.Count);   // key A's lines
+        Assert.Equal(4, late.Count);    // key B's lines
+        Assert.True(offEarly < 2, $"{offEarly:0.0}px");
+        Assert.True(offLate < 2, $"{offLate:0.0}px");
+    }
+
+    [Fact]
+    public void ASolidObjectKeepsTheShapeOfEveryLine()
+    {
+        var a = Shoe(0, 0, 0, redrawn: false);
+        var b = Shoe(40, 80, 30, redrawn: true);
+
+        var frame = MatchedInbetween.Inbetween(a, b, [new PartMatch([0, 1, 2, 3, 4, 5], [0, 1, 2, 3], Solid: true)], 0.25, Easing.Linear);
+
+        // Moved and turned, never bent: each line is as long as the one it came from.
+        for (var i = 0; i < a.Count; i++)
+        {
+            Assert.Equal(GeometryOps.PathLength(a[i].Points), GeometryOps.PathLength(frame[i].Points), 0);
+        }
+    }
+
+    [Fact]
+    public void AMatchOfManySmallLinesIsSolidUnlessTheArtistSaysOtherwise()
+    {
+        var a = Shoe(0, 0, 0, redrawn: false);
+        var b = Shoe(40, 80, 30, redrawn: true);
+
+        var auto = MatchedInbetween.Inbetween(a, b, [new PartMatch([0, 1, 2, 3, 4, 5], [0, 1, 2, 3])], 0.25, Easing.Linear);
+        var bent = MatchedInbetween.Inbetween(a, b, [new PartMatch([0, 1, 2, 3, 4, 5], [0, 1, 2, 3], Solid: false)], 0.25, Easing.Linear);
+
+        var offAuto = OffShoe(auto, Shoe(10, 20, 7.5, redrawn: false));
+        var offBent = OffShoe(bent, Shoe(10, 20, 7.5, redrawn: false));
+        output.WriteLine($"automatic {offAuto:0.0}px off, told to bend {offBent:0.0}px off");
+        Assert.True(offAuto < 2, $"{offAuto:0.0}px");
+        Assert.True(offBent > offAuto + 1, "told not to be solid, it is drawn the bending way");
+    }
+
+    [Fact]
+    public void ALongLineInPiecesIsNotSolidByDefault()
+    {
+        // The L case: one line drawn as two pieces bends, as it always has.
+        var frame = MatchedInbetween.Inbetween([L(0)], LRedrawn(40), [new PartMatch([0], [0, 1])], 0.5, Easing.Linear);
+
+        Assert.True(Worst(frame, L(20)) < 4);
     }
 }

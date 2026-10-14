@@ -14,7 +14,12 @@ namespace Lightbox.Core.Inbetween;
 /// engine strings each side together by its nearest ends, which it does more
 /// reliably than an answer can state it.
 /// </remarks>
-public sealed record PartMatch(IReadOnlyList<int> A, IReadOnlyList<int> B);
+/// <param name="Solid">
+/// Whether the part is one solid object — a shoe, a cuff — that moves, turns
+/// and scales as a whole, drawn from the nearer key's lines; null leaves it to
+/// the engine, which treats a part of many small lines that way (Q271).
+/// </param>
+public sealed record PartMatch(IReadOnlyList<int> A, IReadOnlyList<int> B, bool? Solid = null);
 
 /// <summary>
 /// An inbetween drawn from a stated correspondence (Q270, 2026-10-14).
@@ -65,7 +70,8 @@ public static class MatchedInbetween
         var parts = matches
             .Select(m => new PartMatch(
                 [.. m.A.Select(r => ia.GetValueOrDefault(r, -1)).Where(i => i >= 0)],
-                [.. m.B.Select(r => ib.GetValueOrDefault(r, -1)).Where(i => i >= 0)]))
+                [.. m.B.Select(r => ib.GetValueOrDefault(r, -1)).Where(i => i >= 0)],
+                m.Solid))
             .Where(p => p.A.Count > 0 || p.B.Count > 0)
             .ToList();
         return Inbetween(sa, sb, parts, t, easing);
@@ -107,7 +113,11 @@ public static class MatchedInbetween
         {
             var pa = Claim(part.A, a, claimedA);
             var pb = Claim(part.B, b, claimedB);
-            if (pa.Count > 0 && pb.Count > 0) drawn.AddRange(IsCluster(pa, pb) ? Together(pa, pb, et) : Tween(pa, pb, et));
+            if (pa.Count > 0 && pb.Count > 0)
+            {
+                var cluster = IsCluster(pa, pb);
+                drawn.AddRange((part.Solid ?? cluster) ? Solid(pa, pb, et) : cluster ? Together(pa, pb, et) : Tween(pa, pb, et));
+            }
             else if (pa.Count > 0) drawn.AddRange(Fade(pa, Math.Max(0, 1 - et * 2)));
             else if (pb.Count > 0) drawn.AddRange(Fade(pb, Math.Max(0, et * 2 - 1)));
         }
@@ -233,16 +243,17 @@ public static class MatchedInbetween
     {
         var (ca, ra) = Frame(a);
         var (cb, rb) = Frame(b);
-        var inkA = a.SelectMany(s => LinePieces.Even(s.Points, 3)).ToList();
-        var inkB = b.SelectMany(s => LinePieces.Even(s.Points, 3)).ToList();
+        var inkA = new InkGrid(a.SelectMany(s => LinePieces.Even(s.Points, 3)));
+        var inkB = new InkGrid(b.SelectMany(s => LinePieces.Even(s.Points, 3)));
         var pen = Math.Max(a.Concat(b).Max(s => s.Brush.Size), 1);
 
         // Lines with nothing near them in the other key, once the two are laid
         // over each other; the part's motion is then the motion of the rest.
-        bool Orphan(Stroke s, List<StrokePoint> other, StrokePoint from, StrokePoint to, double scale, double spread)
+        bool Orphan(Stroke s, InkGrid other, StrokePoint from, StrokePoint to, double scale, double spread)
         {
             var reach = Math.Max(pen * 2, spread * 0.15);
-            var gaps = LinePieces.Even(s.Points, 3)
+            // A median needs a sample, not every point: 32 along the line.
+            var gaps = (s.Points.Count < 2 ? s.Points.ToList() : GeometryOps.Resample(s.Points, 32))
                 .Select(p => Nearest(Over(p, from, to, scale), other).Distance)
                 .OrderBy(d => d)
                 .ToList();
@@ -255,8 +266,8 @@ public static class MatchedInbetween
         {
             (ca, ra) = Frame([.. a.Where(s => !orphanA.Contains(s))]);
             (cb, rb) = Frame([.. b.Where(s => !orphanB.Contains(s))]);
-            inkA = a.Where(s => !orphanA.Contains(s)).SelectMany(s => LinePieces.Even(s.Points, 3)).ToList();
-            inkB = b.Where(s => !orphanB.Contains(s)).SelectMany(s => LinePieces.Even(s.Points, 3)).ToList();
+            inkA = new InkGrid(a.Where(s => !orphanA.Contains(s)).SelectMany(s => LinePieces.Even(s.Points, 3)));
+            inkB = new InkGrid(b.Where(s => !orphanB.Contains(s)).SelectMany(s => LinePieces.Even(s.Points, 3)));
         }
         var scale = ra > 0 && rb > 0 ? rb / ra : 1;
         var centre = GeometryOps.LerpPoint(ca, cb, et);
@@ -313,15 +324,48 @@ public static class MatchedInbetween
     private static StrokePoint Over(StrokePoint p, StrokePoint from, StrokePoint to, double scale) =>
         p with { X = to.X + (p.X - from.X) * scale, Y = to.Y + (p.Y - from.Y) * scale };
 
-    private static (StrokePoint Point, double Distance) Nearest(StrokePoint p, List<StrokePoint> ink)
+    private static (StrokePoint Point, double Distance) Nearest(StrokePoint p, InkGrid ink) => ink.Nearest(p);
+
+    /// <summary>
+    /// A part of many small lines drawn as one solid object (Q271): the nearer
+    /// key's lines, moved, turned and scaled part of the way to where the
+    /// other key has the same object. Never bent, so every line keeps the
+    /// shape the artist gave it — a shoe stays a shoe the artist drew.
+    /// </summary>
+    /// <remarks>
+    /// The motion is fitted, not assumed: the other key's ink is pulled onto
+    /// this key's ink both ways round from several starting turns, and the
+    /// closest fit kept. The part then turns about its bounding box's middle
+    /// and that middle travels in a straight line — the same rule the rest of
+    /// the engine follows, so a shoe does not swing off on an arc of its own.
+    /// </remarks>
+    private static IEnumerable<Stroke> Solid(List<Stroke> a, List<Stroke> b, double et)
     {
-        var (best, distance) = (ink[0], double.MaxValue);
-        foreach (var q in ink)
+        var inkA = a.SelectMany(s => LinePieces.Even(s.Points, 3)).ToList();
+        var inkB = b.SelectMany(s => LinePieces.Even(s.Points, 3)).ToList();
+        var fit = Similarity.Fit(inkA, inkB, Frame(a), Frame(b));
+        var centre = Frame(a).Centre;
+        var travel = fit.Apply(centre);
+        var turn = fit.Angle * et;
+        var size = Math.Pow(fit.Scale, et);
+        var (cos, sin) = (Math.Cos(turn), Math.Sin(turn));
+        StrokePoint Place(StrokePoint p)
         {
-            var d = (q.X - p.X) * (q.X - p.X) + (q.Y - p.Y) * (q.Y - p.Y);
-            if (d < distance) (best, distance) = (q, d);
+            var (x, y) = ((p.X - centre.X) * size, (p.Y - centre.Y) * size);
+            return p with
+            {
+                X = centre.X + (travel.X - centre.X) * et + x * cos - y * sin,
+                Y = centre.Y + (travel.Y - centre.Y) * et + x * sin + y * cos,
+            };
         }
-        return (best, Math.Sqrt(distance));
+        var (from, back) = et < 0.5 ? (a, (Func<StrokePoint, StrokePoint>)(p => p)) : (b, fit.Invert);
+        foreach (var s in from)
+        {
+            var piece = s.Clone();
+            piece.Points = [.. s.Points.Select(p => Place(back(p)))];
+            piece.Path = null;
+            yield return piece;
+        }
     }
 
     /// <summary>

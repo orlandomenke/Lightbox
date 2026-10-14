@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace Lightbox.Core.Documents;
 
 /// <summary>
@@ -5,7 +8,8 @@ namespace Lightbox.Core.Documents;
 /// <paramref name="Piece"/> counts the pieces it is cut into for matching, from
 /// its start (<c>LinePieces.Cut</c>). A stroke nothing meets is one piece, 0.
 /// </summary>
-public sealed record PieceRef(string Stroke, int Piece);
+/// <remarks>A value, so it is compared by what it names; a struct for the reason a point is one — a fixed shape, no room for a newer build's keys.</remarks>
+public readonly record struct PieceRef(string Stroke, int Piece);
 
 /// <summary>
 /// The artist's word that these lines of key A and these lines of key B are
@@ -21,9 +25,25 @@ public sealed record PieceRef(string Stroke, int Piece);
 /// </remarks>
 public sealed class LineMatch
 {
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched (Q230). Null unless a file supplied some; never edited, so a
+    /// clone may share it.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
     public List<PieceRef> A { get; set; } = [];
 
     public List<PieceRef> B { get; set; } = [];
 
-    public LineMatch Clone() => new() { A = [.. A], B = [.. B] };
+    /// <summary>
+    /// The artist's word on whether this part is one solid object — a shoe, a
+    /// cuff — that moves, turns and scales as a whole (true), or lines that bend
+    /// (false). Null, and no key in the file, leaves it to the engine, which
+    /// treats a part of many small lines as solid (Q271).
+    /// </summary>
+    public bool? Solid { get; set; }
+
+    public LineMatch Clone() => new() { Unknown = Unknown, A = [.. A], B = [.. B], Solid = Solid };
 }

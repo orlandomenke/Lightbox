@@ -57,3 +57,23 @@ one more interaction now.
 - A cut is a property of the drawing, not of the match: if a key is redrawn the
   cuts move, and a match naming a piece that no longer exists is dropped rather
   than guessed at.
+
+## Solid objects — asked the same day, after seeing the result
+
+Shown the matched traced legs, the owner: "the legs are fine. Good enough to
+finish or improve where needed. But the cuffs and shoes are just aweful", and
+then: "shouldn't items be grouped an be considered as one object? like shoes.
+That could be an artist role". Two questions followed with `AskUserQuestion`:
+
+**5. How a match is marked as one solid object.** *Automatic, override by hand*:
+**chosen**, against the recommendation (a toggle on the match). A match of many
+small lines in a small area is solid unless the artist says otherwise; the
+artist can flip any match either way. Against: *a toggle on the match* (nothing
+solid until marked) and *a role on the strokes* (set once per layer, but it
+belongs to the drawing rather than to the match).
+
+**6. Which drawing a solid object shows.** *The nearest key's* (recommended):
+**chosen**, after the first wording was not understood and it was asked again
+plainly. Inbetweens near key A move key A's shoe into place, those near key B
+key B's; the switch is at halfway, where the two are most alike. Against:
+*always key A's*, which can look unlike key B's shoe on the frame before it.

@@ -156,4 +156,23 @@ public class LineMatchTests(ITestOutputHelper output)
         var line = Assert.Single(frame, s => s.Points[0].X >= 390);
         Assert.Equal(120, line.Points[0].Y, 0);
     }
+
+    [Fact]
+    public void AnAutomaticMatchWritesNoSolidKeyAndAnOverrideRoundTrips()
+    {
+        var doc = DocumentFactory.CreateDoc(64, 48, 12);
+        var frame = doc.Scene.Layers[^1].Cels[0].Frame!;
+        frame.Matches =
+        [
+            new LineMatch { A = [new PieceRef("s1", 0)], B = [new PieceRef("t1", 0)] },
+            new LineMatch { A = [new PieceRef("s2", 0)], B = [new PieceRef("t2", 0)], Solid = false },
+        ];
+
+        var json = DocJson.Serialize(doc);
+        var back = DocJson.Deserialize(json).Scene.Layers[^1].Cels[0].Frame!.Matches!;
+
+        Assert.Equal(1, json.Split("\"solid\"").Length - 1);
+        Assert.Null(back[0].Solid);
+        Assert.False(back[1].Solid);
+    }
 }
