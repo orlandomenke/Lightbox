@@ -316,8 +316,14 @@ public class BoneRigPerformanceTests(ITestOutputHelper output)
         var (still, frameA) = Bound(100);
         var (sprung, frameB) = Bound(100, jiggle: true);
 
-        var a = MinMs(10, () => _ = Skinning.PoseFrameForRender(still, frameA, 40));
-        var b = MinMs(10, () => _ = Skinning.PoseFrameForRender(sprung, frameB, 40));
+        // Interleaved, not one after the other: measured in two blocks, a
+        // runner that got busier between them read as springs doubling the
+        // cost (22 ms against 50 on a CI run where neither number was this
+        // test's own).
+        var (a, b) = MinMsPair(
+            10,
+            () => _ = Skinning.PoseFrameForRender(still, frameA, 40),
+            () => _ = Skinning.PoseFrameForRender(sprung, frameB, 40));
 
         output.WriteLine($"posed frame {a:F2} ms; with six sprung bones {b:F2} ms ({b / a:F2}x)");
         Assert.True(b < a * 2 + 1, $"springs took a posed frame from {a:F2} ms to {b:F2} ms");
