@@ -69,6 +69,14 @@ public sealed class OpenAiArtist : IAiArtist
         return StrokeParsing.Subject(call, _label);
     }
 
+    public async Task<AiResult<PoseReading>> ReadPoseAsync(PoseRequest request, CancellationToken ct)
+    {
+        var call = await CallAsync(
+            Prompts.PoseSystem, Prompts.PoseUser(request),
+            "pose_result", StrokeSchemas.PoseResult, [request.KeyAPng, request.KeyBPng], ct);
+        return StrokeParsing.Pose(call, _label);
+    }
+
     private sealed class Choice
     {
         [JsonPropertyName("message")] public Message? Message { get; set; }

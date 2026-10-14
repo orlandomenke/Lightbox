@@ -87,6 +87,24 @@ public sealed record SubjectRequest(
     string CharacterName,
     IReadOnlyList<string> ReferenceImages);
 
+/// <summary>
+/// Two keys to read the pose of (Q274): each as a picture, both in the same
+/// crop and size, with the artist's note if they gave one.
+/// </summary>
+/// <param name="KeyAPng">Key A, base64 PNG.</param>
+/// <param name="KeyBPng">Key B, base64 PNG, in the same crop as key A.</param>
+/// <param name="Width">The pictures' width in pixels, which the answer's coordinates are in.</param>
+/// <param name="Height">The pictures' height in pixels.</param>
+/// <param name="Note">What the artist said about the subject or the motion, if anything.</param>
+public sealed record PoseRequest(string KeyAPng, string KeyBPng, int Width, int Height, string? Note = null);
+
+/// <summary>
+/// A pose read from two keys: each part's joints in both keys, in the
+/// pictures' pixels, and what the model said about how it read them (a joint
+/// it had to estimate, how it told two legs apart).
+/// </summary>
+public sealed record PoseReading(PoseGuide Pose, string Notes);
+
 /// <summary>One generated inbetween: its timing parameter and its strokes.</summary>
 public sealed record InbetweenFrameResult(double T, List<Stroke> Strokes);
 
@@ -118,4 +136,14 @@ public interface IAiArtist
     /// </summary>
     Task<AiResult<SubjectTaxonomy>> ReadSubjectAsync(
         SubjectRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// Read the pose of the subject in two keys (Q274): a guide the artist
+    /// draws the inbetweens over, never a drawing. A provider that cannot see
+    /// pictures says so rather than guessing from nothing.
+    /// </summary>
+    Task<AiResult<PoseReading>> ReadPoseAsync(PoseRequest request, CancellationToken ct) =>
+        Task.FromResult(AiResult<PoseReading>.Error(
+            "This provider cannot see pictures, so it cannot read a pose. Choose Claude or an OpenAI-compatible vision model in Configure.",
+            retryable: false));
 }

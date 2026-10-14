@@ -55,6 +55,25 @@ public static class StrokeWire
         [JsonPropertyName("depth")] public int Depth { get; set; }
     }
 
+    public sealed class PoseResultDto
+    {
+        [JsonPropertyName("notes")] public string Notes { get; set; } = "";
+        [JsonPropertyName("parts")] public List<PosePartDto> Parts { get; set; } = [];
+    }
+
+    public sealed class PosePartDto
+    {
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
+        [JsonPropertyName("joints")] public List<PoseJointDto> Joints { get; set; } = [];
+    }
+
+    public sealed class PoseJointDto
+    {
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
+        [JsonPropertyName("a")] public List<double>? A { get; set; }
+        [JsonPropertyName("b")] public List<double>? B { get; set; }
+    }
+
     public sealed class SubjectResultDto
     {
         [JsonPropertyName("kind")] public string Kind { get; set; } = "";

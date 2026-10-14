@@ -48,6 +48,17 @@ public sealed class AnthropicArtist : IAiArtist
         return StrokeParsing.Inbetweens(call, request.Scene, "The model");
     }
 
+    public async Task<AiResult<PoseReading>> ReadPoseAsync(PoseRequest request, CancellationToken ct)
+    {
+        var call = await CallAsync(
+            Prompts.PoseSystem,
+            Prompts.PoseUser(request),
+            StrokeSchemas.PoseResult,
+            [request.KeyAPng, request.KeyBPng],
+            ct);
+        return StrokeParsing.Pose(call, "Claude");
+    }
+
     public async Task<AiResult<Core.Projects.SubjectTaxonomy>> ReadSubjectAsync(
         SubjectRequest request, CancellationToken ct)
     {

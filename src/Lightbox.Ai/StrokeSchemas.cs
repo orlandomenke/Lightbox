@@ -89,4 +89,40 @@ public static class StrokeSchemas
           "additionalProperties": false
         }
         """;
+
+    /// <summary>A pose reading (Q274): notes, then parts as chains of named joints with [x, y] in both keys.</summary>
+    public static readonly string PoseResult = """
+        {
+          "type": "object",
+          "properties": {
+            "notes": { "type": "string" },
+            "parts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "joints": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" },
+                        "a": { "type": "array", "items": { "type": "number" } },
+                        "b": { "type": "array", "items": { "type": "number" } }
+                      },
+                      "required": ["name", "a", "b"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["name", "joints"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["notes", "parts"],
+          "additionalProperties": false
+        }
+        """;
 }

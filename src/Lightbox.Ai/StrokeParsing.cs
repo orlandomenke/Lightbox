@@ -57,6 +57,43 @@ internal static class StrokeParsing
     /// The reading is an artist's starting point, so a small correct answer
     /// beats a long one with a lie in it.
     /// </remarks>
+    /// <summary>
+    /// A pose reading (Q274), kept to what can be trusted: a joint without two
+    /// finite numbers in both keys is dropped, a part left with fewer than two
+    /// joints is no chain and goes, and nothing usable is a retryable error.
+    /// </summary>
+    public static AiResult<PoseReading> Pose(AiResult<string> call, string noun)
+    {
+        if (call.Outcome != AiOutcome.Success) return Forward<PoseReading>(call);
+        try
+        {
+            var dto = JsonSerializer.Deserialize<StrokeWire.PoseResultDto>(call.Value!)
+                      ?? throw new JsonException("null payload");
+            static bool Point(List<double>? p) => p is { Count: >= 2 } && double.IsFinite(p[0]) && double.IsFinite(p[1]);
+            var parts = new List<PosePart>();
+            foreach (var part in dto.Parts)
+            {
+                var joints = part.Joints
+                    .Where(j => Point(j.A) && Point(j.B))
+                    .Select(j => new PoseJoint
+                    {
+                        Name = j.Name.Trim(),
+                        A = new PosePoint(j.A![0], j.A[1]),
+                        B = new PosePoint(j.B![0], j.B[1]),
+                    })
+                    .ToList();
+                if (joints.Count >= 2) parts.Add(new PosePart { Name = part.Name.Trim(), Joints = joints });
+            }
+            if (parts.Count == 0)
+                return AiResult<PoseReading>.Error($"{noun} found no part of the subject it could place.", retryable: true);
+            return AiResult<PoseReading>.Success(new PoseReading(new PoseGuide { Parts = parts }, dto.Notes.Trim()));
+        }
+        catch (JsonException e)
+        {
+            return AiResult<PoseReading>.Error($"{noun} answered with a pose that could not be read: {e.Message}", retryable: true);
+        }
+    }
+
     public static AiResult<SubjectTaxonomy> Subject(
         AiResult<string> call, string noun, string hint = "")
     {

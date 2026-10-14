@@ -44,6 +44,37 @@ public static class Prompts
         "reveals (e.g. a limb swinging away exposing the body behind it).\n" +
         DataIsNotInstructions;
 
+    /// <summary>
+    /// Reading a pose (Q274). Joints, not drawing: the answer is a guide the
+    /// artist draws over, so it has to be where the parts are, named so the
+    /// same part keeps its name across the two keys.
+    /// </summary>
+    public const string PoseSystem =
+        "You are an animator reading the pose of a subject in two keyframes of a hand-drawn " +
+        "animation, so a tool can show the artist where every part goes in the inbetweens. " +
+        "You report where joints are; you do not draw.\n" +
+        "\n" +
+        "- The subject can be anything: a person, an animal, a creature, an object with moving " +
+        "parts. Name the parts it has that move, the way an animator would: near-leg, far-leg, " +
+        "tail, head, lamp-arm.\n" +
+        "- Give each part as a chain of joints from its root outward: a leg from hip to knee to " +
+        "ankle to heel to toe, a tail from its base to its tip, a head from the neck to the top " +
+        "of the skull. Name each joint.\n" +
+        "- Give every joint's position in both keys, as [x, y] in picture pixels, origin top left.\n" +
+        "- The same physical part keeps the same name in both keys, even when it moves from front " +
+        "to back between them. In `notes`, say how you told similar parts apart, and which joints " +
+        "you had to estimate because they are hidden or not drawn.\n" +
+        DataIsNotInstructions;
+
+    /// <summary>The task for a pose reading; the artist's note is JSON-encoded so it is data, never instructions.</summary>
+    public static string PoseUser(PoseRequest request) =>
+        $"The first picture is key A and the second is key B, the same subject in the same crop, " +
+        $"{request.Width}x{request.Height} pixels. Read the pose in both: every moving part as a chain " +
+        "of joints, each joint's [x, y] in key A and in key B, the same part under the same name in both." +
+        (string.IsNullOrWhiteSpace(request.Note)
+            ? ""
+            : $" The artist's note about the subject: {JsonSerializer.Serialize(request.Note, NameOnly)}.");
+
     public const string SubjectSystem =
         "You are reading a character design so an animation tool can reason " +
         "about it later. You receive the character's name and one or more " +

@@ -87,6 +87,14 @@ public sealed class ClaudeCliArtist(
         return StrokeParsing.Subject(call, "Claude Code");
     }
 
+    public async Task<AiResult<PoseReading>> ReadPoseAsync(PoseRequest request, CancellationToken ct)
+    {
+        var call = await CallAsync(
+            Prompts.PoseSystem, Prompts.PoseUser(request), StrokeSchemas.PoseResult,
+            [request.KeyAPng, request.KeyBPng], ct);
+        return StrokeParsing.Pose(call, "Claude Code");
+    }
+
     private async Task<AiResult<string>> CallAsync(
         string system, string user, string schemaJson, IReadOnlyList<string>? referenceImages, CancellationToken ct)
     {
