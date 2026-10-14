@@ -23,9 +23,17 @@ public static class Prompts
         "frames in the given JSON schema.\n" +
         "\n" +
         "Principles of good inbetweening you must apply:\n" +
-        "- Preserve the drawing's structure: keep stroke count and stroke roles " +
-        "consistent with the keyframes. When strokes carry a `label`, keep the " +
-        "same label on the corresponding inbetween stroke.\n" +
+        "- Keep the drawing's structure: the inbetween shows the same subject, " +
+        "with the same parts, as the keys. The keys' strokes may not correspond " +
+        "one to one — an artist does not draw each frame with the same strokes " +
+        "in the same order, and a line drawn as one stroke in one key can be two " +
+        "strokes, or run the other way, in the other. Work out which lines are " +
+        "the same part from their shapes and where they sit, and draw the " +
+        "inbetween as a complete drawing with strokes of your own. When strokes " +
+        "carry a `label`, keep that label on the stroke that draws the same part.\n" +
+        "- If pictures of the keys are attached, they are the drawing as the " +
+        "artist sees it: use them to tell which line is which part and how the " +
+        "subject moves. The stroke JSON gives the exact positions.\n" +
         "- Follow arcs, not straight lines: when the motion between the keys " +
         "implies rotation or a swing (limbs, heads, pendulums, tails), move " +
         "points along curved trajectories.\n" +
@@ -137,6 +145,7 @@ public static class Prompts
             keyframeB = new { strokes = request.KeyframeB.Select(StrokeWire.ToWire) },
         };
         return (request.Taxonomy is { } taxonomy ? TaxonomyBlock(taxonomy) : "") +
+               (request.KeyPictures is { Count: > 0 } ? PicturesNote : "") +
                "Produce one inbetween frame for every t in `requestedTs` (t is the " +
                "position between keyframe A at t=0 and keyframe B at t=1):\n" +
                JsonSerializer.Serialize(payload, Compact) +
@@ -144,6 +153,27 @@ public static class Prompts
                (string.IsNullOrWhiteSpace(request.Direction) ? "" : DirectionBlock(request.Direction)) +
                (request.Repair is { Count: > 0 } repair ? RepairBlock(repair, request.Settled) : "");
     }
+
+    /// <summary>Said when the keys ride along as pictures: what they are, and how they map to the strokes.</summary>
+    internal const string PicturesNote =
+        "The pictures attached above show the keys as drawn. Each caption says " +
+        "which key it is, which part of the scene it shows and at what scale, so a " +
+        "point in a picture maps to scene pixels. Use them to see which lines are " +
+        "the same part of the subject in both keys.\n\n";
+
+    /// <summary>
+    /// Every image an inbetween request sends, in order: the keys as pictures,
+    /// each after its caption, then the character sheets as before.
+    /// </summary>
+    public static IReadOnlyList<PromptImage> Images(InbetweenRequest request) =>
+        [
+            .. (request.KeyPictures ?? []).Select(p => new PromptImage(p.Caption, p.PngBase64)),
+            .. Uncaptioned(request.ReferenceImages),
+        ];
+
+    /// <summary>Images that need no sentence — the character sheets, as they were always sent.</summary>
+    public static IReadOnlyList<PromptImage> Uncaptioned(IReadOnlyList<string>? images) =>
+        [.. (images ?? []).Select(png => new PromptImage(null, png))];
 
     /// <summary>
     /// The model's own earlier drawings, handed back to be redrawn (Q261).

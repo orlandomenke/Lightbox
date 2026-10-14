@@ -43,6 +43,13 @@ public enum InbetweenFault
     ForbiddenInk,
 
     /// <summary>
+    /// Far less, or far more, line than either key has: not the same drawing.
+    /// Asked only when the keys' strokes do not correspond, where it stands in
+    /// for "a stroke both keys draw went missing".
+    /// </summary>
+    Incomplete,
+
+    /// <summary>
     /// It zigzags against the frames either side of it, which reads as boiling
     /// at speed. The one fault that is a property of the run rather than the
     /// frame — and therefore the one a repair cannot state without saying what
@@ -166,6 +173,20 @@ public static class InbetweenVerifier
         var ea = StrokeRecordCleaner.EffectiveStrokes(keyA);
         var eb = StrokeRecordCleaner.EffectiveStrokes(keyB);
 
+        // Keys drawn with different strokes — another order, other splits,
+        // the other way round, as a hand or a trace draws them — cannot be
+        // paired stroke for stroke, and a frame judged against wrong pairs is
+        // refused for not copying the mistake. Those are judged by what the
+        // frame looks like instead (2026-10-14).
+        if (!KeysCorrespond(ea, eb))
+        {
+            return new InbetweenRunJudgement(run.Select(frame =>
+            {
+                var state = JudgeByShape(frame, ea, eb, EasingOps.Ease(Math.Clamp(frame.T, 0, 1), easing));
+                return new InbetweenJudgement(frame.T, state.Refusal, state.Notes, state.Fault);
+            }).ToList());
+        }
+
         var moving = new List<PairContext>();
         var fading = new List<Stroke>();
         foreach (var pair in StrokeMatcher.Match(ea, eb))
@@ -183,6 +204,205 @@ public static class InbetweenVerifier
         return new InbetweenRunJudgement(
             verdicts.Select((v, i) => new InbetweenJudgement(
                 run[i].T, v.Refusal, v.Notes, v.Fault, v.MatchesDeterministic)).ToList());
+    }
+
+    /// <summary>
+    /// Do the two keys' strokes correspond one for one — the same lines, in
+    /// pieces of about the same shape and length? True for a drawing made
+    /// stroke for stroke from the one before (an inbetween, a retrace on the
+    /// light table); false for keys drawn independently, and for traced keys.
+    /// </summary>
+    /// <remarks>
+    /// Two measures over the matcher's pairs, either of which says no: more
+    /// than a quarter of the strokes have no partner at all, or the typical
+    /// pair is not the same line — compared after moving one onto the other,
+    /// either way round, with a difference in length counting as much as one
+    /// in shape.
+    /// </remarks>
+    public static bool KeysCorrespond(IReadOnlyList<Stroke> keyA, IReadOnlyList<Stroke> keyB)
+    {
+        var ea = Ink(StrokeRecordCleaner.EffectiveStrokes(keyA));
+        var eb = Ink(StrokeRecordCleaner.EffectiveStrokes(keyB));
+        if (ea.Count == 0 || eb.Count == 0) return true;   // nothing to pair; the old checks decide
+        var pairs = StrokeMatcher.Match(ea, eb);
+        var unpaired = pairs.Count(p => p.A is null || p.B is null);
+        if (unpaired * 4 > pairs.Count) return false;
+        var errors = pairs
+            .Where(p => p.A is not null && p.B is not null)
+            .Select(p => PairError(p.A!, p.B!))
+            .OrderBy(e => e)
+            .ToList();
+        return errors.Count == 0 || errors[errors.Count / 2] <= CorrespondingError;
+    }
+
+    /// <summary>A pair's typical difference, as a fraction of its length, at which it is the same line.</summary>
+    private const double CorrespondingError = 0.2;
+
+    private static double PairError(Stroke a, Stroke b)
+    {
+        var la = GeometryOps.PathLength(a.Points);
+        var lb = GeometryOps.PathLength(b.Points);
+        var longer = Math.Max(Math.Max(la, lb), 1);
+        var lengths = Math.Abs(la - lb) / longer;
+        if (a.Points.Count < 2 || b.Points.Count < 2) return lengths;
+        var ra = Centred(GeometryOps.Resample(a.Points, 16));
+        var rb = Centred(GeometryOps.Resample(b.Points, 16));
+        var reversed = Enumerable.Reverse(rb).ToList();
+        // Turned as well as moved: a limb that swings between keys is still
+        // the same line, so each way round is compared at its best rotation.
+        var error = Math.Min(Rotated(ra, rb), Rotated(ra, reversed));
+        return Math.Max(lengths, error / longer);
+    }
+
+    /// <summary>Mean distance between two centred point lists after the rotation that best lays one on the other.</summary>
+    private static double Rotated(List<StrokePoint> a, List<StrokePoint> b)
+    {
+        double dot = 0, cross = 0;
+        for (var i = 0; i < a.Count; i++)
+        {
+            dot += a[i].X * b[i].X + a[i].Y * b[i].Y;
+            cross += a[i].X * b[i].Y - a[i].Y * b[i].X;
+        }
+        var angle = Math.Atan2(cross, dot);
+        var (cos, sin) = (Math.Cos(angle), Math.Sin(angle));
+        var total = 0.0;
+        for (var i = 0; i < a.Count; i++)
+        {
+            var x = a[i].X * cos - a[i].Y * sin;
+            var y = a[i].X * sin + a[i].Y * cos;
+            total += Math.Sqrt((x - b[i].X) * (x - b[i].X) + (y - b[i].Y) * (y - b[i].Y));
+        }
+        return total / a.Count;
+    }
+
+    private static List<StrokePoint> Centred(List<StrokePoint> points)
+    {
+        var c = GeometryOps.Centroid(points);
+        return [.. points.Select(p => p with { X = p.X - c.X, Y = p.Y - c.Y })];
+    }
+
+    /// <summary>The strokes that put ink down: no erasures, no clears.</summary>
+    private static List<Stroke> Ink(IReadOnlyList<Stroke> strokes) =>
+        [.. strokes.Where(s => s.Tool is not (ToolKind.Eraser or ToolKind.ClearRegion))];
+
+    /// <summary>
+    /// One frame between keys whose strokes do not correspond: judged as a
+    /// picture. Its ink has to lie where the keys' ink goes, there has to be
+    /// about as much of it, and the drawing as a whole has to have moved part
+    /// of the way the keys did.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Looser than the stroke-by-stroke check, and said so.</b> It cannot
+    /// say "the arm went missing", because nothing says which of the key's
+    /// strokes is the arm. It catches what makes a frame unusable — a drawing
+    /// in the wrong place, half a drawing, a scribble — and leaves whether it
+    /// reads as the subject to the model that drew it, which was shown the
+    /// keys as pictures, and to the artist.
+    /// </para>
+    /// <para>
+    /// Thresholds are set by what a correct frame clears and the broken ones in
+    /// <c>ShapeVerdictTests</c> do not: about as much line means between half
+    /// the shorter key and 1.6 times the longer; where the keys go means within
+    /// 0.6 of the distance the drawing moved (plus a pen's width and a margin)
+    /// of either key's ink, for nine samples in ten.
+    /// </para>
+    /// </remarks>
+    private static FrameState JudgeByShape(CandidateInbetween frame, IReadOnlyList<Stroke> keyA, IReadOnlyList<Stroke> keyB, double et)
+    {
+        var state = new FrameState();
+        if (frame.T is <= 0 or >= 1)
+        {
+            state.Refusal = Invariant($"its timing is {frame.T:0.##}, which is not between the keys.");
+            state.Fault = InbetweenFault.Timing;
+            return state;
+        }
+        if (Unusable(frame.Strokes) is { } unusable)
+        {
+            state.Refusal = unusable;
+            state.Fault = InbetweenFault.Unusable;
+            return state;
+        }
+
+        var a = Ink(keyA);
+        var b = Ink(keyB);
+        var candidate = Ink(StrokeRecordCleaner.EffectiveStrokes(frame.Strokes));
+        double Length(List<Stroke> s) => s.Sum(x => GeometryOps.PathLength(x.Points));
+        var (la, lb, lc) = (Length(a), Length(b), Length(candidate));
+        if (lc < 0.5 * Math.Min(la, lb) || lc > 1.6 * Math.Max(la, lb))
+        {
+            state.Refusal = Invariant(
+                $"it has {lc:0}px of line where the keys have {la:0}px and {lb:0}px — that is not the same drawing.");
+            state.Fault = InbetweenFault.Incomplete;
+            return state;
+        }
+
+        var sa = Samples(a);
+        var sb = Samples(b);
+        var sc = Samples(candidate);
+        if (sa.Count == 0 || sb.Count == 0 || sc.Count == 0) return state;
+        var ca = GeometryOps.Centroid(sa);
+        var cb = GeometryOps.Centroid(sb);
+        var moved = GeometryOps.Dist(ca, cb);
+        var pen = Math.Max(a.Concat(b).Select(s => s.Brush.Size).DefaultIfEmpty(1).Max(), 1);
+
+        var reach = 0.6 * moved + pen + 12;
+        var away = sc.Count(p => Math.Min(DistanceToInk(p, a), DistanceToInk(p, b)) > reach);
+        if (away * 10 > sc.Count)
+        {
+            state.Refusal = Invariant(
+                $"{100.0 * away / sc.Count:0}% of its line lies away from where either key's line is.");
+            state.Fault = InbetweenFault.NotBetween;
+            return state;
+        }
+
+        var expected = new StrokePoint(ca.X + (cb.X - ca.X) * et, ca.Y + (cb.Y - ca.Y) * et, 1);
+        var cc = GeometryOps.Centroid(sc);
+        var extent = Math.Max(la, lb);
+        var allowed = TravelSlack * moved + ScaleSlack * Math.Sqrt(extent * pen * 4) + FloorSlack + pen;
+        var off = GeometryOps.Dist(cc, expected);
+        if (off > allowed)
+        {
+            state.Refusal = Invariant(
+                $"the drawing as a whole did not stay between the keys — it sits {off:0}px from where the motion puts it.");
+            state.Fault = InbetweenFault.NotBetween;
+            return state;
+        }
+        state.Notes.Add("the keys' strokes do not correspond one for one, so this frame was judged by shape.");
+        return state;
+    }
+
+    /// <summary>Points along every stroke about four pixels apart, so long lines weigh as much as they draw.</summary>
+    private static List<StrokePoint> Samples(IReadOnlyList<Stroke> strokes)
+    {
+        var samples = new List<StrokePoint>();
+        foreach (var s in strokes)
+        {
+            if (s.Points.Count == 1)
+            {
+                samples.Add(s.Points[0]);
+                continue;
+            }
+            var n = Math.Clamp((int)(GeometryOps.PathLength(s.Points) / 4) + 2, 2, 400);
+            samples.AddRange(GeometryOps.Resample(s.Points, n));
+        }
+        return samples;
+    }
+
+    private static double DistanceToInk(StrokePoint p, IReadOnlyList<Stroke> ink)
+    {
+        var best = double.MaxValue;
+        foreach (var s in ink)
+        {
+            if (s.Points.Count == 1)
+            {
+                best = Math.Min(best, GeometryOps.Dist(p, s.Points[0]));
+                continue;
+            }
+            for (var i = 1; i < s.Points.Count; i++)
+                best = Math.Min(best, GeometryOps.DistToSegment(p, s.Points[i - 1], s.Points[i]));
+        }
+        return best;
     }
 
     /// <summary>A matched key pair and everything the checks derive from it.</summary>

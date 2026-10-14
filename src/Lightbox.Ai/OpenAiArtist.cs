@@ -56,7 +56,7 @@ public sealed class OpenAiArtist : IAiArtist
     {
         var call = await CallAsync(
             Prompts.InbetweenSystem, Prompts.InbetweenUser(request),
-            "inbetween_result", StrokeSchemas.InbetweenResult, request.ReferenceImages, ct);
+            "inbetween_result", StrokeSchemas.InbetweenResult, Prompts.Images(request), ct);
         return StrokeParsing.Inbetweens(call, request.Scene, _label);
     }
 
@@ -65,7 +65,7 @@ public sealed class OpenAiArtist : IAiArtist
     {
         var call = await CallAsync(
             Prompts.SubjectSystem, Prompts.SubjectUser(request),
-            "subject_result", StrokeSchemas.SubjectResult, request.ReferenceImages, ct);
+            "subject_result", StrokeSchemas.SubjectResult, Prompts.Uncaptioned(request.ReferenceImages), ct);
         return StrokeParsing.Subject(call, _label);
     }
 
@@ -88,19 +88,20 @@ public sealed class OpenAiArtist : IAiArtist
 
     private async Task<AiResult<string>> CallAsync(
         string system, string user, string schemaName, string schemaJson,
-        IReadOnlyList<string>? referenceImages, CancellationToken ct)
+        IReadOnlyList<PromptImage>? images, CancellationToken ct)
     {
         using var schemaDoc = JsonDocument.Parse(schemaJson);
 
         // Reference views ride along as data URIs before the task text, in the
         // same order the Anthropic path uses, so the prompts stay comparable.
         var parts = new List<object>();
-        foreach (var png in referenceImages ?? [])
+        foreach (var image in images ?? [])
         {
+            if (image.Caption is { } caption) parts.Add(new { type = "text", text = caption });
             parts.Add(new
             {
                 type = "image_url",
-                image_url = new { url = "data:image/png;base64," + png },
+                image_url = new { url = "data:image/png;base64," + image.PngBase64 },
             });
         }
         parts.Add(new { type = "text", text = user });

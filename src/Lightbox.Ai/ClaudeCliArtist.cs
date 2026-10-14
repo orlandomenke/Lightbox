@@ -74,7 +74,7 @@ public sealed class ClaudeCliArtist(
     {
         var call = await CallAsync(
             Prompts.InbetweenSystem, Prompts.InbetweenUser(request), StrokeSchemas.InbetweenResult,
-            request.ReferenceImages, ct);
+            Prompts.Images(request), ct);
         return StrokeParsing.Inbetweens(call, request.Scene, "Claude Code");
     }
 
@@ -83,12 +83,12 @@ public sealed class ClaudeCliArtist(
     {
         var call = await CallAsync(
             Prompts.SubjectSystem, Prompts.SubjectUser(request), StrokeSchemas.SubjectResult,
-            request.ReferenceImages, ct);
+            Prompts.Uncaptioned(request.ReferenceImages), ct);
         return StrokeParsing.Subject(call, "Claude Code");
     }
 
     private async Task<AiResult<string>> CallAsync(
-        string system, string user, string schemaJson, IReadOnlyList<string>? referenceImages, CancellationToken ct)
+        string system, string user, string schemaJson, IReadOnlyList<PromptImage>? images, CancellationToken ct)
     {
         using var schema = JsonDocument.Parse(schemaJson);
         var arguments = new List<string>
@@ -110,7 +110,7 @@ public sealed class ClaudeCliArtist(
         try
         {
             var output = await runner.RunAsync(
-                new CliInvocation(command, arguments, Message(user, referenceImages), Environment), ct);
+                new CliInvocation(command, arguments, Message(user, images), Environment), ct);
             return Read(output);
         }
         catch (OperationCanceledException)
@@ -136,16 +136,17 @@ public sealed class ClaudeCliArtist(
         }
     }
 
-    /// <summary>One user turn: reference views as image blocks, then the task.</summary>
-    private static string Message(string user, IReadOnlyList<string>? referenceImages)
+    /// <summary>One user turn: pictures as image blocks, each after its caption, then the task.</summary>
+    private static string Message(string user, IReadOnlyList<PromptImage>? images)
     {
         var content = new List<object>();
-        foreach (var png in referenceImages ?? [])
+        foreach (var image in images ?? [])
         {
+            if (image.Caption is { } caption) content.Add(new { type = "text", text = caption });
             content.Add(new
             {
                 type = "image",
-                source = new { type = "base64", media_type = "image/png", data = png },
+                source = new { type = "base64", media_type = "image/png", data = image.PngBase64 },
             });
         }
         content.Add(new { type = "text", text = user });

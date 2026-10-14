@@ -43,7 +43,7 @@ public sealed class AnthropicArtist : IAiArtist
             Prompts.InbetweenSystem,
             Prompts.InbetweenUser(request),
             StrokeSchemas.InbetweenResult,
-            request.ReferenceImages,
+            Prompts.Images(request),
             ct);
         return StrokeParsing.Inbetweens(call, request.Scene, "The model");
     }
@@ -55,7 +55,7 @@ public sealed class AnthropicArtist : IAiArtist
             Prompts.SubjectSystem,
             Prompts.SubjectUser(request),
             StrokeSchemas.SubjectResult,
-            request.ReferenceImages,
+            Prompts.Uncaptioned(request.ReferenceImages),
             ct);
         return StrokeParsing.Subject(call, "The model");
     }
@@ -64,26 +64,28 @@ public sealed class AnthropicArtist : IAiArtist
 
     /// <summary>Run one structured-output request; returns the raw JSON text.</summary>
     private async Task<AiResult<string>> CallAsync(
-        string system, string user, string schemaJson, IReadOnlyList<string>? referenceImages, CancellationToken ct)
+        string system, string user, string schemaJson, IReadOnlyList<PromptImage>? images, CancellationToken ct)
     {
-        var parameters = Parameters(system, user, schemaJson, referenceImages);
+        var parameters = Parameters(system, user, schemaJson, images);
         return await SendAsync(parameters, ct);
     }
 
     /// <summary>The request as it will be sent — separate so a test can read it without a network.</summary>
     internal MessageCreateParams Parameters(
-        string system, string user, string schemaJson, IReadOnlyList<string>? referenceImages)
+        string system, string user, string schemaJson, IReadOnlyList<PromptImage>? images)
     {
         var schema = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(schemaJson)
                      ?? throw new InvalidOperationException("Bad schema constant.");
 
-        // Character-sheet views ride along as image blocks before the task text.
+        // Pictures ride along as image blocks before the task text, each after
+        // the sentence that says what it is when it has one.
         var content = new List<ContentBlockParam>();
-        foreach (var png in referenceImages ?? [])
+        foreach (var image in images ?? [])
         {
+            if (image.Caption is { } caption) content.Add(new TextBlockParam { Text = caption });
             content.Add(new ImageBlockParam
             {
-                Source = new Base64ImageSource { Data = png, MediaType = "image/png" },
+                Source = new Base64ImageSource { Data = image.PngBase64, MediaType = "image/png" },
             });
         }
         content.Add(new TextBlockParam { Text = user });

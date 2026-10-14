@@ -166,6 +166,20 @@ prompt, the schema and the reference images are byte-identical across every
 call in a session, so after the first they can be cached — about 90% off ~1.4k
 image tokens per call. Small, but it costs one field.
 
+### The keys as pictures (2026-10-14)
+
+An inbetween request now carries four more images: the layer's own drawing at
+each key, cropped to the keys' ink and on white, and the whole visible scene at
+each key — each at most 768 px on its long edge (`MainViewModel.AiPictures`).
+By the table above that is at most ~1.8k image tokens, against the tens of
+thousands the strokes already cost; the cropped pair is usually far smaller
+than 768 px. This is the cheap half being spent on purpose: the stroke half
+cannot say which line is which part of the subject when the keys were drawn
+with different strokes, and the pictures can. Unlike the character sheets, they
+change on every request, so they are not a caching candidate. They cross the
+machine boundary like everything else here, and the scene pictures carry every
+visible layer, not only the one being inbetweened — the manual says so.
+
 ## What a repair re-ask costs
 
 Added when the repair loop landed (Phase 3 of `DESIGN-ai-correctness.md`, Q85),

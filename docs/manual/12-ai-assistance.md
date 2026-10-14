@@ -67,7 +67,14 @@ no box that makes a drawing out of words alone, and that is a decision rather
 than a gap: the AI is here to take the tedious parts off an artist, not to make
 the drawing.
 
-**What gets sent.** Along with the frames, the **first two views on your character
+**What gets sent.** Along with the strokes of your two keys go **pictures of
+them**: the layer you are inbetweening at each key, on its own and cropped to
+where your lines are, and **the whole scene at each key — every visible layer,
+not only this one** — so the model can see what the drawing is and which line
+is which part of it. Hide a layer and it is left out of those pictures. Each is
+at most 768 pixels on its long edge. The same pictures go with a revision.
+
+Also along with the frames, the **first two views on your character
 sheets that have a visible layer** go out as pictures, so the model can see who it
 is drawing. In a project those are the sheets filed above the document — the
 knight's animations ride with the knight's sheet, wherever it was drawn. They are sent at up to 768 pixels on the long edge — your sheet keeps
@@ -123,6 +130,17 @@ inbetweener would have given for nothing. That is not a failure and the frame is
 perfectly usable — but it is worth knowing, because it is the safest thing a
 model can do when it is being pushed to correct itself, and if you are seeing it
 often you are paying a model to do what **＋ Inbetween** does instantly.
+
+**You do not have to draw your keys with the same strokes.** An artist does not
+draw each frame line for line in the same order, and a traced drawing certainly
+does not. When the strokes of your two keys do not pair up one for one, the
+model is told to work out which lines are the same part from the pictures and
+draw the inbetween with strokes of its own, and the check judges each frame by
+what it looks like instead: its lines must lie where your keys' lines go, there
+must be about as much line as in your keys, and the drawing as a whole must have
+moved part of the way between them. That check is looser — it cannot say "the
+arm went missing", because nothing says which stroke is the arm — so look at
+those frames; the status bar says when a frame was judged this way.
 
 The check is not "did the model invent something" — invention is the point.
 Revealed lines behind something that moved away, follow-through trailing a

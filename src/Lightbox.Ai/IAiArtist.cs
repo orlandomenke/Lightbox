@@ -18,7 +18,23 @@ public sealed record InbetweenRequest(
     IReadOnlyList<AcceptedFrame>? Settled = null,
     string? Direction = null,
     IReadOnlyList<AcceptedFrame>? Earlier = null,
-    IReadOnlyList<AcceptedFrame>? Fixed = null);
+    IReadOnlyList<AcceptedFrame>? Fixed = null,
+    IReadOnlyList<KeyPicture>? KeyPictures = null);
+
+/// <summary>
+/// A key as a picture, with a caption saying what it shows and which part of
+/// the scene, so a point in the picture maps back to scene pixels.
+/// </summary>
+/// <remarks>
+/// Strokes alone are coordinates, and a model reading them pairs stroke 5 with
+/// stroke 5 — a different line whenever the keys were drawn with different
+/// strokes, which is how an artist draws them and how a trace comes back.
+/// The picture is the drawing as the artist sees it (2026-10-14).
+/// </remarks>
+public sealed record KeyPicture(string Caption, string PngBase64);
+
+/// <summary>An image for a prompt, with the sentence that says what it is (or none).</summary>
+public sealed record PromptImage(string? Caption, string PngBase64);
 
 // Q261. Direction is the artist's own note, sent in their words. Earlier and
 // Fixed make a request a revision: Earlier is the model's own drawing at each

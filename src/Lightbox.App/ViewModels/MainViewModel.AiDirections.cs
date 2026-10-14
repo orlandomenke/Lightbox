@@ -144,7 +144,8 @@ public partial class MainViewModel
             TaxonomyForActiveDocument(),
             Direction: note,
             Earlier: redraw.Select(Drawn).ToList(),
-            Fixed: staying.Count > 0 ? staying : null);
+            Fixed: staying.Count > 0 ? staying : null,
+            KeyPictures: KeyPicturesFor(layer, a, b));
 
         // What the write-back expects to find when the answer arrives. The
         // timeline is not locked while a request is out, so a frame inserted or

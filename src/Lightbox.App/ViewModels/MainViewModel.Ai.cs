@@ -139,7 +139,8 @@ public partial class MainViewModel
             chart is { Count: > 0 } ? Easing.Linear : TweenEasing,
             CollectReferenceImages(),
             TaxonomyForActiveDocument(),
-            Direction: direction);
+            Direction: direction,
+            KeyPictures: KeyPicturesFor(layer, aIndex, bIndex));
 
         // The model proposes; Lightbox disposes — and now asks again when it
         // disposes. Every frame is verified against the keys before it can
@@ -214,6 +215,13 @@ public partial class MainViewModel
         if (run.MatchedFreeEngineCount is var free and > 0)
         {
             inserted += $" {free} matched what ＋ Inbetween would have drawn.";
+        }
+        // Keys drawn with different strokes are judged by shape, which cannot
+        // say "the arm went missing" (2026-10-14) — so the artist hears that
+        // these frames had the looser check and are worth a look.
+        if (!InbetweenVerifier.KeysCorrespond(request.KeyframeA, request.KeyframeB))
+        {
+            inserted += " Your keys are drawn with different strokes, so these were checked by shape only — look them over.";
         }
         AiStatus = refused.Count == 0 ? inserted : $"{inserted} {string.Join(" ", refused)}";
     }
