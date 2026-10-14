@@ -153,13 +153,13 @@ public class MainMenuShapeTests(ITestOutputHelper output) : BrushStateIsolated
         var layer = TopLevel(window, "La_yer").Items.OfType<MenuItem>().ToList();
         output.WriteLine(string.Join(" | ", layer.Select(i => i.Header)));
         Assert.Equal(
-            ["_New layer", "New _folder", "_Group layers", "Move _up", "Move _down", "Merge do_wn", "Trace to st_rokes…",
+            ["_New layer", "New _folder", "_Group layers", "Move _up", "Move _down", "Merge do_wn", "_Trace to strokes…",
              "_Visible", "_Locked", "Lock _transparency",
              "_Select layer contents", "_Blank layer content", "Delete la_yer"],
             layer.Select(i => i.Header as string).ToList());
         foreach (var item in layer.Where(i => i.ToggleType == MenuItemToggleType.None
                                               && (string)i.Header! != "Merge do_wn"   // Click-wired: the Q52 ask
-                                              && (string)i.Header! != "Trace to st_rokes…")) // Click-wired: the trace window
+                                              && (string)i.Header! != "_Trace to strokes…")) // Click-wired: the trace window
         {
             Assert.True(item.Command is not null, $"{item.Header} reaches no command");
         }

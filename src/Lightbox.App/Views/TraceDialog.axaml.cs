@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
-using Avalonia.Threading;
 using Lightbox.Raster;
 using SkiaSharp;
 
@@ -33,12 +32,14 @@ public partial class TraceDialog : Window
     /// <summary>Name what is being traced, and hand over the drawing to preview it on.</summary>
     public TraceDialog Describe(string layerName, int drawings, SKBitmap? sample)
     {
-        _sample = sample;
+        // Its own copy, never disposed here: a preview trace still running on
+        // a worker when the window closes would otherwise read freed pixels
+        // once the caller disposes its bitmap. The copy goes with the window.
+        _sample = sample?.Copy();
         var which = drawings == 1 ? "1 drawing" : $"{drawings} drawings";
         this.FindControl<TextBlock>("Explanation")!.Text =
-            $"“{layerName}” holds pixels in {which}. Each line becomes a brush stroke down its middle on a new "
-            + "layer above, and this layer is hidden rather than deleted. The exact edge, the order the lines "
-            + "were drawn in and the pen's pressure are not in the pixels, so they are guessed.";
+            $"“{layerName}” holds pixels in {which}. Each line becomes one brush stroke on a new layer above, "
+            + "and this layer is hidden, not deleted. Edges, drawing order and pressure are guessed from the pixels.";
         Refresh();
         return this;
     }
@@ -58,9 +59,35 @@ public partial class TraceDialog : Window
 
     private void OnSourceChanged(object? sender, SelectionChangedEventArgs e) => Refresh();
 
-    private void OnSliderChanged(object? sender, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e) => Refresh();
+    private bool _syncing;
 
-    private void Refresh()
+    /// <summary>A slider moved: its field follows, and the preview.</summary>
+    private void OnSliderChanged(object? sender, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_syncing) return;
+        _syncing = true;
+        var box = ReferenceEquals(sender, this.FindControl<Slider>("ThresholdSlider")) ? "ThresholdBox" : "DetailBox";
+        if (this.FindControl<NumericUpDown>(box) is { } field) field.Value = (decimal)Math.Round(e.NewValue);
+        _syncing = false;
+        Refresh();
+    }
+
+    /// <summary>A value typed: its slider follows, and the preview.</summary>
+    private void OnBoxChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_syncing || e.NewValue is not { } value) return;
+        _syncing = true;
+        var slider = ReferenceEquals(sender, this.FindControl<NumericUpDown>("ThresholdBox")) ? "ThresholdSlider" : "DetailSlider";
+        if (this.FindControl<Slider>(slider) is { } control) control.Value = (double)value;
+        _syncing = false;
+        Refresh();
+    }
+
+    /// <remarks>
+    /// Awaited rather than posted back: the continuation returns to the UI
+    /// thread by itself, so no ambient dispatcher call is needed (B93's ratchet).
+    /// </remarks>
+    private async void Refresh()
     {
         var note = this.FindControl<TextBlock>("PreviewNote");
         if (note is null) return;   // still loading
@@ -73,34 +100,31 @@ public partial class TraceDialog : Window
         var options = Options;
         var sample = _sample;
         note.Text = "Tracing…";
-        _ = Task.Run(() =>
+        (int Count, Avalonia.Media.Imaging.Bitmap Picture) done;
+        try
         {
-            var strokes = LineTracer.Trace(sample, options);
-            var picture = Picture(sample, strokes);
-            return (strokes.Count, picture);
-        }).ContinueWith(done =>
-        {
-            Dispatcher.UIThread.Post(() =>
+            done = await Task.Run(() =>
             {
-                if (done.IsFaulted)
-                {
-                    if (generation == _generation) note.Text = "This picture could not be traced.";
-                    return;
-                }
-                if (generation != _generation)
-                {
-                    done.Result.picture.Dispose();   // a newer setting is on its way
-                    return;
-                }
-                var (count, picture) = done.Result;
-                var image = this.FindControl<Image>("Preview")!;
-                (image.Source as IDisposable)?.Dispose();
-                image.Source = picture;
-                note.Text = count == 1
-                    ? "This drawing traces to 1 stroke."
-                    : $"This drawing traces to {count} strokes.";
+                var strokes = LineTracer.Trace(sample, options);
+                return (strokes.Count, Picture(sample, strokes));
             });
-        }, TaskScheduler.Default);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            if (generation == _generation) note.Text = "This picture could not be traced.";
+            return;
+        }
+        if (generation != _generation)
+        {
+            done.Picture.Dispose();   // a newer setting is on its way
+            return;
+        }
+        var image = this.FindControl<Image>("Preview")!;
+        (image.Source as IDisposable)?.Dispose();
+        image.Source = done.Picture;
+        note.Text = done.Count == 1
+            ? "This drawing traces to 1 stroke."
+            : $"This drawing traces to {done.Count} strokes.";
     }
 
     /// <summary>The traced strokes over a faint copy of the pixels they came from.</summary>

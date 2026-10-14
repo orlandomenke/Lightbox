@@ -17,27 +17,34 @@
   <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
     <TextBlock x:Name="Explanation" TextWrapping="Wrap" />
 
-    <Image x:Name="Preview" Stretch="Uniform" Height="{StaticResource SizeDialogPreview}" />
+    <Border Background="{DynamicResource CanvasPaperBrush}" CornerRadius="{StaticResource RadiusPreview}" ClipToBounds="True">
+      <Image x:Name="Preview" Stretch="Uniform" Height="{StaticResource SizeDialogPreview}" />
+    </Border>
     <TextBlock x:Name="PreviewNote" FontSize="{StaticResource TypeDense}" Opacity="0.7" TextWrapping="Wrap" />
 
     <StackPanel Spacing="{StaticResource Space8}">
       <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Space8}">
         <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Read ink from" VerticalAlignment="Center" />
         <ComboBox Grid.Column="1" x:Name="SourceBox" HorizontalAlignment="Stretch" SelectionChanged="OnSourceChanged">
-          <ComboBoxItem Content="Whatever suits the picture" />
-          <ComboBoxItem Content="Transparency — a drawn layer" />
-          <ComboBoxItem Content="Darkness — a scan or a photo" />
+          <ComboBoxItem Content="Auto — picks by looking" />
+          <ComboBoxItem Content="Transparency (drawn line art)" />
+          <ComboBoxItem Content="Darkness (scan or photo)" />
         </ComboBox>
       </Grid>
-      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Space8}">
-        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Faintest ink" VerticalAlignment="Center"
-                   ToolTip.Tip="Lower takes fainter lines in; higher keeps only the darkest" />
-        <Slider Grid.Column="1" x:Name="ThresholdSlider" Minimum="5" Maximum="95" Value="25" ValueChanged="OnSliderChanged" />
+      <!-- Slider plus field (DESIGN.md): explored by feel, read exactly. -->
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource Space8}">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Faintest ink" VerticalAlignment="Center" />
+        <Slider Grid.Column="1" x:Name="ThresholdSlider" Minimum="5" Maximum="95" Value="25" ValueChanged="OnSliderChanged"
+                ToolTip.Tip="Lower takes fainter lines in; higher keeps only the darkest. On a scan, this is the contrast" />
+        <NumericUpDown Grid.Column="2" x:Name="ThresholdBox" Classes="value" Minimum="5" Maximum="95" Increment="5"
+                       Value="25" FormatString="0'%'" ValueChanged="OnBoxChanged" />
       </Grid>
-      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Space8}">
-        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Shortest line" VerticalAlignment="Center"
-                   ToolTip.Tip="Marks shorter than this many pixels are dropped as specks; a dot is always kept" />
-        <Slider Grid.Column="1" x:Name="DetailSlider" Minimum="0" Maximum="40" Value="3" ValueChanged="OnSliderChanged" />
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource Space8}">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Shortest line" VerticalAlignment="Center" />
+        <Slider Grid.Column="1" x:Name="DetailSlider" Minimum="0" Maximum="40" Value="3" ValueChanged="OnSliderChanged"
+                ToolTip.Tip="Marks shorter than this are dropped as specks; a dot is always kept" />
+        <NumericUpDown Grid.Column="2" x:Name="DetailBox" Classes="value" Minimum="0" Maximum="40" Increment="1"
+                       Value="3" FormatString="0' px'" ValueChanged="OnBoxChanged" />
       </Grid>
     </StackPanel>
 

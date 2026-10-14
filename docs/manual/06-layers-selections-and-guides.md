@@ -498,10 +498,11 @@ front of you, over a faint copy of its pixels, and three controls:
   ink is what is dark. Left on the first choice, Lightbox picks by looking.
 - **Faintest ink** — how faint a pixel may be and still count as ink. Lower
   takes pale pencil lines in; higher keeps only the darkest. On a scan this is
-  the contrast control: for a trace, contrast and threshold both decide which
-  pixels are ink, so there is one slider for it.
+  the contrast control.
 - **Shortest line** — marks shorter than this many pixels are dropped as specks
   of noise. A dot is always kept.
+
+Each has a slider to explore by feel and a field to type into.
 
 **Trace** traces every drawing on the layer that holds pixels onto a **new
 layer directly above**, named after it with *(traced)*, with the same blend,
@@ -521,11 +522,9 @@ edge of a line comes back as a round brush's edge; the order the lines were
 drawn in is guessed (top to bottom); the pen's real pressure is guessed from the
 width; and where many lines tangle, which way each one went is a guess too.
 Lines that run very close together can merge into one or break into pieces —
-the faintest-ink slider is the first thing to try. Measured on two layers of
-flattened line art at 1920×1080: about twenty strokes per drawing, 82–88% of the
-ink in the same place, about 0.4 s per drawing.
+the faintest-ink slider is the first thing to try.
 
-Colour areas are not traced into fills yet: tracing reads line art.
+*Planned:* tracing colour areas into fills. Tracing reads line art only today.
 
 ### Masking a layer
 

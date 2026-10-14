@@ -397,7 +397,7 @@
         <MenuItem Header="Move _down" Command="{Binding MoveActiveLayerDownCommand}" />
         <MenuItem Header="Merge do_wn" Click="OnMenuMergeDown" InputGesture="Ctrl+E"
                   ToolTip.Tip="Fold the active layer into the one below it" />
-        <MenuItem Header="Trace to st_rokes…" Click="OnMenuTraceLayer" ToolTip.Tip="Turn the active layer's pixels into brush strokes on a new layer above" />
+        <MenuItem Header="_Trace to strokes…" Click="OnMenuTraceLayer" ToolTip.Tip="Turn the active layer's pixels into brush strokes on a new layer above" />
         <Separator />
         <MenuItem Header="_Visible" ToggleType="CheckBox"
                   IsChecked="{Binding ActiveLayerVisible, Mode=TwoWay}"
