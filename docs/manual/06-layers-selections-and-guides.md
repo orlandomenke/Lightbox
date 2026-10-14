@@ -504,6 +504,46 @@ When AI assistance is on and a merge would do that to any drawing, Lightbox
 asks first, because a flattened drawing is one the inbetweener can no longer
 read.
 
+### Tracing pixels back into strokes
+
+A layer of pixels — a drawing an older merge flattened, an imported image, a
+scan of something drawn on paper — can be traced back into strokes. **Layer ▸
+Trace to strokes…** opens a window with the drawing at the playhead traced in
+front of you, over a faint copy of its pixels, and three controls:
+
+- **Read ink from** — *transparency* for a drawn layer, where the ink is on
+  nothing; *darkness* for a scan or a photo, where every pixel is opaque and the
+  ink is what is dark. Left on the first choice, Lightbox picks by looking.
+- **Faintest ink** — how faint a pixel may be and still count as ink. Lower
+  takes pale pencil lines in; higher keeps only the darkest. On a scan this is
+  the contrast control.
+- **Shortest line** — marks shorter than this many pixels are dropped as specks
+  of noise. A dot is always kept.
+
+Each has a slider to explore by feel and a field to type into.
+
+**Trace** traces every drawing on the layer that holds pixels onto a **new
+layer directly above**, named after it with *(traced)*, with the same blend,
+opacity, clip, mask, effects and folder, and the same timing. The pixel layer is
+**hidden, not deleted**, so you can compare the two and go back. Strokes a
+drawing already had are copied across on top of the traced ones. One undo
+step. It has no key by default; give it one in **Edit ▸ Configure ▸ Shortcuts**.
+
+**Each line becomes one brush stroke down its middle**, with pressure read from
+how wide the line is there, so a line that swells and tapers traces as one that
+does. A crossing comes back as two lines, a T as its bar and its stem, a closed
+loop as one stroke. The strokes are ordinary strokes: reshape them, and the AI
+inbetweener can match them.
+
+**What a trace cannot give back**, because it is not in the pixels: the exact
+edge of a line comes back as a round brush's edge; the order the lines were
+drawn in is guessed (top to bottom); the pen's real pressure is guessed from the
+width; and where many lines tangle, which way each one went is a guess too.
+Lines that run very close together can merge into one or break into pieces —
+the faintest-ink slider is the first thing to try.
+
+*Planned:* tracing colour areas into fills. Tracing reads line art only today.
+
 ### Masking a layer
 
 A layer mask hides part of a layer without touching its drawing. In Lightbox

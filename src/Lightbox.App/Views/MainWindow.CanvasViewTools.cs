@@ -660,6 +660,9 @@ public partial class MainWindow
             case "docker.splitGroup":
                 _vm.SplitGroupCommand.Execute(null);
                 break;
+            case "docker.traceLayer":
+                RequestTrace(null);
+                break;
             case "docker.clipToBelow":
                 _vm.ToggleActiveLayerClippedCommand.Execute(null);
                 break;

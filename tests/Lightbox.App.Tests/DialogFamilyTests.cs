@@ -45,7 +45,7 @@ public class DialogFamilyTests(Xunit.ITestOutputHelper output)
         nameof(RecoveryDialog), nameof(SaveFirstDialog), nameof(ResizeDialog),
         nameof(UpdateFromTemplateWindow), nameof(VersionHistoryWindow),
         nameof(SaveImageDialog), nameof(ImageSequenceWindow), nameof(ExportWindow), nameof(VideoExportWindow), nameof(DirectionDialog),
-        nameof(MergeErasersDialog),
+        nameof(MergeErasersDialog), nameof(TraceDialog),
     ];
 
     private static Window Make(string name) => name switch
@@ -64,6 +64,7 @@ public class DialogFamilyTests(Xunit.ITestOutputHelper output)
         nameof(VideoExportWindow) => new VideoExportWindow(),
         nameof(MergeErasersDialog) => new MergeErasersDialog(),
         nameof(DirectionDialog) => new DirectionDialog(),
+        nameof(TraceDialog) => new TraceDialog(),
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, "not a dialog this test knows"),
     };
 

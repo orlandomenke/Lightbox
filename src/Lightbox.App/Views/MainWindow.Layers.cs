@@ -331,6 +331,29 @@ public partial class MainWindow
         if (LayerRowOf(sender) is { } row) _vm.ToggleLayerEffects(row.Layer);
     }
 
+    /// <summary>Layer menu: trace the active layer's pixels to strokes, after the window asks how (Q269).</summary>
+    private void OnMenuTraceLayer(object? sender, RoutedEventArgs e) => RequestTrace(null);
+
+    /// <summary>
+    /// Trace a layer's pixels to strokes: say so if there is nothing to trace,
+    /// otherwise ask how with the drawing at the playhead previewed, then trace.
+    /// </summary>
+    private async void RequestTrace(Lightbox.Core.Documents.Layer? layer)
+    {
+        var drawings = _vm.DrawingsToTrace(layer);
+        if (drawings == 0)
+        {
+            await _vm.TraceLayerAsync(layer, new Lightbox.Raster.LineTraceOptions());   // says why
+            return;
+        }
+        using var sample = _vm.TraceSampleFor(layer);
+        var name = (layer ?? _vm.Doc.Scene.Layers[_vm.ActiveLayerIndex]).Name;
+        var options = await new TraceDialog()
+            .Describe(name, drawings, sample)
+            .ShowDialog<Lightbox.Raster.LineTraceOptions?>(this);
+        if (options is not null) await _vm.TraceLayerAsync(layer, options);
+    }
+
     /// <summary>Layer menu: merge the active layer down, through the same Q52 ask as Ctrl+E.</summary>
     private void OnMenuMergeDown(object? sender, RoutedEventArgs e) => RequestMergeDown(null);
 

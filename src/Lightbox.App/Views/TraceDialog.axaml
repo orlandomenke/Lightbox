@@ -1,0 +1,60 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Lightbox.App.Views.TraceDialog"
+        Title="Trace to strokes"
+        Width="{StaticResource SizeDialogWidth}" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    Q269. Tracing is lossy, and how lossy depends on the picture: which pixels
+    count as ink is the one choice that decides it, so it is a slider with the
+    result in front of it rather than a number guessed once. Contrast and
+    threshold are the same control for a tracer — both decide what is ink —
+    so there is one. The preview is the drawing at the playhead, traced with
+    what is set, over a faint copy of the pixels it came from.
+  -->
+  <StackPanel Margin="{StaticResource DialogPadding}" Spacing="{StaticResource Space12}">
+    <TextBlock x:Name="Explanation" TextWrapping="Wrap" />
+
+    <Border Background="{DynamicResource CanvasPaperBrush}" CornerRadius="{StaticResource RadiusPreview}" ClipToBounds="True">
+      <Image x:Name="Preview" Stretch="Uniform" Height="{StaticResource SizeDialogPreview}" />
+    </Border>
+    <TextBlock x:Name="PreviewNote" FontSize="{StaticResource TypeDense}" Opacity="0.7" TextWrapping="Wrap" />
+
+    <StackPanel Spacing="{StaticResource Space8}">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Space8}">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Read ink from" VerticalAlignment="Center" />
+        <ComboBox Grid.Column="1" x:Name="SourceBox" HorizontalAlignment="Stretch" SelectionChanged="OnSourceChanged">
+          <ComboBoxItem Content="Auto — picks by looking" />
+          <ComboBoxItem Content="Transparency (drawn line art)" />
+          <ComboBoxItem Content="Darkness (scan or photo)" />
+        </ComboBox>
+      </Grid>
+      <!-- Slider plus field (DESIGN.md): explored by feel, read exactly. -->
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource Space8}">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Faintest ink" VerticalAlignment="Center" />
+        <Slider Grid.Column="1" x:Name="ThresholdSlider" Minimum="5" Maximum="95" Value="25" ValueChanged="OnSliderChanged"
+                ToolTip.Tip="Lower takes fainter lines in; higher keeps only the darkest. On a scan, this is the contrast" />
+        <NumericUpDown Grid.Column="2" x:Name="ThresholdBox" Classes="value" Minimum="5" Maximum="95" Increment="5"
+                       Value="25" FormatString="0'%'" ValueChanged="OnBoxChanged" />
+      </Grid>
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource Space8}">
+        <TextBlock Grid.Column="0" Width="{StaticResource SizeDialogLabel}" Text="Shortest line" VerticalAlignment="Center" />
+        <Slider Grid.Column="1" x:Name="DetailSlider" Minimum="0" Maximum="40" Value="3" ValueChanged="OnSliderChanged"
+                ToolTip.Tip="Marks shorter than this are dropped as specks; a dot is always kept" />
+        <NumericUpDown Grid.Column="2" x:Name="DetailBox" Classes="value" Minimum="0" Maximum="40" Increment="1"
+                       Value="3" FormatString="0' px'" ValueChanged="OnBoxChanged" />
+      </Grid>
+    </StackPanel>
+
+    <UniformGrid x:Name="ButtonRow" Rows="1" ColumnSpacing="{StaticResource Space8}" HorizontalAlignment="Right">
+      <Button Classes="tertiary" Content="Cancel" IsCancel="True" Click="OnCancel"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+      <Button Classes="primary" Content="Trace" IsDefault="True" Click="OnTrace"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              MinWidth="{StaticResource SizeDialogButton}" />
+    </UniformGrid>
+  </StackPanel>
+</Window>

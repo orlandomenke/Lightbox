@@ -478,6 +478,8 @@ public sealed class ShortcutMap
             // Q268. No default key: no other application has a merge that can
             // be taken back out, so there is no convention to borrow.
             new("docker.splitGroup", "Split a merged group back onto its own layer", "Dockers", null),
+            // Q269. No default key: a trace is occasional, and it asks first.
+            new("docker.traceLayer", "Trace a layer's pixels to strokes", "Dockers", null),
             // Photoshop's key, and global like the merge: clipping is asked
             // for from the canvas while colouring, not only from the docker.
             new("docker.clipToBelow", "Clip layer to the one below", "Dockers",
