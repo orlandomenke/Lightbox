@@ -156,6 +156,7 @@ public static class GroupSplit
                 Role = frame.Role,
                 Ai = frame.Ai,
                 Chart = frame.Chart is null ? null : [.. frame.Chart],
+                Matches = frame.Matches?.Select(m => m.Clone()).ToList(),
             };
             var keepWrapped = !liftMask && group.Mask is not null
                 || !liftEffects && group.Effects is not null

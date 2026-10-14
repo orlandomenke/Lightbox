@@ -320,4 +320,19 @@ public sealed class LineMatchModeTests : BrushStateIsolated
 
         Assert.Null(vm.PaintLayer().Cels[0].Frame!.Matches);
     }
+
+    [AvaloniaFact]
+    public void ALockedLayerCannotBeMatchedOrRedrawn()
+    {
+        var vm = OnTheInbetween();
+        vm.PaintLayer().Locked = true;
+        var before = vm.PaintLayer().Cels.Select(c => c.Frame).ToList();
+
+        vm.LineMatchMode = true;
+        vm.RedrawInbetweensCommand.Execute(null);
+
+        Assert.False(vm.LineMatchMode);
+        Assert.Contains("locked", vm.AiStatus);
+        Assert.Equal(before, vm.PaintLayer().Cels.Select(c => c.Frame).ToList());
+    }
 }

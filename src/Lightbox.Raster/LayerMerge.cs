@@ -317,6 +317,7 @@ public static class LayerMerge
         {
             Role = below?.Role ?? above!.Role,
             Chart = Copy(below?.Chart) ?? Copy(above?.Chart),
+            Matches = Copy(below?.Matches, above?.Matches),
             Ai = below?.Ai ?? above?.Ai,
         };
         // MergeDown takes these off the layer afterwards, where they would
@@ -556,6 +557,7 @@ public static class LayerMerge
             // content has it, so that pair is not appended at all.
             PngBase64 = below is null ? above?.PngBase64 : below.PngBase64,
             Chart = Copy(below?.Chart) ?? Copy(above?.Chart),
+            Matches = Copy(below?.Matches, above?.Matches),
             Ai = below?.Ai ?? above?.Ai,
         };
         // Fresh stroke ids: a drawing held on one layer while the other keys
@@ -638,6 +640,7 @@ public static class LayerMerge
             Role = below?.Role ?? above!.Role,
             PngBase64 = PngCodec.Encode(bitmap),
             Chart = Copy(below?.Chart) ?? Copy(above?.Chart),
+            Matches = Copy(below?.Matches, above?.Matches),
             Ai = below?.Ai ?? above?.Ai,
         };
         // Placements are baked into the pixels above; carrying them as live
@@ -689,4 +692,14 @@ public static class LayerMerge
     }
 
     private static List<double>? Copy(List<double>? chart) => chart is null ? null : [.. chart];
+
+    /// <summary>
+    /// Both drawings' line matches (Q271): they name strokes by id, so the
+    /// lower drawing's and the upper's sit side by side; null when neither has any.
+    /// </summary>
+    private static List<LineMatch>? Copy(List<LineMatch>? below, List<LineMatch>? above)
+    {
+        var both = (below ?? []).Concat(above ?? []).Select(m => m.Clone()).ToList();
+        return both.Count == 0 ? null : both;
+    }
 }

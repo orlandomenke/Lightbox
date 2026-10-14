@@ -35,6 +35,9 @@ public static class LinePieces
     /// <summary>Turns sharper than this are corners.</summary>
     private const double Corner = Math.PI / 3;
 
+    /// <summary>The most points one span of a stroke is split into when spacing it.</summary>
+    private const int MaxSplits = 4096;
+
     /// <summary>No piece shorter than this many points (about 15px) is cut off.</summary>
     private const int Shortest = 5;
 
@@ -105,7 +108,11 @@ public static class LinePieces
         {
             if (i > 0)
             {
-                var n = (int)Math.Ceiling(GeometryOps.Dist(points[i - 1], points[i]) / step);
+                // Bounded: a hostile or broken file's segment of absurd length
+                // gets at most MaxSplits points, never billions (the sensitivity
+                // review, 2026-10-14). Not finite is not a length at all.
+                var length = GeometryOps.Dist(points[i - 1], points[i]);
+                var n = double.IsFinite(length) ? (int)Math.Min(Math.Ceiling(length / step), MaxSplits) : 0;
                 for (var k = 1; k < n; k++) even.Add(GeometryOps.LerpPoint(points[i - 1], points[i], (double)k / n));
             }
             even.Add(points[i]);

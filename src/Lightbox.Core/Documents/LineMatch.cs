@@ -46,4 +46,24 @@ public sealed class LineMatch
     public bool? Solid { get; set; }
 
     public LineMatch Clone() => new() { Unknown = Unknown, A = [.. A], B = [.. B], Solid = Solid };
+
+    /// <summary>
+    /// What a file's match list can be trusted to say: a null match, a null
+    /// side, a reference with no stroke id are dropped, and a match left with
+    /// nothing on either side goes too. Null when nothing is left. A damaged
+    /// file then loads as the matches it still has, instead of throwing later,
+    /// on an edit, a clone or a redraw.
+    /// </summary>
+    public static List<LineMatch>? Readable(List<LineMatch?>? read)
+    {
+        var good = new List<LineMatch>();
+        foreach (var m in read ?? [])
+        {
+            if (m is null) continue;
+            m.A = [.. (m.A ?? []).Where(r => r.Stroke is not null)];
+            m.B = [.. (m.B ?? []).Where(r => r.Stroke is not null)];
+            if (m.A.Count > 0 && m.B.Count > 0) good.Add(m);
+        }
+        return good.Count == 0 ? null : good;
+    }
 }

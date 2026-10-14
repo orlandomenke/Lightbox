@@ -90,6 +90,13 @@ public partial class MainViewModel
     {
         _pending = null;
         _matchHeld = null;
+        // Matching rewrites the layer's inbetweens, so a layer a brush cannot
+        // touch cannot be matched on either; CanEdit says why.
+        if (value && !CanEdit(ActiveLayer, "match lines on it"))
+        {
+            LineMatchMode = false;
+            return;
+        }
         if (value && MatchGapAt(CurrentFrameIndex) is not { } gap)
         {
             AiStatus = "Match lines needs a key before and after the playhead, with a gap between them.";
@@ -409,6 +416,7 @@ public partial class MainViewModel
     private void RedrawInbetweens()
     {
         var layer = ActiveLayer;
+        if (!CanEdit(layer, "redraw its inbetweens")) return;
         var replacements = Redrawn(layer, CurrentFrameIndex, i => layer.Cels[i].Frame!.Matches);
         if (replacements.Count == 0) return;
         var layerId = layer.Id;

@@ -108,7 +108,7 @@ public sealed class FrameConverter : JsonConverter<Frame>
                     frame.Chart = JsonSerializer.Deserialize<List<double>>(ref reader, options);
                     break;
                 case "matches":
-                    frame.Matches = JsonSerializer.Deserialize<List<LineMatch>>(ref reader, options);
+                    frame.Matches = LineMatch.Readable(JsonSerializer.Deserialize<List<LineMatch?>>(ref reader, options));
                     break;
                 case "correctives":
                     frame.Correctives = JsonSerializer.Deserialize<List<Corrective>>(ref reader, options);

@@ -175,4 +175,31 @@ public class LineMatchTests(ITestOutputHelper output)
         Assert.Null(back[0].Solid);
         Assert.False(back[1].Solid);
     }
+
+    [Fact]
+    public void ADamagedMatchListLoadsAsWhatItCanStillSay()
+    {
+        var doc = DocumentFactory.CreateDoc(64, 48, 12);
+        var frame = doc.Scene.Layers[^1].Cels[0].Frame!;
+        frame.Matches = [new LineMatch { A = [new PieceRef("s1", 0)], B = [new PieceRef("t1", 0)] }];
+        var json = DocJson.Serialize(doc).Replace("\"matches\":[", "\"matches\":[null,{\"a\":null,\"b\":[null]},");
+
+        var back = DocJson.Deserialize(json).Scene.Layers[^1].Cels[0].Frame!;
+
+        var only = Assert.Single(back.Matches!);
+        Assert.Equal([new PieceRef("s1", 0)], only.A);
+        back.Clone();   // and the drawing can still be edited
+    }
+
+    [Fact]
+    public void AStrokeOfAbsurdLengthIsCutQuickly()
+    {
+        var huge = Path("huge", (0, 0), (1e12, 0));
+
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        var pieces = LinePieces.Cut([huge, Path("other", (5e11, 10), (5e11, 2))]);
+
+        Assert.NotEmpty(pieces);
+        Assert.True(started.ElapsedMilliseconds < 2000, $"{started.ElapsedMilliseconds} ms");
+    }
 }
