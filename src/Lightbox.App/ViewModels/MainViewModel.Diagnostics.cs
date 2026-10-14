@@ -106,6 +106,9 @@ public partial class MainViewModel
         // scene entirely (AttachEditor ends by calling this). The axis in use
         // follows the scene here, where every one of those lands.
         ResyncSymmetry();
+        // Q271: an undo of a match, or of anything under the keys being
+        // matched, changes what the Match lines overlay shows.
+        if (LineMatchMode) RefreshLineMatch();
         // The Layer menu's checkboxes read the active layer live, so the value
         // is always right — but a binding only re-reads on a notification, and
         // an undo restores visibility/locks without one. Here rather than in
