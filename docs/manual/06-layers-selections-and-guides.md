@@ -414,11 +414,26 @@ group that shows nothing at all, at zero opacity or behind an empty mask, which
 the inbetweener leaves out. A line that a mask only partly hides is still read
 whole.
 
-*Planned:* picking, reshaping or recolouring a single line inside a group, and
-**Split group**, which puts a group back on a layer of its own. Until then,
-undo is the way back from a merge, and a line inside a group cannot be picked
-on its own. If you want every line loose after the merge, merge plain layers,
-or choose **Cut the lines** below.
+**Clicking a merged line selects the whole group.** It highlights as one
+thing — the status bar says *1 group selected* — and Delete, copy, the arrow
+keys and a drag move or remove it whole. Recolouring waits: a group's colours
+are its lines', and changing those is editing inside it.
+
+**Split group** puts a merge back. **Layer ▸ Split group**, or the layer row's
+right-click menu, takes the drawing that was merged in back out of every cel of
+the layer, onto a new layer directly above, named as it was and with the blend
+mode, opacity, clip, mask and effects it had. It works on the group you have
+selected, or the topmost one in the drawing at the playhead, and it is one
+undo step. Before you draw anything more, the two layers look exactly as the
+merged one did. Anything you drew on the merged layer afterwards stays there:
+an eraser stroke that reached the group is copied onto the split layer too, so
+what you rubbed out stays rubbed out, but a mark you drew *over* the group now
+sits under it — the status bar says how many. It has no key by default; give
+it one in **Edit ▸ Configure ▸ Shortcuts**.
+
+*Planned:* picking, reshaping or recolouring a single line inside a group. Until
+then, split the group to work on its lines, or choose **Cut the lines** below
+when you merge, which leaves every line loose.
 
 **A document that holds a group needs a Lightbox that knows groups.** A version
 from before groups will refuse to open it rather than open it with the merged

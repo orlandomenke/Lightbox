@@ -396,8 +396,8 @@
         <MenuItem Header="Move _up" Command="{Binding MoveActiveLayerUpCommand}"
                   ToolTip.Tip="Toward the viewer — or the whole selection, when this layer is in it" />
         <MenuItem Header="Move _down" Command="{Binding MoveActiveLayerDownCommand}" />
-        <MenuItem Header="Merge do_wn" Click="OnMenuMergeDown" InputGesture="Ctrl+E"
-                  ToolTip.Tip="Fold the active layer into the one below it" />
+        <MenuItem Header="Merge do_wn" Click="OnMenuMergeDown" InputGesture="Ctrl+E" ToolTip.Tip="Fold the active layer into the one below it" />
+        <MenuItem Header="Split _group" Command="{Binding SplitGroupCommand}" ToolTip.Tip="Put a merged drawing back on a layer of its own — the whole merge, every drawing" />
         <Separator />
         <MenuItem Header="_Visible" ToggleType="CheckBox"
                   IsChecked="{Binding ActiveLayerVisible, Mode=TwoWay}"
@@ -2953,8 +2953,8 @@
                             <MenuItem Header="Pin to timeline" ToggleType="CheckBox" IsChecked="{Binding SheetPinned, Mode=TwoWay}" ToolTip.Tip="With Pinned only on, this layer stays on the Timeline and the X-sheet" />
                             <MenuItem Header="Move up" Click="OnLayerMenuMoveUp" />
                             <MenuItem Header="Move down" Click="OnLayerMenuMoveDown" />
-                            <MenuItem Header="Merge down" Click="OnLayerMenuMergeDown"
-                                      ToolTip.Tip="Merge into the layer below (Ctrl+E). Drawings keep their strokes; a blend, opacity or mask keeps one whole as a group. Erasers: you are asked." />
+                            <MenuItem Header="Split group" Click="OnLayerMenuSplitGroup" ToolTip.Tip="Put a merged drawing on this layer back on a layer of its own" />
+                            <MenuItem Header="Merge down" Click="OnLayerMenuMergeDown" ToolTip.Tip="Merge into the layer below (Ctrl+E). Drawings keep their strokes; a blend, opacity or mask keeps one whole as a group. Erasers: you are asked." />
                             <Separator />
                             <MenuItem Header="Group into a new folder" InputGesture="Ctrl+G" Click="OnLayerMenuNewFolder" />
                             <MenuItem Header="Remove from folder" IsVisible="{Binding IsGrouped}"

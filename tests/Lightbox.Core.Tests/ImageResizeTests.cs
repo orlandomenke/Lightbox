@@ -876,6 +876,7 @@ public class ImageResizeTests
             new[]
             {
                 nameof(StrokeGroup.Unknown), nameof(StrokeGroup.Blend), nameof(StrokeGroup.Opacity),
+                nameof(StrokeGroup.From), nameof(StrokeGroup.Name),
                 nameof(StrokeGroup.Clip),
                 // The stack a layer had, and treated as a layer's is: a
                 // resize does not reach into an effect's parameters.

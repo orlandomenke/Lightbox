@@ -281,7 +281,9 @@ Each is its own branch and pull request, in this order (Q265):
    stroke *inside* a group is not in this step.
 
    **Landed in two parts, and the split is recorded because it was not the
-   plan.** The first pull request is everything that makes a merge keep strokes
+   plan.** The second part — Split group and whole-group picking — was asked of
+   the owner on its own (Q268) and is built: one Split takes the whole merge
+   out, every cel, using the layer id each group now remembers. The first pull request is everything that makes a merge keep strokes
    and lose nothing the pixels could do: model, file, rendering, the consumers
    above, merge writing groups, the AI reading through, and a group moving with
    its drawing — whole, or cut by a selection. What it leaves for the second:
