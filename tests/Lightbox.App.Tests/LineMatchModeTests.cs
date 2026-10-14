@@ -246,4 +246,78 @@ public sealed class LineMatchModeTests : BrushStateIsolated
 
         Assert.Null(vm.PaintLayer().Cels[0].Frame!.Matches);
     }
+
+    [AvaloniaFact]
+    public void ACelInsertedWhileMatchingDoesNotMoveTheMatchOntoAnotherDrawing()
+    {
+        // The gap is held by its drawings, not by where they sat on the sheet.
+        var vm = OnTheInbetween();
+        vm.LineMatchMode = true;
+        vm.CurrentFrameIndex = 0;
+        vm.AddFrameCommand.Execute(null);   // a new cel after key A: everything after it moves along
+
+        MatchTheL(vm);
+
+        var layer = vm.PaintLayer();
+        var withMatches = layer.Cels.Where(c => c.Frame?.Matches is { Count: > 0 }).ToList();
+        var holder = Assert.Single(withMatches).Frame!;
+        Assert.Equal(FrameRole.Key, holder.Role);
+        Assert.Equal(100, holder.Strokes[0].Points[0].X);
+    }
+
+    [AvaloniaFact]
+    public void AnotherDocumentEndsTheMode()
+    {
+        var vm = OnTheInbetween();
+        vm.LineMatchMode = true;
+
+        vm.ReplaceDocument(Lightbox.Core.Documents.DocumentFactory.CreateDoc(320, 240, 12));
+
+        Assert.False(vm.LineMatchMode);
+        Assert.Null(vm.LineMatchView);
+    }
+
+    [AvaloniaFact]
+    public void ClickingALineOfTheOpenMatchAgainTakesItOutRatherThanMatchingItTwice()
+    {
+        var vm = OnTheInbetween();
+        vm.LineMatchMode = true;
+        MatchTheL(vm);
+
+        vm.LineMatchPress(100, 150, shift: false, Reach);   // A's upright, already in the open match
+        vm.LineMatchPress(140, 150, shift: false, Reach);   // would join a second match if one had opened
+
+        var matches = vm.PaintLayer().Cels[0].Frame!.Matches ?? [];
+        var all = matches.SelectMany(m => m.A).ToList();
+        Assert.Equal(all.Count, all.Distinct().Count());
+    }
+
+    [AvaloniaFact]
+    public void AClickThatChangesNothingAddsNoUndoStep()
+    {
+        var vm = OnTheInbetween();
+        vm.LineMatchMode = true;
+        MatchTheL(vm);
+
+        vm.LineMatchPress(140, 150, shift: false, Reach);   // B's upright: already in the open match
+        vm.UndoCommand.Execute(null);
+
+        // The undo took back the last real change, B's upright, not a no-op.
+        var match = Assert.Single(vm.PaintLayer().Cels[0].Frame!.Matches!);
+        Assert.Single(match.B);
+    }
+
+    [AvaloniaFact]
+    public void AnUndoClosesTheOpenMatch()
+    {
+        var vm = OnTheInbetween();
+        vm.LineMatchMode = true;
+        vm.LineMatchPress(100, 150, shift: false, Reach);
+        vm.LineMatchPress(140, 150, shift: false, Reach);
+
+        vm.UndoCommand.Execute(null);
+        vm.LineMatchPress(140, 150, shift: false, Reach);   // with nothing open, a line of B matches nothing
+
+        Assert.Null(vm.PaintLayer().Cels[0].Frame!.Matches);
+    }
 }

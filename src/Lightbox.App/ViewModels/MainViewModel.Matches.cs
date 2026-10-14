@@ -34,8 +34,47 @@ public partial class MainViewModel
     /// <summary>Raised whenever <see cref="LineMatchView"/> changes, for the window to push to the canvas.</summary>
     public event Action<LineMatchOverlay?>? LineMatchChanged;
 
-    /// <summary>The gap being matched: its layer, and the cels of its two drawings.</summary>
-    private (string Layer, int A, int B)? _matchGap;
+    /// <summary>
+    /// The gap being matched, held by what it is rather than where it sat: the
+    /// document's editor, the layer, and the ids of its two drawings. A cel
+    /// inserted before it moves it along the sheet without moving the match onto
+    /// another drawing, and another document ends the mode (the adversary, Q271).
+    /// </summary>
+    private (object Editor, string Layer, string A, string B)? _matchHeld;
+
+    /// <summary>Set while a match is being saved, so the save's own document change does not close the open match.</summary>
+    private bool _savingMatches;
+
+    /// <summary>Where the held gap is now — layer, and the cels of its two drawings — or null when it is gone.</summary>
+    private (string Layer, int A, int B)? CurrentGap()
+    {
+        if (_matchHeld is not { } held || !ReferenceEquals(held.Editor, _editor)) return null;
+        var layer = Scene.Layers.FirstOrDefault(l => l.Id == held.Layer);
+        if (layer is null) return null;
+        int a = -1, b = -1;
+        for (var i = 0; i < layer.Cels.Count; i++)
+        {
+            if (layer.Cels[i].Frame?.Id == held.A && a < 0) a = i;
+            else if (layer.Cels[i].Frame?.Id == held.B && a >= 0) { b = i; break; }
+        }
+        return a >= 0 && b > a ? (held.Layer, a, b) : null;
+    }
+
+    /// <summary>
+    /// The document changed under the mode: an undo or a redo closes the open
+    /// match (what it was opened against may be gone), and a gap that no longer
+    /// exists — its drawings deleted, another document — ends the mode.
+    /// </summary>
+    private void LineMatchDocumentChanged()
+    {
+        if (!_savingMatches) _pending = null;
+        if (CurrentGap() is null)
+        {
+            LineMatchMode = false;
+            return;
+        }
+        RefreshLineMatch();
+    }
 
     private List<LinePiece> _piecesA = [];
     private List<LinePiece> _piecesB = [];
@@ -50,14 +89,18 @@ public partial class MainViewModel
     partial void OnLineMatchModeChanged(bool value)
     {
         _pending = null;
-        _matchGap = null;
+        _matchHeld = null;
         if (value && MatchGapAt(CurrentFrameIndex) is not { } gap)
         {
             AiStatus = "Match lines needs a key before and after the playhead, with a gap between them.";
             LineMatchMode = false;
             return;
         }
-        if (value) _matchGap = MatchGapAt(CurrentFrameIndex);
+        if (value && MatchGapAt(CurrentFrameIndex) is { } found)
+        {
+            var layer = Scene.Layers.First(l => l.Id == found.Layer);
+            _matchHeld = (_editor, found.Layer, layer.Cels[found.A].Frame!.Id, layer.Cels[found.B].Frame!.Id);
+        }
         RefreshLineMatch();
     }
 
@@ -100,7 +143,7 @@ public partial class MainViewModel
     /// </remarks>
     public void LineMatchPress(double x, double y, bool shift, double reach)
     {
-        if (_matchGap is not { } gap || Gap(gap) is not { } frames)
+        if (CurrentGap() is not { } gap || Gap(gap) is not { } frames)
         {
             LineMatchMode = false;
             return;
@@ -140,7 +183,7 @@ public partial class MainViewModel
                 }
                 matches[pendingIndex].A.Add(reference);
             }
-            else if (owner >= 0 && owner != pendingIndex)
+            else if (owner >= 0)
             {
                 matches[owner].A.Remove(reference);
                 _pending = null;
@@ -216,6 +259,11 @@ public partial class MainViewModel
     {
         var layer = Scene.Layers.First(l => l.Id == gap.Layer);
         var saved = matches.Count == 0 ? null : matches;
+        if (SameMatches(layer.Cels[gap.A].Frame!.Matches, saved))
+        {
+            RefreshLineMatch();
+            return;
+        }
         // Only what the engine drew and nobody changed is redrawn: an inbetween
         // the artist drew or touched up, or one the AI drew, differs from what
         // the engine gives for the matches as they were, and is kept (W4).
@@ -228,13 +276,32 @@ public partial class MainViewModel
         AiStatus = kept == 0
             ? ""
             : $"{Plural(kept, "inbetween")} you changed {(kept == 1 ? "was" : "were")} left as {(kept == 1 ? "it is" : "they are")} - Redraw inbetweens replaces them too.";
-        _editor.Perform(doc =>
+        _savingMatches = true;
+        try
         {
-            var target = doc.Scene.Layers.First(l => l.Id == gap.Layer);
-            target.Cels[gap.A].Frame!.Matches = saved?.Select(m => m.Clone()).ToList();
-            foreach (var (cel, frame) in replacements) target.Cels[cel].Frame = frame;
-        }, "Match lines");
+            _editor.Perform(doc =>
+            {
+                var target = doc.Scene.Layers.First(l => l.Id == gap.Layer);
+                target.Cels[gap.A].Frame!.Matches = saved?.Select(m => m.Clone()).ToList();
+                foreach (var (cel, frame) in replacements) target.Cels[cel].Frame = frame;
+            }, "Match lines");
+        }
+        finally
+        {
+            _savingMatches = false;
+        }
         RefreshLineMatch();
+    }
+
+    /// <summary>Two match lists that say the same thing, line for line.</summary>
+    private static bool SameMatches(IReadOnlyList<LineMatch>? a, IReadOnlyList<LineMatch>? b)
+    {
+        if ((a?.Count ?? 0) != (b?.Count ?? 0)) return false;
+        for (var i = 0; i < (a?.Count ?? 0); i++)
+        {
+            if (!a![i].A.SequenceEqual(b![i].A) || !a[i].B.SequenceEqual(b[i].B) || a[i].Solid != b[i].Solid) return false;
+        }
+        return true;
     }
 
     /// <summary>
@@ -265,7 +332,7 @@ public partial class MainViewModel
     /// </summary>
     public void LineMatchToggleSolid(double x, double y, double reach)
     {
-        if (_matchGap is not { } gap || Gap(gap) is not { } frames)
+        if (CurrentGap() is not { } gap || Gap(gap) is not { } frames)
         {
             LineMatchMode = false;
             return;
@@ -291,7 +358,7 @@ public partial class MainViewModel
     /// <summary>Rebuild the pieces and the overlay from the document; clears both outside the mode.</summary>
     private void RefreshLineMatch()
     {
-        if (!LineMatchMode || _matchGap is not { } gap || Gap(gap) is not { } frames)
+        if (!LineMatchMode || CurrentGap() is not { } gap || Gap(gap) is not { } frames)
         {
             _piecesA = [];
             _piecesB = [];
