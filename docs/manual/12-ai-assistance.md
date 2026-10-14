@@ -107,9 +107,12 @@ inserting any new frames — use it after changing a key. Unlike a match, it
 replaces **every** inbetween in the run, **including one you drew or touched up
 by hand**; undo brings it back.
 
-One limit, for now: a part that is visible in one key and hidden in the other
-(a foot that goes behind the other leg) fades out by halfway rather than
-travelling with the leg and going out of view.
+**Nothing is invented.** Only lines you drew are inbetweened. Once you have
+matched lines in a gap, a line you did not match is paired with a line of the
+other key only when the two are clearly the same line — about the same length
+and shape, and for a tiny mark, in the same place. A line only one key has — a
+sock the other key hides behind a leg, a speck — fades out (or in) where you
+drew it; it is never turned into a mark that neither key has.
 
 ## AI inbetweens
 
