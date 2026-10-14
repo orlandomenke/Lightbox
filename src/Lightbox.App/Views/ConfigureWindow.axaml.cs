@@ -723,9 +723,21 @@ public partial class ConfigureWindow : Window
         AiProfileResult.IsVisible = true;
     }
 
-    /// <summary>Who the profile is about: the provider, and the model when there is one.</summary>
-    private string AiSubject() =>
-        _ai.Value("model") is { Length: > 0 } model ? $"{_ai.Provider.Name} · {model}" : _ai.Provider.Name;
+    /// <summary>
+    /// Who the profile is about: the provider, the model when there is one, and
+    /// the effort when the provider has that field (Q262) — a reading taken at
+    /// low says nothing certain about the same model at max, so raising the
+    /// effort has to make the old reading stale like changing the model does.
+    /// </summary>
+    private string AiSubject()
+    {
+        var subject = _ai.Value("model") is { Length: > 0 } model
+            ? $"{_ai.Provider.Name} · {model}"
+            : _ai.Provider.Name;
+        return _ai.Provider.Fields.Any(f => f.Id == "effort")
+            ? $"{subject} · {Lightbox.Ai.AiEffort.Normalize(_ai.Value("effort"))} effort"
+            : subject;
+    }
 
     private async void OnAiProfileClicked(object? sender, RoutedEventArgs e)
     {

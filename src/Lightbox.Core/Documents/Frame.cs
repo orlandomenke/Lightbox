@@ -30,8 +30,13 @@ public enum FrameRole
 /// "how often does my model need a second go" is the number that tells an
 /// artist whether the model they brought is borderline (Q85).
 /// </para>
+/// <para>
+/// <paramref name="Note"/> is the artist's own direction the frame was drawn
+/// under (Q261) — what was asked, kept so it can be read back later. Absent
+/// unless there was one.
+/// </para>
 /// </remarks>
-public sealed record AiProvenance(string Provider, string? Model = null, int? Attempts = null)
+public sealed record AiProvenance(string Provider, string? Model = null, int? Attempts = null, string? Note = null)
 {
     /// <summary>
     /// Keys a newer build wrote that this one does not know, carried through

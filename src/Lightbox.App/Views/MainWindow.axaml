@@ -1518,33 +1518,9 @@
          that can never do anything is worse than no row. -->
     <controls:ScaledChrome DockPanel.Dock="Top" IsVisible="{Binding AiEnabled}"><Border Padding="8,2" Background="{DynamicResource SurfacePanelBrush}"
             ToolTip.Tip="{Binding AiUnavailableHint}">
-      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space10}">
-        <!-- Which model is answering. The bar used to say "Claude" in three
-             places; now that the provider is the artist's choice, saying it
-             once and truthfully beats saying it three times and wrongly. -->
-        <TextBlock Text="{Binding AiProviderLabel}" VerticalAlignment="Center" Opacity="0.6" FontSize="{StaticResource TypeBody}"
-                   ToolTip.Tip="Change this in Edit ▸ Configure ▸ AI" />
-        <Button Content="✦ AI Inbetween"
-                Command="{Binding AiInbetweenCommand}"
-                IsEnabled="{Binding CanUseAi}"
-                ToolTip.Tip="Ask the model to draw the inbetweens between this key and the next" />
-        <Button Command="{Binding CancelAiCommand}" IsVisible="{Binding AiBusy}"
-                ToolTip.Tip="Cancel the AI request">
-          <Path Classes="icon" Width="10" Height="10" Data="{StaticResource IconClose}" />
-        </Button>
-        <ProgressBar IsIndeterminate="True" Width="90" IsVisible="{Binding AiBusy}" VerticalAlignment="Center" />
-        <TextBlock Text="{Binding AiStatus}" VerticalAlignment="Center" Opacity="0.85" TextTrimming="CharacterEllipsis" />
-        <!--
-          Why the tool will do nothing here. Beside the status line rather than
-          replacing it: this one follows the pointer and that one records what a
-          command did, so sharing a slot would have each wiping the other out
-          the moment the artist moved the mouse. Absent unless there is a
-          refusal, so it costs no room in the ordinary case.
-        -->
-        <TextBlock Text="{Binding PointerRefusal}" IsVisible="{Binding HasPointerRefusal}"
-                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                   Foreground="{DynamicResource Warning}" />
-      </StackPanel>
+      <!-- The bar's controls, in AiBar.axaml since Q261 gave them a menu of
+           their own. -->
+      <views:AiBar />
     </Border></controls:ScaledChrome>
 
     <!-- Info strip: what the document is, and how much room the machine has left -->

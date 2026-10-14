@@ -320,15 +320,82 @@ was added for it. It also found that a point or a pin at infinity threw, and
 that two pins a millionth of a unit apart threw the mesh 7e8 units; both are
 fixed and tested.
 
+## The spike: does a mesh hold still from drawing to drawing? (2026-10-13)
+
+Open risk 1 asked it and step 1b owed the answer. **Generated drawings, not
+an artist's**: a side-view figure about 700 units tall — torso, head, two-part
+arms and legs — drawn from a seed two ways, as closed outlines round each part
+and as single open lines (a stick figure), every stroke redrawn with a hand's
+wobble of about 1.5 units. A throwaway program against `PinMesh` and
+`PinSolve` as merged; it is not in the repository, so the method is given in
+full and the numbers are for the shape of the answer, not for a budget.
+
+**A pin dropped once, read against 23 later drawings** (default cell, 24):
+
+| Sequence | Mesh covers the same area as the drawing before | Hand pin no longer on the hand | Foot pin no longer on the foot |
+| --- | --- | --- | --- |
+| Walk in place, 12 drawings a cycle, outlines | 74% (least 60%) | 18 of 23 | 18–20 of 23 |
+| The same, drawn as single lines | 53% (least 33%) | 18–20 of 23 | 16–19 of 23 |
+| Slow acting, an eighth of that movement per drawing, outlines | 96% (least 89%) | 8–10 of 23 | 14–21 of 23 |
+| Walk travelling 22 units a drawing | 59% | 20–22 of 23, a mean 120–215 units from any ink | 21 of 23 |
+
+Head and hip pins stay put when the figure does (0 of 23) and are lost with
+everything else when it travels. A pin that has left its part does one of two
+things: it stands in the air and snaps to the nearest triangle (5–40 units
+off in place, hundreds when the figure travels), or it is still on the mesh
+but on something else — the hand pin on a hanging arm is, a few drawings
+later, a pin on the torso. Neither can be seen from the pin.
+
+**One pose redrawn sixteen times, the same pins, the same pull** (hand moved
+72 units; 80 fixed points mapped through each redraw's mesh — how far apart
+the same point lands is movement the mesh adds on top of the artist's own):
+
+| Drawing | Cell 12 | Cell 24 | Cell 48 |
+| --- | --- | --- | --- |
+| Outlines, wobble 1.5 | mean 0.1, worst 1.0 | mean 0.1–0.3, worst 0.7–3.4 | mean 0.0–0.2, worst 2.7 |
+| Outlines, wobble 3 | mean 0.2–0.3, worst 2.4 | mean 0.3–0.6, worst 3.9 | mean 0.2–0.3, worst 5.6 |
+| Outlines left 30 units open | mean 0.4–0.7, **worst 18** — the gap drains the shape | as closed | as closed |
+| Single lines, wobble 1.5 | **mean 2.5, worst 18–56** | **mean 1.2–1.4, worst 13–15** | mean 0.0, worst 0.2 |
+| Single lines, wobble 3 | **mean 3.6–5.5, worst 79–96** | mean 0.8–1.8, worst 12–14 | mean 0.1, worst 1.2 |
+
+Read against the 1.5 units the hand itself wobbles: a mesh over closed
+outlines adds less than the drawing already has. A mesh over open lines is a
+ribbon one cell wide, which cells a wobbling line crosses changes from redraw
+to redraw, and the ribbon's joins change with them — it adds more than the
+hand does, and now and then throws a point across the figure. A coarse cell
+hides it because the ribbons merge.
+
+**What it settles.**
+
+- **A pin belongs to one drawing (Q267, the owner's decision).** The plan's
+  "mesh per drawing, pins snap to the nearest triangle" is withdrawn. Pins and
+  the mesh they pull belong to the drawing they were dropped on and to its
+  holds; the other drawings of the layer are untouched until given their own.
+  That is what the tool is for — one drawing made to move by keys — and it is
+  the only reading in which a pin cannot grab the wrong thing. The record as
+  built puts pins on the rig, which is the layer's; step 2c changes it before
+  anything can author one.
+- **Redraw stability stops being the render's problem.** One drawing has one
+  mesh, derived the same way every time. What is left of it is editing: add a
+  line to a pinned drawing and its mesh changes under keys already set. On
+  outlines that is within a unit or so; on open lines it is not, so before the
+  tool ships the mesh over a line that encloses nothing wants a second ring of
+  cells, measured the same way (open risk 2).
+- **Not measured**: an artist's drawings. Line art with hatching, broken
+  outlines and overlapping forms will be worse than a generated figure in ways
+  this cannot say; the two tables are a floor on the problem, not a size for
+  it.
+
 ## Steps
 
 | # | Step | Branch | Cost |
 | --- | --- | --- | --- |
 | 0 | Build this branch; confirm the pin tests are red for the right reason and record what `BoneRigPerformanceTests` measures — **done 2026-10-11** | this one | S |
 | 1a | The two rig costs the baseline found (B442) — **done 2026-10-11**; `BoneRigPerformanceTests` lives there | `perf/rig/posed-frame-geometry` | S |
-| 1b | Bone baseline in the lab: `rigged` fixture in `Lightbox.Bench`, `pose.*` spans, run `pose-drag`. **Spike:** mesh a real frame-by-frame layer drawing by drawing and measure how much the mesh changes | `perf/lab/rig-baseline` | S–M |
+| 1b | Bone baseline in the lab: `rigged` fixture in `Lightbox.Bench`, `pose.*` spans, run `pose-drag`. **Spike:** mesh a real frame-by-frame layer drawing by drawing and measure how much the mesh changes — **baseline done 2026-10-11; spike done 2026-10-13 on generated drawings**, below | `perf/lab/rig-baseline` | S–M |
 | 2a | `PinMesh` + `PinSolve` + `PinSkinning` in Core to green — **done 2026-10-11** | `feat/puppet-pins` | L |
 | 2b | The record: `Armature.Pins`, optional-absent, tests first, carried through clone, resize and rig fitting — **done 2026-10-11** | `feat/puppet-pins-record` | M |
+| 2c | The record again, for Q267: a pin says which drawing it is on, a hold counts as that drawing, absent-when-unused, tests first. Before the render path, while nothing can author a pin | `feat/puppet-pins-per-drawing` | S–M |
 | 3 | Render path: a layer follows pins; a rig of pins alone counts as a rig; pins through `PoseFrameForRender`, imported pixels through `PassMesh`, bake, `pin.*` spans, `pinned` fixture, run `pin-drag` against the acceptance line | `feat/puppet-pins-render` | M |
 | 4 | The tool: Pins mode, overlay (outline / full mesh), options, shortcut, undo, manual, workspace defaults | `feat/ui/puppet-pins-tool` | M–L |
 | 5 | MCP surface and rig export for pins | separate | S–M |
@@ -336,14 +403,15 @@ fixed and tested.
 
 ## Open risks
 
-1. **Mesh stability across drawings.** Bones bind a *layer*, covering drawings
-   not yet made. A silhouette mesh differs per drawing; a pin dropped at one
-   place may be inside the arm on frame 3 and outside it on frame 4. The plan
-   assumes a mesh derived per drawing with pins snapping to the nearest
-   triangle. Step 1's spike measures it; if it reads badly this becomes a
-   question for the owner (freeze the mesh at pin time, as After Effects does).
-2. **Open line art.** A gap wider than a cell drains the shape. Fallback:
-   coarsen until it closes, and say so in the overlay. Untested on real art.
+1. **Mesh stability across drawings — measured, and decided (Q267).** It
+   read badly: a pin dropped once is off its part on most later drawings of a
+   walk. A pin now belongs to one drawing; see the spike above and step 2c.
+2. **Open line art.** A gap wider than a cell drains the shape (measured: a
+   30-unit gap at a 12-unit cell throws a point 18 units between redraws).
+   Fallback: coarsen until it closes, and say so in the overlay. And a line
+   that encloses nothing meshes as a ribbon one cell wide, which is unstable
+   under small changes to the drawing (the spike's second table) — a second
+   ring of cells is the candidate fix, unmeasured. Untested on real art.
    Related, and decided by the build: the mesh follows the pen's path and not
    the brush's width, so a figure painted with a broad brush and no outline
    is meshed as its centrelines — thin. Whether a painted figure needs the

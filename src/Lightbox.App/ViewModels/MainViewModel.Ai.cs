@@ -87,7 +87,13 @@ public partial class MainViewModel
     /// engine — only the frame producer differs.
     /// </summary>
     [RelayCommand]
-    private async Task AiInbetweenAsync()
+    private Task AiInbetweenAsync() => InbetweenWithAiAsync(direction: null);
+
+    /// <param name="direction">
+    /// The artist's own note for the model (Q261), or null for the plain
+    /// button. Sent with the request and kept on the frames it produced.
+    /// </param>
+    private async Task InbetweenWithAiAsync(string? direction)
     {
         if (_ai.Artist is null || AiBusy) return;
         var layer = ActiveLayer;
@@ -132,7 +138,8 @@ public partial class MainViewModel
             ts,
             chart is { Count: > 0 } ? Easing.Linear : TweenEasing,
             CollectReferenceImages(),
-            TaxonomyForActiveDocument());
+            TaxonomyForActiveDocument(),
+            Direction: direction);
 
         // The model proposes; Lightbox disposes — and now asks again when it
         // disposes. Every frame is verified against the keys before it can
@@ -169,7 +176,8 @@ public partial class MainViewModel
             frame.Ai = new AiProvenance(
                 AiProviderLabel,
                 _ai.ModelLabel,
-                frameResult.Attempts > 1 ? frameResult.Attempts : null);
+                frameResult.Attempts > 1 ? frameResult.Attempts : null,
+                direction);
             slots.Add(frame);
         }
 

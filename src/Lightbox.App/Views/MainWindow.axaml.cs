@@ -343,6 +343,7 @@ public partial class MainWindow : Window
 
         // If canvas input ever fails, say so in the status bar instead of dying silently.
         Canvas.CanvasError += message => _vm.AiStatus = message;
+        WireAiDirections();
 
         Canvas.PointerHovered += (x, y, mods) => _vm.UpdatePointerContext(x, y, mods, Canvas.ViewScale);
         Canvas.PointerExited += (_, _) => _vm.ClearPointerContext();
