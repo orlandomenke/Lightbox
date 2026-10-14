@@ -327,7 +327,7 @@ public static class LayerMerge
         {
             if (lowerMask is not null || lowerStack is not null)
             {
-                frame.Strokes.Add(GroupOf(below, mask: lowerMask, effects: lowerStack));
+                frame.Strokes.Add(GroupOf(below, lower, mask: lowerMask, effects: lowerStack));
             }
             else
             {
@@ -348,6 +348,7 @@ public static class LayerMerge
             {
                 frame.Strokes.Add(GroupOf(
                     above,
+                    upper,
                     blend: upper.BlendMode == LayerBlendMode.Normal ? null : upper.BlendMode,
                     opacity: upper.Opacity < 1 ? upper.Opacity : null,
                     clip: carve.ClippedToLower ? true : null,
@@ -365,12 +366,15 @@ public static class LayerMerge
     /// came from is about to go, undo holds the original, and a held drawing
     /// is merged once for every key the other layer has across it.
     /// </summary>
+    /// <param name="from">The layer the drawing was, remembered so Split group can give it back (Q268).</param>
     private static Stroke GroupOf(
-        Frame drawing, LayerBlendMode? blend = null, double? opacity = null, bool? clip = null,
+        Frame drawing, Layer from, LayerBlendMode? blend = null, double? opacity = null, bool? clip = null,
         LayerMask? mask = null, Core.Effects.EffectStack? effects = null)
     {
         var group = new StrokeGroup
         {
+            From = from.Id,
+            Name = from.Name,
             Strokes = drawing.Strokes,
             PngBase64 = string.IsNullOrEmpty(drawing.PngBase64) ? null : drawing.PngBase64,
             Blend = blend,

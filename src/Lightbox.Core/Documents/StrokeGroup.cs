@@ -36,6 +36,17 @@ public sealed class StrokeGroup
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Unknown { get; set; }
 
+    /// <summary>
+    /// The id of the layer this drawing was, before a merge made it a group
+    /// (Q268). Every cel's group from one merge shares it, which is how Split
+    /// group takes the whole merge back out. Null for a group nothing made by
+    /// merging — and for one written before the id was kept.
+    /// </summary>
+    public string? From { get; set; }
+
+    /// <summary>That layer's name, so a split gives it back. Null as <see cref="From"/>.</summary>
+    public string? Name { get; set; }
+
     /// <summary>The group's own record, in order. May contain groups.</summary>
     public List<Stroke> Strokes { get; set; } = [];
 
