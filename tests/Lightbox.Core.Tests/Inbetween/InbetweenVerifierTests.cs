@@ -367,7 +367,16 @@ public class InbetweenVerifierTests(ITestOutputHelper output)
 
         output.WriteLine(judged.Refusal ?? $"accepted; notes: {string.Join("; ", judged.Notes)}");
         Assert.True(judged.Accepted);
-        Assert.True(judged.MatchesDeterministic, "the chord is the deterministic answer and should say so");
+        // Since Q273 the deterministic answer swings the rod on its arc about
+        // the end that stays put, so the chord is accepted but is no longer
+        // what ＋ Inbetween draws; the arc is, and says so.
+        Assert.False(judged.MatchesDeterministic);
+        var length = Math.Sqrt(88 * 88 + 68 * 68);
+        var arc = InbetweenVerifier.Verify(
+            keyA, keyB,
+            [new CandidateInbetween(0.5, [Rod((128, 128), (128, 128 - length))])], Easing.Linear).Frames[0];
+        Assert.True(arc.Accepted);
+        Assert.True(arc.MatchesDeterministic, "the arc is the deterministic answer and should say so");
     }
 
     /// <summary>

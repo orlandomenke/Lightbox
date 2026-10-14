@@ -7,6 +7,18 @@ Set the number of inbetweens and an easing, then **＋ Inbetween** fills the run
 the playhead is in. Because a frame is a stroke record, the inbetweener matches
 *strokes*, not pixels.
 
+**Lines swing on arcs.** Each line turns about its joint — the end of it that
+moves least between the keys, the hip for a thigh, the knee for a shin — while
+that end travels, so a limb swinging between the keys keeps its length and
+follows a curve instead of sliding along a straight line and shrinking on the
+way. Whatever else changes between your keys, a bend straightening, a line
+growing, is blended in on top, and at the keys themselves the line is exactly
+what you drew. A line that only moves, without turning, moves as it always did.
+Lines that meet in both keys — a thigh and a shin at the knee — still meet in
+every inbetween. Two limits: a line that turns more than half a circle between
+two keys goes the short way round (add a breakdown to steer it), and a line
+that turns a lot *and* changes shape a lot can bulge on the way.
+
 **A run is extreme to extreme, and a breakdown is a stop along the way rather
 than the end of it.** Mark a cel as a breakdown and **＋ Inbetween** fills every
 gap of the run in one go — the drawings either side of the breakdown, in one
@@ -395,7 +407,7 @@ Schema adherence: 100 %
 Label retention: 60 %
 Degrades past 8 strokes — send it fewer than that.
 Swing: clean (1/1)
-Arc: clean (1/1) — interpolated along the chord — no arc
+Arc: clean (1/1) — departed 12.4 px from the free engine's answer
 Rotation: clean (1/1)
 Occlusion: clean (1/1)
 StrokeLadder: 2/6 — ladder-16: out of context

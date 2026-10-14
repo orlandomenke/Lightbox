@@ -339,7 +339,9 @@ by reading the profile the free engine produced about itself.**
   accepts it and the row read "clean" for a model that added nothing. Fixed by
   carrying **departure from the free engine's answer** in the row — reported,
   never thresholded, per Q33. That is also the first use of the "free two-sided
-  signal" this document has always claimed and never spent.
+  signal" this document has always claimed and never spent. Since Q273 the free
+  engine itself arcs, so the row also carries distance from a straight-line
+  answer and names a chord as one ("interpolated along the chord — no arc").
 - **Occlusion.** The torso was drawn whole in *both* keys, so nothing was ever
   hidden and no reveal was ever required. Fixed by drawing it in two pieces in
   key A, with the arm across the gap.
@@ -449,7 +451,7 @@ pair produces.
 
 And one the director alone raised, which is the expression veto doing its job:
 
-- **Repair gives a model a reason to flatten onto the deterministic chord.**
+- **Repair gives a model a reason to flatten onto the deterministic answer** (a chord then; the engine's arc since Q273).
   Zero deviation passes every geometric check by construction and cannot trip
   the jitter check either, so the safest way past a repair is to stop having an
   opinion. Q33 says that is a note and never a veto — and the note was reaching

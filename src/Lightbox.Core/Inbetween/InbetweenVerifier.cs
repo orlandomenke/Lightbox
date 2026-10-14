@@ -434,8 +434,9 @@ public static class InbetweenVerifier
 
         // The candidate read through the same correspondence the expected was
         // built with, so "point i" means one thing across the whole check.
-        var expected = new List<StrokePoint>(pa.Count);
-        for (var i = 0; i < pa.Count; i++) expected.Add(GeometryOps.LerpPoint(pa[i], pb[i], et));
+        // The engine's own answer, on its arc (Q273), so this check and the
+        // rest of the verifier mean the same thing by "expected".
+        var expected = Arc.Lerp(pa, pb, et);
         var pc = GeometryOps.Resample(candidate.Points, pa.Count);
         var forward = GeometryOps.Dist(expected[0], pc[0]) + GeometryOps.Dist(expected[^1], pc[^1]);
         var reversed = GeometryOps.Dist(expected[0], pc[^1]) + GeometryOps.Dist(expected[^1], pc[0]);

@@ -22,10 +22,13 @@ namespace Lightbox.Ai.Golden;
 /// it is reported and never thresholded.
 /// </para>
 /// <para>
-/// It is still the most useful number in the Arc row, because it is the only
-/// one that separates a model that arced from a model that interpolated along
-/// the chord. The verifier cannot: it scores betweenness, and a chord
-/// interpolation is *exactly* between the keys. Without this the Arc category
+/// It is still the most useful number in the Arc row, because with its twin —
+/// distance from a straight-line (chord) answer — it is the only one that
+/// separates a model that arced from a model that interpolated along the
+/// chord. Since Q273 the free engine arcs, so departure from it alone no longer
+/// says which: a chord answer departs from the engine's arc too. The verifier
+/// cannot tell them apart either: it scores betweenness, and both are between
+/// the keys. Without this the Arc category
 /// would pass everything and measure nothing — the "check that cannot fire"
 /// failure, which is worse than not having the check.
 /// </para>
@@ -43,7 +46,8 @@ public sealed record GoldenOutcome(
     bool Accepted,
     double LabelRetention,
     string? Note,
-    double? DepartureFromFree = null);
+    double? DepartureFromFree = null,
+    double? DepartureFromChord = null);
 
 /// <summary>One category's row in the profile.</summary>
 /// <param name="Headline">
@@ -201,7 +205,29 @@ public static class CapabilityProfiler
             pair.Id, pair.Category, true, accepted,
             LabelRetentionOf(pair.Request.KeyframeA, pair.Request.KeyframeB, frames.SelectMany(f => f.Strokes)),
             refusal,
-            DepartureFrom(pair, candidates));
+            DepartureFrom(pair, candidates),
+            DepartureFrom(pair, candidates, ChordOf));
+    }
+
+    /// <summary>
+    /// The straight-line answer at <paramref name="t"/>: every matched point moved
+    /// along the chord from key A to key B, as the free engine did before Q273.
+    /// What a model "that added nothing but a lerp" draws, so the Arc row can
+    /// still name it.
+    /// </summary>
+    private static List<Stroke> ChordOf(IReadOnlyList<Stroke> a, IReadOnlyList<Stroke> b, double t, Easing easing)
+    {
+        var et = EasingOps.Ease(Math.Clamp(t, 0, 1), easing);
+        var chord = new List<Stroke>();
+        foreach (var pair in StrokeMatcher.Match(StrokeRecordCleaner.EffectiveStrokes(a), StrokeRecordCleaner.EffectiveStrokes(b)))
+        {
+            if (pair.A is null || pair.B is null) continue;
+            var (pa, pb) = StrokeInterpolator.Aligned(pair.A, pair.B);
+            var line = pair.A.Clone();
+            line.Points = [.. pa.Select((p, i) => GeometryOps.LerpPoint(p, pb[i], et))];
+            chord.Add(line);
+        }
+        return chord;
     }
 
     /// <summary>
@@ -219,12 +245,15 @@ public static class CapabilityProfiler
     /// chord, a measure that pairs a good arc with a wrong one was reporting
     /// noise in the Arc row and calling it evidence.
     /// </remarks>
-    private static double DepartureFrom(GoldenPair pair, IReadOnlyList<CandidateInbetween> candidates)
+    private static double DepartureFrom(
+        GoldenPair pair, IReadOnlyList<CandidateInbetween> candidates,
+        Func<IReadOnlyList<Stroke>, IReadOnlyList<Stroke>, double, Easing, List<Stroke>>? answer = null)
     {
+        answer ??= (a, b, t, e) => Inbetweener.Inbetween(a, b, t, e);
         var distances = new List<double>(candidates.Count);
         foreach (var candidate in candidates)
         {
-            var free = Inbetweener.Inbetween(
+            var free = answer(
                 pair.Request.KeyframeA, pair.Request.KeyframeB, candidate.T, pair.Request.Easing);
             if (free.Count == 0 || candidate.Strokes.Count == 0) continue;
             // The same matcher the verifier uses, so "which stroke is which"
@@ -333,9 +362,12 @@ public static class CapabilityProfiler
         if (category == GoldenCategory.Arc && rows.Any(o => o.Answered))
         {
             var departure = rows.Where(o => o.Answered).Select(o => o.DepartureFromFree ?? 0).Average();
+            var chord = rows.Where(o => o.Answered).Select(o => o.DepartureFromChord ?? double.MaxValue).Average();
             var arcing = departure < 1
-                ? "interpolated along the chord — no arc, and nothing the free engine would not have drawn"
-                : $"departed {departure:F1} px from the free engine's answer";
+                ? "the free engine's own arc — nothing it would not have drawn"
+                : chord < 1
+                    ? "interpolated along the chord — no arc"
+                    : $"departed {departure:F1} px from the free engine's arc";
             return $"{clean ?? $"{accepted}/{rows.Count}"} — {arcing}";
         }
 

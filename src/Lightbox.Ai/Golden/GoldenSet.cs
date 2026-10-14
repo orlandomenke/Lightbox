@@ -15,7 +15,7 @@ public enum GoldenCategory
     /// <summary>Can it place a drawing between two keys at all.</summary>
     Swing,
 
-    /// <summary>Does it arc, or interpolate along the chord like the free engine.</summary>
+    /// <summary>Does it arc, as the free engine does since Q273, or interpolate along the chord.</summary>
     Arc,
 
     /// <summary>Does it keep correspondence when the drawing turns rather than travels.</summary>
@@ -124,7 +124,7 @@ public static class GoldenSet
                 [Line("arm", 40, 216, 216, 216)])),
 
         new("arc", GoldenCategory.Arc,
-            "A pendulum whose ends are level: the honest answer dips, a chord interpolation does not.",
+            "A pendulum whose ends are level: the honest answer swings the tip over the top, a chord interpolation shortens the rod.",
             Request(
                 [Line("pendulum", 128, 128, 40, 60)],
                 [Line("pendulum", 128, 128, 216, 60)])),
