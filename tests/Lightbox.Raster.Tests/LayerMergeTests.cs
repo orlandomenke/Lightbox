@@ -166,6 +166,29 @@ public class LayerMergeTests
     }
 
     [Fact]
+    public void UpperBlur_Bakes_SoItCannotStartBlurringTheLowerLayer()
+    {
+        // B469. A blur stroke softens whatever is under it. On its own layer
+        // this one passed over nothing at y=100; appended after the lower
+        // layer's bar it would soften that bar's edges, which the picture
+        // before the merge never showed. Smudge was refused for exactly this
+        // reason and blur was not.
+        var scene = TestScene();
+        var lower = LayerOf(Key(Bar(100, "#2040c0")));
+        var blur = Bar(100, "#000000");
+        blur.Brush.Kind = BrushKind.Blur;
+        blur.Brush.Size = 40;
+        var upper = LayerOf(Key(Bar(40, "#c02040"), blur));
+        using var expected = Composite(lower, upper, 0);
+
+        Assert.True(LayerMerge.WouldBakePixels(upper, lower));
+        LayerMerge.MergeDown(scene, upper, lower);
+
+        Assert.True(((Frame)lower.Cels[0].Frame!).HasBaseline);
+        AssertRendersIdentically(expected, lower, 0);
+    }
+
+    [Fact]
     public void EraserOverNothing_StaysLossless()
     {
         var scene = TestScene();
