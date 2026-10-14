@@ -30,14 +30,14 @@ public class TraceLayerVmTests
     }
 
     [AvaloniaFact]
-    public void TracingALayerPutsStrokesAboveAndHidesThePixels()
+    public async Task TracingALayerPutsStrokesAboveAndHidesThePixels()
     {
         var vm = WithPixels(out var flat);
         var count = vm.Doc.Scene.Layers.Count;
 
         Assert.Equal(1, vm.DrawingsToTrace(null));
         using (var sample = vm.TraceSampleFor(null)) Assert.NotNull(sample);
-        Assert.True(vm.TraceLayer(null, new LineTraceOptions()));
+        Assert.True(await vm.TraceLayerAsync(null, new LineTraceOptions()));
 
         Assert.Equal(count + 1, vm.Doc.Scene.Layers.Count);
         var traced = vm.Doc.Scene.Layers[vm.ActiveLayerIndex];
@@ -48,19 +48,19 @@ public class TraceLayerVmTests
     }
 
     [AvaloniaFact]
-    public void TracingIsOneUndoStep()
+    public async Task TracingIsOneUndoStep()
     {
         var vm = WithPixels(out _);
         var before = Lightbox.Core.Serialization.DocJson.Serialize(vm.Doc);
 
-        vm.TraceLayer(null, new LineTraceOptions());
+        await vm.TraceLayerAsync(null, new LineTraceOptions());
         vm.UndoCommand.Execute(null);
 
         Assert.Equal(before, Lightbox.Core.Serialization.DocJson.Serialize(vm.Doc));
     }
 
     [AvaloniaFact]
-    public void ALayerOfStrokesHasNothingToTraceAndSaysSo()
+    public async Task ALayerOfStrokesHasNothingToTraceAndSaysSo()
     {
         var vm = VmLayers.BareVm();
         vm.BeginStroke(40, 40, 1);
@@ -68,10 +68,34 @@ public class TraceLayerVmTests
         var count = vm.Doc.Scene.Layers.Count;
 
         Assert.Equal(0, vm.DrawingsToTrace(null));
-        Assert.False(vm.TraceLayer(null, new LineTraceOptions()));
+        Assert.False(await vm.TraceLayerAsync(null, new LineTraceOptions()));
 
         Assert.Equal(count, vm.Doc.Scene.Layers.Count);
         Assert.Contains("no pixels", vm.AiStatus);
+    }
+
+    [AvaloniaFact]
+    public async Task AStoppedTraceChangesNothing()
+    {
+        var vm = WithPixels(out var flat);
+        var count = vm.Doc.Scene.Layers.Count;
+        using var stop = new CancellationTokenSource();
+        stop.Cancel();
+
+        Assert.False(await vm.TraceLayerAsync(null, new LineTraceOptions(), stop.Token));
+
+        Assert.Equal(count, vm.Doc.Scene.Layers.Count);
+        Assert.True(flat.Visible);
+        Assert.Contains("stopped", vm.AiStatus);
+    }
+
+    [AvaloniaFact]
+    public void PixelsThatWillNotReadHaveNoPreviewRatherThanACrash()
+    {
+        var vm = WithPixels(out var flat);
+        flat.Cels[0].Frame!.PngBase64 = "bm90IGEgcGljdHVyZQ==";
+
+        Assert.Null(vm.TraceSampleFor(null));
     }
 
     [AvaloniaFact]

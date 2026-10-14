@@ -61,6 +61,8 @@ public partial class TraceDialog : Window
 
     private bool _syncing;
 
+    private CancellationTokenSource? _pending;
+
     /// <summary>A slider moved: its field follows, and the preview.</summary>
     private void OnSliderChanged(object? sender, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
@@ -99,15 +101,28 @@ public partial class TraceDialog : Window
         var generation = ++_generation;
         var options = Options;
         var sample = _sample;
+        // Stop the preview the last setting started — a drag of the slider
+        // otherwise queued one full trace per tick, and the one the slider
+        // stopped on waited behind them all (the adversary) — and wait a moment
+        // before starting this one, in case the slider is still moving.
+        _pending?.Cancel();
+        var stop = _pending = new CancellationTokenSource();
         note.Text = "Tracing…";
-        (int Count, Avalonia.Media.Imaging.Bitmap Picture) done;
+        (string? Why, int Count, Avalonia.Media.Imaging.Bitmap? Picture) done;
         try
         {
+            await Task.Delay(120, stop.Token);
             done = await Task.Run(() =>
             {
-                var strokes = LineTracer.Trace(sample, options);
-                return (strokes.Count, Picture(sample, strokes));
-            });
+                // Asked here, off the UI thread: it reads every pixel.
+                if (LineTracer.WhyNot(sample, options) is { } why) return (why, 0, null);
+                var strokes = LineTracer.Trace(sample, options, stop.Token);
+                return ((string?)null, strokes.Count, (Avalonia.Media.Imaging.Bitmap?)Picture(sample, strokes));
+            }, stop.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;   // a newer setting took over
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
@@ -116,7 +131,12 @@ public partial class TraceDialog : Window
         }
         if (generation != _generation)
         {
-            done.Picture.Dispose();   // a newer setting is on its way
+            done.Picture?.Dispose();   // a newer setting is on its way
+            return;
+        }
+        if (done.Why is { } reason)
+        {
+            note.Text = reason;
             return;
         }
         var image = this.FindControl<Image>("Preview")!;
@@ -144,7 +164,15 @@ public partial class TraceDialog : Window
         return new Avalonia.Media.Imaging.Bitmap(stream);
     }
 
-    private void OnTrace(object? sender, RoutedEventArgs e) => Close(Options);
+    private void OnTrace(object? sender, RoutedEventArgs e)
+    {
+        _pending?.Cancel();
+        Close(Options);
+    }
 
-    private void OnCancel(object? sender, RoutedEventArgs e) => Close(null);
+    private void OnCancel(object? sender, RoutedEventArgs e)
+    {
+        _pending?.Cancel();
+        Close(null);
+    }
 }

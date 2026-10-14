@@ -338,7 +338,7 @@ public partial class MainWindow
         var drawings = _vm.DrawingsToTrace(layer);
         if (drawings == 0)
         {
-            _vm.TraceLayer(layer, new Lightbox.Raster.LineTraceOptions());   // says why
+            await _vm.TraceLayerAsync(layer, new Lightbox.Raster.LineTraceOptions());   // says why
             return;
         }
         using var sample = _vm.TraceSampleFor(layer);
@@ -346,7 +346,7 @@ public partial class MainWindow
         var options = await new TraceDialog()
             .Describe(name, drawings, sample)
             .ShowDialog<Lightbox.Raster.LineTraceOptions?>(this);
-        if (options is not null) _vm.TraceLayer(layer, options);
+        if (options is not null) await _vm.TraceLayerAsync(layer, options);
     }
 
     /// <summary>Layer menu: merge the active layer down, through the same Q52 ask as Ctrl+E.</summary>

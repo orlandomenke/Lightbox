@@ -45,47 +45,94 @@ public static class LineTracer
     /// Trace a picture's line art into strokes, in the picture's pixel
     /// coordinates — which are stroke coordinates for a drawing's baseline.
     /// </summary>
-    public static List<Stroke> Trace(SKBitmap picture, LineTraceOptions? options = null)
+    public static List<Stroke> Trace(
+        SKBitmap picture, LineTraceOptions? options = null, CancellationToken cancel = default)
     {
         options ??= new LineTraceOptions();
-        var w = picture.Width;
-        var h = picture.Height;
-        var pixels = picture.Pixels;   // unpremultiplied colours
-        var byDarkness = options.Source switch
-        {
-            InkSource.Darkness => true,
-            InkSource.Transparency => false,
-            _ => IsOpaque(pixels),
-        };
-        // How much ink a pixel holds, 0..1: its opacity on a drawn layer, how
-        // dark it is (over white, which is what a scan is on) in a picture.
-        var level = (int)Math.Round(Math.Clamp(options.Threshold, 0.01, 0.99) * 255);
-        var ink = new bool[w * h];
-        var any = false;
-        for (var i = 0; i < ink.Length; i++)
-        {
-            if (InkOf(pixels[i], byDarkness) < level) continue;
-            ink[i] = true;
-            any = true;
-        }
-        if (!any) return [];
+        cancel.ThrowIfCancellationRequested();
+        var (ink, pixels, w, h, count) = Read(picture, options);
+        if (count == 0 || TooMuch(count, picture)) return [];
 
         var distance = DistanceToPaper(ink, w, h);
-        var skeleton = Thin(ink, w, h);
+        var skeleton = Thin(ink, w, h, cancel);
         KeepDots(ink, skeleton, distance, w, h);
-        var paths = Paths(skeleton, w, h);
+        var paths = Paths(skeleton, w, h, cancel);
         paths = Pruned(paths, distance, w);
         paths = Joined(paths);
 
         var strokes = new List<Stroke>();
         foreach (var path in paths.OrderBy(p => p.Points.Min(q => q.Y)).ThenBy(p => p.Points.Min(q => q.X)))
         {
-            // Detail: a line shorter than this is a tick of noise, not a mark —
-            // a lone dot is kept whatever, since it was drawn on purpose.
+            // Detail: a line shorter than this is a tick of noise, not a mark.
+            // A dot as wide as a line is kept whatever (Pruned drops specks).
             if (path.Points.Count > 1 && Length(path) < options.MinimumLength) continue;
-            if (StrokeOf(path, distance, pixels, w, byDarkness) is { } stroke) strokes.Add(stroke);
+            if (StrokeOf(path, distance, pixels, w, ReadsDarkness(picture, options)) is { } stroke) strokes.Add(stroke);
         }
         return strokes;
+    }
+
+    /// <summary>
+    /// Why this picture will not trace with these settings, in words — or null
+    /// when it will. A picture that is mostly ink has no lines in it to find,
+    /// and thinning it costs a pass of the whole page per pixel of its depth.
+    /// </summary>
+    public static string? WhyNot(SKBitmap picture, LineTraceOptions? options = null)
+    {
+        options ??= new LineTraceOptions();
+        var (_, _, _, _, count) = Read(picture, options);
+        if (count == 0) return "Nothing here counts as ink at this setting — lower Faintest ink.";
+        if (TooMuch(count, picture))
+        {
+            return "Most of this picture counts as ink, so there are no lines in it to find — "
+                + "raise Faintest ink, or read the ink from darkness.";
+        }
+        return null;
+    }
+
+    /// <summary>More than half the page: a fill, a photograph read the wrong way, not line art.</summary>
+    private static bool TooMuch(int ink, SKBitmap picture) => ink * 2L > (long)picture.Width * picture.Height;
+
+    private static bool ReadsDarkness(SKBitmap picture, LineTraceOptions options) => options.Source switch
+    {
+        InkSource.Darkness => true,
+        InkSource.Transparency => false,
+        _ => IsOpaque(picture.Pixels),
+    };
+
+    /// <summary>
+    /// The ink, and the colours, on a page one pixel bigger all round. The
+    /// border is paper: thinning and the walk never have to treat the edge as
+    /// special, and a line running off the page is thinned down its middle
+    /// like any other instead of staying where it touches the edge.
+    /// </summary>
+    private static (bool[] Ink, SKColor[] Pixels, int W, int H, int Count) Read(SKBitmap picture, LineTraceOptions options)
+    {
+        var source = picture.Pixels;   // unpremultiplied colours
+        var byDarkness = options.Source switch
+        {
+            InkSource.Darkness => true,
+            InkSource.Transparency => false,
+            _ => IsOpaque(source),
+        };
+        // How much ink a pixel holds, 0..1: its opacity on a drawn layer, how
+        // dark it is (over white, which is what a scan is on) in a picture.
+        var level = (int)Math.Round(Math.Clamp(options.Threshold, 0.01, 0.99) * 255);
+        var w = picture.Width + 2;
+        var h = picture.Height + 2;
+        var ink = new bool[w * h];
+        var pixels = new SKColor[w * h];
+        var count = 0;
+        for (var y = 0; y < picture.Height; y++)
+        for (var x = 0; x < picture.Width; x++)
+        {
+            var c = source[y * picture.Width + x];
+            var i = (y + 1) * w + x + 1;
+            pixels[i] = c;
+            if (InkOf(c, byDarkness) < level) continue;
+            ink[i] = true;
+            count++;
+        }
+        return (ink, pixels, w, h, count);
     }
 
     /// <summary>A picture with no transparency to speak of: a scan, a photo, a flattened export.</summary>
@@ -191,21 +238,28 @@ public static class LineTracer
     // ---- thinning -------------------------------------------------------------
 
     /// <summary>Zhang–Suen thinning to a one-pixel, 8-connected skeleton.</summary>
-    private static bool[] Thin(bool[] ink, int w, int h)
+    /// <remarks>
+    /// Only the pixels still set are looked at on each pass, not the page: a
+    /// pass costs the ink that is left, so a drawing that is mostly paper
+    /// thins in a few passes over a few thousand pixels. The page is padded
+    /// (<see cref="Read"/>), so no set pixel is on its edge.
+    /// </remarks>
+    private static bool[] Thin(bool[] ink, int w, int h, CancellationToken cancel)
     {
         var s = (bool[])ink.Clone();
+        var live = new List<int>();
+        for (var i = 0; i < s.Length; i++) if (s[i]) live.Add(i);
         var doomed = new List<int>();
         bool changed;
         do
         {
+            cancel.ThrowIfCancellationRequested();
             changed = false;
             for (var pass = 0; pass < 2; pass++)
             {
                 doomed.Clear();
-                for (var y = 1; y < h - 1; y++)
-                for (var x = 1; x < w - 1; x++)
+                foreach (var i in live)
                 {
-                    var i = y * w + x;
                     if (!s[i]) continue;
                     // p2..p9, clockwise from north.
                     bool p2 = s[i - w], p3 = s[i - w + 1], p4 = s[i + 1], p5 = s[i + w + 1];
@@ -222,8 +276,8 @@ public static class LineTracer
                 foreach (var i in doomed) s[i] = false;
                 changed |= doomed.Count > 0;
             }
+            if (changed) live.RemoveAll(i => !s[i]);
         } while (changed);
-
         return s;
     }
 
@@ -292,8 +346,9 @@ public static class LineTracer
         public bool Closed { get; set; }
     }
 
-    private static List<Path> Paths(bool[] s, int w, int h)
+    private static List<Path> Paths(bool[] s, int w, int h, CancellationToken cancel)
     {
+        cancel.ThrowIfCancellationRequested();
         // Branches, not neighbours: the number of separate runs of skeleton in
         // the ring of eight. A staircase pixel on a curve has three neighbours
         // and two branches; counted by neighbours it was a junction, and a
@@ -502,48 +557,95 @@ public static class LineTracer
     /// nearly straight, and again for what is left — so a crossing is two lines
     /// and a T is its bar and its stem.
     /// </summary>
+    /// <remarks>
+    /// Decided once per junction, then the paths are strung together along the
+    /// pairs in a single walk. The first version joined one pair, rebuilt
+    /// everything and started again: a 1080×1080 grid took 15.6 s and 7.8 GB
+    /// (the adversary).
+    /// </remarks>
     private static List<Path> Joined(List<Path> paths)
     {
-        var result = new List<Path>(paths);
-        bool joinedAny;
-        do
+        var open = paths.Where(p => !p.Closed).ToList();
+        var result = paths.Where(p => p.Closed).ToList();
+
+        // Ends by junction, in a stable order: path order, start before end.
+        var byNode = new SortedDictionary<int, List<(int Path, bool AtStart)>>();
+        for (var k = 0; k < open.Count; k++)
         {
-            joinedAny = false;
-            var byNode = new Dictionary<int, List<(Path Path, bool AtStart)>>();
-            foreach (var p in result)
+            if (open[k].StartNode >= 0) Add(byNode, open[k].StartNode, (k, true));
+            if (open[k].EndNode >= 0) Add(byNode, open[k].EndNode, (k, false));
+        }
+
+        // Which end continues into which.
+        var partner = new Dictionary<(int, bool), (int Path, bool AtStart)>();
+        foreach (var ends in byNode.Values)
+        {
+            if (ends.Count < 2) continue;
+            var pairs = new List<(double Turn, int A, int B)>();
+            for (var a = 0; a < ends.Count; a++)
+            for (var b = a + 1; b < ends.Count; b++)
             {
-                if (p.Closed) continue;
-                if (p.StartNode >= 0) Add(byNode, p.StartNode, (p, true));
-                if (p.EndNode >= 0 && !(p.EndNode == p.StartNode)) Add(byNode, p.EndNode, (p, false));
-            }
-            foreach (var (junction, ends) in byNode.OrderBy(e => e.Key))
-            {
-                if (ends.Count < 2) continue;
-                (int A, int B, double Turn) best = (-1, -1, double.MaxValue);
-                for (var a = 0; a < ends.Count; a++)
-                for (var b = a + 1; b < ends.Count; b++)
-                {
-                    if (ReferenceEquals(ends[a].Path, ends[b].Path)) continue;
-                    var da = Leaving(ends[a].Path, ends[a].AtStart);
-                    var db = Leaving(ends[b].Path, ends[b].AtStart);
-                    // Leaving in opposite directions is going straight through.
-                    var turn = Math.Acos(Math.Clamp(-(da.X * db.X + da.Y * db.Y), -1, 1));
-                    if (turn < best.Turn) best = (a, b, turn);
-                }
+                // A path's own two ends at one junction close it into a loop —
+                // only where nothing else meets there.
+                if (ends[a].Path == ends[b].Path && ends.Count > 2) continue;
+                var da = Leaving(open[ends[a].Path], ends[a].AtStart);
+                var db = Leaving(open[ends[b].Path], ends[b].AtStart);
+                // Leaving in opposite directions is going straight through.
+                var turn = Math.Acos(Math.Clamp(-(da.X * db.X + da.Y * db.Y), -1, 1));
                 // Two ends are one line through a junction of two; through a
                 // busier one only when they carry on within 50° of straight.
-                if (best.A < 0 || (ends.Count > 2 && best.Turn > Math.PI * 50 / 180)) continue;
-                var joined = Join(ends[best.A], ends[best.B]);
-                result.Remove(ends[best.A].Path);
-                result.Remove(ends[best.B].Path);
-                result.Add(joined);
-                joinedAny = true;
-                break;   // the lists are stale now; start again
+                if (ends.Count > 2 && turn > Math.PI * 50 / 180) continue;
+                pairs.Add((turn, a, b));
             }
-        } while (joinedAny);
+            var taken = new bool[ends.Count];
+            foreach (var (_, a, b) in pairs.OrderBy(p => p.Turn).ThenBy(p => p.A).ThenBy(p => p.B))
+            {
+                if (taken[a] || taken[b]) continue;
+                taken[a] = taken[b] = true;
+                partner[ends[a]] = ends[b];
+                partner[ends[b]] = ends[a];
+            }
+        }
+
+        // String the paths together: from every path end with no partner,
+        // then round whatever is left, which is loops through junctions.
+        var used = new bool[open.Count];
+        void Chain(int first, bool forward)
+        {
+            var joined = new Path();
+            var path = first;
+            var reversed = !forward;
+            while (true)
+            {
+                used[path] = true;
+                var points = open[path].Points;
+                var ordered = reversed ? Enumerable.Reverse(points) : points;
+                joined.Points.AddRange(joined.Points.Count == 0 ? ordered : ordered.Skip(1));
+                var leaving = (path, reversed);   // the far end: the start when reversed
+                if (!partner.TryGetValue(leaving, out var next)) break;
+                if (used[next.Path])
+                {
+                    joined.Closed = next.Path == first;
+                    break;
+                }
+                path = next.Path;
+                reversed = !next.AtStart;
+            }
+            result.Add(joined);
+        }
+        for (var k = 0; k < open.Count; k++)
+        {
+            if (used[k]) continue;
+            if (!partner.ContainsKey((k, true))) Chain(k, forward: true);
+            else if (!partner.ContainsKey((k, false))) Chain(k, forward: false);
+        }
+        for (var k = 0; k < open.Count; k++)
+        {
+            if (!used[k]) Chain(k, forward: true);
+        }
         return result;
 
-        static void Add(Dictionary<int, List<(Path, bool)>> map, int key, (Path, bool) value)
+        static void Add(SortedDictionary<int, List<(int, bool)>> map, int key, (int, bool) value)
         {
             if (!map.TryGetValue(key, out var list)) map[key] = list = [];
             list.Add(value);
@@ -561,23 +663,6 @@ public static class LineTracer
         var dy = to.Y - from.Y;
         var length = Math.Sqrt(dx * dx + dy * dy);
         return length == 0 ? (0, 0) : (dx / length, dy / length);
-    }
-
-    private static Path Join((Path Path, bool AtStart) a, (Path Path, bool AtStart) b)
-    {
-        // a reversed to end at the junction, then b from the junction onwards.
-        var first = a.AtStart ? Enumerable.Reverse(a.Path.Points) : a.Path.Points;
-        var second = b.AtStart ? b.Path.Points : Enumerable.Reverse(b.Path.Points);
-        var joined = new Path
-        {
-            StartNode = a.AtStart ? a.Path.EndNode : a.Path.StartNode,
-            EndNode = b.AtStart ? b.Path.EndNode : b.Path.StartNode,
-        };
-        joined.Points.AddRange(first);
-        joined.Points.AddRange(second.Skip(1));
-        // Back where it began: a loop through its own junction.
-        if (ReferenceEquals(a.Path, b.Path)) joined.Closed = true;
-        return joined;
     }
 
     private static float Length(Path path)
@@ -598,10 +683,14 @@ public static class LineTracer
     {
         // Positions at pixel centres; width from the distance at each.
         var raw = path.Points
-            .Select(p => (X: p.X + 0.5, Y: p.Y + 0.5, Width: Math.Max(1.0, 2.0 * distance[p.Y * w + p.X])))
+            // Back from the padded page: one pixel up and left.
+            .Select(p => (X: p.X - 0.5, Y: p.Y - 0.5, Width: Math.Max(1.0, 2.0 * distance[p.Y * w + p.X])))
             .ToList();
         var smooth = Smoothed(raw, path.Closed);
         var simple = Simplified(smooth, tolerance: 0.6);
+        // A path that never went anywhere (a knot of noise) is a dot, not a
+        // line of no length.
+        if (simple.All(q => Math.Abs(q.X - simple[0].X) < 0.01 && Math.Abs(q.Y - simple[0].Y) < 0.01)) simple = [simple[0]];
 
         var widest = simple.Max(p => p.Width);
         var size = Math.Max(1.0, Math.Round(widest, 1));

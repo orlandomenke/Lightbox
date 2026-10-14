@@ -230,6 +230,100 @@ public class LineTracerTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void ALineRunningOffTheEdgeIsTracedDownItsMiddle()
+    {
+        // The adversary: thinning skipped the outermost rows and columns, so
+        // ink touching the edge stayed there and a line running off the page
+        // came back as a sliver along the border.
+        var off = TraceAndReport([Line("#202020", 16, (-20, 100, 1), (170, 100, 1))], "off the edge", out _);
+        var top = TraceAndReport([Line("#202020", 7, (28, 2, 1), (172, 2, 1))], "along the top", out _);
+
+        var stroke = Assert.Single(off);
+        Assert.All(stroke.Points, p => Assert.InRange(p.Y, 97, 103));
+        Assert.InRange(Assert.Single(top).Points.Average(p => p.Y), 1.0, 4.0);
+    }
+
+    [Fact]
+    [Trait("Category", "Performance")]
+    public void ABusyPictureCostsWhatItsLinesDo()
+    {
+        // The adversary: a 1080×1080 grid took 15.6 s and 7.8 GB — the joiner
+        // started again after every join. Four times the grid should cost
+        // about four times as much, not sixteen.
+        static SKBitmap Grid(int size)
+        {
+            var bitmap = new SKBitmap(new SKImageInfo(size, size, SKColorType.Rgba8888, SKAlphaType.Premul));
+            using var canvas = new SKCanvas(bitmap);
+            using var ink = new SKPaint { Color = SKColors.Black, StrokeWidth = 3 };
+            canvas.Clear(SKColors.Transparent);
+            for (var x = 10; x < size; x += 20) canvas.DrawLine(x, 0, x, size, ink);
+            for (var y = 10; y < size; y += 20) canvas.DrawLine(0, y, size, y, ink);
+            return bitmap;
+        }
+        double Best(SKBitmap picture)
+        {
+            var best = double.MaxValue;
+            for (var i = 0; i < 3; i++)
+            {
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                LineTracer.Trace(picture);
+                best = Math.Min(best, clock.Elapsed.TotalMilliseconds);
+            }
+            return best;
+        }
+        using var small = Grid(240);
+        using var large = Grid(480);
+
+        var (a, b) = (Best(small), Best(large));
+
+        output.WriteLine($"grid 240: {a:F0} ms, grid 480: {b:F0} ms, ratio {b / a:F1}x");
+        Assert.True(b < a * 8 + 50, $"four times the grid cost {b / a:F1} times as much");
+    }
+
+    [Fact]
+    public void APictureThatIsMostlyInkIsNotTraced()
+    {
+        // A page filled with ink has no lines in it to find, and thinning it
+        // costs one pass of the page per pixel of its depth.
+        using var full = new SKBitmap(new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Premul));
+        full.Erase(SKColors.Black);
+
+        Assert.NotNull(LineTracer.WhyNot(full, new LineTraceOptions { Source = InkSource.Transparency }));
+        Assert.Empty(LineTracer.Trace(full, new LineTraceOptions { Source = InkSource.Transparency }));
+        using var line = Render([Line("#202020", 8, (30, 120, 1), (210, 120, 1))]);
+        Assert.Null(LineTracer.WhyNot(line, new LineTraceOptions()));
+    }
+
+    [Fact]
+    public void ATraceCanBeStopped()
+    {
+        using var picture = Render([Line("#202020", 8, (30, 120, 1), (210, 120, 1))]);
+        using var stop = new CancellationTokenSource();
+        stop.Cancel();
+
+        Assert.ThrowsAny<OperationCanceledException>(() => LineTracer.Trace(picture, null, stop.Token));
+    }
+
+    [Fact]
+    public void NoTracedStrokeIsAZeroLengthLine()
+    {
+        using var noise = new SKBitmap(new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Premul));
+        noise.Erase(SKColors.Transparent);
+        var seed = 12345u;
+        for (var y = 0; y < H; y++)
+        for (var x = 0; x < W; x++)
+        {
+            seed = seed * 1664525 + 1013904223;
+            if (seed >> 24 < 60) noise.SetPixel(x, y, SKColors.Black);
+        }
+
+        var traced = LineTracer.Trace(noise);
+
+        Assert.All(traced.Where(s => s.Points.Count > 1), s =>
+            Assert.True(s.Points.Any(p => p.X != s.Points[0].X || p.Y != s.Points[0].Y), "a line with no length"));
+    }
+
+    [Fact]
     public void NothingDrawnTracesToNothing()
     {
         using var bitmap = new SKBitmap(new SKImageInfo(W, H, SKColorType.Rgba8888, SKAlphaType.Premul));
@@ -307,6 +401,47 @@ public class LineTracerTests(ITestOutputHelper output)
         Assert.Equal(2, third.Strokes.Count);
         Assert.Equal(mark.Color, third.Strokes[^1].Color);
         Assert.NotEqual(mark.Id, third.Strokes[^1].Id);
+    }
+
+    [Fact]
+    public void ATracedLayerIsANewLayerNotATwin()
+    {
+        // The adversary: identity fields a duplicate clears were copied — a
+        // second background layer, a second layer answering to a simulation,
+        // a mask drawing sharing its id — and keys a newer build wrote on a cel
+        // were dropped.
+        var flat = new Layer
+        {
+            Name = "Scan",
+            IsBackground = true,
+            SimId = "sim1",
+            Mask = new LayerMask { Frame = new Frame { Strokes = [Line("#000000", 10, (0, 0, 1), (100, 100, 1))] } },
+            Cels = [new Cel { Frame = Flattened(Line("#202020", 6, (30, 120, 1), (210, 120, 1))) }],
+        };
+        flat.Cels[0].Unknown = new() { ["later"] = System.Text.Json.JsonDocument.Parse("1").RootElement.Clone() };
+        var scene = new Scene { Width = W, Height = H, Layers = [flat] };
+
+        var traced = LayerTrace.Trace(scene, flat)!.Layer;
+
+        Assert.False(traced.IsBackground);
+        Assert.Null(traced.SimId);
+        Assert.NotEqual(flat.Mask.Frame.Id, traced.Mask!.Frame.Id);
+        Assert.NotNull(traced.Cels[0].Unknown);
+    }
+
+    [Fact]
+    public void ADrawingWhosePixelsWillNotReadIsLeftAsItIs()
+    {
+        var good = Flattened(Line("#202020", 6, (30, 120, 1), (210, 120, 1)));
+        var bad = new Frame { PngBase64 = "bm90IGEgcGljdHVyZQ==" };
+        var flat = new Layer { Cels = [new Cel { Frame = good }, new Cel { Frame = bad }] };
+        var scene = new Scene { Width = W, Height = H, Layers = [flat] };
+
+        var result = LayerTrace.Trace(scene, flat);
+
+        Assert.Equal(1, result!.Drawings);
+        Assert.Equal(1, result.Unreadable);
+        Assert.True(result.Layer.Cels[1].Frame!.HasBaseline, "the unreadable drawing was emptied rather than kept");
     }
 
     [Fact]
