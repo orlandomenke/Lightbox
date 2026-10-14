@@ -1589,6 +1589,18 @@ public partial class MainViewModel
         // A document too large for the replay's plane is replayed in another
         // frame of reference, and the live mark is then not the replay.
         if (!BrushEngine.ReplaysInDocumentSpace(Scene.Width, Scene.Height)) return No("document too large for the plane");
+        if (stroke.Brush.Kind == BrushKind.Blur && stroke.Brush.Wet is not null)
+        {
+            // A rewetting stroke: the working copy of the layer holds the result,
+            // rendered rectangle by rectangle from the layer as it was (Q255).
+            if (_live.Composite is not { } composite || _live.EffectDabs is not { Count: > 0 } wetDabs)
+            {
+                return No("nothing was rewetted live");
+            }
+            var wetRegion = WetBleed.Bounds(wetDabs, 0, wetDabs.Count, stroke.Brush, composite.Width, composite.Height);
+            if (wetRegion.Width <= 0 || wetRegion.Height <= 0) return No("the stroke is off the paper");
+            return CopyRegion(composite, wetRegion) is { } wet ? new LiveMark(wet, wetRegion, [.. wetDabs]) : No("the copy failed");
+        }
         if (_live.SettledDabChanged) return No($"a settled dab changed ({_live.WhySettledDabChanged})");
         if (_live.Dabs is not { Count: > 0 } dabs) return No("nothing was stamped live");
 
@@ -2405,6 +2417,8 @@ public partial class MainViewModel
         _live.WalkWork = 0;
         _live.EffectDabs = null;
         _live.EffectSettled = 0;
+        _live.WetSpread = null;
+        _live.Wet = null;
         _live.SmudgeCarry = default;
         _live.SmudgeRegion = null;
         _live.MixCarry = default;
@@ -2781,7 +2795,14 @@ public partial class MainViewModel
                 : BrushEngine.StablePositions(walk, _live.Walk.Kept, _live.Walk.Replaced);
             _live.WalkWork = _live.Walk.LastWalked + Math.Max(0, walk.Count - _live.Walk.Kept);
 
-            if (live.Brush.Kind == BrushKind.Blur)
+            if (live.Brush.Kind == BrushKind.Blur && live.Brush.Wet is not null && _live.EffectBase is not null)
+            {
+                // A rewetting brush (Q255): its result is a function of the layer as it
+                // was and of where the brush has been, so the rectangle the pen has just
+                // changed is rendered on its own and is what a replay draws there.
+                StampLiveWet(live, walk, firstEffectWalk);
+            }
+            else if (live.Brush.Kind == BrushKind.Blur)
             {
                 // A blur's dabs are independent — each reads the pre-stroke pixels — so the range
                 // is all it needs, and StampBlurDraft restores under the tail itself.
@@ -2905,6 +2926,115 @@ public partial class MainViewModel
     /// no.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// A rewetting stroke under the pen: the rectangle reached by the dabs this
+    /// event added or moved - and by the ones they replaced - rendered from the
+    /// layer as it was before the stroke, and written over the composite.
+    /// </summary>
+    /// <remarks>
+    /// Bounded by what changed, not by the stroke (invariant 6): the render of
+    /// a rectangle on its own is the whole render's there, to the byte
+    /// (<c>WaterRewetsTests.APieceIsTheWholeToTheByte</c>), so nothing outside
+    /// the rectangle has to be touched and what is on screen at pen-up is what
+    /// the record replays.
+    /// </remarks>
+    private void StampLiveWet(Stroke live, IReadOnlyList<BrushEngine.Dab> dabs, bool first)
+    {
+        if (_live.Composite is not { } composite || _live.EffectBase is not { } before) return;
+        int width = composite.Width, height = composite.Height;
+        if (live.ClipId is null)
+        {
+            // Kept between events: only the pixels the moving tip changed are
+            // redone. The dabs it may treat as final are the ones the paint path
+            // stamps for good - the same with the newest points taken away.
+            var settled = 0;
+            var points = live.Points;
+            var keepPoints = points.Count - (BrushEngine.SettleHorizonPoints + Math.Max(0, _stabilizer.SmoothingHorizon));
+            if (keepPoints > 0)
+            {
+                TrimmedInto(_live.HorizonPoints, points, keepPoints);
+                var without = _live.HorizonWalk.Of(new Stroke { Tool = live.Tool, Brush = live.Brush, Points = _live.HorizonPoints });
+                var known = first ? 0 : Math.Min(_live.HorizonAgreed, Math.Min(_live.Walk.Kept, _live.HorizonWalk.Kept));
+                settled = BrushEngine.SettledPrefix(dabs, without, known, out var agreed);
+                _live.HorizonAgreed = agreed;
+            }
+            if (_live.Wet is not { } wet || !wet.Fits(width, height, live.Brush))
+            {
+                _live.Wet = wet = new WetStroke(width, height, live.Brush);
+            }
+            var changed = wet.Update(before.GetPixelSpan(), before.RowBytes, dabs, settled, composite.GetPixelSpan(), composite.RowBytes);
+            if (changed.Width > 0 && changed.Height > 0)
+            {
+                composite.NotifyPixelsChanged();
+                _publish.MarkDirty(changed);
+            }
+            return;
+        }
+
+        var kept = first ? 0 : _live.Walk.Kept;
+        var region = WetBleed.Bounds(dabs, kept, dabs.Count, live.Brush, width, height);
+        if (!first && _live.Walk.Replaced.Count > 0)
+        {
+            var gone = WetBleed.Bounds(_live.Walk.Replaced, 0, _live.Walk.Replaced.Count, live.Brush, width, height);
+            if (gone.Width > 0 && gone.Height > 0)
+            {
+                region = region.Width > 0 && region.Height > 0 ? SKRectI.Union(region, gone) : gone;
+            }
+        }
+        if (region.Width <= 0 || region.Height <= 0) return;
+
+        var bytes = region.Width * region.Height * 4;
+        var rendered = System.Buffers.ArrayPool<byte>.Shared.Rent(bytes);
+        try
+        {
+            var radius = WetBleed.SpreadRadius(live.Brush);
+            if (_live.WetSpread is not { } spread || !spread.Fits(before.Width, before.Height, radius))
+            {
+                _live.WetSpread = spread = new WetBleed.Spread(before.Width, before.Height, radius);
+            }
+            WetBleed.Render(
+                before.GetPixelSpan(), before.Width, before.Height, before.RowBytes, dabs, live.Brush, region,
+                rendered.AsSpan(0, bytes), spread: spread);
+            var into = composite.GetPixelSpan();
+            var rowBytes = composite.RowBytes;
+            if (live.ClipId is null)
+            {
+                for (var y = 0; y < region.Height; y++)
+                {
+                    rendered.AsSpan(y * region.Width * 4, region.Width * 4)
+                        .CopyTo(into.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), region.Width * 4));
+                }
+                composite.NotifyPixelsChanged();
+            }
+            else
+            {
+                // Under a selection a replay lays the result over the layer as it was,
+                // through the selection's soft edge. The same here: the layer as it was
+                // put back in the rectangle, and the result drawn through the same clip.
+                var pre = before.GetPixelSpan();
+                var preRow = before.RowBytes;
+                for (var y = 0; y < region.Height; y++)
+                {
+                    pre.Slice(((region.Top + y) * preRow) + (region.Left * 4), region.Width * 4)
+                        .CopyTo(into.Slice(((region.Top + y) * rowBytes) + (region.Left * 4), region.Width * 4));
+                }
+                composite.NotifyPixelsChanged();
+                using var result = new SKBitmap(new SKImageInfo(region.Width, region.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+                rendered.AsSpan(0, bytes).CopyTo(result.GetPixelSpan());
+                result.NotifyPixelsChanged();
+                using var canvas = new SKCanvas(composite);
+                using var replace = new SKPaint { BlendMode = SKBlendMode.Src };
+                BrushEngine.WithStrokeClip(canvas, live, () => canvas.DrawBitmap(result, region.Left, region.Top, replace));
+                canvas.Flush();
+            }
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(rendered);
+        }
+        _publish.MarkDirty(region);
+    }
+
     private void StampLiveSmudge(Stroke live, IReadOnlyList<BrushEngine.Dab> dabs, int settled)
     {
         if (_live.Composite is not { } composite) return;

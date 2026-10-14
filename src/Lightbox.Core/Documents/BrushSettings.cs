@@ -168,6 +168,14 @@ public sealed class BrushSettings
     [System.Text.Json.Serialization.JsonPropertyName("mixing")]
     public ColourMixing? Mixing { get; set; }
 
+    /// <summary>
+    /// A brush that rewets what it passes over (Q255, <see cref="WetSettings"/>):
+    /// on a <see cref="BrushKind.Blur"/> brush, the paint bleeds out and thins.
+    /// Null - absent from the record - for a brush that does not.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("wet")]
+    public WetSettings? Wet { get; set; }
+
     /// <summary>0..1: darkened rim where paint pools at the stroke edge (watercolor).</summary>
     public double WetEdge { get; set; }
 
@@ -510,6 +518,7 @@ public sealed class BrushSettings
         SmudgeRadius = SmudgeRadius,
         ColorRate = ColorRate,
         Mixing = Mixing?.Clone(),
+        Wet = Wet?.Clone(),
         WetEdge = WetEdge,
         Granulation = Granulation,
         TipId = TipId,

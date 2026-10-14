@@ -33,7 +33,8 @@ namespace Lightbox.Ai;
 /// it keeps everything that grows with a drawing off the command line.
 /// </para>
 /// </remarks>
-public sealed class ClaudeCliArtist(ICliRunner runner, string command, string? model = null) : IAiArtist
+public sealed class ClaudeCliArtist(
+    ICliRunner runner, string command, string? model = null, string? effort = null) : IAiArtist
 {
     public const string DefaultCommand = "claude";
 
@@ -64,6 +65,9 @@ public sealed class ClaudeCliArtist(ICliRunner runner, string command, string? m
     };
 
     private readonly string? _model = string.IsNullOrWhiteSpace(model) ? null : model.Trim();
+
+    /// <summary>How hard the model thinks — low unless the artist raised it (Q262).</summary>
+    public string Effort { get; } = AiEffort.Normalize(effort);
 
     public async Task<AiResult<List<InbetweenFrameResult>>> GenerateInbetweensAsync(
         InbetweenRequest request, CancellationToken ct)
@@ -101,6 +105,7 @@ public sealed class ClaudeCliArtist(ICliRunner runner, string command, string? m
             "--no-session-persistence",
         };
         if (_model is not null) arguments.AddRange(["--model", _model]);
+        if (AiEffort.Sent(Effort) is { } effortSent) arguments.AddRange(["--effort", effortSent]);
 
         try
         {
@@ -207,6 +212,8 @@ public sealed class ClaudeCliArtist(ICliRunner runner, string command, string? m
             // artist can act on.
             var said = Truncate(!string.IsNullOrWhiteSpace(output.Error) ? output.Error
                 : output.Output.TrimStart().StartsWith('{') ? "" : output.Output);
+            if (AiEffort.Rejection(output.Error) is { } aboutEffort)
+                return AiResult<string>.Error(aboutEffort, retryable: false);
             return AiResult<string>.Error(
                 $"Claude Code exited ({output.ExitCode}) without an answer"
                 + (said.Length == 0 ? "." : $": {said}"),
@@ -254,6 +261,8 @@ public sealed class ClaudeCliArtist(ICliRunner runner, string command, string? m
                     retryable: false);
             }
 
+            if (AiEffort.Rejection(text) is { } aboutEffort)
+                return AiResult<string>.Error(aboutEffort, retryable: false);
             return AiResult<string>.Error(
                 text.Length == 0 ? "Claude Code reported an error and said nothing more."
                                  : $"Claude Code reported: {Truncate(text)}",
