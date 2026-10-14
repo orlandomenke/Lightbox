@@ -362,6 +362,40 @@ public partial class MainViewModel
     private static List<Stroke> Side(List<LinePiece> pieces, List<PieceRef> refs) =>
         [.. pieces.Where(p => refs.Contains(new PieceRef(p.Source, p.Ordinal))).Select(p => p.Stroke)];
 
+    /// <summary>The last cut of each key, and what it was cut from, so a refresh that changed nothing under it does not cut again.</summary>
+    private (long Print, List<LinePiece> Pieces)? _cutA, _cutB;
+
+    /// <summary>
+    /// A key's pieces, cut again only when its strokes changed: the overlay is
+    /// refreshed on every document change while the mode is on, a stroke on
+    /// another layer included (the leak review, 2026-10-14).
+    /// </summary>
+    private List<LinePiece> PiecesOf(Frame frame, ref (long Print, List<LinePiece> Pieces)? cache)
+    {
+        var strokes = StrokeRecordCleaner.EffectiveStrokes(StrokesOf(frame));
+        var print = Fingerprint(strokes);
+        if (cache is { } hit && hit.Print == print) return hit.Pieces;
+        var pieces = LinePieces.Cut(strokes);
+        cache = (print, pieces);
+        return pieces;
+    }
+
+    /// <summary>A cheap fingerprint of strokes: ids, point counts and the ends of each, folded together.</summary>
+    private static long Fingerprint(IReadOnlyList<Stroke> strokes)
+    {
+        var hash = new HashCode();
+        foreach (var s in strokes)
+        {
+            hash.Add(s.Id);
+            hash.Add(s.Points.Count);
+            if (s.Points.Count == 0) continue;
+            hash.Add(s.Points[0].X); hash.Add(s.Points[0].Y);
+            hash.Add(s.Points[^1].X); hash.Add(s.Points[^1].Y);
+            hash.Add(s.Points[s.Points.Count / 2].X); hash.Add(s.Points[s.Points.Count / 2].Y);
+        }
+        return hash.ToHashCode() ^ ((long)strokes.Count << 32);
+    }
+
     /// <summary>Rebuild the pieces and the overlay from the document; clears both outside the mode.</summary>
     private void RefreshLineMatch()
     {
@@ -373,8 +407,8 @@ public partial class MainViewModel
             LineMatchChanged?.Invoke(null);
             return;
         }
-        _piecesA = LinePieces.Cut(StrokeRecordCleaner.EffectiveStrokes(StrokesOf(frames.A)));
-        _piecesB = LinePieces.Cut(StrokeRecordCleaner.EffectiveStrokes(StrokesOf(frames.B)));
+        _piecesA = PiecesOf(frames.A, ref _cutA);
+        _piecesB = PiecesOf(frames.B, ref _cutB);
         var matches = frames.A.Matches ?? [];
         int? MatchOf(LinePiece p, int key)
         {

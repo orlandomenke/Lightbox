@@ -202,4 +202,51 @@ public class LineMatchTests(ITestOutputHelper output)
         Assert.NotEmpty(pieces);
         Assert.True(started.ElapsedMilliseconds < 2000, $"{started.ElapsedMilliseconds} ms");
     }
+
+    /// <summary>
+    /// A dense key — 150 strokes of 100 points, each starting on the stroke
+    /// before it, so every one of them is cut — is cut and tweened in well under
+    /// a second. Loose on purpose: it catches the ends × points search coming
+    /// back (seconds here), not drift.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Performance")]
+    public void ADenseKeyIsCutAndTweenedQuickly()
+    {
+        List<Stroke> Key(double dx)
+        {
+            var strokes = new List<Stroke>();
+            for (var i = 0; i < 150; i++)
+            {
+                var y = 40 + i * 6;
+                strokes.Add(new Stroke
+                {
+                    Id = $"s{i}",
+                    Points = [.. Enumerable.Range(0, 100).Select(k => k == 0 ? new StrokePoint(dx + 300, y - 6, 0.8) : new StrokePoint(dx + k * 6 + (i % 2) * 3, y, 0.8))],
+                    Brush = new BrushSettings { Size = 4 },
+                });
+            }
+            return strokes;
+        }
+        var a = Key(0);
+        var b = Key(30);
+        List<LineMatch> matches = [.. Enumerable.Range(0, 150).Select(i => new LineMatch { A = [new PieceRef($"s{i}", 0)], B = [new PieceRef($"s{i}", 0)] })];
+
+        // The first call pays for compiling the code; a click after the first does not.
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        MatchedInbetween.Inbetween(a, b, matches, 0.5, Easing.Linear);
+        var cold = clock.ElapsedMilliseconds;
+
+        clock.Restart();
+        var pieces = LinePieces.Cut(a);
+        var cut = clock.ElapsedMilliseconds;
+        Assert.True(pieces.Count >= 290, $"{pieces.Count} pieces: the strokes were meant to be cut");
+        clock.Restart();
+        MatchedInbetween.Inbetween(a, b, matches, 0.5, Easing.Linear);
+        var warm = clock.ElapsedMilliseconds;
+
+        // Measured 2026-10-14, Release: cut 56 ms, warm 112 ms, first call 1.4 s.
+        output.WriteLine($"{pieces.Count} pieces; cut {cut} ms, warm {warm} ms, first call {cold} ms");
+        Assert.True(warm < 600, $"{warm} ms");
+    }
 }

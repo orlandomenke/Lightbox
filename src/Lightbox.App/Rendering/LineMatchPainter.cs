@@ -19,22 +19,26 @@ namespace Lightbox.App.Rendering;
 /// </para>
 /// <para>
 /// The open match — lines of A clicked, waiting for their lines of B — is
-/// drawn wider on a pale casing, so it is clear what the next click joins.
+/// drawn wider on the style's dark casing, so it is clear what the next click
+/// joins; a match the artist made solid keeps the casing, so a shoe marked
+/// as one object reads as one.
 /// </para>
 /// </remarks>
 public static class LineMatchPainter
 {
-    /// <summary>Line width on screen, in pixels, for a line not yet matched.</summary>
-    private const float Width = 2f;
-
-    /// <summary>How much wider a matched line is, and an open one.</summary>
-    private const float MatchedGain = 1.5f, OpenGain = 2.5f;
-
     /// <summary>
-    /// The colour of match <paramref name="index"/>: hues a golden angle apart,
-    /// so any two neighbouring matches are far apart on the wheel.
+    /// Line width on screen, in pixels, for a line not yet matched: one, the
+    /// width of a line that is merely present (DESIGN.md, On the canvas). These
+    /// lines are the artwork shown in the onion colours, not chrome, so they
+    /// are not cased.
     /// </summary>
-    public static SKColor MatchColour(int index) => SKColor.FromHsv((float)(index * 137.508 % 360), 80, 90);
+    private const float Width = 1f;
+
+    /// <summary>A matched line, and a line of the open match, in screen pixels.</summary>
+    private const float MatchedWidth = 2f, OpenWidth = 3f;
+
+    /// <summary>The colour of match <paramref name="index"/> (<see cref="OverlayStyle.Match"/>).</summary>
+    public static SKColor MatchColour(int index) => OverlayStyle.Match(index);
 
     /// <summary>Paint the overlay; expects the canvas in document space. Null draws nothing.</summary>
     public static void Paint(SKCanvas canvas, LineMatchOverlay? overlay, float scale)
@@ -55,17 +59,19 @@ public static class LineMatchPainter
             foreach (var p in line.Points.Skip(1)) path.LineTo((float)p.X, (float)p.Y);
             if (line.Points.Count == 1) path.LineTo((float)line.Points[0].X + 0.01f, (float)line.Points[0].Y);
 
-            paint.PathEffect = line.Key == 1 ? dash : null;
-            if (line.Pending)
+            var width = (line.Pending ? OpenWidth : line.Match is null ? Width : MatchedWidth) * px;
+            // The open match, and a match the artist made solid, sit on the
+            // style's dark casing, unbroken under a dashed line (DESIGN.md).
+            if (line.Pending || line.Solid == true)
             {
-                paint.Color = OverlayStyle.Open.WithAlpha(200);
-                paint.StrokeWidth = Width * OpenGain * px + OverlayStyle.CasingWidth * px;
                 paint.PathEffect = null;
+                paint.Color = OverlayStyle.Casing;
+                paint.StrokeWidth = width + OverlayStyle.CasingWidth * px;
                 canvas.DrawPath(path, paint);
-                paint.PathEffect = line.Key == 1 ? dash : null;
             }
+            paint.PathEffect = line.Key == 1 ? dash : null;
             paint.Color = line.Match is { } m ? MatchColour(m) : line.Key == 0 ? tintA : tintB;
-            paint.StrokeWidth = Width * px * (line.Pending ? OpenGain : line.Match is null ? 1 : MatchedGain);
+            paint.StrokeWidth = width;
             canvas.DrawPath(path, paint);
         }
     }

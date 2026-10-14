@@ -52,6 +52,9 @@ public static class LinePieces
             ends.Add((i, dense[i][^1]));
         }
 
+        var reachOf = strokes.Select(s => Math.Max(s.Brush.Size * 2, 8)).ToList();
+        var junctions = JunctionsOf(dense, ends, reachOf);
+
         var pieces = new List<LinePiece>();
         for (var i = 0; i < strokes.Count; i++)
         {
@@ -63,7 +66,10 @@ public static class LinePieces
             }
 
             var cuts = new SortedSet<int>();
-            Junctions(points, ends, i, Math.Max(strokes[i].Brush.Size * 2, 8), cuts);
+            foreach (var at in junctions[i])
+            {
+                if (at > Shortest && at < points.Count - 1 - Shortest) cuts.Add(at);
+            }
             Corners(points, cuts);
 
             var kept = new List<int>();
@@ -120,20 +126,57 @@ public static class LinePieces
         return even;
     }
 
-    /// <summary>Where another stroke's end touches this one, away from this one's own ends.</summary>
-    private static void Junctions(List<StrokePoint> points, List<(int Owner, StrokePoint P)> ends, int self, double reach, SortedSet<int> cuts)
+    /// <summary>Cell size of the junction search, in pixels.</summary>
+    private const double JunctionCell = 16;
+
+    /// <summary>
+    /// For each stroke, the points where another stroke's end touches it: for
+    /// every end, the nearest point of every other stroke within that stroke's
+    /// reach. Every point sits in a grid cell, so an end looks at the cells
+    /// around it rather than at every point of every stroke — the search was
+    /// ends × points, a few million distances on a dense key, paid on every
+    /// redraw (the leak review, 2026-10-14). The answer is the same.
+    /// </summary>
+    private static List<int>[] JunctionsOf(List<List<StrokePoint>> dense, List<(int Owner, StrokePoint P)> ends, List<double> reachOf)
     {
+        var grid = new Dictionary<(int, int), List<(int Stroke, int Index)>>();
+        (int, int) Key(StrokePoint p) => ((int)Math.Floor(p.X / JunctionCell), (int)Math.Floor(p.Y / JunctionCell));
+        for (var s = 0; s < dense.Count; s++)
+        {
+            for (var k = 0; k < dense[s].Count; k++)
+            {
+                var p = dense[s][k];
+                if (!double.IsFinite(p.X) || !double.IsFinite(p.Y)) continue;
+                var key = Key(p);
+                if (!grid.TryGetValue(key, out var cell)) grid[key] = cell = [];
+                cell.Add((s, k));
+            }
+        }
+
+        var found = new List<int>[dense.Count];
+        for (var s = 0; s < dense.Count; s++) found[s] = [];
+        var span = (int)Math.Ceiling(reachOf.DefaultIfEmpty(8).Max() / JunctionCell);
+        var nearest = new Dictionary<int, (double D, int Index)>();
         foreach (var (owner, end) in ends)
         {
-            if (owner == self) continue;
-            var (best, at) = (double.MaxValue, -1);
-            for (var k = 0; k < points.Count; k++)
+            if (!double.IsFinite(end.X) || !double.IsFinite(end.Y)) continue;
+            nearest.Clear();
+            var (cx, cy) = Key(end);
+            for (var x = cx - span; x <= cx + span; x++)
+            for (var y = cy - span; y <= cy + span; y++)
             {
-                var d = GeometryOps.Dist(points[k], end);
-                if (d < best) (best, at) = (d, k);
+                if (!grid.TryGetValue((x, y), out var cell)) continue;
+                foreach (var (s, k) in cell)
+                {
+                    if (s == owner) continue;
+                    var d = GeometryOps.Dist(dense[s][k], end);
+                    if (d > reachOf[s]) continue;
+                    if (!nearest.TryGetValue(s, out var best) || d < best.D || (d == best.D && k < best.Index)) nearest[s] = (d, k);
+                }
             }
-            if (best <= reach && at > Shortest && at < points.Count - 1 - Shortest) cuts.Add(at);
+            foreach (var (s, hit) in nearest) found[s].Add(hit.Index);
         }
+        return found;
     }
 
     /// <summary>The sharpest point of each turn sharper than <see cref="Corner"/>.</summary>

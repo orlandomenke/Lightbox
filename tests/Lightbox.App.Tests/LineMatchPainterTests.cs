@@ -14,7 +14,7 @@ namespace Lightbox.App.Tests;
 public sealed class LineMatchPainterTests
 {
     private static LineMatchLine Line(double y, int key, int? match = null, bool pending = false) =>
-        new([new StrokePoint(10, y, 1), new StrokePoint(90, y, 1)], key, match, pending);
+        new([new StrokePoint(10, y + 0.5, 1), new StrokePoint(90, y + 0.5, 1)], key, match, pending);   // on the pixel's centre: a one-pixel line
 
     private static SKColor PaintAndRead(LineMatchOverlay overlay, double y)
     {

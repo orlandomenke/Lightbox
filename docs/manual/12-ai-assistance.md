@@ -68,26 +68,44 @@ for matching.
   lines — a line you drew as two pieces in one key and one in the other.
 - **Click a matched line** to take it out of its match; a match with nothing
   left on one side is removed.
+- **Right-click a matched line** to switch its match between **one solid
+  object** and **lines that bend** (below). A solid match is drawn on a dark
+  outline.
 - **Click empty canvas** to stop adding to the open match, and **Esc** to leave
   Match lines.
 
 Every click that changes a match is one step to undo, and it redraws the
 inbetweens with it. Lines you have not matched are paired the usual way, so you
-only need to match the ones it got wrong. Small parts made of many lines — a
-cuff, a shoe, a waistband — move as one thing between the keys, each line
-bending toward its place in the other key.
+only need to match the ones it got wrong.
+
+**Solid objects and bending lines.** A long line drawn in pieces — the front of
+a leg — bends from its shape in one key to its shape in the next. A part made of
+many small lines — a shoe, a cuff, a waistband — is treated as **one solid
+object** instead: the whole thing moves, turns and scales between the keys, and
+each inbetween shows the shoe you drew in the nearer key, put in place, rather
+than lines bending towards each other into a tangle. Lightbox decides which a
+match is from its lines; right-click a matched line to say otherwise.
+
+**Your own inbetweens are left alone.** A match redraws only the inbetweens
+Lightbox drew and nobody has changed since. One you drew yourself, touched up,
+or got from **✦ AI Inbetween** keeps your drawing, and the status bar says how
+many were left as they are. Matching on a hidden or locked layer is refused,
+as drawing on one is.
 
 The matches are saved on the first key, for the gap to the next one, the way a
-timing chart is: they survive saving and reopening, and they still apply after
-you redraw a different line of either key. A match that names a line you have
-since erased is dropped rather than guessed at. A document in which you never
+timing chart is: they survive saving and reopening, merging the layer down and
+splitting a group. A match that names a line you have since erased is dropped
+rather than guessed at. One thing to watch: the pieces of a line are counted
+from where other lines meet it, so drawing a new line that ends on a matched
+line, or erasing one that did, can shift which piece a match names — check the
+colours in Match lines after changing a key. A document in which you never
 match a line saves nothing extra.
 
 **Redraw inbetweens** (Animation menu) redraws the inbetweens of the run under
 the playhead from its keys, breakdowns and matches as they are now, without
-inserting any new frames — use it after changing a key. It replaces every
-inbetween in the run, **including one you have touched up by hand**; undo
-brings it back.
+inserting any new frames — use it after changing a key. Unlike a match, it
+replaces **every** inbetween in the run, **including one you drew or touched up
+by hand**; undo brings it back.
 
 One limit, for now: a part that is visible in one key and hidden in the other
 (a foot that goes behind the other leg) fades out by halfway rather than

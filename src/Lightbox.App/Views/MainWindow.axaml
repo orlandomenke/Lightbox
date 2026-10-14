@@ -510,7 +510,7 @@
         <MenuItem Header="Insert _breakdown" Click="OnMenuInsertBreakdown" />
         <MenuItem Header="Insert _inbetween frame" Click="OnMenuInsertInbetween" />
         <MenuItem Header="_Match lines between keys" ToggleType="CheckBox" IsChecked="{Binding LineMatchMode}" ToolTip.Tip="Click a line of the first key, then the lines it becomes in the second; the inbetweens follow" />
-        <MenuItem Header="_Redraw inbetweens" Command="{Binding RedrawInbetweensCommand}" ToolTip.Tip="Redraw this run's inbetweens from its keys and line matches as they are now (replaces touched-up inbetweens; undo brings them back)" />
+        <MenuItem Header="_Redraw inbetweens" Command="{Binding RedrawInbetweensCommand}" ToolTip.Tip="Redraw this run's inbetweens from its keys and matches. Replaces touched-up ones; Undo restores them" />
         <MenuItem Header="Insert empt_y cell" Click="OnMenuInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n — the playhead's cel, or the selection" />
         <MenuItem Header="Insert blank key_frame" Click="OnMenuInsertBlankKeyframe" ToolTip.Tip="Empty cels become keyframes with nothing drawn on them (I over the X-sheet) — the playhead's cel, or the selection" />
         <Separator />
@@ -4153,7 +4153,7 @@
                              ToolTip.Tip="Number of inbetween frames to generate" />
               <ComboBox ItemsSource="{Binding EasingChoices}" SelectedItem="{Binding TweenEasing}" Width="110" />
               <Button Content="＋ Inbetween" Command="{Binding InsertInbetweensCommand}" ToolTip.Tip="Insert interpolated frames between this key and the next" />
-              <ToggleButton Content="Match lines" IsChecked="{Binding LineMatchMode}" ToolTip.Tip="Show which line of this key becomes which line of the next: click a line of the first key, then its lines in the second. Esc to finish" />
+              <ToggleButton Content="Match lines" IsChecked="{Binding LineMatchMode}" ToolTip.Tip="Click a line of this key, then its lines in the next. Esc to finish" />
 
               <!-- Timing presets. The picker and Apply are on the bar because
                    re-timing a range is something an animator does over and
