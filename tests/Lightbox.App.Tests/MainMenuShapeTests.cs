@@ -170,7 +170,8 @@ public class MainMenuShapeTests(ITestOutputHelper output) : BrushStateIsolated
         output.WriteLine(string.Join(" | ", animation.Select(i => i.Header)));
         Assert.Equal(
             ["_Play / pause", "P_revious key drawing", "_Next key drawing",
-             "Insert _keyframe", "Insert _breakdown", "Insert _inbetween frame", "Insert empt_y cell", "Insert blank key_frame",
+             "Insert _keyframe", "Insert _breakdown", "Insert _inbetween frame",
+             "_Match lines between keys", "_Redraw inbetweens", "Insert empt_y cell", "Insert blank key_frame",
              "_Extend exposure (+1 hold)", "Re_duce exposure (−1 hold)",
              "_Copy cel", "Cu_t cel", "Pa_ste cel", "De_lete", "Delete and p_ull",
              "_Onion skin", "Keyed dra_wings only", "_Motion trail",
@@ -181,7 +182,9 @@ public class MainMenuShapeTests(ITestOutputHelper output) : BrushStateIsolated
             Assert.True(animation.Single(i => (string)i.Header! == header).Command is not null,
                 $"{header} reaches no command");
         }
-        Assert.Equal(3, animation.Count(i => i.ToggleType == MenuItemToggleType.CheckBox));
+        // Onion skin, keyed drawings only, motion trail, and Match lines (Q271): a mode, so a toggle.
+        Assert.Equal(4, animation.Count(i => i.ToggleType == MenuItemToggleType.CheckBox));
+        Assert.True(animation.Single(i => (string)i.Header! == "_Redraw inbetweens").Command is not null);
     }
 
     /// <summary>Both crops are on the Image menu, beneath the two resizes.</summary>

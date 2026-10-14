@@ -9,6 +9,9 @@ namespace Lightbox.App.Views;
 /// </summary>
 public partial class MainWindow
 {
+    /// <summary>How near a line a Match lines click has to land, in screen pixels.</summary>
+    private const double LineMatchReachPixels = 8;
+
     private void WireOverlayGestures()
     {
         WireReferenceSheetGestures();
@@ -46,6 +49,15 @@ public partial class MainWindow
         // without waiting for the playhead to move.
         _vm.MotionTrailChanged += overlay => Canvas.TrailPoints = overlay;
         _vm.MotionArcChanged += arc => Canvas.MotionArc = arc;
+
+        // Q271: Match lines is pushed the same way, and its presses go straight
+        // to the view model, with a reach of a few screen pixels in document units.
+        _vm.LineMatchChanged += overlay => Canvas.LineMatch = overlay;
+        _vm.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(MainViewModel.LineMatchMode)) Canvas.LineMatchMode = _vm.LineMatchMode;
+        };
+        Canvas.LineMatchPressed += (x, y, shift, scale) => _vm.LineMatchPress(x, y, shift, LineMatchReachPixels / scale);
         _vm.RefreshMotionTrail();
 
         // The armature overlay follows the rig's pattern exactly: pushed

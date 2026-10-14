@@ -1886,7 +1886,7 @@ public sealed partial class CanvasControl : Control
             _pathTrace, GpuComposite.ResidencyDisabled ? null : _textures, Solo, pickRing,
             BoneChromes, BonesArePosed, HeatPoints, _hoveredLines,
             FillPreviewForFrame(), _fillPreviewWand, _fillPreviewColor, TrailPoints, MotionArc,
-            CropSurfaceRect(), Symmetry, TiledPreview));
+            CropSurfaceRect(), Symmetry, TiledPreview, LineMatch));
     }
 
     // The tip outline cache and TipOutlinePath moved to CanvasControl.Pointer.cs,
@@ -2335,6 +2335,8 @@ public sealed partial class CanvasControl : Control
                 e.Handled = true;
                 return;
             }
+
+            if (PressLineMatch(x, y, e)) return;   // Q271: matching, not drawing
 
             // B58. Rig editing comes next, for the reason alignment comes first:
             // while the mode is on the canvas is a place to place sockets and
@@ -3887,7 +3889,8 @@ public sealed partial class CanvasControl : Control
         bool fillPreviewWand = false,
         SKColor fillPreviewColor = default,
         TrailOverlay? trail = null, Core.Timeline.MotionArcOverlay? motionArc = null,
-        SKRect? cropFrame = null, Core.Documents.SymmetryAxis? symmetry = null, bool tiled = false) : ICustomDrawOperation
+        SKRect? cropFrame = null, Core.Documents.SymmetryAxis? symmetry = null, bool tiled = false,
+        ViewModels.LineMatchOverlay? lineMatch = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4037,6 +4040,7 @@ public sealed partial class CanvasControl : Control
             ArmatureOverlayPainter.Paint(canvas, bones, view.Scale, bonesArePosed);
             // Under the ants: a committed selection outranks a would-be one.
             FillPreviewPainter.Draw(canvas, fillPreview, fillPreviewWand, fillPreviewColor, view.Scale);
+            LineMatchPainter.Paint(canvas, lineMatch, view.Scale);
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);

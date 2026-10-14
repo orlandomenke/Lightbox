@@ -10,8 +10,8 @@ namespace Lightbox.App.ViewModels;
 /// <summary>One piece of a key in the Match lines overlay: its points, which key (0 for A, 1 for B), the match it is in, and whether it is in the match being made.</summary>
 public sealed record LineMatchLine(IReadOnlyList<StrokePoint> Points, int Key, int? Match, bool Pending);
 
-/// <summary>What the Match lines mode shows: both keys' pieces, coloured by match.</summary>
-public sealed record LineMatchOverlay(IReadOnlyList<LineMatchLine> Lines);
+/// <summary>What the Match lines mode shows: both keys' pieces, and the onion colours an unmatched piece of each key is drawn in.</summary>
+public sealed record LineMatchOverlay(IReadOnlyList<LineMatchLine> Lines, string TintA, string TintB);
 
 /// <summary>
 /// The artist's line matches (Q271): which lines of a key are which lines of
@@ -251,7 +251,7 @@ public partial class MainViewModel
         [
             .. _piecesA.Select(p => new LineMatchLine(p.Stroke.Points, 0, MatchOf(p, 0), Pending(p, 0))),
             .. _piecesB.Select(p => new LineMatchLine(p.Stroke.Points, 1, MatchOf(p, 1), Pending(p, 1))),
-        ]);
+        ], Onion.PreviousTint, Onion.NextTint);
         LineMatchChanged?.Invoke(LineMatchView);
     }
 

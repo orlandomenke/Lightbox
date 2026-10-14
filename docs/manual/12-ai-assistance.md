@@ -44,6 +44,55 @@ it fills the gap you are in rather than the whole run. Sending the model a third
 drawing costs materially more per request, and that trade has not been taken
 yet.
 
+### Telling the inbetweener which line is which
+
+The inbetweener pairs each line of one key with a line of the next by where it
+sits and what shape it has. When you drew the two keys with the same strokes,
+that is almost always right. When you did not — the outline of a leg in one
+stroke in one key and in three in the next, a line drawn the other way round, a
+drawing traced from pixels — it can pair the wrong lines, and the inbetween
+scrambles. **Match lines** is how you tell it.
+
+Put the playhead on an inbetween (or on the key before it) and turn on **Match
+lines**: the toggle beside **＋ Inbetween**, or **Animation ▸ Match lines between
+keys**. Both keys appear over the canvas in your onion skin colours — the key
+before in its colour, the key after dashed in its own — with each stroke shown
+cut into pieces where another line meets it and at sharp corners, so one piece
+is one line of the drawing. Your strokes are not changed; the pieces are only
+for matching.
+
+- **Click a line of the first key**, then **click the line or lines it becomes in
+  the second key**. The pair takes a colour of its own, and the inbetweens of
+  the run redraw at once.
+- **Shift-click** more lines of the first key to match several to the same
+  lines — a line you drew as two pieces in one key and one in the other.
+- **Click a matched line** to take it out of its match; a match with nothing
+  left on one side is removed.
+- **Click empty canvas** to stop adding to the open match, and **Esc** to leave
+  Match lines.
+
+Every click that changes a match is one step to undo, and it redraws the
+inbetweens with it. Lines you have not matched are paired the usual way, so you
+only need to match the ones it got wrong. Small parts made of many lines — a
+cuff, a shoe, a waistband — move as one thing between the keys, each line
+bending toward its place in the other key.
+
+The matches are saved on the first key, for the gap to the next one, the way a
+timing chart is: they survive saving and reopening, and they still apply after
+you redraw a different line of either key. A match that names a line you have
+since erased is dropped rather than guessed at. A document in which you never
+match a line saves nothing extra.
+
+**Redraw inbetweens** (Animation menu) redraws the inbetweens of the run under
+the playhead from its keys, breakdowns and matches as they are now, without
+inserting any new frames — use it after changing a key. It replaces every
+inbetween in the run, **including one you have touched up by hand**; undo
+brings it back.
+
+One limit, for now: a part that is visible in one key and hidden in the other
+(a foot that goes behind the other leg) fades out by halfway rather than
+travelling with the leg and going out of view.
+
 ## AI inbetweens
 
 **✦ AI Inbetween** asks the model for the frames between two keys. It needs a
