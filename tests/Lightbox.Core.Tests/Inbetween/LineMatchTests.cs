@@ -237,16 +237,33 @@ public class LineMatchTests(ITestOutputHelper output)
         MatchedInbetween.Inbetween(a, b, matches, 0.5, Easing.Linear);
         var cold = clock.ElapsedMilliseconds;
 
-        clock.Restart();
         var pieces = LinePieces.Cut(a);
-        var cut = clock.ElapsedMilliseconds;
         Assert.True(pieces.Count >= 290, $"{pieces.Count} pieces: the strokes were meant to be cut");
-        clock.Restart();
-        MatchedInbetween.Inbetween(a, b, matches, 0.5, Easing.Linear);
-        var warm = clock.ElapsedMilliseconds;
+        var plainA = pieces.Select(p => p.Stroke).ToList();
+        var plainB = LinePieces.Cut(b).Select(p => p.Stroke).ToList();
+        Inbetweener.Inbetween(plainA, plainB, 0.5, Easing.Linear);
 
-        // Measured 2026-10-14, Release: cut 56 ms, warm 112 ms, first call 1.4 s.
-        output.WriteLine($"{pieces.Count} pieces; cut {cut} ms, warm {warm} ms, first call {cold} ms");
-        Assert.True(warm < 600, $"{warm} ms");
+        // Timed against the plain inbetweener on the same pieces in the same
+        // run, fastest of three each: the suite runs in parallel legs, and an
+        // absolute limit measured the machine (12 s in the full plan, 0.15 s
+        // alone). The ends x points search this guards against was over ten
+        // times the plain cost.
+        long Fastest(Action run)
+        {
+            var best = long.MaxValue;
+            for (var i = 0; i < 3; i++)
+            {
+                var c = System.Diagnostics.Stopwatch.StartNew();
+                run();
+                best = Math.Min(best, c.ElapsedMilliseconds);
+            }
+            return best;
+        }
+        var matched = Fastest(() => MatchedInbetween.Inbetween(a, b, matches, 0.5, Easing.Linear));
+        var plain = Fastest(() => Inbetweener.Inbetween(plainA, plainB, 0.5, Easing.Linear));
+
+        // Measured 2026-10-14, Release, alone: matched 112 ms, plain 160 ms, first call 1.4 s.
+        output.WriteLine($"{pieces.Count} pieces; matched {matched} ms, plain on the same pieces {plain} ms, first call {cold} ms");
+        Assert.True(matched <= Math.Max(4 * plain, 50), $"matched {matched} ms against plain {plain} ms");
     }
 }
