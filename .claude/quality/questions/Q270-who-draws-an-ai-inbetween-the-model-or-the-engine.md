@@ -1,6 +1,10 @@
-# Q270 · Who draws an AI inbetween, the model or the engine — **answered 2026-10-14**
+# Q270 · Who draws an AI inbetween, the model or the engine — **answered 2026-10-14, revised the same day**
 
-**Answered: the model matches, the engine draws.** The model looks at both keys
+**Answered, finally: the artist matches, the engine draws — no AI, for now.** The
+first answer below (the model matches) was overtaken the same day by what the
+experiments showed; both are kept, in order, with what moved the decision.
+
+**First answer: the model matches, the engine draws.** The model looks at both keys
 and says which line in key A is which line in key B: the direction, and where
 one line is two in the other key. The deterministic inbetweener then draws the
 frame from that answer, so every line keeps the artist's own shape and brush.
@@ -60,3 +64,42 @@ owner called unusable, behind a shape check the art director found too loose
   inbetweener: roughly one to two sessions.
 - A part that goes out of sight (the back foot here) still needs an answer the
   engine can draw. That is the first thing the new route has to show.
+
+## What happened next, the same day
+
+**The model's matching was not good enough.** Shown both keys with every stroke
+numbered, it answered in 9–11 s for $0.05–0.07 — but called parts of the back
+leg an arm and paired them wrongly. The traced keys made it harder than usual:
+the tracer runs one stroke across several parts (waistband, front of the leg and
+top of the shoe in one), so the strokes had to be cut at junctions and corners
+(56 and 40 pieces) before any matching could be said at all.
+
+**The engine, given a correct match, works.** A hand-written match produced a
+believable inbetween in the artist's own lines — both legs whole, the back leg
+folding between the poses — once parts of many small lines (cuffs, shoes, the
+waistband) were moved as one thing and each line bent towards the other key's
+nearest ink. `MatchedInbetween` is that engine.
+
+**The owner then asked why matching was needed at all** — "I just want a frame
+that is logical as a inbetween" — and two more routes were tried:
+
+| route | result | cost |
+| --- | --- | --- |
+| Claude draws, then sees its own attempt over the keys and corrects it, 3 rounds | round 2 = round 1, round 3 worse (the back leg became a stick); the verifier accepted all three | $0.99 |
+| Gemini image models (Nano Banana 2 / Pro), keys in, picture out, traced back to strokes | excellent on-model line art, but it does not interpolate: it overlays both keys, copies one, or copies halves of each. One attempt landed between, by luck; spelling out "each part midway", adding a red/blue guide, or handing it a rough to clean up all made it copy more. With only the rough and key A as a style reference it still returned key A | ~€1.45, 8 images |
+
+The verdict on the Gemini route: whatever pose is in a reference picture is the
+pose it draws. Its drawing is not the problem; its timing is, and no prompt
+tried moved it.
+
+**So the route is the one that already produced a usable frame without a
+model: the artist says which line is which, and the engine draws.** The AI may
+pre-fill a match later, when a model can be shown to do it reliably.
+
+## What it costs, revised
+
+- A matching tool: the artist marks which lines go together; the engine
+  (`MatchedInbetween`, built) draws. Its design is still to be asked.
+- Known engine gaps: a part hidden in one key fades by halfway instead of
+  travelling and going out of view; small wobble on a shoe sole; a gap where a
+  line's pieces meet.
