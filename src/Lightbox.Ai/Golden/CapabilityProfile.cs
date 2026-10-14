@@ -334,7 +334,7 @@ public static class CapabilityProfiler
         {
             var departure = rows.Where(o => o.Answered).Select(o => o.DepartureFromFree ?? 0).Average();
             var arcing = departure < 1
-                ? "interpolated along the chord — no arc, and nothing the free engine would not have drawn"
+                ? "the free engine's own answer — nothing it would not have drawn"
                 : $"departed {departure:F1} px from the free engine's answer";
             return $"{clean ?? $"{accepted}/{rows.Count}"} — {arcing}";
         }

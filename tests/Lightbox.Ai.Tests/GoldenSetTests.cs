@@ -132,7 +132,7 @@ public class GoldenSetTests(ITestOutputHelper output)
         Assert.All(chord.Outcomes.Where(o => o.Category == GoldenCategory.Arc), o => Assert.True(o.Accepted));
         Assert.All(arcing.Outcomes.Where(o => o.Category == GoldenCategory.Arc), o => Assert.True(o.Accepted));
 
-        Assert.Contains("no arc", Row(chord));
+        Assert.Contains("the free engine's own answer", Row(chord));
         Assert.Contains("departed", Row(arcing));
         Assert.NotEqual(Row(chord), Row(arcing));
     }
@@ -301,17 +301,36 @@ public class GoldenSetTests(ITestOutputHelper output)
 
     private sealed class ArcingArtist(double bulge) : StubArtist
     {
-        private readonly FreeEngineArtist _free = new();
-
-        public override async Task<AiResult<List<InbetweenFrameResult>>> GenerateInbetweensAsync(
+        /// <remarks>
+        /// From the straight-line (chord) answer, lifted by <paramref name="bulge"/>
+        /// toward the arc: a model that arcs, less than the engine does. Since
+        /// Q272 the free engine swings its own lines on arcs, so this is still a
+        /// model whose motion differs from the engine's and is between the keys.
+        /// It bowed downward before, the wrong way for this pendulum, which the
+        /// chord engine could not see and the arc engine refuses (50px off).
+        /// </remarks>
+        public override Task<AiResult<List<InbetweenFrameResult>>> GenerateInbetweensAsync(
             InbetweenRequest request, CancellationToken ct)
         {
-            var answer = await _free.GenerateInbetweensAsync(request, ct);
-            foreach (var stroke in answer.Value!.SelectMany(f => f.Strokes))
+            var a = Core.Inbetween.StrokeRecordCleaner.EffectiveStrokes(request.KeyframeA);
+            var b = Core.Inbetween.StrokeRecordCleaner.EffectiveStrokes(request.KeyframeB);
+            var frames = new List<InbetweenFrameResult>();
+            foreach (var t in request.Ts)
             {
-                stroke.Points = [.. stroke.Points.Select(p => new StrokePoint(p.X, p.Y + bulge, p.Pressure))];
+                var et = Core.Inbetween.EasingOps.Ease(t, request.Easing);
+                var strokes = new List<Stroke>();
+                foreach (var pair in Core.Inbetween.StrokeMatcher.Match(a, b))
+                {
+                    if (pair.A is null || pair.B is null) continue;
+                    var (pa, pb) = Core.Inbetween.StrokeInterpolator.Aligned(pair.A, pair.B);
+                    var chord = pair.A.Clone();
+                    chord.Points = [.. pa.Select((p, i) => new StrokePoint(
+                        p.X + (pb[i].X - p.X) * et, p.Y + (pb[i].Y - p.Y) * et - bulge, p.Pressure))];
+                    strokes.Add(chord);
+                }
+                frames.Add(new InbetweenFrameResult(t, strokes));
             }
-            return answer;
+            return Task.FromResult(AiResult<List<InbetweenFrameResult>>.Success(frames));
         }
     }
 

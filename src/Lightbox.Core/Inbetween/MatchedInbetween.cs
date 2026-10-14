@@ -280,8 +280,8 @@ public static class MatchedInbetween
             }
         }
 
-        var points = new List<StrokePoint>(n);
-        for (var i = 0; i < n; i++) points.Add(GeometryOps.LerpPoint(ra[i], rb[i], et));
+        // On an arc about the part's joint, not along the chord (Q272).
+        var points = Arc.Lerp(ra, rb, et);
 
         // Cut back into the nearer key's pieces; a sample on a jump between
         // two pieces belongs to neither and is not drawn.
