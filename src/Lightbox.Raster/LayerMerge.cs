@@ -249,7 +249,9 @@ public static class LayerMerge
             // meaning when "underneath" gains the lower layer's marks.
             if (stroke.Tool is ToolKind.Eraser or ToolKind.ClearRegion) return false;
             if (stroke.AlphaLocked) return false;
-            if (stroke.Brush.Kind == BrushKind.Smudge) return false;
+            // Smudge drags what is underneath and blur softens it (B469): both
+            // would start working on the lower layer's marks.
+            if (stroke.Brush.Kind is BrushKind.Smudge or BrushKind.Blur) return false;
             // A mixing stroke replayed over the lower layer's marks would pick
             // them up, which the picture before the merge never did.
             if (stroke.Brush.Mixing is not null) return false;

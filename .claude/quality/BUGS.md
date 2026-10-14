@@ -2987,6 +2987,10 @@ test reopens the bug.
   - P1 by reach: it is not an edge case, it is *opening your own work*. Masked for anyone who mostly created documents in-session and kept them open; found the day opening a saved file became the first thing the application asks you to do.
   - The regression test walks the whole route — open, draw, look in the record — because asserting the index alone would stay green if a second gate ever ate the stroke.
 
+- [x] **B469** `P2` `layers` Merging down appends a blur stroke, which then blurs the lower layer's marks `evidence: UpperBlur_Bakes_SoItCannotStartBlurringTheLowerLayer`
+  - **Found by the adversary pass on the stroke-keeping merge (PR #732), 2026-10-13**, reading which strokes a merge may append as-is. `PairIsLossless` refused a smudge stroke — it reads what is underneath, and underneath gains the lower layer's marks — and let a blur stroke through, which reads what is underneath in exactly the same way. Two plain layers, the upper one with a blur stroke passing over a mark on the lower: merged by appending, the blur softens that mark's edges, which the picture before the merge never showed.
+  - **Fix:** blur is refused beside smudge, so that drawing flattens and renders exactly as the pair did. One condition.
+
 - [x] **B439** `P2` `layers` Locking the layer in hand leaves the pointer promising a stroke until the tool or layer changes `evidence: LockingTheActiveLayerTellsThePointerAtOnce`
   - Found 2026-10-10 by the adversarial review of the lock's publish cost, reading who is told when a lock changes: `NotifyLayerGating` raised the four `ActiveLayer…` properties the menus and the row bind to and not the pointer's, which are computed from the same flags. The cursor kept the brush over a layer that would refuse the press — and kept *Forbidden* after an unlock — until a tool or layer change happened to refresh it.
   - Fix: `NotifyLayerGating` ends with `RefreshPointerIntent()`, so every route that changes a gate (the row, the Layer menu, the shortcut, undo) tells the pointer too.
