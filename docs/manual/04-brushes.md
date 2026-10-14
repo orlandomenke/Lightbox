@@ -501,7 +501,15 @@ to switch to, and Ctrl+Alt picks a colour. And inside a selection Ctrl still
 takes hold of what is selected, so Ctrl+Alt there moves it and does not blot;
 Alt is unaffected.
 
-*Planned:* a damp brush for Gouache that drags and blends what is there.
+**Gouache** has its own pair: **Alt** is the **Damp brush**, **Ctrl+Alt** the
+Blot. The Damp brush works dried body colour again, the way a damp bristle
+brush reactivates gouache: where two colours meet under it they blend into
+each other, laid down in the gouache brush's own tip, a short way along the
+stroke. It lays no colour of its own, so the colour you are painting with does
+not matter. It is gentle on purpose - one pass moves a little, and going over
+the same place does more. Where it runs out over bare paper the paint thins,
+because there is nothing there to blend with. It is in the brush list on its
+own as well, as a smudge brush you can retune.
 
 ## Colour mixing
 
