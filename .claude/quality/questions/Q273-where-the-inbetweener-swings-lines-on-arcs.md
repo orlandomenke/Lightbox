@@ -1,4 +1,4 @@
-# Q272 · Where the inbetweener swings lines on arcs — **answered 2026-10-14**
+# Q273 · Where the inbetweener swings lines on arcs — **answered 2026-10-14**
 
 **Answered: every inbetween.** ＋ Inbetween swings each line about its joint,
 matched gap or not. Asked with `AskUserQuestion`, answered as recommended.

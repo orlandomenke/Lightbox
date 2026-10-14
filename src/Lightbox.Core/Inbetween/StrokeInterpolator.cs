@@ -39,7 +39,7 @@ public static class StrokeInterpolator
     {
         var (pa, pb) = Aligned(a, b);
 
-        // On an arc about the line's joint, not along the chord (Q272).
+        // On an arc about the line's joint, not along the chord (Q273).
         var points = Arc.Lerp(pa, pb, t);
 
         return new Stroke

@@ -434,7 +434,7 @@ public static class InbetweenVerifier
 
         // The candidate read through the same correspondence the expected was
         // built with, so "point i" means one thing across the whole check.
-        // The engine's own answer, on its arc (Q272), so this check and the
+        // The engine's own answer, on its arc (Q273), so this check and the
         // rest of the verifier mean the same thing by "expected".
         var expected = Arc.Lerp(pa, pb, et);
         var pc = GeometryOps.Resample(candidate.Points, pa.Count);

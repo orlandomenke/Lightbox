@@ -6,7 +6,7 @@ using Xunit.Abstractions;
 namespace Lightbox.Core.Tests.Inbetween;
 
 /// <summary>
-/// Arcs (Q272): a line between two keys turns about its joint — the end that
+/// Arcs (Q273): a line between two keys turns about its joint — the end that
 /// moves least — instead of every point sliding in a straight line, so a limb
 /// keeps its length through a swing. At the keys it is exactly the drawing.
 /// </summary>

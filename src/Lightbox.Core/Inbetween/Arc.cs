@@ -4,7 +4,7 @@ using Lightbox.Core.Geometry;
 namespace Lightbox.Core.Inbetween;
 
 /// <summary>
-/// One line between two keys, swung on an arc (Q272): it turns about its joint
+/// One line between two keys, swung on an arc (Q273): it turns about its joint
 /// — the end that moves least — while that end travels, and whatever else
 /// changes between the keys is blended on top.
 /// </summary>

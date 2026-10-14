@@ -25,7 +25,7 @@ namespace Lightbox.Ai.Golden;
 /// It is still the most useful number in the Arc row, because with its twin —
 /// distance from a straight-line (chord) answer — it is the only one that
 /// separates a model that arced from a model that interpolated along the
-/// chord. Since Q272 the free engine arcs, so departure from it alone no longer
+/// chord. Since Q273 the free engine arcs, so departure from it alone no longer
 /// says which: a chord answer departs from the engine's arc too. The verifier
 /// cannot tell them apart either: it scores betweenness, and both are between
 /// the keys. Without this the Arc category
@@ -211,7 +211,7 @@ public static class CapabilityProfiler
 
     /// <summary>
     /// The straight-line answer at <paramref name="t"/>: every matched point moved
-    /// along the chord from key A to key B, as the free engine did before Q272.
+    /// along the chord from key A to key B, as the free engine did before Q273.
     /// What a model "that added nothing but a lerp" draws, so the Arc row can
     /// still name it.
     /// </summary>

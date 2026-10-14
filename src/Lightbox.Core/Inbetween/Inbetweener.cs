@@ -76,7 +76,7 @@ public static class Inbetweener
                 }
             }
         }
-        // Lines that meet at both keys meet between them (Q272): each swings
+        // Lines that meet at both keys meet between them (Q273): each swings
         // about its own joint, and a knee shared by a thigh and a shin would
         // otherwise part halfway.
         var pen = ea.Concat(eb).Select(s => s.Brush.Size).DefaultIfEmpty(1).Max();

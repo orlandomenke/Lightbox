@@ -208,7 +208,7 @@ public partial class MainViewModel
         // Q33 says matching the deterministic answer is a note and never a
         // veto — and a note nobody sees is not a note. It is worth saying
         // because repair is what gives a model a reason to take that path:
-        // copying the free engine's answer (its arc, since Q272) passes every
+        // copying the free engine's answer (its arc, since Q273) passes every
         // geometric check by construction, so "corrected" and "gave up and copied the
         // cheap engine" would otherwise look identical from the outside.
         if (run.MatchedFreeEngineCount is var free and > 0)

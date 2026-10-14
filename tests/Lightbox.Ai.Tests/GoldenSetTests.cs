@@ -138,7 +138,7 @@ public class GoldenSetTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A model that only lerps — the free engine before Q272 — is still named
+    /// A model that only lerps — the free engine before Q273 — is still named
     /// as one. Departure from the engine alone cannot say it: since the engine
     /// arcs, a chord departs from it as an arc does (the ai-engineer, 2026-10-14).
     /// </summary>
@@ -319,7 +319,7 @@ public class GoldenSetTests(ITestOutputHelper output)
         /// <remarks>
         /// From the straight-line (chord) answer, lifted by <paramref name="bulge"/>
         /// toward the arc: a model that arcs, less than the engine does. Since
-        /// Q272 the free engine swings its own lines on arcs, so this is still a
+        /// Q273 the free engine swings its own lines on arcs, so this is still a
         /// model whose motion differs from the engine's and is between the keys.
         /// It bowed downward before, the wrong way for this pendulum, which the
         /// chord engine could not see and the arc engine refuses (50px off);

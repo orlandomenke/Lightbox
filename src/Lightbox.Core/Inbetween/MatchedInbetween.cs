@@ -280,7 +280,7 @@ public static class MatchedInbetween
             }
         }
 
-        // On an arc about the part's joint, not along the chord (Q272).
+        // On an arc about the part's joint, not along the chord (Q273).
         var points = Arc.Lerp(ra, rb, et);
 
         // Cut back into the nearer key's pieces; a sample on a jump between
