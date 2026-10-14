@@ -341,4 +341,59 @@ public class MatchedInbetweenTests(ITestOutputHelper output)
 
         Assert.True(Worst(frame, L(20)) < 4);
     }
+
+    /// <summary>Key A: the L, matched, and a long line only key A has (a sock the other key hides). Key B: the L, and a small unrelated mark elsewhere.</summary>
+    private static (List<Stroke> A, List<Stroke> B) WithAnUnrelatedLeftover()
+    {
+        var a = new List<Stroke> { L(0), Path((400, 100), (400, 250)) };
+        var b = new List<Stroke> { L(40), Path((600, 400), (630, 400)) };
+        return (a, b);
+    }
+
+    [Fact]
+    public void ALineOnlyOneKeyHasIsNeverMadeIntoAMarkInNeitherKey()
+    {
+        // The owner, 2026-10-14: "I hope it does not create lines or marks that
+        // aren't in other frames." Paired with the unrelated mark, the long line
+        // would travel and shrink into a mark halfway between the two.
+        var (a, b) = WithAnUnrelatedLeftover();
+
+        var early = MatchedInbetween.Inbetween(a, b, [new PartMatch([0], [0])], 0.25, Easing.Linear);
+        var half = MatchedInbetween.Inbetween(a, b, [new PartMatch([0], [0])], 0.5, Easing.Linear);
+
+        // Before halfway it is key A's own line, where key A has it, fading.
+        var sock = Assert.Single(early, s => s.Points.All(p => Math.Abs(p.X - 400) < 1));
+        Assert.True(sock.Brush.Opacity is > 0 and < 1);
+        // Nothing anywhere between the two leftovers, at any time.
+        foreach (var frame in new[] { early, half })
+        {
+            Assert.DoesNotContain(frame, s => s.Points.Any(p => p.X is > 420 and < 580));
+        }
+    }
+
+    [Fact]
+    public void ALineBothKeysHaveThatNobodyMatchedStillTweens()
+    {
+        // The artist matched what the engine got wrong; a line it gets right on
+        // its own is still paired: same length, same shape, moved.
+        var a = new List<Stroke> { L(0), Path((400, 100), (400, 250)) };
+        var b = new List<Stroke> { L(40), Path((440, 120), (440, 270)) };
+
+        var half = MatchedInbetween.Inbetween(a, b, [new PartMatch([0], [0])], 0.5, Easing.Linear);
+
+        var line = Assert.Single(half, s => s.Points[0].X > 380);
+        Assert.Equal(420, line.Points[0].X, 0);
+        Assert.Equal(1, line.Brush.Opacity, 3);
+    }
+
+    [Fact]
+    public void SpecksFarApartDoNotMakeASpeckBetweenThem()
+    {
+        var a = new List<Stroke> { L(0), Path((500, 500), (505, 500)) };
+        var b = new List<Stroke> { L(40), Path((700, 300), (703, 300)) };
+
+        var half = MatchedInbetween.Inbetween(a, b, [new PartMatch([0], [0])], 0.5, Easing.Linear);
+
+        Assert.DoesNotContain(half, s => s.Points.Any(p => p.X is > 520 and < 680));
+    }
 }

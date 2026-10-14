@@ -124,8 +124,76 @@ public static class MatchedInbetween
 
         var restA = a.Where((_, i) => !claimedA.Contains(i)).ToList();
         var restB = b.Where((_, i) => !claimedB.Contains(i)).ToList();
-        if (restA.Count > 0 || restB.Count > 0) drawn.AddRange(Inbetweener.Inbetween(restA, restB, t, easing));
+        if (restA.Count > 0 || restB.Count > 0) drawn.AddRange(Leftovers(restA, restB, et));
         return drawn;
+    }
+
+    /// <summary>
+    /// The lines no match names, in a gap where the artist matched others: a
+    /// pair the ordinary matcher proposes is kept only when it is convincing —
+    /// about the same length and shape, and, for a speck, in about the same
+    /// place. Everything else is a line only one key has, and it fades where
+    /// that key has it.
+    /// </summary>
+    /// <remarks>
+    /// The owner, 2026-10-14: "I hope it does not create lines or marks that
+    /// aren't in other frames." The matcher pairs every line it can, however
+    /// unalike: on the traced run it paired the back leg's sock, hidden in the
+    /// next key, with a short unrelated mark, and the halfway line between them
+    /// was a tangle in the cuff that neither key has; specks across the page
+    /// paired into a speck in the empty space between. A gap with no matches
+    /// at all never comes here, and keeps the ordinary matcher's answer.
+    /// </remarks>
+    private static IEnumerable<Stroke> Leftovers(List<Stroke> a, List<Stroke> b, double et)
+    {
+        var pen = Math.Max(a.Concat(b).Select(s => s.Brush.Size).DefaultIfEmpty(1).Max(), 1);
+        foreach (var pair in StrokeMatcher.Match(a, b))
+        {
+            if (pair.A is { } pa && pair.B is { } pb && Convincing(pa, pb, pen))
+            {
+                yield return StrokeInterpolator.Interpolate(pa, pb, et);
+                continue;
+            }
+            if (pair.A is { } onlyA)
+            {
+                foreach (var s in Fade([onlyA], Math.Max(0, 1 - et * 2))) yield return s;
+            }
+            if (pair.B is { } onlyB)
+            {
+                foreach (var s in Fade([onlyB], Math.Max(0, et * 2 - 1))) yield return s;
+            }
+        }
+    }
+
+    /// <summary>Shorter than this, a line is a speck: it pairs only with a speck in about the same place.</summary>
+    private const double Speck = 12;
+
+    /// <summary>
+    /// Whether two lines are believably the same line: lengths within a factor
+    /// of 1.6, shapes within a third of their length of each other once laid
+    /// over each other (either way round), and specks no further apart than a
+    /// few pen widths.
+    /// </summary>
+    private static bool Convincing(Stroke a, Stroke b, double pen)
+    {
+        var (la, lb) = (GeometryOps.PathLength(a.Points), GeometryOps.PathLength(b.Points));
+        var longer = Math.Max(la, lb);
+        if (longer < Speck)
+        {
+            return GeometryOps.Dist(GeometryOps.Centroid(a.Points), GeometryOps.Centroid(b.Points)) <= pen * 3;
+        }
+        if (Math.Min(la, lb) * 1.6 < longer || a.Points.Count < 2 || b.Points.Count < 2) return false;
+        var ra = GeometryOps.Resample(a.Points, 16);
+        var rb = GeometryOps.Resample(b.Points, 16);
+        var (ca, cb) = (GeometryOps.Centroid(ra), GeometryOps.Centroid(rb));
+        double forward = 0, backward = 0;
+        for (var i = 0; i < 16; i++)
+        {
+            forward += Math.Sqrt(Sq(ra[i].X - ca.X - (rb[i].X - cb.X)) + Sq(ra[i].Y - ca.Y - (rb[i].Y - cb.Y)));
+            backward += Math.Sqrt(Sq(ra[i].X - ca.X - (rb[15 - i].X - cb.X)) + Sq(ra[i].Y - ca.Y - (rb[15 - i].Y - cb.Y)));
+        }
+        return Math.Min(forward, backward) / 16 <= longer / 3;
+        static double Sq(double v) => v * v;
     }
 
     /// <summary>The strokes a part names that exist and no earlier part took; nonsense is skipped.</summary>
