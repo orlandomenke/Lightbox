@@ -761,7 +761,9 @@ public class EffectRegistryTests(ITestOutputHelper output)
     [Fact]
     public void AFlickerDipsOutOfFullStrengthAndNeverAboveIt()
     {
-        var stack = Stack(Use("anim.flicker", ("amount", 60.0), ("hold", 1.0)));
+        // Pinned for the same reason as the shelf test below: an unsaved use
+        // re-rolls its motion every run (B306).
+        var stack = Stack(SeededUse("flicker", "anim.flicker", ("amount", 60.0), ("hold", 1.0)));
         var masses = new List<double>();
         for (var frame = 0; frame < 8; frame++)
         {
@@ -930,7 +932,12 @@ public class EffectRegistryTests(ITestOutputHelper output)
         Assert.NotNull(EffectRegistry.ProgramFor(Stack(Use("grade.grain")), 0));
         Assert.NotNull(EffectRegistry.FilterFor(Stack(Use("anim.wiggle")), 0));
         Assert.NotNull(EffectRegistry.ProgramFor(Stack(Use("anim.wiggle")), 0));
-        Assert.NotNull(EffectRegistry.FilterFor(Stack(Use("anim.flicker")), 0));
+        // Pinned: a flicker's dip on a frame comes from its use's id, and
+        // about one id in two hundred lands on full strength on frame 0,
+        // which is identity and rightly answers null. With a fresh id per
+        // run that was this test failing one CI run in two hundred
+        // ("flicker-71" is one such id).
+        Assert.NotNull(EffectRegistry.FilterFor(Stack(SeededUse("flicker", "anim.flicker")), 0));
 
         Assert.Equal(6, EffectRegistry.ReachOf(Stack(Use("anim.wiggle")), 0)); // its amount
         Assert.Equal(0, EffectRegistry.ReachOf(Stack(Use("anim.flicker")), 0));
