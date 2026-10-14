@@ -92,8 +92,11 @@ public static class Inbetweener
         return frames;
     }
 
-    /// <summary>One drawing already in a run: where it sits in 0..1, and its strokes.</summary>
-    public readonly record struct RunStop(double Time, IReadOnlyList<Stroke> Strokes);
+    /// <summary>
+    /// One drawing already in a run: where it sits in 0..1, its strokes, and
+    /// the artist's line matches for the gap after it (Q271), if any.
+    /// </summary>
+    public readonly record struct RunStop(double Time, IReadOnlyList<Stroke> Strokes, IReadOnlyList<LineMatch>? Matches = null);
 
     /// <summary>
     /// Fill a whole run — two extremes with any number of already-drawn
@@ -154,8 +157,11 @@ public static class Inbetweener
             var hi = EasingOps.Ease(Math.Clamp(run[k + 1].Time, 0, 1), easing);
             var local = hi > lo ? (EasingOps.Ease(t, easing) - lo) / (hi - lo) : 0;
 
-            // Linear: the run's easing is already in `local`.
-            frames.Add(Inbetween(run[k].Strokes, run[k + 1].Strokes, local, Easing.Linear));
+            // Linear: the run's easing is already in `local`. A gap the artist
+            // matched lines across is drawn from those matches (Q271).
+            frames.Add(run[k].Matches is { Count: > 0 } matches
+                ? MatchedInbetween.Inbetween(run[k].Strokes, run[k + 1].Strokes, matches, local, Easing.Linear)
+                : Inbetween(run[k].Strokes, run[k + 1].Strokes, local, Easing.Linear));
         }
         return frames;
     }
