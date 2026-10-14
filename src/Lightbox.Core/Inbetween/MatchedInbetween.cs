@@ -45,6 +45,56 @@ public sealed record PartMatch(IReadOnlyList<int> A, IReadOnlyList<int> B);
 /// </remarks>
 public static class MatchedInbetween
 {
+    /// <summary>
+    /// An inbetween from the artist's saved matches (Q271): both keys' raw
+    /// strokes, and the matches kept on key A.
+    /// </summary>
+    /// <remarks>
+    /// A stroke a match names is cut into its pieces (<see cref="LinePieces"/>);
+    /// a stroke no match names stays whole, so the ordinary matcher sees what
+    /// the artist drew. A reference to a stroke or piece that is gone is
+    /// dropped, and a match left with nothing on either side is skipped.
+    /// </remarks>
+    public static List<Stroke> Inbetween(
+        IReadOnlyList<Stroke> a, IReadOnlyList<Stroke> b, IReadOnlyList<LineMatch> matches, double t, Easing easing)
+    {
+        var ea = StrokeRecordCleaner.EffectiveStrokes(a);
+        var eb = StrokeRecordCleaner.EffectiveStrokes(b);
+        var (sa, ia) = Resolved(ea, matches.SelectMany(m => m.A));
+        var (sb, ib) = Resolved(eb, matches.SelectMany(m => m.B));
+        var parts = matches
+            .Select(m => new PartMatch(
+                [.. m.A.Select(r => ia.GetValueOrDefault(r, -1)).Where(i => i >= 0)],
+                [.. m.B.Select(r => ib.GetValueOrDefault(r, -1)).Where(i => i >= 0)]))
+            .Where(p => p.A.Count > 0 || p.B.Count > 0)
+            .ToList();
+        return Inbetween(sa, sb, parts, t, easing);
+    }
+
+    /// <summary>One key's strokes with the ones a match names cut into pieces, and where each named piece now sits.</summary>
+    private static (List<Stroke> Strokes, Dictionary<PieceRef, int> Index) Resolved(
+        IReadOnlyList<Stroke> strokes, IEnumerable<PieceRef> named)
+    {
+        var mentioned = named.Select(r => r.Stroke).ToHashSet();
+        var pieces = (mentioned.Count == 0 ? [] : LinePieces.Cut(strokes)).ToLookup(p => p.Source);
+        var list = new List<Stroke>();
+        var index = new Dictionary<PieceRef, int>();
+        foreach (var s in strokes)
+        {
+            if (!mentioned.Contains(s.Id))
+            {
+                list.Add(s);
+                continue;
+            }
+            foreach (var piece in pieces[s.Id])
+            {
+                index[new PieceRef(s.Id, piece.Ordinal)] = list.Count;
+                list.Add(piece.Stroke);
+            }
+        }
+        return (list, index);
+    }
+
     public static List<Stroke> Inbetween(
         IReadOnlyList<Stroke> a, IReadOnlyList<Stroke> b, IReadOnlyList<PartMatch> parts, double t, Easing easing)
     {
@@ -183,8 +233,8 @@ public static class MatchedInbetween
     {
         var (ca, ra) = Frame(a);
         var (cb, rb) = Frame(b);
-        var inkA = a.SelectMany(s => GeometryOps.Densify(s.Points, 3)).ToList();
-        var inkB = b.SelectMany(s => GeometryOps.Densify(s.Points, 3)).ToList();
+        var inkA = a.SelectMany(s => LinePieces.Even(s.Points, 3)).ToList();
+        var inkB = b.SelectMany(s => LinePieces.Even(s.Points, 3)).ToList();
         var pen = Math.Max(a.Concat(b).Max(s => s.Brush.Size), 1);
 
         // Lines with nothing near them in the other key, once the two are laid
@@ -192,7 +242,7 @@ public static class MatchedInbetween
         bool Orphan(Stroke s, List<StrokePoint> other, StrokePoint from, StrokePoint to, double scale, double spread)
         {
             var reach = Math.Max(pen * 2, spread * 0.15);
-            var gaps = GeometryOps.Densify(s.Points, 3)
+            var gaps = LinePieces.Even(s.Points, 3)
                 .Select(p => Nearest(Over(p, from, to, scale), other).Distance)
                 .OrderBy(d => d)
                 .ToList();
@@ -205,8 +255,8 @@ public static class MatchedInbetween
         {
             (ca, ra) = Frame([.. a.Where(s => !orphanA.Contains(s))]);
             (cb, rb) = Frame([.. b.Where(s => !orphanB.Contains(s))]);
-            inkA = a.Where(s => !orphanA.Contains(s)).SelectMany(s => GeometryOps.Densify(s.Points, 3)).ToList();
-            inkB = b.Where(s => !orphanB.Contains(s)).SelectMany(s => GeometryOps.Densify(s.Points, 3)).ToList();
+            inkA = a.Where(s => !orphanA.Contains(s)).SelectMany(s => LinePieces.Even(s.Points, 3)).ToList();
+            inkB = b.Where(s => !orphanB.Contains(s)).SelectMany(s => LinePieces.Even(s.Points, 3)).ToList();
         }
         var scale = ra > 0 && rb > 0 ? rb / ra : 1;
         var centre = GeometryOps.LerpPoint(ca, cb, et);
@@ -224,7 +274,7 @@ public static class MatchedInbetween
         {
             foreach (var s in a.Where(s => !orphanA.Contains(s)))
             {
-                yield return Drawn(s, GeometryOps.Densify(s.Points, 3)
+                yield return Drawn(s, LinePieces.Even(s.Points, 3)
                     .Select(p => GeometryOps.LerpPoint(p, Nearest(Over(p, ca, cb, scale), inkB).Point with { Pressure = p.Pressure }, et)));
             }
         }
@@ -232,7 +282,7 @@ public static class MatchedInbetween
         {
             foreach (var s in b.Where(s => !orphanB.Contains(s)))
             {
-                yield return Drawn(s, GeometryOps.Densify(s.Points, 3)
+                yield return Drawn(s, LinePieces.Even(s.Points, 3)
                     .Select(q => GeometryOps.LerpPoint(Nearest(Over(q, cb, ca, 1 / scale), inkA).Point with { Pressure = q.Pressure }, q, et)));
             }
         }
@@ -274,14 +324,20 @@ public static class MatchedInbetween
         return (best, Math.Sqrt(distance));
     }
 
-    /// <summary>The middle of some strokes by length, and their spread about it.</summary>
+    /// <summary>
+    /// Where a part is and how big: the middle of its bounding box and the
+    /// box's diagonal. The box rather than the ink's centre of mass, because
+    /// the outline says where a shoe is and the details inside it do not — a
+    /// sole drawn as a double line in one key would otherwise pull the whole
+    /// part off its outline. Found by breaking it, 2026-10-14.
+    /// </summary>
     private static (StrokePoint Centre, double Spread) Frame(IReadOnlyList<Stroke> strokes)
     {
-        var points = strokes.SelectMany(s => GeometryOps.Densify(s.Points, 3)).ToList();
+        var points = strokes.SelectMany(s => s.Points).ToList();
         if (points.Count == 0) return (new StrokePoint(0, 0, 0), 0);
-        var c = GeometryOps.Centroid(points);
-        var spread = Math.Sqrt(points.Average(p => (p.X - c.X) * (p.X - c.X) + (p.Y - c.Y) * (p.Y - c.Y)));
-        return (c, spread);
+        var (minX, maxX) = (points.Min(p => p.X), points.Max(p => p.X));
+        var (minY, maxY) = (points.Min(p => p.Y), points.Max(p => p.Y));
+        return (new StrokePoint((minX + maxX) / 2, (minY + maxY) / 2, 0), Math.Sqrt((maxX - minX) * (maxX - minX) + (maxY - minY) * (maxY - minY)) / 2);
     }
 
     /// <summary>

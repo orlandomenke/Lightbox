@@ -240,11 +240,13 @@ public class MatchedInbetweenTests(ITestOutputHelper output)
         var frame = MatchedInbetween.Inbetween(a, b, [new PartMatch([0, 1, 2, 3, 4], [0, 1, 2, 3])], 0.5, Easing.Linear);
 
         var halfway = Box(30, 10);
-        var outline = frame.Take(4).SelectMany(s => s.Points).Max(p => halfway.Min(e => DistanceTo(p, e)));
+        // Past halfway key B's pieces are drawn: its two corners are the
+        // outline; its sole lines are inside it and are not measured here.
+        var corners = frame.Where(s => s.Points.Max(p => p.Y) - s.Points.Min(p => p.Y) > 30).ToList();
+        Assert.Equal(2, corners.Count);
+        var outline = corners.SelectMany(s => s.Points).Max(p => halfway.Min(e => DistanceTo(p, e)));
         output.WriteLine($"{frame.Count} strokes, outline worst {outline:0.0}px from the box halfway");
-        // Measured 5.0px: part of A's bottom edge bends towards B's doubled
-        // sole line beside it rather than its own edge. Pairing pieces one to
-        // one, the version this replaced, was 13.0px.
-        Assert.True(outline < 6, $"worst {outline:0.0}px");
+        // Pairing pieces one to one, the version this replaced, was 13.0px.
+        Assert.True(outline < 4, $"worst {outline:0.0}px");
     }
 }

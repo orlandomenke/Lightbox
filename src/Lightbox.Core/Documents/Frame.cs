@@ -175,6 +175,17 @@ public sealed class Frame
     public List<double>? Chart { get; set; }
 
     /// <summary>
+    /// Which lines of this key are which lines of the next key (Q271), as the
+    /// artist matched them; null, and no key in the file, until a match is made.
+    /// </summary>
+    /// <remarks>
+    /// On the frame for the chart's reason: it describes this extreme's gap and
+    /// must travel with the drawing when the sheet is re-timed. Meaningful on a
+    /// <see cref="FrameRole.Key"/> frame, kept but ignored elsewhere.
+    /// </remarks>
+    public List<LineMatch>? Matches { get; set; }
+
+    /// <summary>
     /// Which AI produced this drawing, or null for every frame an artist drew.
     /// </summary>
     /// <remarks>
@@ -280,6 +291,7 @@ public sealed class Frame
         copy.Anchors = Anchors is null ? null : new Dictionary<string, AnchorPoint>(Anchors);
         copy.Shapes = Shapes is null ? null : new Dictionary<string, ShapeBox>(Shapes);
         copy.Chart = Chart is null ? null : [.. Chart];
+        copy.Matches = Matches?.Select(m => m.Clone()).ToList();
         copy.Correctives = Correctives?.Select(c => c.Clone()).ToList();
         return copy;
     }
