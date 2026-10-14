@@ -657,6 +657,9 @@ public partial class MainWindow
             case "docker.mergeDown":
                 RequestMergeDown(null); // null = the active layer
                 break;
+            case "docker.traceLayer":
+                RequestTrace(null);
+                break;
             case "docker.clipToBelow":
                 _vm.ToggleActiveLayerClippedCommand.Execute(null);
                 break;

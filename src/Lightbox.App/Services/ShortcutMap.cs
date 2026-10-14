@@ -475,6 +475,8 @@ public sealed class ShortcutMap
             // Photoshop's and Krita's key, and global like theirs: merging is
             // asked for from the canvas at least as often as from the docker.
             new("docker.mergeDown", "Merge layer down", "Dockers", G(Key.E, KeyModifiers.Control)),
+            // Q269. No default key: a trace is occasional, and it asks first.
+            new("docker.traceLayer", "Trace a layer's pixels to strokes", "Dockers", null),
             // Photoshop's key, and global like the merge: clipping is asked
             // for from the canvas while colouring, not only from the docker.
             new("docker.clipToBelow", "Clip layer to the one below", "Dockers",

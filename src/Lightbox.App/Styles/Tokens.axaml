@@ -118,6 +118,9 @@
   <x:Double x:Key="SizeDialogLabel">120</x:Double>
   <x:Double x:Key="SizeDialogField">70</x:Double>
   <x:Double x:Key="SizeDialogButton">80</x:Double>
+  <!-- A dialog's picture of what it is about to do: the trace preview (Q269),
+       a 16:9 drawing at the dialog's inner width. -->
+  <x:Double x:Key="SizeDialogPreview">252</x:Double>
 
   <!-- ===== The brush editor (Q211) ===== -->
   <!-- The popup from the bar's gear: wide enough for an option list, a panel on
