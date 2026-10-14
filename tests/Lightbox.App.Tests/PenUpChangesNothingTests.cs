@@ -637,4 +637,151 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
         Assert.True(live.Differing == 0,
             $"lifting the pen changed {live.Differing} pixels (worst {live.Worst}): what was on screen is not what was kept");
     }
+    public static IEnumerable<object[]> Smudging() =>
+        // The last one is the Smudge brush adding some of the colour in hand as it goes.
+        from id in new[] { "builtin-smudge", "builtin-blender", "builtin-damp-brush", "builtin-smudge+colour" }
+        from size in new[] { 0, 40, 150 }
+        from smooth in new[] { false, true }
+        select new object[] { id, size, smooth };
+
+    /// <summary>
+    /// A smudge stroke is kept at pen-up, like paint, erasers and Water: the
+    /// working copy of the layer the pen leaves is the committed frame, with
+    /// nothing rendered again.
+    /// </summary>
+    /// <remarks>
+    /// Found by the perf lab on the Damp brush, 2026-10-13: every smudge stroke
+    /// logged "not a kind of stroke that is kept" and was rendered from its
+    /// record at pen-up - 20, 35 and 68 ms at 60, 150 and 300 px. The pixels
+    /// were already the right ones; this holds them to it for both smudge
+    /// modes, a tipped brush, a stroke that crosses itself, and smoothing.
+    /// </remarks>
+    [AvaloniaTheory]
+    [MemberData(nameof(Smudging))]
+    public void ASmudgeStrokeIsKept(string presetId, int size, bool smooth)
+    {
+        var vm = Vm(smooth);
+        var scene = vm.Doc.Scene;
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-ink"));
+        vm.BrushSize = 60;
+        foreach (var (x, hex) in new[] { (300.0, "#c8301c"), (370.0, "#e2a11c"), (440.0, "#1c7a3a") })
+        {
+            vm.ColorHex = hex;
+            vm.BeginStroke(x, 150, 1);
+            for (var i = 1; i <= 12; i++) vm.MoveStroke(x + (i * 2), 150 + (i * 25), 1);
+            vm.EndStroke();
+            for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        using var painted = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height).Copy();
+
+        var preset = vm.BrushPresetChoices.Single(p => p.Id == presetId.Split('+')[0]);
+        vm.ApplyPreset(preset);
+        if (size > 0) vm.BrushSize = size;
+        if (presetId.EndsWith("+colour", StringComparison.Ordinal))
+        {
+            vm.CurrentToolSettingsForTest.ColorRate = 0.3;
+            vm.ColorHex = "#7030c0";
+        }
+        var before = vm.PromotedStrokes;
+
+        // Out across the bars, round, and back over its own path.
+        vm.BeginStroke(240, 260, 0.7);
+        for (var i = 1; i <= 70; i++)
+        {
+            var back = i > 45;
+            var t = back ? 45 - ((i - 45) * 1.5) : i;
+            vm.MoveStroke(240 + (t * 6.0), (back ? 300 : 250) + (Math.Sin(i * 0.25) * 45), 0.5 + (0.4 * i / 70.0));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        using var underThePen = vm.LiveCompositeForTests!.Copy();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        vm.EndStroke();
+        var penUp = clock.Elapsed.TotalMilliseconds;
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var live = Compare(underThePen, kept);
+        var record = Compare(kept, replay);
+        var did = Compare(kept, painted);
+        var promoted = vm.PromotedStrokes - before == 1;
+        output.WriteLine(
+            $"SMUDGE {preset.Name,-11} size {vm.BrushSize,4:0} {(smooth ? "smooth" : "raw"),-6} {(promoted ? "kept" : "REPLAYED: " + vm.WhyReplayed)}  "
+            + $"changed {did.Differing} pixels; under the pen vs kept {live.Differing} (worst {live.Worst}), kept vs replay {record.Differing} (worst {record.Worst}); pen-up {penUp:0.0} ms");
+
+        Assert.True(did.Differing > 300, $"{preset.Name} changed almost nothing ({did.Differing} pixels) - nothing was tested");
+        Assert.True(record.Differing == 0,
+            $"{preset.Name}: the committed frame is not what its record renders ({record.Differing} pixels, worst {record.Worst}) - invariant 1");
+        Assert.True(live.Differing == 0,
+            $"{preset.Name}: lifting the pen changed {live.Differing} pixels (worst {live.Worst})");
+        Assert.True(promoted, $"{preset.Name} at {vm.BrushSize:0}: a smudge stroke was rendered again at pen-up - {vm.WhyReplayed}");
+    }
+    /// <summary>
+    /// A smudge dab that keeps its place and changes its pressure after it was
+    /// stamped must not be frozen into the frame. With smoothing on, a new
+    /// sample moves the pressure of the points before it; on a dead-straight,
+    /// evenly spaced line that moves no dab, so the position rule the smudge
+    /// settles by sees nothing change - and the stroke that was stamped is not
+    /// quite the stroke that was recorded. Such a stroke is rendered from its
+    /// record at pen-up, as every smudge used to be.
+    /// </summary>
+    /// <remarks>
+    /// Found by review of B472, reading the code: the 24 cases above all draw
+    /// a wavy path, where a change of pressure comes with a change of place.
+    /// A hand cannot draw this line; synthetic input and a ruler can.
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData("builtin-smudge", SmoothingMode.Laplacian)]
+    [InlineData("builtin-blender", SmoothingMode.Laplacian)]
+    // A window of nine reaches four points back: further than the tail the smudge still re-stamps.
+    [InlineData("builtin-smudge", SmoothingMode.MovingAverage)]
+    [InlineData("builtin-blender", SmoothingMode.MovingAverage)]
+    [InlineData("builtin-smudge", SmoothingMode.SavitzkyGolay)]
+    public void ASmudgeWhoseStampedDabsChangedIsRenderedFromItsRecord(string presetId, SmoothingMode smoothing)
+    {
+        var vm = Vm(smooth: true);
+        vm.SmoothingMode = smoothing;
+        vm.SmoothingWindow = 9;
+        var scene = vm.Doc.Scene;
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-ink"));
+        vm.BrushSize = 60;
+        foreach (var (x, hex) in new[] { (300.0, "#c8301c"), (370.0, "#e2a11c"), (440.0, "#1c7a3a") })
+        {
+            vm.ColorHex = hex;
+            vm.BeginStroke(x, 150, 1);
+            for (var i = 1; i <= 12; i++) vm.MoveStroke(x + (i * 2), 150 + (i * 25), 1);
+            vm.EndStroke();
+            for (var i = 0; i < 4; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == presetId));
+        vm.BrushSize = 50;
+        // Pressure sets how wide each dab is - which is what a smudge reads of it.
+        var brush = vm.CurrentToolSettingsForTest;
+        brush.PressureEnabled = true;
+        brush.PressureSizeGamma = 1;
+        brush.Curves = null;
+
+        // Dead straight, a whole number of pixels apart, pressure jumping about.
+        var pressures = new[] { 0.2, 0.95, 0.3, 0.8, 0.15, 1.0, 0.5, 0.25, 0.9, 0.4 };
+        vm.BeginStroke(240, 300, pressures[0]);
+        for (var i = 1; i <= 50; i++)
+        {
+            vm.MoveStroke(240 + (i * 6.0), 300, pressures[i % pressures.Length]);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        }
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        vm.EndStroke();
+        for (var i = 0; i < 8; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var kept = vm.FrameCache.Get(vm.PaintedCel(), scene.Width, scene.Height);
+        using var replay = FrameRasterizer.Materialize(vm.PaintedCel(), scene.Width, scene.Height);
+        var record = Compare(kept, replay);
+        output.WriteLine($"STALE {presetId} {smoothing}: {(vm.WhyReplayed is null ? "kept" : "rendered from the record: " + vm.WhyReplayed)}; kept vs replay {record.Differing} (worst {record.Worst})");
+        Assert.True(record.Differing == 0,
+            $"{presetId}: the committed frame is not what its record renders ({record.Differing} pixels, worst {record.Worst}) - invariant 1");
+    }
 }

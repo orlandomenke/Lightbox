@@ -1589,15 +1589,20 @@ public partial class MainViewModel
         // A document too large for the replay's plane is replayed in another
         // frame of reference, and the live mark is then not the replay.
         if (!BrushEngine.ReplaysInDocumentSpace(Scene.Width, Scene.Height)) return No("document too large for the plane");
-        if (stroke.Brush.Kind == BrushKind.Blur && stroke.Brush.Wet is not null)
+        if (BrushEngine.WritesTheLayerItself(stroke))
         {
-            // A rewetting stroke: the working copy of the layer holds the result,
-            // rendered rectangle by rectangle from the layer as it was (Q255).
+            if (_live.SettledDabChanged) return No($"a settled dab changed ({_live.WhySettledDabChanged})");
+            // A rewetting stroke or a smudge: the working copy of the layer holds
+            // the result - rendered rectangle by rectangle from the layer as it
+            // was (Q255), or smeared dab range by dab range as a replay smears it.
             if (_live.Composite is not { } composite || _live.EffectDabs is not { Count: > 0 } wetDabs)
             {
-                return No("nothing was rewetted live");
+                return No("nothing was worked into the layer live");
             }
-            var wetRegion = WetBleed.Bounds(wetDabs, 0, wetDabs.Count, stroke.Brush, composite.Width, composite.Height);
+            var layerInfo = new SKImageInfo(composite.Width, composite.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            var wetRegion = stroke.Brush.Kind == BrushKind.Smudge
+                ? BrushEngine.RangeBounds(wetDabs, 0, stroke.Brush, layerInfo) ?? SKRectI.Empty
+                : WetBleed.Bounds(wetDabs, 0, wetDabs.Count, stroke.Brush, composite.Width, composite.Height);
             if (wetRegion.Width <= 0 || wetRegion.Height <= 0) return No("the stroke is off the paper");
             return CopyRegion(composite, wetRegion) is { } wet ? new LiveMark(wet, wetRegion, [.. wetDabs]) : No("the copy failed");
         }
@@ -2794,6 +2799,32 @@ public partial class MainViewModel
                 ? (walk.Count == 0 ? 0 : 1)
                 : BrushEngine.StablePositions(walk, _live.Walk.Kept, _live.Walk.Replaced);
             _live.WalkWork = _live.Walk.LastWalked + Math.Max(0, walk.Count - _live.Walk.Kept);
+
+            // A smudge settles a dab by its place alone, and stamps it for good.
+            // If such a dab later changes in anything else - its pressure, which
+            // is its width - the working copy is no longer the record's, and the
+            // stroke is rendered from its record at pen-up and not kept (B472;
+            // the paint path's rule, SettledDabChanged). No input has been found
+            // that does this - review reasoned it possible on a ruled line under
+            // a wide smoothing window, and five such cases stay exact - so this
+            // is a guard and costs a comparison of the rewritten tail.
+            if (!firstEffectWalk && live.Brush.Kind == BrushKind.Smudge && !_live.SettledDabChanged)
+            {
+                var keptDabs = _live.Walk.Kept;
+                var replaced = _live.Walk.Replaced;
+                var stamped = Math.Min(_live.EffectSettled, keptDabs + replaced.Count);
+                if (walk.Count < _live.EffectSettled)
+                {
+                    _live.SettledDabChanged = true;
+                    _live.WhySettledDabChanged = $"the stroke lost dabs already stamped: {walk.Count} of {_live.EffectSettled}";
+                }
+                for (var i = keptDabs; i < Math.Min(stamped, walk.Count) && !_live.SettledDabChanged; i++)
+                {
+                    if (walk[i].Equals(replaced[i - keptDabs])) continue;
+                    _live.SettledDabChanged = true;
+                    _live.WhySettledDabChanged = $"smudge dab {i} of {walk.Count} changed after it was stamped";
+                }
+            }
 
             if (live.Brush.Kind == BrushKind.Blur && live.Brush.Wet is not null && _live.EffectBase is not null)
             {
@@ -4632,14 +4663,14 @@ public partial class MainViewModel
             {
                 WhyReplayed = "the record is no longer a kind that is kept";
             }
-            else if (stroke.Brush.Mixing is not null && target.HasPlacements)
+            else if ((stroke.Brush.Mixing is not null || BrushEngine.WritesTheLayerItself(stroke)) && target.HasPlacements)
             {
                 // A mixing brush reads the frame under it, and while drawing
                 // that frame has its placed symbols in it; a replay from the
                 // record stamps the placements after the strokes, so the same
                 // dab reads a different ground (adversary). Until the two
                 // agree, such a stroke is replayed.
-                WhyReplayed = "a mixing brush on a frame with placed symbols";
+                WhyReplayed = "a brush that reads the frame, on a frame with placed symbols";
             }
             else
             {
