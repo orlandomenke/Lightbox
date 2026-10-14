@@ -44,9 +44,19 @@ public partial class MainViewModel
     /// two intersected (<see cref="ClipMeeting"/>), because a copy must never
     /// show ink the original was not showing.
     /// </remarks>
-    private List<Stroke>? SelectedStrokesForAnOperation()
+    /// <param name="inkAlreadyTaken">
+    /// Pixels inside the selection are being taken with the strokes (B473), so
+    /// an erasure carving them is carving something and comes along.
+    /// </param>
+    /// <param name="keyAHold">
+    /// False for a copy, which only reads: on a hold it takes the drawing the
+    /// hold shows rather than keying a copy of it, so Ctrl+C never edits the
+    /// document (B473).
+    /// </param>
+    private List<Stroke>? SelectedStrokesForAnOperation(bool inkAlreadyTaken = false, bool keyAHold = true)
     {
-        if (PaintTargetOrKey(editsWhatTheHoldShows: true) is not { } frame) return null;
+        var frame = keyAHold ? PaintTargetOrKey(editsWhatTheHoldShows: true) : PaintTarget();
+        if (frame is null) return null;
 
         // A marquee wins over picked lines — Q97, the same order the transform
         // takes, read from the same place so the two can never drift apart.
@@ -59,7 +69,7 @@ public partial class MainViewModel
             if (PrepareClipForSelection() is not { } selection) return null;
 
             var taken = new List<Stroke>(caught.Count);
-            var inkSoFar = false;
+            var inkSoFar = inkAlreadyTaken;
             foreach (var index in caught)
             {
                 var source = frame.Strokes[index];
@@ -160,14 +170,24 @@ public partial class MainViewModel
 
     /// <summary>
     /// Copy the selected lines (or the boxed region) to the line clipboard.
-    /// Returns false when there was no selection to take, so the key handler
-    /// can fall through to the cel clipboard.
+    /// Returns false when the selection held nothing to take.
     /// </summary>
+    /// <remarks>
+    /// <b>A region takes the pixels in it too (B473).</b> A merged or imported
+    /// drawing is a baseline of pixels, and a copy that read only strokes found
+    /// nothing in a box over one — whereupon Ctrl+C fell through to the whole
+    /// cel, which is the opposite of what a selection asks for.
+    /// </remarks>
     public bool CopySelectedLines()
     {
-        if (SelectedStrokesForAnOperation() is not { } taken) return false;
-        StrokeClipboard.Put(taken, ClipRegionRegistry.Resolve);
-        AiStatus = taken.Count == 1 ? "Copied the line." : $"Copied {taken.Count} lines.";
+        var pixels = HasSelection && PaintTarget() is { } frame
+            ? BaselineInsideSelection(frame)
+            : null;
+        var taken = SelectedStrokesForAnOperation(inkAlreadyTaken: pixels is not null, keyAHold: false) ?? [];
+        if (taken.Count == 0 && pixels is null) return false;
+        StrokeClipboard.Put(taken, ClipRegionRegistry.Resolve, pixels);
+        AiStatus = pixels is not null ? "Copied the selection."
+            : taken.Count == 1 ? "Copied the line." : $"Copied {taken.Count} lines.";
         return true;
     }
 
@@ -176,8 +196,9 @@ public partial class MainViewModel
     /// there was nothing selected.
     /// </summary>
     /// <remarks>
-    /// <b>The removal is <see cref="DeleteSelectionContentsCommand"/>, not a
-    /// deletion of the strokes this copied.</b> That command already answers
+    /// <b>The removal is what <see cref="DeleteSelectionContentsCommand"/> does
+    /// to a selection, not a deletion of the strokes this copied.</b> That
+    /// command already answers
     /// the two halves correctly and differently: a boxed region becomes a
     /// <see cref="ToolKind.ClearRegion"/> stroke, so lines crossing the edge
     /// keep the part outside the box and lose only what was in it; picked lines
@@ -187,10 +208,19 @@ public partial class MainViewModel
     /// </remarks>
     public bool CutSelectedLines()
     {
+        // Asked before the copy, so a cut that cannot take anything out does
+        // not leave a copy behind under a status that says "cut".
+        if (IsPlaying || (HasSelection && !CanEdit(ActiveLayer, "cut from it"))) return true;
         if (!CopySelectedLines()) return false;
         var count = StrokeClipboard.Count;
-        DeleteSelectionContentsCommand.Execute(null);
-        AiStatus = count == 1 ? "Cut the line." : $"Cut {count} lines.";
+        var pixels = StrokeClipboard.HasPixels;
+        // The two halves of DeleteSelectionContents, called directly: that
+        // command answers a selected guide or bone first, and a cut is of the
+        // drawing that was just copied, never of a guide that happens to be
+        // picked as well.
+        if (HasSelection) StrokeOverWholeSelection(ToolKind.ClearRegion, ColorHex, null, "clear-selection");
+        else DeleteSelectedLinesCommand.Execute(null);
+        AiStatus = pixels ? "Cut the selection." : count == 1 ? "Cut the line." : $"Cut {count} lines.";
         return true;
     }
 
@@ -210,6 +240,12 @@ public partial class MainViewModel
     /// touched.
     /// </para>
     /// <para>
+    /// <b>Directly above means in the active layer's folder</b> — where a new
+    /// layer goes (<see cref="NewLayerPlacement"/>). Inserted by index, a
+    /// paste beside a layer inside a folder belonged to no folder and split
+    /// the folder in two (B473).
+    /// </para>
+    /// <para>
     /// The clips come with it (invariant 3): a partial copy is only the shape
     /// it was boxed as if the region that carved it is in this document too, so
     /// the regions are added here rather than left in the process registry
@@ -221,8 +257,9 @@ public partial class MainViewModel
         if (StrokeClipboard.Take() is not { } payload) return false;
         if (IsPlaying) return false;
 
-        var at = Math.Clamp(ActiveLayerIndex + 1, 0, Scene.Layers.Count);
+        var place = NewLayerPlacement();
         var frameIndex = CurrentFrameIndex;
+        string? addedId = null;
         _editor.Perform(doc =>
         {
             foreach (var (id, region) in payload.Clips) doc.ClipRegions.TryAdd(id, region);
@@ -240,19 +277,24 @@ public partial class MainViewModel
             {
                 layer.Cels.Add(new Cel
                 {
-                    Frame = i == frameIndex ? new Frame { Strokes = [.. payload.Strokes] } : null,
+                    Frame = i == frameIndex
+                        ? new Frame { Strokes = [.. payload.Strokes], PngBase64 = payload.Pixels }
+                        : null,
                 });
             }
-            doc.Scene.Layers.Insert(Math.Min(at, doc.Scene.Layers.Count), layer);
+            doc.Scene.Layers.Add(layer);
+            if (place is { } p) FolderTree.Move(doc.Scene, [StackRef.Of(layer)], p.Target, p.Where);
+            foreach (var folder in FolderTree.FoldersOf(doc.Scene, layer)) folder.Collapsed = false;
+            addedId = layer.Id;
         }, frameContentUnchanged: true);
 
-        ActiveLayerIndex = Math.Min(at, Scene.Layers.Count - 1);
+        ActiveLayerIndex = Scene.Layers.FindIndex(l => l.Id == addedId);
         _publish.InvalidateWholeCanvas();
         PublishSnapshot();
         RefreshThumbnails();
         OnPropertyChanged(nameof(HasStrokeClipboard));
-        AiStatus = payload.Strokes.Count == 1
-            ? "Pasted the line onto a new layer."
+        AiStatus = payload.Pixels is not null ? "Pasted the selection onto a new layer."
+            : payload.Strokes.Count == 1 ? "Pasted the line onto a new layer."
             : $"Pasted {payload.Strokes.Count} lines onto a new layer.";
         return true;
     }

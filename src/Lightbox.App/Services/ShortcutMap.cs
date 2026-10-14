@@ -405,13 +405,15 @@ public sealed class ShortcutMap
             new("timeline.nextFrame", "Next frame (scrub)", "Timeline", G(Key.Right), ShortcutContext.Panel, DockPanelId.Timeline),
             new("timeline.prevKey", "Flip to previous key", "Timeline", G(Key.D1)),
             new("timeline.nextKey", "Flip to next key", "Timeline", G(Key.D2)),
-            // These three take the SELECTED LINES when any are selected and the
-            // cel when none are — one key for the thing an artist means, which
-            // is why the labels say both. The line-only forms are below, for
-            // anyone who wants a key that is never the cel.
-            new("timeline.copyCel", "Copy (selected lines, else the cel)", "Timeline", G(Key.C, KeyModifiers.Control)),
-            new("timeline.cutCel", "Cut (selected lines, else the cel)", "Timeline", G(Key.X, KeyModifiers.Control)),
-            new("timeline.pasteCel", "Paste (whichever was copied last)", "Timeline", G(Key.V, KeyModifiers.Control)),
+            // These three take THE SELECTION when one is up and the whole layer
+            // when none is, and a paste is always a new layer above (B473) —
+            // one key for the thing an artist means, which is why the labels
+            // say both. The ids keep their old names so a saved remap applies.
+            // The line-only forms are below, for anyone who wants a key that is
+            // never the layer.
+            new("timeline.copyCel", "Copy (the selection, else the layer)", "Timeline", G(Key.C, KeyModifiers.Control)),
+            new("timeline.cutCel", "Cut (the selection, else the layer's drawings)", "Timeline", G(Key.X, KeyModifiers.Control)),
+            new("timeline.pasteCel", "Paste as a new layer (whatever was copied last)", "Timeline", G(Key.V, KeyModifiers.Control)),
 
             // No default gestures: Ctrl+C/X/V above already reach these in the
             // case that matters, and a second default for the same act would

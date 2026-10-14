@@ -590,32 +590,34 @@ public partial class MainWindow
             case "select.all":
                 _vm.SelectAllCommand.Execute(null);
                 break;
-            // Ctrl+C/X/V mean the selected lines when there are any, and the
-            // cel when there are not. The deciding state is the one thing on
-            // screen — marching ants, or a highlighted line — rather than which
-            // panel happens to hold focus, so the key never changes meaning for
-            // a reason the artist cannot see. Copying a cel while a marquee is
-            // up is Ctrl+D first, or the timeline's own right-click menu, which
-            // is always the cel whatever is selected.
+            // Ctrl+C/X/V: the selection when one is up, else the whole layer,
+            // and a paste is always a new layer above the active one (B473).
+            // The decision is the view model's, where it can be tested.
             // A layer row or an X-sheet layer name having focus is the one case
             // where the key can only mean a layer, so it is checked first — the
             // focus is the artist's own statement of what they are working on.
+            // A cel having focus is the same statement about a cel, short of a
+            // selection on the canvas, which is the thing on screen.
             case "timeline.copyCel":
                 if (LayerSurfaceHasFocus() && _vm.CopyLayers()) break;
-                if (!_vm.CopySelectedLines()) _vm.CopyCurrentCel();
+                if (!_vm.HasCopyableSelection && FocusedCel() is { } copied)
+                {
+                    _vm.CopyCel(copied);
+                    break;
+                }
+                _vm.EditCopy();
                 break;
             case "timeline.cutCel":
-                if (!_vm.CutSelectedLines()) _vm.CutCurrentCel();
+                if (!_vm.HasCopyableSelection && FocusedCel() is { } cut)
+                {
+                    _vm.CutCel(cut);
+                    break;
+                }
+                _vm.EditCut();
                 break;
             case "timeline.pasteCel":
                 if (LayerSurfaceHasFocus() && _vm.HasLayerClipboard && _vm.PasteLayers()) break;
-                // Paste asks which clipboard is NEWER rather than which has
-                // content: both can hold something at once, and the artist
-                // means the last thing they copied.
-                if (!_vm.LinesAreTheFresherClipboard || !_vm.PasteLinesAsLayer())
-                {
-                    _vm.PasteCurrentCel();
-                }
+                _vm.EditPaste();
                 break;
             case "edit.copyLayers":
                 _vm.CopyLayers();

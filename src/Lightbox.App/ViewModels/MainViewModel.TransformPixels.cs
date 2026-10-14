@@ -69,12 +69,39 @@ public partial class MainViewModel
     }
 
     /// <summary>The live selection, moved from the paper's pixels onto the baseline's.</summary>
-    private SKPath? RegionOnBaseline()
+    private SKPath? RegionOnBaseline() => _pixelsFollowSelection ? SelectionOnBaseline() : null;
+
+    /// <summary>
+    /// The selection, moved from the paper's pixels onto the baseline's, whether
+    /// or not a transform is open — the copy cuts by it too (B473).
+    /// </summary>
+    private SKPath? SelectionOnBaseline()
     {
-        if (!_pixelsFollowSelection || !HasSelection) return null;
+        if (!HasSelection) return null;
         var path = BrushEngine.PathFromContours(_selectionContours);
         path.Transform(SKMatrix.CreateTranslation(Scene.Left, Scene.Top));
         return path;
+    }
+
+    /// <summary>
+    /// The part of this drawing's baseline inside the selection, as a baseline
+    /// of its own the same size as the original; null when the selection holds
+    /// none of its pixels.
+    /// </summary>
+    /// <remarks>
+    /// What a copy takes from pixels (B473) — the same hard cut a transform
+    /// under the selection moves, so a copy and a move never disagree about
+    /// which pixels were selected.
+    /// </remarks>
+    private string? BaselineInsideSelection(Frame frame)
+    {
+        using var region = SelectionOnBaseline();
+        if (region is null || DecodeBaseline(frame) is not { } baseline) return null;
+        using (baseline)
+        {
+            using var inside = Half(baseline, region, inside: true);
+            return InkBounds(inside, region) is null ? null : PngCodec.Encode(inside);
+        }
     }
 
     /// <summary>
@@ -101,24 +128,36 @@ public partial class MainViewModel
                 SKRectI.Ceiling(region.TightBounds), new SKRectI(0, 0, baseline.Width, baseline.Height));
             if (reach.Width <= 0 || reach.Height <= 0) return null;
             using var inside = Half(baseline, region, inside: true);
-            var bytes = inside.GetPixelSpan();
-            var rowBytes = inside.RowBytes;
-            int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
-            for (var y = reach.Top; y < reach.Bottom; y++)
-            {
-                var row = y * rowBytes;
-                for (var x = reach.Left; x < reach.Right; x++)
-                {
-                    if (bytes[row + (x * 4) + 3] == 0) continue;
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    maxY = y;
-                }
-            }
-            // The baseline's pixels are stroke coordinates already.
-            return maxX < 0 ? null : new SKRect(minX, minY, maxX + 1, maxY + 1);
+            return InkBounds(inside, region);
         }
+    }
+
+    /// <summary>
+    /// The box round the inked pixels of a cut half, reading only the rows and
+    /// columns the outline can reach; null when there are none.
+    /// </summary>
+    private static SKRect? InkBounds(SKBitmap half, SKPath region)
+    {
+        var reach = SKRectI.Intersect(
+            SKRectI.Ceiling(region.TightBounds), new SKRectI(0, 0, half.Width, half.Height));
+        if (reach.Width <= 0 || reach.Height <= 0) return null;
+        var bytes = half.GetPixelSpan();
+        var rowBytes = half.RowBytes;
+        int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
+        for (var y = reach.Top; y < reach.Bottom; y++)
+        {
+            var row = y * rowBytes;
+            for (var x = reach.Left; x < reach.Right; x++)
+            {
+                if (bytes[row + (x * 4) + 3] == 0) continue;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                maxY = y;
+            }
+        }
+        // The baseline's pixels are stroke coordinates already.
+        return maxX < 0 ? null : new SKRect(minX, minY, maxX + 1, maxY + 1);
     }
 
     /// <summary>

@@ -31,6 +31,9 @@ public partial class MainViewModel
 
     public bool HasLayerClipboard => _layerClipboard is not null;
 
+    /// <summary>When the layer clipboard was filled, on the order the other two share (B473).</summary>
+    private long _layerClipboardStamp;
+
     /// <summary>
     /// Copy <paramref name="layer"/> — or, when it is inside a multi-selection,
     /// the whole selection. Null means what the docker has picked: a folder
@@ -58,6 +61,7 @@ public partial class MainViewModel
         // once per paste, so pasting twice gives two independent sets.
         var clip = FolderCopy.Copy(Scene, items);
         _layerClipboard = (_editor, clip);
+        _layerClipboardStamp = StrokeClipboard.NextOrder();
         OnPropertyChanged(nameof(HasLayerClipboard));
         AiStatus = Describe(clip, "copied");
         return true;

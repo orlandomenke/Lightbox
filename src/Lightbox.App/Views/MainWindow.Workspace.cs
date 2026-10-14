@@ -1290,6 +1290,21 @@ public partial class MainWindow : IFollowsUiScale
             && button.Classes.Contains("layerName");
     }
 
+    /// <summary>
+    /// The cel whose timeline or X-sheet button holds keyboard focus, or null —
+    /// the cel counterpart of <see cref="LayerSurfaceHasFocus"/>, and the reason
+    /// Ctrl+C on a cel is still the cel's (B473).
+    /// </summary>
+    private FrameCell? FocusedCel()
+    {
+        if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is not Visual focused) return null;
+        return focused.FindAncestorOfType<Button>(includeSelf: true) is { } button
+            && button.Classes.Contains("cel")
+            && button.DataContext is FrameCell cell
+                ? cell
+                : null;
+    }
+
     private void OnXsheetLayerPressedTunnel(object? sender, PointerPressedEventArgs e)
     {
         var mods = e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift);
