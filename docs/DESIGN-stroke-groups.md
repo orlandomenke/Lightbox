@@ -259,8 +259,12 @@ Recorded because each was green before it was found.
   5.5 ms at 4K, the composite about as much again; an undo through one group is
   14 ms at 1080p and 21 ms at 4K against 9–10 ms for the same strokes loose, 62 ms
   through three sibling groups at 4K and 97 ms through three nested. Sizing the
-  scratch to the window being repainted removes most of that and is the next
-  thing to do for 4K. A mask *was* rendered whole on every repaint — 965 ms for
+  scratch to the window being repainted was looked at on 2026-10-14 and not
+  built: at 1280×720 an undo through twelve small groups cost 77 ms against 64 ms
+  for the same marks loose — the stamping is the cost, not the surface — and a
+  smaller surface needs its own path that alpha-locked strokes cannot take
+  (they read the surface at fixed offsets). Worth it only if 4K documents with
+  many groups turn out to be the norm. A mask *was* rendered whole on every repaint — 965 ms for
   an 80 px rectangle through a 400-stroke mask — and is now stamped over the
   window only.
 - **A cache miss on a merged drawing costs its strokes, not a decode.** 0.3 s
