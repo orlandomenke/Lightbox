@@ -112,6 +112,13 @@ public partial class MainViewModel
 
         var moving = strokes.Where(s => Selection.IsStrokeSelected(s.Id)).ToList();
         if (moving.Count == 0) return 0;
+        // A group's stored pixels are resampled by the transform, not offset
+        // here; moving its strokes alone would split the picture (the adversary).
+        if (moving.Any(s => s.Group is not null && StrokeGroups.HoldsPixels([s])))
+        {
+            AiStatus = "That group holds pixels as well as lines — move it with the transform (Ctrl+T), which carries both.";
+            return 0;
+        }
 
         // Snapshotted before the closure runs, so undo has the exact bits back.
         var before = moving.ToDictionary(
@@ -122,7 +129,10 @@ public partial class MainViewModel
                 // Snapshotted alongside, or an undo would put the points back and
                 // leave the nodes where the move left them — a path and its points
                 // disagreeing, which is the one state StrokePath forbids.
-                Path: s.Path?.Clone()));
+                Path: s.Path?.Clone(),
+                // A group moves what is inside it (Q268), so undo needs all of
+                // that back: a copy that keeps the ids.
+                Group: s.Group?.Clone(newIds: false)));
         var ids = before.Keys.ToList();
 
         _editor.PerformDelta(
@@ -138,6 +148,7 @@ public partial class MainViewModel
                     stroke.Points = [.. original.Points];
                     stroke.Holes = original.Holes?.Select(h => h.ToList()).ToList();
                     stroke.Path = original.Path?.Clone();
+                    if (original.Group is { } group) stroke.Group = group.Clone(newIds: false);
                 }
             },
             affectedFrameId: frameId);
@@ -177,11 +188,23 @@ public partial class MainViewModel
         if (StrokeEditTarget() is not { } target) return 0;
         var (frameId, strokes) = target;
 
-        var repainting = strokes
-            .Where(s => Selection.IsStrokeSelected(s.Id))
+        var picked = strokes.Where(s => Selection.IsStrokeSelected(s.Id)).ToList();
+        // A group's colours are its lines' (Q268), and its entry's colour is
+        // drawn by nothing. Recolouring inside a group comes with editing
+        // inside one; until then it is said rather than silently ignored.
+        var groups = picked.Count(s => s.Group is not null);
+        var repainting = picked
+            .Where(s => s.Group is null)
             .Where(s => s.Color != hex || s.SwatchId is not null)
             .ToList();
-        if (repainting.Count == 0) return 0;
+        if (repainting.Count == 0)
+        {
+            if (groups > 0)
+            {
+                AiStatus = "A merged group cannot be recoloured as a whole yet — split it back onto its layer to recolour its lines.";
+            }
+            return 0;
+        }
 
         var before = repainting.ToDictionary(s => s.Id, s => (s.Color, s.SwatchId, s.PaletteId));
         var ids = before.Keys.ToList();
@@ -304,6 +327,13 @@ public partial class MainViewModel
     /// </remarks>
     private static void Offset(Stroke stroke, double dx, double dy)
     {
+        // A group is moved by moving what is inside it — its strokes and the
+        // mask it is carved by — which TransformOps already knows how to do.
+        if (stroke.Group is not null)
+        {
+            TransformOps.TransformStroke(stroke, (x, y) => (x + dx, y + dy));
+            return;
+        }
         stroke.Points = [.. stroke.Points.Select(p => Shift(p, dx, dy))];
         stroke.Holes = stroke.Holes?
             .Select(hole => hole.Select(p => Shift(p, dx, dy)).ToList())

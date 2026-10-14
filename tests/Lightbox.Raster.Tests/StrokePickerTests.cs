@@ -502,4 +502,63 @@ public class StrokePickerTests(ITestOutputHelper output)
         Assert.Equal(0, clicked);
         Assert.Equal([0], caught);
     }
+
+    // ---- Q268: a merged drawing is picked whole --------------------------------
+
+    private static Stroke Grouped(params Stroke[] strokes) => new()
+    {
+        Tool = ToolKind.Group,
+        Group = new StrokeGroup { Strokes = [.. strokes] },
+    };
+
+    private static Stroke GroupLine(double x0, double y0, double x1, double y1, double size = 6, ToolKind tool = ToolKind.Brush) => new()
+    {
+        Tool = tool,
+        Color = "#000000",
+        Brush = new BrushSettings { Size = size, Opacity = 1 },
+        Points = [new StrokePoint(x0, y0, 1), new StrokePoint(x1, y1, 1)],
+    };
+
+    [Fact]
+    public void AClickOnALineInsideAGroupPicksTheGroup()
+    {
+        // The entry has no points of its own, so judged by them a merged
+        // drawing could not be clicked at all. Until a line inside a group can
+        // be picked on its own, a click on one takes the whole group.
+        var loose = GroupLine(0, 10, 100, 10);
+        var group = Grouped(GroupLine(0, 50, 100, 50), Grouped(GroupLine(0, 80, 100, 80)));
+        List<Stroke> strokes = [loose, group];
+        var index = StrokeIndex.Of(strokes);
+
+        Assert.Equal(1, StrokePicker.TopmostAt(strokes, index, 50, 50, 2));
+        Assert.Equal(1, StrokePicker.TopmostAt(strokes, index, 50, 80, 2));
+        Assert.Equal(0, StrokePicker.TopmostAt(strokes, index, 50, 10, 2));
+        Assert.Null(StrokePicker.TopmostAt(strokes, index, 50, 30, 2));
+    }
+
+    [Fact]
+    public void InkAGroupRubbedOutInsideItselfCannotBeClicked()
+    {
+        var group = Grouped(GroupLine(0, 50, 100, 50), GroupLine(40, 50, 60, 50, size: 20, tool: ToolKind.Eraser));
+        List<Stroke> strokes = [group];
+        var index = StrokeIndex.Of(strokes);
+
+        Assert.Null(StrokePicker.TopmostAt(strokes, index, 50, 50, 1));
+        Assert.Equal(0, StrokePicker.TopmostAt(strokes, index, 10, 50, 1));
+    }
+
+    [Fact]
+    public void AMarqueeAndSelectAllTakeAGroupWhole()
+    {
+        var group = Grouped(GroupLine(0, 50, 100, 50));
+        var rubbedOut = Grouped(GroupLine(0, 80, 100, 80), GroupLine(-10, 80, 110, 80, size: 20, tool: ToolKind.Eraser));
+        List<Stroke> strokes = [group, rubbedOut];
+        var index = StrokeIndex.Of(strokes);
+
+        Assert.Equal([0], StrokePicker.Within(strokes, index, new SKRect(40, 40, 60, 60)));
+        // A group with nothing left on the canvas is as unreachable as a
+        // rubbed-out line (rule three).
+        Assert.Empty(StrokePicker.Within(strokes, index, new SKRect(40, 70, 60, 90)));
+        Assert.Equal([0], StrokePicker.AllSelectable(strokes));
+    }
 }

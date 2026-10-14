@@ -320,6 +320,11 @@ public static class StrokePicker
         // Ascending, so the first erasure past this stroke starts the range and
         // there is nothing to allocate. Written as loops rather than LINQ for
         // that reason — this runs per caught stroke per point.
+        // A group survives while anything inside it does, judged by its own
+        // record. Erasures after it in this list are not applied to what is
+        // inside: when in doubt the paint is treated as still there.
+        if (strokes[position].Group is { } group) return AllSelectable(group.Strokes).Count > 0;
+
         var first = 0;
         while (first < erasures.Count && erasures[first] <= position) first++;
         if (first == erasures.Count) return true;
@@ -349,6 +354,14 @@ public static class StrokePicker
     /// </remarks>
     private static bool Covers(Stroke stroke, double x, double y, double tolerance)
     {
+        // A group is where its visible ink is (Q268): asked of its own record,
+        // so its erasers take ink away here as they do on the page. Its
+        // selection clip, when a lasso cut it, bounds it too.
+        if (stroke.Group is { } group)
+        {
+            if (!InsideItsClip(stroke, x, y)) return false;
+            return TopmostAt(group.Strokes, StrokeIndex.Of(group.Strokes), x, y, tolerance) is not null;
+        }
         if (stroke.Points.Count == 0) return false;
 
         if (stroke.Tool is ToolKind.Fill or ToolKind.Text)
@@ -373,6 +386,12 @@ public static class StrokePicker
         return NearPolyline(stroke.Points, x, y, half + tolerance, closed: false);
     }
 
+    /// <summary>Unclipped, or the point is inside the entry's own selection clip.</summary>
+    private static bool InsideItsClip(Stroke stroke, double x, double y) =>
+        stroke.ClipId is not { } clip
+        || ClipRegionRegistry.Resolve(clip) is not { } region
+        || GeometryOps.ContainsEvenOdd(region.Contours, x, y);
+
     private static bool NearPolyline(
         IReadOnlyList<StrokePoint> points, double x, double y, double reach, bool closed)
     {
@@ -390,6 +409,11 @@ public static class StrokePicker
 
     private static bool Touches(Stroke stroke, SKRect region)
     {
+        if (stroke.Group is { } group)
+        {
+            return Within(group.Strokes, StrokeIndex.Of(group.Strokes), region).Count > 0;
+        }
+
         foreach (var point in stroke.Points)
         {
             if (region.Contains((float)point.X, (float)point.Y)) return true;

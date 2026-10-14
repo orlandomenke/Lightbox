@@ -516,6 +516,77 @@ public class StrokeGroupRenderTests(ITestOutputHelper output)
         Assert.True(part * 4 < whole, $"repainting a rectangle cost {part:F1} ms against {whole:F1} ms for the whole drawing");
     }
 
+    /// <summary>A drawing with groups of every kind of mark, for repaint-equals-render checks.</summary>
+    private static Frame EveryKindOfGroup()
+    {
+        ClipRegionRegistry.Register("grp_window_clip", new ClipRegion
+        {
+            Contours = [[new(30, 30, 1), new(150, 30, 1), new(150, 150, 1), new(30, 150, 1)]],
+        });
+        var fill = new Stroke
+        {
+            Tool = ToolKind.Fill,
+            Color = "#30a0f0",
+            Points = [new(40, 40, 1), new(120, 50, 1), new(110, 130, 1), new(50, 120, 1)],
+        };
+        var clear = new Stroke
+        {
+            Tool = ToolKind.ClearRegion,
+            Points = [new(70, 70, 1), new(90, 70, 1), new(90, 90, 1), new(70, 90, 1)],
+        };
+        var mirrored = Soft(60, "#20a020");
+        mirrored.Symmetry = new SymmetryAxis { CenterX = 100, CenterY = 100 };
+        var clipped = Bar(140, "#a020a0", size: 30);
+        clipped.ClipId = "grp_window_clip";
+        var locked = Bar(100, "#f0e020", size: 40);
+        locked.AlphaLocked = true;
+        var cut = Group(Bar(60, "#c02040"), Soft(80, "#2040c0"));
+        cut.ClipId = "grp_window_clip";
+        return new Frame
+        {
+            Strokes =
+            [
+                Bar(30, "#2040c0"),
+                Group(new StrokeGroup { Strokes = [fill, clear, mirrored, clipped], Blend = LayerBlendMode.Multiply, Opacity = 0.8 }),
+                Group(new StrokeGroup
+                {
+                    Strokes = [Bar(110, "#c02040"), Bar(90, "#000000", ToolKind.Eraser, size: 10)],
+                    Mask = new LayerMask { Frame = new Frame { Strokes = [Soft(90, "#000000")] } },
+                    Clip = true,
+                }),
+                Group(Bar(100, "#806020"), locked),
+                cut,
+                Group(Group(Soft(130, "#20a0a0")), Bar(170, "#2040c0")),
+            ],
+        };
+    }
+
+    [Theory]
+    [InlineData(70, 60, 150, 140)]
+    [InlineData(0, 0, 60, 60)]
+    [InlineData(150, 150, 200, 200)]
+    [InlineData(95, 0, 105, 200)]
+    public void ARegionRepaintThroughEveryKindOfGroupIsTheFullRender(int left, int top, int right, int bottom)
+    {
+        // A group stamped onto a surface the size of the region rather than
+        // the page has to land exactly where the page-sized one did, for every
+        // kind of mark it can hold — and fall back for those that read the
+        // surface at fixed offsets (alpha lock).
+        var frame = EveryKindOfGroup();
+        using var full = FrameRasterizer.Materialize(frame, W, H);
+        using var patched = full.Copy();
+        var region = new SKRectI(left, top, right, bottom);
+        using (var canvas = new SKCanvas(patched))
+        using (var paint = new SKPaint { Color = SKColors.Lime, BlendMode = SKBlendMode.Src })
+        {
+            canvas.DrawRect(SKRect.Create(region.Left, region.Top, region.Width, region.Height), paint);
+        }
+
+        Assert.True(FrameRasterizer.RepaintRegion(patched, frame, region, W, H));
+
+        AssertSame(full, patched, $"region {region}");
+    }
+
     [Fact]
     public void AGroupReachesAsFarAsItsStrokesDo()
     {

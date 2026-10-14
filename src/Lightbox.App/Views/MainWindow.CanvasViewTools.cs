@@ -657,6 +657,9 @@ public partial class MainWindow
             case "docker.mergeDown":
                 RequestMergeDown(null); // null = the active layer
                 break;
+            case "docker.splitGroup":
+                _vm.SplitGroupCommand.Execute(null);
+                break;
             case "docker.traceLayer":
                 RequestTrace(null);
                 break;

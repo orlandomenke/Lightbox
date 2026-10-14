@@ -46,12 +46,24 @@ public partial class MainViewModel
     }
 
     /// <summary>How many lines are selected, or an empty string when none are.</summary>
-    public string StrokeSelectionSummary => Selection.SelectedStrokeIds.Count switch
+    /// <remarks>A merged group is counted as what it is (Q268): one group, not one line.</remarks>
+    public string StrokeSelectionSummary
     {
-        0 => "",
-        1 => "1 line selected",
-        var n => $"{n} lines selected",
-    };
+        get
+        {
+            if (Selection.SelectedStrokeIds.Count == 0) return "";
+            var selected = SelectedStrokes;
+            var groups = selected.Count(s => s.Group is not null);
+            var lines = Selection.SelectedStrokeIds.Count - groups;
+            static string Of(int n, string one) => n == 1 ? $"1 {one}" : $"{n} {one}s";
+            return (lines, groups) switch
+            {
+                (_, 0) => $"{Of(lines, "line")} selected",
+                (0, _) => $"{Of(groups, "group")} selected",
+                _ => $"{Of(lines, "line")} and {Of(groups, "group")} selected",
+            };
+        }
+    }
 
     /// <summary>
     /// Pick the stroke under a point. Returns true if something was selected.
@@ -158,7 +170,11 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(StrokeSelectionSummary));
         OnPropertyChanged(nameof(HasStrokeSelection));
 
-        var selected = SelectedStrokes;
+        // A group is outlined by the lines inside it (Q268): the entry has no
+        // points of its own, and an empty highlight reads as nothing selected.
+        var selected = StrokeGroups.Flatten(SelectedStrokes)
+            .Where(s => s.Tool is not (ToolKind.Eraser or ToolKind.ClearRegion))
+            .ToList();
         SelectedLinesChanged?.Invoke(selected.Count == 0
             ? null
             : [.. selected.Select(s =>

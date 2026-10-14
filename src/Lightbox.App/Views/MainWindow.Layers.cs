@@ -206,6 +206,11 @@ public partial class MainWindow
         if (LayerRowOf(sender) is { } row) RequestMergeDown(row.Layer);
     }
 
+    private void OnLayerMenuSplitGroup(object? sender, RoutedEventArgs e)
+    {
+        if (LayerRowOf(sender) is { } row) _vm.SplitGroupOn(row.Layer);
+    }
+
     // ---- masks and clipping -------------------------------------------------
 
     /// <summary>Adding a mask activates the layer too: editing lands strokes on the active layer's mask.</summary>
