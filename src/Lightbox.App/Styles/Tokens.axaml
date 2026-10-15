@@ -194,6 +194,8 @@
   <!-- The docker's header strip: room above the tabs, none below; the active
        tab has to touch the content it belongs to. -->
   <Thickness x:Key="HeaderPadding">8,6,8,0</Thickness>
+  <!-- The icon buttons in a docker's header: collapse, float, close. -->
+  <Thickness x:Key="HeaderButtonPadding">6,2</Thickness>
   <Thickness x:Key="TabPadding">14,6</Thickness>
   <!-- Text and icons inside a list row, from its own edge. -->
   <Thickness x:Key="ItemPadding">8,0</Thickness>

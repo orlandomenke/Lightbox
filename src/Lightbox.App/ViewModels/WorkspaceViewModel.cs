@@ -514,6 +514,14 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     public void Redock(DockPanelId id) => Mutate(l => l.Redock(id));
 
+    /// <summary>Roll a panel's slot up to its header, or open it (Q277).</summary>
+    public void SetCollapsed(DockPanelId id, bool collapsed)
+    {
+        if (_layout.IsCollapsed(id) == collapsed) return;
+        if (collapsed && !_layout.CanCollapse(id)) return;
+        Mutate(l => l.SetCollapsed(id, collapsed));
+    }
+
     /// <summary>
     /// Tab a panel together with another, at a position in that slot's strip.
     /// </summary>
@@ -545,7 +553,10 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     /// </remarks>
     public void Activate(DockPanelId id)
     {
-        if (IsActiveInItsSlot(id)) return;
+        // In front AND open is the no-op. In front of a collapsed slot is not:
+        // activating opens it, and skipping that left the gear unable to show
+        // Tool options in a group the artist had rolled up.
+        if (IsActiveInItsSlot(id) && !_layout.IsCollapsed(id)) return;
         Mutate(l => l.Activate(id));
     }
 

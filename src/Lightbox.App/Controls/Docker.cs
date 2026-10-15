@@ -134,6 +134,44 @@ public class Docker : ContentControl
         set => SetValue(CanFloatProperty, value);
     }
 
+    public static readonly StyledProperty<bool> IsCollapsedProperty =
+        AvaloniaProperty.Register<Docker, bool>(nameof(IsCollapsed));
+
+    /// <summary>
+    /// Rolled up to its header (Q277). The host sets it from the layout; the
+    /// template hides the bars and the content, and the strip gives the row
+    /// only the height that is left.
+    /// </summary>
+    public bool IsCollapsed
+    {
+        get => GetValue(IsCollapsedProperty);
+        set => SetValue(IsCollapsedProperty, value);
+    }
+
+    public static readonly StyledProperty<bool> CanCollapseProperty =
+        AvaloniaProperty.Register<Docker, bool>(nameof(CanCollapse));
+
+    /// <summary>Whether this docker is somewhere it can collapse: a side strip.</summary>
+    public bool CanCollapse
+    {
+        get => GetValue(CanCollapseProperty);
+        set => SetValue(CanCollapseProperty, value);
+    }
+
+    /// <summary>
+    /// The chevron was pressed or a tab double-clicked, naming the state asked
+    /// for rather than "toggle": a double-click on a tab behind the front one
+    /// opens the slot with its first click, and a toggle on the second would
+    /// shut it again.
+    /// </summary>
+    public event Action<Docker, bool>? CollapseRequested;
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == IsCollapsedProperty) PseudoClasses.Set(":collapsed", IsCollapsed);
+    }
+
     /// <summary>
     /// The float/redock button was clicked. What that means — float from
     /// where, dock back to where — is the host's knowledge, not the docker's.
@@ -197,6 +235,11 @@ public class Docker : ContentControl
             // the target Photoshop and Krita both put this menu on.
             header.AddHandler(ContextRequestedEvent, (_, args) => HeaderContextRequested(args),
                 Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+        }
+
+        if (e.NameScope.Find<Button>("PART_Collapse") is { } chevron)
+        {
+            chevron.Click += (_, _) => CollapseRequested?.Invoke(this, !IsCollapsed);
         }
 
         if (e.NameScope.Find<Button>("PART_Float") is { } floater)
@@ -384,8 +427,18 @@ public class Docker : ContentControl
     /// </summary>
     internal void HeaderPressed(PointerPressedEventArgs e)
     {
-        if (!DockPanels.Of(PanelId).Movable) return;
         if (!LandedOnTheGrip(e.Source as Visual)) return;
+        // A double-click on a tab rolls the slot up or opens it, Photoshop's
+        // gesture.
+        if (IsSecondPress(e, TabUnder(e.Source as Visual) ?? PanelId) is { } wasCollapsed && CanCollapse
+            && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            _pressed = null;
+            // The other state from the one the artist saw at the first click.
+            CollapseRequested?.Invoke(this, !wasCollapsed);
+            return;
+        }
+        if (!DockPanels.Of(PanelId).Movable) return;
         _pressed = e.GetPosition(this);
     }
 
@@ -464,6 +517,54 @@ public class Docker : ContentControl
     }
 
     internal void HeaderReleased() => _pressed = null;
+
+    /// <summary>The last press on a tab, in whichever docker it landed.</summary>
+    /// <remarks>
+    /// Static, and that is the point: on a tab behind the front one the first
+    /// click brings it forward and the slot swaps dockers, so the second press
+    /// lands on a <em>different</em> docker — and the pointer's own click count
+    /// starts again at one when the control under it changes. Measured: the
+    /// pair arrived as two presses counted 1 and 1. Keyed to the window, so a
+    /// click in one window never pairs with a click in another.
+    /// </remarks>
+    private static (WeakReference<TopLevel> Top, DockPanelId Tab, ulong At, Point Where, bool WasCollapsed)? s_lastTabPress;
+
+    /// <summary>
+    /// Stands in for the system's double-click time in a headless run, where a
+    /// press is stamped with the wall clock when it is <em>processed</em> — so
+    /// the re-layout between the two clicks counts against the pair, and under
+    /// a loaded test run took 783 ms. On a real machine the stamp is when the
+    /// button went down, and the layout's cost is not the artist's.
+    /// </summary>
+    internal static TimeSpan? DoubleClickTimeForTests { get; set; }
+
+    /// <summary>
+    /// When this press is the second of a double-click on the same tab, whether
+    /// the slot was collapsed at the first; null when it is not a second press.
+    /// </summary>
+    private bool? IsSecondPress(PointerPressedEventArgs e, DockPanelId tab)
+    {
+        var top = TopLevel.GetTopLevel(this);
+        if (top is null) return null;
+        var where = e.GetPosition(top);
+        // The system's double-click time and distance, so the gesture agrees
+        // with every other double-click on the machine.
+        var time = DoubleClickTimeForTests
+                   ?? Application.Current?.PlatformSettings?.GetDoubleTapTime(e.Pointer.Type)
+                   ?? TimeSpan.FromMilliseconds(500);
+        var size = Application.Current?.PlatformSettings?.GetDoubleTapSize(e.Pointer.Type) ?? new Size(4, 4);
+        var second = s_lastTabPress is { } last
+            && last.Top.TryGetTarget(out var was) && ReferenceEquals(was, top)
+            && last.Tab == tab
+            && e.Timestamp >= last.At && e.Timestamp - last.At <= (ulong)time.TotalMilliseconds
+            && Math.Abs(where.X - last.Where.X) <= size.Width / 2
+            && Math.Abs(where.Y - last.Where.Y) <= size.Height / 2;
+        var wasCollapsed = s_lastTabPress?.WasCollapsed ?? false;
+        // A recognised pair is spent, so a third click starts a new one rather
+        // than toggling the slot straight back.
+        s_lastTabPress = second ? null : (new WeakReference<TopLevel>(top), tab, e.Timestamp, where, IsCollapsed);
+        return second ? wasCollapsed : null;
+    }
 
     internal void HeaderContextRequested(ContextRequestedEventArgs e)
     {

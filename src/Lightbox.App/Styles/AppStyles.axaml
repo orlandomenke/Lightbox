@@ -99,6 +99,38 @@
   <Style Selector="controls|Docker:pointerover /template/ Border#PART_Header StackPanel > Button, controls|Docker /template/ Border#PART_Header StackPanel > Button:focus-visible">
     <Setter Property="Opacity" Value="1" />
   </Style>
+  <!-- Collapsed (Q277): the header is the whole docker. The bars go with the
+       content, because a bar with nothing under it to act on is a row of
+       controls for a panel you cannot see. -->
+  <!-- Down while open, sideways while rolled up: the pair every tree row and
+       the canvas bars use. -->
+  <Style Selector="controls|Docker /template/ Path#PART_Chevron">
+    <Setter Property="Data" Value="{StaticResource IconChevronDown}" />
+  </Style>
+  <Style Selector="controls|Docker:collapsed /template/ Path#PART_Chevron">
+    <Setter Property="Data" Value="{StaticResource IconChevronRight}" />
+  </Style>
+  <!-- Tooltips by state, as the float button's are. -->
+  <Style Selector="controls|Docker /template/ Button#PART_Collapse">
+    <Setter Property="ToolTip.Tip" Value="Collapse this group to its header" />
+  </Style>
+  <Style Selector="controls|Docker:collapsed /template/ Button#PART_Collapse">
+    <Setter Property="ToolTip.Tip" Value="Expand this group" />
+  </Style>
+  <!-- A collapsed slot keeps its chevron lit: with the content gone it is the
+       one thing that says the header opens. The other header buttons still
+       wait for the pointer. -->
+  <Style Selector="controls|Docker:collapsed /template/ Border#PART_Header StackPanel > Button#PART_Collapse">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <!-- Collapsed, the header is the bottom of the card too, so its corners
+       follow the frame's rather than poking square past them. -->
+  <Style Selector="controls|Docker:collapsed /template/ Border#PART_Header">
+    <Setter Property="CornerRadius" Value="{StaticResource RadiusContainer}" />
+  </Style>
+  <Style Selector="controls|Docker:collapsed /template/ ContentPresenter#PART_TopBar, controls|Docker:collapsed /template/ ContentPresenter#PART_BottomBar, controls|Docker:collapsed /template/ ScrollViewer#PART_Body">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
   <Style Selector="controls|Docker">
     <Setter Property="Background" Value="{DynamicResource SurfacePanelBrush}" />
     <!-- A card, per the alternate reference: rounded, hairline edge, a
@@ -145,13 +177,22 @@
               <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{StaticResource Space2}">
                   <ContentPresenter Content="{TemplateBinding TitleBarExtra}" VerticalAlignment="Center" />
+                  <!-- Roll the slot up to this header, or open it (Q277). Down
+                       while open, sideways while rolled up: the pair every tree
+                       row and the canvas bars use. Side strips only. -->
+                  <Button x:Name="PART_Collapse" Padding="{StaticResource HeaderButtonPadding}"
+                          IsVisible="{TemplateBinding CanCollapse}">
+                    <!-- One glyph; its shape follows :collapsed (styles below). -->
+                    <Path x:Name="PART_Chevron" Classes="icon"
+                          Width="{StaticResource SizeIcon10}" Height="{StaticResource SizeIcon10}" />
+                  </Button>
                   <!-- Float out / dock back. One button, two meanings; the
                        glyph and tooltip follow IsFloating (styles below the
                        template), and the host answers the click because only
                        it knows where "back" is. -->
-                  <Button x:Name="PART_Float" FontSize="{StaticResource TypeDense}" Padding="6,2"
+                  <Button x:Name="PART_Float" FontSize="{StaticResource TypeDense}" Padding="{StaticResource HeaderButtonPadding}"
                           IsVisible="{TemplateBinding CanFloat}" />
-                  <Button Padding="6,2"
+                  <Button Padding="{StaticResource HeaderButtonPadding}"
                           Command="{TemplateBinding CloseCommand}"
                           IsVisible="{TemplateBinding CloseCommand, Converter={x:Static ObjectConverters.IsNotNull}}"
                           ToolTip.Tip="Close this panel (reopen via the View menu)">
@@ -224,13 +265,13 @@
                         IsVisible="{TemplateBinding Tabs, Converter={x:Static ObjectConverters.IsNotNull}}" />
               </DockPanel>
             </Border>
-            <ContentPresenter DockPanel.Dock="Top" Content="{TemplateBinding TopBar}" />
-            <ContentPresenter DockPanel.Dock="Bottom" Content="{TemplateBinding BottomBar}" />
+            <ContentPresenter x:Name="PART_TopBar" DockPanel.Dock="Top" Content="{TemplateBinding TopBar}" />
+            <ContentPresenter x:Name="PART_BottomBar" DockPanel.Dock="Bottom" Content="{TemplateBinding BottomBar}" />
             <!-- The bars above and below are always visible; when the docker
                  is squeezed it is the CONTENT that gives, scrolling inside
                  its own panel. This is what lets a sidebar hold its dockers
                  without ever scrolling as a whole. -->
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ScrollViewer x:Name="PART_Body" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
               <!-- Padding passes through so one token can inset every
                    docker's content (Q203); it is 0 unless a style sets it. -->
               <ContentPresenter x:Name="PART_Content"

@@ -199,6 +199,22 @@ Dragging the last panel out of an edge collapses that edge — no empty gutter.
 A sidebar never scrolls: its panels share the height, shrinking together as
 more arrive, and each panel's content scrolls inside it while its bars stay
 put. Tab panels together when a side gets crowded.
+
+**Collapse a group you are not using.** Double-click any of its tabs, press
+the **chevron** beside the float button, or right-click the header and choose
+**Collapse group**: the panel rolls up to its header and the others on that
+side share the height it gave up. Every group's name stays in view, so the
+side reads as a list of what is there with only the open ones taking room.
+Double-click again, or press the chevron, to open it. **Bringing a panel
+forward opens its group** — clicking another of its tabs, opening a panel into
+it from the header menu, dropping one onto it, or the toolbar's ⚙ — because
+each of those is asking to see a panel. Which groups are collapsed is part of
+the arrangement, saved with the workspace, and a group comes back open at the
+height it had before. A collapsed group has no splitter beside it, so two open
+panels with a collapsed one between them are resized against their other
+neighbours, or by opening the one between. Only the left and right sides
+collapse; the bottom strip's panels sit side by side, where a header alone
+would leave a column of nothing.
 This is on purpose: five panels each too short to use is a worse outcome than
 five panels at their proper size with a scrollbar.
 

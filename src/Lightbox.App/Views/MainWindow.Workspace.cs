@@ -61,6 +61,7 @@ public partial class MainWindow : IFollowsUiScale
             panel.CanFloat = DockPanels.Of(panel.PanelId).Movable;
             panel.FloatToggleRequested += OnFloatToggle;
             panel.HeaderMenuRequested += (p, subject) => HeaderMenuFor(p, subject).Open(p);
+            panel.CollapseRequested += (p, collapse) => _vm.Workspace.SetCollapsed(p.PanelId, collapse);
         }
         foreach (var strip in Strips())
         {
@@ -178,6 +179,15 @@ public partial class MainWindow : IFollowsUiScale
     {
         var layout = _vm.Workspace.Layout;
 
+        // Off for every panel, then on for the ones a strip shows: a docker
+        // parked, floating or moved to the bottom must not keep a chevron, or
+        // a collapse, from the side it left.
+        foreach (var panel in _panels.Values)
+        {
+            panel.IsCollapsed = false;
+            panel.CanCollapse = false;
+        }
+
         foreach (var (side, strip) in Strips())
         {
             // One control per slot — the one showing. The others in the slot are
@@ -203,6 +213,8 @@ public partial class MainWindow : IFollowsUiScale
                 // one treatment and dropping another onto it reads as joining
                 // tabs that are already there.
                 panel.ShowTabs(usable.Select(DockPanels.Of).ToList(), active);
+                panel.CanCollapse = layout.CanCollapse(active);
+                panel.IsCollapsed = layout.IsCollapsed(active);
                 panels.Add(panel);
             }
             foreach (var panel in panels)
@@ -846,6 +858,16 @@ public partial class MainWindow : IFollowsUiScale
             menu.Items.Add(item);
         }
         if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+
+        // The slot's own state, before the tab's verbs: it is about the whole
+        // header, which is what was right-clicked.
+        if (_vm.Workspace.Layout.CanCollapse(target))
+        {
+            var collapsed = _vm.Workspace.Layout.IsCollapsed(target);
+            var roll = new MenuItem { Header = collapsed ? "Expand group" : "Collapse group" };
+            roll.Click += (_, _) => _vm.Workspace.SetCollapsed(target, !collapsed);
+            menu.Items.Add(roll);
+        }
 
         var title = DockPanels.TitleOf(subject);
         if (DockPanels.Of(subject).Movable)

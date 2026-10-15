@@ -25,3 +25,16 @@ to how `DockStrip` shares height.
 - **Slots collapse to their header** (double-click a tab, and the header menu
   from Q276), and the collapsed state is part of the saved arrangement.
 - Built after the header menu, on its own branch.
+
+## Consequences found while building it
+
+- **No splitter beside a collapsed slot.** A grid splitter resizes the two rows
+  it sits between, and dragged against a header-height row it turns that row
+  into a fixed one. So two open panels with a collapsed one between them have
+  no splitter between each other. Not asked: the cost is one extra click (open
+  the middle one), and the alternative is a splitter that resizes across a row,
+  which the grid does not do.
+- **Not decided here: the front tab of a collapsed slot.** The tab is drawn as a
+  sheet rising into its panel (Q203), and collapsed there is no panel under it,
+  so it ends against the card's edge. Left as drawn for the owner to judge on
+  screen.
