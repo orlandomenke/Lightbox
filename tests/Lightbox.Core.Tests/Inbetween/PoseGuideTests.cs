@@ -127,6 +127,88 @@ public class PoseGuideTests(ITestOutputHelper output)
         Assert.InRange(shin.Width, 27, 33);
     }
 
+    /// <summary>
+    /// A file is not trusted (Q274 review): a pose with holes in it, a number
+    /// too big to write back, or more joints than any subject has, opens as
+    /// the part of it that is usable — and the document still clones, edits
+    /// and saves, which a null list or an infinity would have stopped.
+    /// </summary>
+    [Fact]
+    public void AHostilePoseInAFileOpensAsWhatIsUsableAndStillSaves()
+    {
+        var doc = DocumentFactory.CreateDoc(64, 48, 12);
+        doc.Scene.Layers[^1].Cels[0].Frame!.Pose = Leg();
+        var json = DocJson.Serialize(doc);
+        // The pose's whole object, from its key to its closing brace.
+        var start = json.IndexOf("\"pose\"", StringComparison.Ordinal);
+        Assert.True(start > 0);
+        var end = json.IndexOf('{', start);
+        for (var depth = 0; ; end++)
+        {
+            if (json[end] == '{') depth++;
+            else if (json[end] == '}' && --depth == 0) { end++; break; }
+        }
+        var many = string.Join(",", Enumerable.Range(0, 500).Select(i => $"{{\"name\":\"j{i}\",\"a\":{{\"x\":{i},\"y\":0}},\"b\":{{\"x\":{i},\"y\":1}}}}"));
+        var hostile = "\"pose\": {\"parts\": [null, {\"name\": \"tail\", \"joints\": null}, {\"name\": \"leg\", \"joints\": ["
+                      + "null, {\"name\": \"hip\", \"a\": {\"x\": 1e400, \"y\": 0}, \"b\": {\"x\": 0, \"y\": 0}},"
+                      + "{\"name\": \"knee\", \"a\": {\"x\": 10, \"y\": 20}, \"b\": {\"x\": 10, \"y\": 20}},"
+                      + "{\"name\": \"ankle\", \"a\": {\"x\": 10, \"y\": 40}, \"b\": {\"x\": 30, \"y\": 30}}]},"
+                      + $"{{\"name\": \"rope\", \"joints\": [{many}]}}]}}";
+        json = json[..start] + hostile + json[end..];
+
+        var opened = DocJson.Deserialize(json);
+        var frame = opened.Scene.Layers[^1].Cels[0].Frame!;
+        var pose = frame.Pose!;
+
+        Assert.All(pose.Parts.SelectMany(p => p.Joints), j => Assert.True(double.IsFinite(j.A.X) && double.IsFinite(j.A.Y)));
+        Assert.Contains(pose.Parts, p => p.Joints.Select(j => j.Name).SequenceEqual(["knee", "ankle"]));
+        Assert.All(pose.Parts, p => Assert.InRange(p.Joints.Count, 2, PoseGuide.MaxJoints));
+        _ = frame.Clone();
+        Assert.Contains("\"knee\"", DocJson.Serialize(opened));
+    }
+
+    /// <summary>
+    /// A short bone in a wide part — a toe, a hand — still has a volume (Q274
+    /// review): the reach is never less than a part's plausible half-width, so
+    /// a foot drawn 40 wide around a 10-long toe is measured, not lost.
+    /// </summary>
+    [Fact]
+    public void AShortBoneInAWidePartStillHasAVolume()
+    {
+        var foot = new PoseGuide { Parts = [new PosePart { Name = "foot", Joints =
+        [
+            new PoseJoint { Name = "ball", A = new(100, 100), B = new(100, 100) },
+            new PoseJoint { Name = "toe", A = new(110, 100), B = new(110, 100) },
+        ] }] };
+        List<Stroke> key = [Line((90, 80), (120, 80)), Line((90, 120), (120, 120))];
+
+        var toe = PoseGuides.Volumes(foot, key, key, 0.5)[0][0];
+
+        output.WriteLine($"toe width {toe.Width:0.0}");
+        Assert.InRange(toe.Width, 36, 44);
+    }
+
+    /// <summary>
+    /// The keys' ink is gathered once and reused (Q274 review): the guide is
+    /// asked for on every playhead step and every move of a dragged joint, and
+    /// measuring a key's every stroke each time was most of its cost.
+    /// </summary>
+    [Fact]
+    public void TheKeysInkIsGatheredOnceAndMeasuresTheSame()
+    {
+        var leg = Leg();
+        List<Stroke> keyA = [Line((85, 200), (85, 300)), Line((115, 200), (115, 300))];
+        List<Stroke> keyB = [Line((100, 185), (200, 185)), Line((100, 215), (200, 215))];
+
+        var inkA = PoseGuides.Ink(keyA);
+        var inkB = PoseGuides.Ink(keyB);
+        var fromInk = PoseGuides.Volumes(leg, inkA, inkB, 0.5)[0][1];
+        var fromStrokes = PoseGuides.Volumes(leg, keyA, keyB, 0.5)[0][1];
+
+        Assert.Equal(fromStrokes.Width, fromInk.Width, 6);
+        Assert.InRange(fromInk.Width, 27, 33);
+    }
+
     private static Stroke Line((double X, double Y) from, (double X, double Y) to) => new()
     {
         Points = [new StrokePoint(from.X, from.Y, 0.8), new StrokePoint(to.X, to.Y, 0.8)],

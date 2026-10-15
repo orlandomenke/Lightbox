@@ -89,6 +89,20 @@ public class ContentEqualityTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>A pose joint dragged on a key (Q274) is a change: the undo step depends on it.</summary>
+    [Fact]
+    public void AMovedPoseJointIsAChange()
+    {
+        var a = new Frame { Pose = new PoseGuide { Parts = [new PosePart { Name = "shin", Joints =
+        [
+            new PoseJoint { Name = "knee", A = new PosePoint(1, 2), B = new PosePoint(3, 4) },
+            new PoseJoint { Name = "ankle", A = new PosePoint(5, 6), B = new PosePoint(7, 8) },
+        ] }] } };
+        var b = a.Clone();
+        b.Pose!.Parts[0].Joints[0].A = new PosePoint(1, 9);
+        Assert.False(ContentEquality.Same(a, b));
+    }
+
     [Fact]
     public void EveryWrittenPropertyOfADrawingCountsTowardTheSame()
     {
@@ -388,7 +402,8 @@ public class ContentEqualityTests(ITestOutputHelper output)
             Enum e => Enum.GetValues(t).Cast<object>().FirstOrDefault(v => !v.Equals(e)),
             StrokePoint sp => sp with { X = sp.X + 0.5 },
             System.Text.Json.JsonElement => System.Text.Json.JsonDocument.Parse("2").RootElement.Clone(),
-            _ when t.IsValueType => ChangedStruct(current),
+            // A fresh box: changing the one read would change `current` too, and the change would look like none.
+            _ when t.IsValueType => ChangedStruct(System.Runtime.CompilerServices.RuntimeHelpers.GetObjectValue(current)!),
             _ => null, // a reference: made absent
         };
     }

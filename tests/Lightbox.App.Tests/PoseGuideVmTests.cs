@@ -184,4 +184,81 @@ public sealed class PoseGuideVmTests : BrushStateIsolated
         Assert.Contains("locked", vm.AiStatus);
         Assert.Null(artist.LastPoseRequest);
     }
+    /// <summary>
+    /// Playing hides the guide (Q274 review): the overlay pushed before Play was
+    /// left drawing over the playing frames, and stale after Stop.
+    /// </summary>
+    [AvaloniaFact]
+    public void PlayingTakesTheGuideOffTheCanvasAndStoppingPutsItBack()
+    {
+        var (vm, _) = Keys();
+        vm.PaintLayer().Cels[0].Frame!.Pose = Shin();
+        PoseGuideOverlay? shown = null;
+        vm.PoseGuideChanged += g => shown = g;
+        vm.CurrentFrameIndex = 1;
+        Assert.NotNull(shown);
+
+        vm.IsPlaying = true;
+        Assert.Null(shown);
+
+        vm.IsPlaying = false;
+        Assert.NotNull(shown);
+    }
+
+    /// <summary>
+    /// A drag holds a part and a joint by position; an undo mid-drag can take
+    /// that part away (Q274 review). The drag is dropped rather than read past
+    /// the end of the pose.
+    /// </summary>
+    [AvaloniaFact]
+    public void AnUndoMidDragThatTakesThePartAwayDropsTheDrag()
+    {
+        var (vm, _) = Keys();
+        vm.PaintLayer().Cels[0].Frame!.Pose = Shin();
+        vm.PoseEditMode = true;
+        Assert.True(vm.PosePress(100, 300, 6));
+
+        // The ankle the drag holds is gone: the part keeps only its knee.
+        vm.PaintLayer().Cels[0].Frame!.Pose = new PoseGuide { Parts = [new PosePart { Name = "shin", Joints =
+            [new PoseJoint { Name = "knee", A = new(100, 200), B = new(100, 200) }] }] };
+        vm.PoseDrag(120, 310);
+        Assert.NotNull(vm.PoseGuideView);
+        vm.PoseRelease(120, 310);
+
+        Assert.Single(vm.PaintLayer().Cels[0].Frame!.Pose!.Parts[0].Joints);
+    }
+
+    /// <summary>
+    /// The key the pose was for is gone by the time the answer comes back (Q274
+    /// review): nothing is written, and the status says why instead of
+    /// claiming a reading it did not keep.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AKeyDeletedDuringTheReadingKeepsNothingAndSaysSo()
+    {
+        var (vm, artist) = Keys();
+        artist.PoseAnswer = r =>
+        {
+            vm.CurrentFrameIndex = 0;
+            vm.DeleteFrameCommand.Execute(null);
+            return AiResult<PoseReading>.Success(new PoseReading(Shin(), ""));
+        };
+
+        await vm.ReadPoseCommand.ExecuteAsync(null);
+
+        Assert.All(vm.PaintLayer().Cels, c => Assert.Null(c.Frame?.Pose));
+        Assert.Contains("changed", vm.AiStatus);
+    }
+
+    /// <summary>Turning editing on says what it is for and how to leave it: the canvas alone does not show it on an inbetween.</summary>
+    [AvaloniaFact]
+    public void TurningEditingOnSaysHowToUseItAndHowToLeave()
+    {
+        var (vm, _) = Keys();
+
+        vm.PoseEditMode = true;
+
+        Assert.Contains("drag", vm.AiStatus, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Esc", vm.AiStatus);
+    }
 }

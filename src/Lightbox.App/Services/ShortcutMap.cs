@@ -391,7 +391,7 @@ public sealed class ShortcutMap
             new("ai.revise", "Revise AI frames…", "Timeline", null),
             // Q274. No default gestures, for the same reason: reading a pose is
             // a request, and the two toggles are set once per gap, not mid-stroke.
-            new("ai.readPose", "Read pose", "Timeline", null),
+            new("ai.readPose", "Read the pose with AI", "Timeline", null),
             new("ai.showPoseGuide", "Show pose guide", "Timeline", null),
             new("ai.editPoseGuide", "Edit pose guide", "Timeline", null),
             // Q271. No default gestures: matching is entered deliberately and

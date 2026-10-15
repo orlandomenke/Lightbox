@@ -92,7 +92,7 @@ public sealed class ClaudeCliArtist(
         var call = await CallAsync(
             Prompts.PoseSystem, Prompts.PoseUser(request), StrokeSchemas.PoseResult,
             [request.KeyAPng, request.KeyBPng], ct);
-        return StrokeParsing.Pose(call, "Claude Code");
+        return StrokeParsing.Pose(call, "Claude Code", request);
     }
 
     private async Task<AiResult<string>> CallAsync(

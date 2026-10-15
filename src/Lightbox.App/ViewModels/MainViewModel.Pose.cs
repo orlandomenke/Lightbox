@@ -54,13 +54,52 @@ public partial class MainViewModel
 
     partial void OnPoseGuideVisibleChanged(bool value) => RaisePoseGuideChanged();
 
-    partial void OnPoseEditModeChanged(bool value) => RaisePoseGuideChanged();
+    partial void OnPoseEditModeChanged(bool value)
+    {
+        _poseDrag = null;
+        // The canvas only shows the mode on a key, so it says so in words.
+        if (value) AiStatus = "Editing the pose guide: on either key, drag a joint to where it belongs. Esc to finish.";
+        RaisePoseGuideChanged();
+    }
 
     /// <summary>Tell the canvas the guide may have changed: the playhead moved, the document changed, a joint is being dragged.</summary>
     private void RaisePoseGuideChanged()
     {
         if (IsPlaying) return;
         PoseGuideChanged?.Invoke(PoseGuideView);
+    }
+
+    /// <summary>Push the guide whatever the clock is doing: null while playing, so the overlay goes when Play starts and returns on Stop.</summary>
+    private void PushPoseGuide() => PoseGuideChanged?.Invoke(IsPlaying ? null : PoseGuideView);
+
+    /// <summary>
+    /// Each key's ink, gathered once and kept while its strokes are the same
+    /// strokes (Q274 review): the guide is asked for on every playhead step,
+    /// every stroke committed to an inbetween and every move of a drag, and
+    /// gathering a key's ink each time was most of its cost.
+    /// </summary>
+    private readonly List<(Frame Frame, (Stroke Stroke, List<StrokePoint> Points, int Count)[] Strokes, PoseInk Ink)> _poseInk = [];
+
+    private PoseInk PoseInkOf(Frame frame)
+    {
+        var strokes = StrokesOf(frame);
+        foreach (var held in _poseInk)
+        {
+            if (!ReferenceEquals(held.Frame, frame) || held.Strokes.Length != strokes.Count) continue;
+            var same = true;
+            for (var i = 0; i < strokes.Count && same; i++)
+            {
+                var (stroke, points, count) = held.Strokes[i];
+                same = ReferenceEquals(stroke, strokes[i]) && ReferenceEquals(points, strokes[i].Points) && count == strokes[i].Points.Count;
+            }
+            if (same) return held.Ink;
+        }
+        var ink = PoseGuides.Ink(strokes);
+        _poseInk.RemoveAll(h => ReferenceEquals(h.Frame, frame));
+        // Two keys make a gap: anything older is a gap the playhead has left.
+        if (_poseInk.Count >= 2) _poseInk.RemoveAt(0);
+        _poseInk.Add((frame, [.. strokes.Select(s => (s, s.Points, s.Points.Count))], ink));
+        return ink;
     }
 
     /// <summary>
@@ -73,6 +112,8 @@ public partial class MainViewModel
         {
             if (!PoseGuideVisible || IsPlaying || PoseGapAt(CurrentFrameIndex) is not { } gap) return null;
             var (layer, a, b, pose) = gap;
+            // A drag holds its joint by position; an undo mid-drag can take it away.
+            if (_poseDrag is { } held && !PoseHolds(pose, held)) _poseDrag = null;
             if (_poseDrag is { } drag)
             {
                 pose = pose.Clone();
@@ -80,13 +121,16 @@ public partial class MainViewModel
                 if (drag.Key == 0) joint.A = drag.At; else joint.B = drag.At;
             }
             var t = PoseTimeAt(layer, a, b, CurrentFrameIndex);
-            var volumes = PoseGuides.Volumes(pose, StrokesOf(layer.Cels[a].Frame!), StrokesOf(layer.Cels[b].Frame!), t);
+            var volumes = PoseGuides.Volumes(pose, PoseInkOf(layer.Cels[a].Frame!), PoseInkOf(layer.Cels[b].Frame!), t);
             var posed = PoseGuides.At(pose, t);
             var bones = volumes.SelectMany((part, p) => part.Select(v => new PoseGuideBone(v.From, v.To, v.Width, p))).ToList();
             var joints = posed.SelectMany((part, p) => part.Joints.Select((j, k) => new PoseGuideJoint(part.Name, j.Name, j.At, p, k))).ToList();
             return new PoseGuideOverlay(bones, joints, PoseEditMode && (CurrentFrameIndex == a || CurrentFrameIndex == b));
         }
     }
+
+    private static bool PoseHolds(PoseGuide pose, (int Part, int Joint, int Key, PosePoint At) drag) =>
+        drag.Part < pose.Parts.Count && drag.Joint < pose.Parts[drag.Part].Joints.Count;
 
     /// <summary>
     /// The gap at <paramref name="frameIndex"/> on the active layer whose first
@@ -151,6 +195,11 @@ public partial class MainViewModel
             return;
         }
 
+        // Where the picture's pixels are in the scene, fixed now: the scene's
+        // origin can move while the model is reading (a crop, a resize).
+        var (originX, originY) = (this.Scene.Left, this.Scene.Top);
+        var layerId = layer.Id;
+        var frameId = layer.Cels[a].Frame!.Id;
         var reading = await RunAiAsync(
             $"{AiProviderLabel} is reading the pose…",
             ct => _ai.Artist.ReadPoseAsync(new PoseRequest(pics.A, pics.B, pics.Width, pics.Height), ct));
@@ -159,20 +208,23 @@ public partial class MainViewModel
         // From the pictures' pixels back to the scene's: the crop's corner,
         // the paper's own corner, and the scale the picture was made at.
         PosePoint Scene(PosePoint p) => new(
-            pics.Box.Left + this.Scene.Left + p.X / pics.Scale,
-            pics.Box.Top + this.Scene.Top + p.Y / pics.Scale);
+            pics.Box.Left + originX + p.X / pics.Scale,
+            pics.Box.Top + originY + p.Y / pics.Scale);
         var pose = reading.Pose.Clone();
         foreach (var joint in pose.Parts.SelectMany(p => p.Joints))
         {
             joint.A = Scene(joint.A);
             joint.B = Scene(joint.B);
         }
-        var layerId = layer.Id;
-        var frameId = layer.Cels[a].Frame!.Id;
+        if (this.Scene.Layers.FirstOrDefault(l => l.Id == layerId)?.Cels.Any(c => c.Frame?.Id == frameId) != true)
+        {
+            AiStatus = "The key changed while the pose was being read, so nothing was kept. Read pose again.";
+            return;
+        }
         _editor.Perform(doc =>
         {
-            var target = doc.Scene.Layers.First(l => l.Id == layerId);
-            if (target.Cels.FirstOrDefault(c => c.Frame?.Id == frameId)?.Frame is { } key) key.Pose = pose.Clone();
+            var target = doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId);
+            if (target?.Cels.FirstOrDefault(c => c.Frame?.Id == frameId)?.Frame is { } key) key.Pose = pose.Clone();
         }, "Read pose");
         var names = string.Join(", ", pose.Parts.Select(p => p.Name));
         AiStatus = $"Read the pose: {Plural(pose.Parts.Count, "part")} ({names}).{(reading.Notes.Length > 0 ? " " + reading.Notes : "")}";
@@ -271,10 +323,15 @@ public partial class MainViewModel
         var layerId = gap.Layer.Id;
         var frameId = gap.Layer.Cels[gap.A].Frame!.Id;
         var at = new PosePoint(x, y);
+        if (!PoseHolds(gap.Pose, drag))
+        {
+            RaisePoseGuideChanged();
+            return;
+        }
         _editor.Perform(doc =>
         {
-            var target = doc.Scene.Layers.First(l => l.Id == layerId);
-            if (target.Cels.FirstOrDefault(c => c.Frame?.Id == frameId)?.Frame?.Pose is not { } pose) return;
+            var target = doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId);
+            if (target?.Cels.FirstOrDefault(c => c.Frame?.Id == frameId)?.Frame?.Pose is not { } pose || !PoseHolds(pose, drag)) return;
             var joint = pose.Parts[drag.Part].Joints[drag.Joint];
             if (drag.Key == 0) joint.A = at; else joint.B = at;
         }, "Move pose joint");

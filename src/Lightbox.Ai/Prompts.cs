@@ -61,6 +61,14 @@ public static class Prompts
         "ankle to heel to toe, a tail from its base to its tip, a head from the neck to the top " +
         "of the skull. Name each joint.\n" +
         "- Give every joint's position in both keys, as [x, y] in picture pixels, origin top left.\n" +
+        "- Put each joint on the centre line of the part, in the middle of its thickness, never on " +
+        "its outline: the tool measures the part's width either side of the line between joints.\n" +
+        "- Give a joint only where the part bends or ends, and end each chain at the part's real " +
+        "end: the tip of the toe, the tip of the tail. A joint on a straight stretch is a bone that " +
+        "swings on its own.\n" +
+        "- Where the drawing and anatomy disagree, the drawing wins: put the joint where the artist " +
+        "drew the part. A part drawn in one key and not the other still gets a position in both; " +
+        "estimate the missing one.\n" +
         "- The same physical part keeps the same name in both keys, even when it moves from front " +
         "to back between them. In `notes`, say how you told similar parts apart, and which joints " +
         "you had to estimate because they are hidden or not drawn.\n" +

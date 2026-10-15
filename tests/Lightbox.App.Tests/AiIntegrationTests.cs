@@ -418,7 +418,7 @@ public class AiIntegrationTests
         var methods = typeof(IAiArtist).GetMethods().Select(m => m.Name).Order().ToList();
 
         Assert.Equal(
-            [nameof(IAiArtist.GenerateInbetweensAsync), nameof(IAiArtist.ReadSubjectAsync)],
+            [nameof(IAiArtist.GenerateInbetweensAsync), nameof(IAiArtist.ReadPoseAsync), nameof(IAiArtist.ReadSubjectAsync)],
             methods);
         Assert.Null(typeof(MainViewModel).GetProperty("AiDrawCommand"));
         Assert.Null(typeof(MainViewModel).GetProperty("AiPrompt"));

@@ -12,6 +12,9 @@ public partial class MainWindow
     /// <summary>How near a line a Match lines click has to land, in screen pixels.</summary>
     private const double LineMatchReachPixels = 8;
 
+    /// <summary>A joint of the pose guide is a point: the ten pixels that decide a grip on a point (DESIGN).</summary>
+    private const double PoseReachPixels = 10;
+
     private void WireOverlayGestures()
     {
         WireReferenceSheetGestures();
@@ -68,7 +71,7 @@ public partial class MainWindow
         {
             if (args.PropertyName is nameof(MainViewModel.PoseEditMode)) Canvas.PoseEditMode = _vm.PoseEditMode;
         };
-        Canvas.PoseHit = (x, y, scale) => _vm.PosePress(x, y, LineMatchReachPixels / scale);
+        Canvas.PoseHit = (x, y, scale) => _vm.PosePress(x, y, PoseReachPixels / scale);
         Canvas.PoseDragged += _vm.PoseDrag;
         Canvas.PoseReleased += _vm.PoseRelease;
 

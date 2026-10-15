@@ -37,15 +37,18 @@
           <MenuFlyout Placement="BottomEdgeAlignedLeft" Opening="OnFlyoutOpening">
             <MenuItem Header="AI Inbetween with a direction…" Click="OnAiInbetweenWithDirection" />
             <MenuItem Header="Revise AI frames…" Click="OnAiRevise" />
-            <Separator />
             <!-- Q274: the model reads the pose in the two keys; the artist
-                 draws the inbetween over the guide. Ticks are set as the menu
-                 opens, for the same reason the items use Click. -->
-            <MenuItem Header="Read pose" Click="OnReadPose"
+                 draws the inbetween over the guide. A request, so it sits with
+                 the other requests; the two view toggles go under the line.
+                 Ticks are set as the menu opens, for the same reason the
+                 items use Click. -->
+            <MenuItem Header="Read the pose with AI" Click="OnReadPose"
                       ToolTip.Tip="Ask the model where the parts are in the keys either side, and show the pose and its volumes on every frame between" />
-            <MenuItem x:Name="ShowPoseGuideItem" Header="Show pose guide" ToggleType="CheckBox" Click="OnTogglePoseGuide" />
+            <Separator />
+            <MenuItem x:Name="ShowPoseGuideItem" Header="Show pose guide" ToggleType="CheckBox" Click="OnTogglePoseGuide"
+                      ToolTip.Tip="Show the pose read from the keys over the frames between them. Never exported" />
             <MenuItem x:Name="EditPoseGuideItem" Header="Edit pose guide" ToggleType="CheckBox" Click="OnTogglePoseEdit"
-                      ToolTip.Tip="On a key, drag a joint of the guide to correct it" />
+                      ToolTip.Tip="On either key, drag a joint of the guide to correct it. Esc or this item to finish" />
           </MenuFlyout>
         </Button.Flyout>
       </Button>

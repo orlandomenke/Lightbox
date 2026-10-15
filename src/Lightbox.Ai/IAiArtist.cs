@@ -144,6 +144,6 @@ public interface IAiArtist
     /// </summary>
     Task<AiResult<PoseReading>> ReadPoseAsync(PoseRequest request, CancellationToken ct) =>
         Task.FromResult(AiResult<PoseReading>.Error(
-            "This provider cannot see pictures, so it cannot read a pose. Choose Claude or an OpenAI-compatible vision model in Configure.",
+            "This provider does not read poses. Claude, or an OpenAI-compatible model that can see pictures, can: choose one in Configure.",
             retryable: false));
 }

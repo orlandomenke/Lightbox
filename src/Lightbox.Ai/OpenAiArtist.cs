@@ -74,7 +74,7 @@ public sealed class OpenAiArtist : IAiArtist
         var call = await CallAsync(
             Prompts.PoseSystem, Prompts.PoseUser(request),
             "pose_result", StrokeSchemas.PoseResult, [request.KeyAPng, request.KeyBPng], ct);
-        return StrokeParsing.Pose(call, _label);
+        return StrokeParsing.Pose(call, _label, request);
     }
 
     private sealed class Choice

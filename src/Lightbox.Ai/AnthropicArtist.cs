@@ -56,7 +56,7 @@ public sealed class AnthropicArtist : IAiArtist
             StrokeSchemas.PoseResult,
             [request.KeyAPng, request.KeyBPng],
             ct);
-        return StrokeParsing.Pose(call, "Claude");
+        return StrokeParsing.Pose(call, "Claude", request);
     }
 
     public async Task<AiResult<Core.Projects.SubjectTaxonomy>> ReadSubjectAsync(

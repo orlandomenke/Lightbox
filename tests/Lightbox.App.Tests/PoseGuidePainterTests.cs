@@ -57,12 +57,50 @@ public sealed class PoseGuidePainterTests(ITestOutputHelper output)
         using var editable = Paint(Shin(editable: true));
 
         // Six pixels out from the knee (pixel centres are at +0.5): past a plain
-        // ring of radius 4, on the middle of an editable one of radius 6.
+        // ring of radius 4, on the casing of an editable joint's grip.
         var p = plain.GetPixel(20, 44);
         var e = editable.GetPixel(20, 44);
         output.WriteLine($"plain {p}, editable {e}");
 
         Assert.True(e.Blue < p.Blue - 40, $"the editable ring is not larger: plain {p}, editable {e}");
+    }
+
+    /// <summary>
+    /// Where two bones meet, the volume is no darker than along either (Q274
+    /// review): faint tubes laid one over the other doubled at every joint, and
+    /// a leg read as a string of sausages instead of one form.
+    /// </summary>
+    [Fact]
+    public void TheVolumeIsNoDarkerWhereTwoBonesMeet()
+    {
+        var leg = new PoseGuideOverlay(
+            [
+                new PoseGuideBone(new StrokePoint(10, 50.5, 0), new StrokePoint(50, 50.5, 0), 30, 0),
+                new PoseGuideBone(new StrokePoint(50, 50.5, 0), new StrokePoint(90, 50.5, 0), 30, 0),
+            ],
+            [], false);
+        using var bitmap = Paint(leg);
+
+        var knee = bitmap.GetPixel(50, 60);   // beside the joint, inside both tubes' caps
+        var shin = bitmap.GetPixel(70, 60);
+        output.WriteLine($"knee {knee}, shin {shin}");
+
+        Assert.Equal(shin, knee);
+    }
+
+    [Fact]
+    public void AtRestTheBoneIsThinnerAndFainterThanWhenEditable()
+    {
+        var shin = Shin() with { Joints = [] };
+        using var rest = Paint(shin);
+        using var editable = Paint(shin with { Editable = true });
+
+        // A pixel off the bone's line: a 1 px line misses it, an edited one does not.
+        var r = rest.GetPixel(50, 51);
+        var e = editable.GetPixel(50, 51);
+        output.WriteLine($"rest {r}, editable {e}");
+
+        Assert.True(e.Blue < r.Blue - 30, $"the edited bone is not the stronger: rest {r}, editable {e}");
     }
 
     [Fact]

@@ -45,6 +45,52 @@ internal static class StrokeParsing
     }
 
     /// <summary>
+    /// A pose reading (Q274), kept to what can be trusted: a joint without two
+    /// numbers in both keys, or far outside the pictures, ends its chain there;
+    /// then <see cref="PoseGuide.Readable"/> keeps the first run of two or more
+    /// joints of each named part, once per name. A null anywhere is nothing
+    /// there — not every provider holds to the schema — and nothing usable is a
+    /// retryable error.
+    /// </summary>
+    public static AiResult<PoseReading> Pose(AiResult<string> call, string noun, PoseRequest request)
+    {
+        if (call.Outcome != AiOutcome.Success) return Forward<PoseReading>(call);
+        try
+        {
+            var dto = JsonSerializer.Deserialize<StrokeWire.PoseResultDto>(call.Value!)
+                      ?? throw new JsonException("null payload");
+            // A joint the model could not see may sit a little past the crop;
+            // further than this is a misread, not an estimate.
+            var margin = 0.25 * Math.Max(request.Width, request.Height);
+            PosePoint Place(List<double>? p) =>
+                p is { Count: >= 2 } && p[0] >= -margin && p[0] <= request.Width + margin
+                                     && p[1] >= -margin && p[1] <= request.Height + margin
+                    ? new PosePoint(p[0], p[1])
+                    : new PosePoint(double.NaN, double.NaN);
+            var read = new PoseGuide
+            {
+                Parts = [.. (dto.Parts ?? []).Where(part => part is not null).Select(part => new PosePart
+                {
+                    Name = part!.Name ?? "",
+                    Joints = [.. (part.Joints ?? []).Select(j => j is null ? null! : new PoseJoint
+                    {
+                        Name = j.Name ?? "",
+                        A = Place(j.A),
+                        B = Place(j.B),
+                    })],
+                })],
+            };
+            if (PoseGuide.Readable(read) is not { } pose)
+                return AiResult<PoseReading>.Error($"{noun} found no part of the subject it could place.", retryable: true);
+            return AiResult<PoseReading>.Success(new PoseReading(pose, (dto.Notes ?? "").Trim()));
+        }
+        catch (JsonException e)
+        {
+            return AiResult<PoseReading>.Error($"{noun} answered with a pose that could not be read: {e.Message}", retryable: true);
+        }
+    }
+
+    /// <summary>
     /// Turn a taxonomy reply into the stored record, dropping what cannot be
     /// used and refusing what would be worse than nothing.
     /// </summary>
@@ -57,43 +103,6 @@ internal static class StrokeParsing
     /// The reading is an artist's starting point, so a small correct answer
     /// beats a long one with a lie in it.
     /// </remarks>
-    /// <summary>
-    /// A pose reading (Q274), kept to what can be trusted: a joint without two
-    /// finite numbers in both keys is dropped, a part left with fewer than two
-    /// joints is no chain and goes, and nothing usable is a retryable error.
-    /// </summary>
-    public static AiResult<PoseReading> Pose(AiResult<string> call, string noun)
-    {
-        if (call.Outcome != AiOutcome.Success) return Forward<PoseReading>(call);
-        try
-        {
-            var dto = JsonSerializer.Deserialize<StrokeWire.PoseResultDto>(call.Value!)
-                      ?? throw new JsonException("null payload");
-            static bool Point(List<double>? p) => p is { Count: >= 2 } && double.IsFinite(p[0]) && double.IsFinite(p[1]);
-            var parts = new List<PosePart>();
-            foreach (var part in dto.Parts)
-            {
-                var joints = part.Joints
-                    .Where(j => Point(j.A) && Point(j.B))
-                    .Select(j => new PoseJoint
-                    {
-                        Name = j.Name.Trim(),
-                        A = new PosePoint(j.A![0], j.A[1]),
-                        B = new PosePoint(j.B![0], j.B[1]),
-                    })
-                    .ToList();
-                if (joints.Count >= 2) parts.Add(new PosePart { Name = part.Name.Trim(), Joints = joints });
-            }
-            if (parts.Count == 0)
-                return AiResult<PoseReading>.Error($"{noun} found no part of the subject it could place.", retryable: true);
-            return AiResult<PoseReading>.Success(new PoseReading(new PoseGuide { Parts = parts }, dto.Notes.Trim()));
-        }
-        catch (JsonException e)
-        {
-            return AiResult<PoseReading>.Error($"{noun} answered with a pose that could not be read: {e.Message}", retryable: true);
-        }
-    }
-
     public static AiResult<SubjectTaxonomy> Subject(
         AiResult<string> call, string noun, string hint = "")
     {

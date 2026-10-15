@@ -275,6 +275,8 @@ public partial class MainViewModel
         // clock started — which is the frozen skeleton this gating exists to
         // remove.
         if (ArmatureEditMode) OnPropertyChanged(nameof(BoneChromes));
+        // Q274: the pose guide likewise, off while playing and back on Stop.
+        PushPoseGuide();
 
         // The playback quality takes effect on this flag, so when one is set
         // the flip is the same event as a zoom step: every cached frame is at

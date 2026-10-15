@@ -294,6 +294,14 @@ public partial class MainWindow
             return;
         }
 
+        // Editing the pose guide (Q274) is a mode for the same reason, and leaves the same way.
+        if (_vm.PoseEditMode && e.Key == Key.Escape)
+        {
+            _vm.PoseEditMode = false;
+            e.Handled = true;
+            return;
+        }
+
         // A reference picked up on the canvas lets go on Escape — the key
         // everybody tries first, and the same bargain every other selection
         // here makes (Q108). Above the shortcut switch so nothing else can

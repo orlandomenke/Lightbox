@@ -259,32 +259,46 @@ key set, for anyone who wants one.
 
 When the inbetween is yours to draw, the model can still tell you where things
 go. Put the playhead between two keys, open the **arrow** beside **✦ AI
-Inbetween** and choose **Read pose**. The model looks at both keys and reports
-where the subject's moving parts are: a leg as hip, knee, ankle and toe, a tail
-from its base to its tip, a lamp's arm from its foot to its head. It does not
-have to be a person; it names whatever moves.
+Inbetween** and choose **Read the pose with AI**. The model looks at both keys
+and reports where the subject's moving parts are: a leg as hip, knee, ankle and
+toe, a tail from its base to its tip, a lamp's arm from its foot to its head. It
+does not have to be a person; it names whatever moves.
 
 Every frame between the two keys then shows a **pose guide** in the amber of a
 reference: the joints as small rings, the bones between them as thin lines, and
-around each bone a faint tube as wide as that part is in your keys — measured
-from your own lines, so a thick thigh stays thick and a thin wrist stays thin
-halfway. The pose moves the way a limb does: each bone swings around its joint
+around each bone a faint tube as wide as that part is in your keys, measured
+from your own lines either side of the bone. A short bone with nothing to
+measure, such as a toe past the drawn shoe, borrows the width of the bone next
+to it. The pose moves the way a limb does: each bone swings around its joint
 rather than sliding straight, so a swinging shin does not shrink at the middle
-of its arc. Where the key has a timing chart, the guide follows it.
+of its arc. Where the key has a timing chart with one rung per inbetween, the
+guide follows it; otherwise it follows the easing in the bar.
+
+**It is the move between your two keys, not a breakdown.** It knows only the
+two poses, so some things are still yours to draw:
+- The body's path is a straight line from key to key, so a hop does not rise.
+- A swing of more than half a turn goes the short way round.
+- A foot planted in both keys can slide.
+- A passing position, such as a knee lifted between two contacts, does not appear.
+- Each bone's tube is one width along its length, with no taper.
+- A line inside the form, such as a seam or a fold, can make a tube narrower
+  than the outline it sits in.
 
 **The guide never draws anything.** It is not in a render, an export or the
-onion skin, and the drawing on the frame is untouched. It is a construction to
-draw over, the way an animator roughs in a skeleton before the line.
+onion skin, and the drawing on the frame is untouched. It is hidden during
+playback, so flipping shows only your drawings. It is a construction to draw
+over, the way an animator roughs in a skeleton before the line.
 
 **When the model gets a joint wrong, move it.** Turn on **Edit pose guide** in
-the same menu, go to either key, and drag the joint's ring to where it belongs;
-every frame between follows. Each drag is one undo step. Editing is a mode so
-that drawing near a joint never moves it by accident; turn it off again to
-draw. **Show pose guide** hides and shows it.
+the same menu and go to either key. The joints become square grips; drag one to
+where it belongs, and every frame between follows. Each drag is one undo step.
+Editing is a mode so that drawing near a joint never moves it by accident.
+Press **Esc**, or choose the item again, to finish. **Show pose guide** hides
+and shows it.
 
 The pose is kept with the first key and saved with the document. Reading it
 sends a picture of each key to your provider — the two keys' drawings on that
-layer, cropped to them, nothing else. A provider that cannot see pictures, such
+layer, cropped to them, nothing else. A provider that does not read poses, such
 as a local Ollama text model, says so rather than guessing. All three commands
 are in **Edit ▸ Configure ▸ Shortcuts** under Timeline, with no key set.
 
