@@ -50,7 +50,7 @@ row simply moves the playhead, as it always has.
 **The cel that is highlighted is the one a command means**, however it came to
 be picked. Ctrl+click picks a cel without moving the playhead, so with a cel
 picked on frame 10 and the playhead on frame 3, copy copies frame 10's cel,
-paste lands on it, and **I** or *Insert breakdown* marks it — and the playhead
+paste lands on it, and **I** or *Insert breakdown* inserts there — and the playhead
 stays on 3. With a block picked, copy takes the block's run and paste lands at
 the block's first cel, not at the playhead. When cels on several layers are
 picked at the same frame, a command that needs one of them takes the topmost
@@ -299,9 +299,18 @@ an end — "walk", "run", "idle". That is what an engine calls an animation clip
 it is what lets one sprite sheet hold several animations. A tag can carry a note
 too, for when the remark is about the whole cycle rather than one drawing.
 
-Right-click a cel for: insert frame, insert empty cell, insert blank keyframe,
+Right-click a cel for: insert frame, mark as, insert empty cell, insert blank keyframe,
 extend or reduce exposure, Delete, Delete and pull, copy, cut, paste, markers, and the playback
 range.
+
+**Insert frame** (a keyframe, breakdown or inbetween) on an empty cel turns that
+cel into a blank drawing. On a cel that already has a drawing it adds a new,
+blank one **after that drawing's hold** and moves the rest of the row along one:
+with A held for two and then B, inserting on either A cel gives A A *new* B, so
+A keeps its timing. The playhead moves to the new drawing. **I** and the
+Animation menu's *Insert* items do the same at the playhead (or the picked cel).
+To change what a drawing *is* — a key into a breakdown, say — use **Mark as**,
+which re-marks the picked drawings in place and moves nothing.
 
 **What a cel can be.** A frame on a row either has a cel or it does not.
 A cel is either **empty** — a hold, showing the drawing before it, the way

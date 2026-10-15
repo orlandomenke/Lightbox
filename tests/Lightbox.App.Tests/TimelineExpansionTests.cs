@@ -149,14 +149,14 @@ public class FrameInsertionTests
     }
 
     [AvaloniaFact]
-    public void InsertOnExistingFrame_JustRemarksItsRole()
+    public void MarkAsOnExistingFrame_JustRemarksItsRole()
     {
         var vm = new MainViewModel(null);
         vm.BeginStroke(5, 5, 0.5);
         vm.MoveStroke(20, 20, 0.5);
         vm.EndStroke();
 
-        vm.InsertFrameAt(vm.FrameCells[0], FrameRole.Breakdown);
+        vm.MarkCelAs(vm.FrameCells[0], FrameRole.Breakdown);
 
         var frame = vm.PaintedCel();
         Assert.Equal(FrameRole.Breakdown, frame.Role);

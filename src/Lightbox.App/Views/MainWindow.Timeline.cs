@@ -199,6 +199,21 @@ public partial class MainWindow
         if (CellOf(sender) is { } cell) _vm.InsertFrameAt(cell, FrameRole.Inbetween);
     }
 
+    private void OnMarkAsKey(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.MarkCelAs(cell, FrameRole.Key);
+    }
+
+    private void OnMarkAsBreakdown(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.MarkCelAs(cell, FrameRole.Breakdown);
+    }
+
+    private void OnMarkAsInbetween(object? sender, RoutedEventArgs e)
+    {
+        if (CellOf(sender) is { } cell) _vm.MarkCelAs(cell, FrameRole.Inbetween);
+    }
+
     /// <summary>
     /// The X-sheet's way into the bone system's one timeline command. Aimed at
     /// the cel that was right-clicked, not at the playhead — see
@@ -387,6 +402,12 @@ public partial class MainWindow
 
     private void OnMenuInsertInbetween(object? sender, RoutedEventArgs e) =>
         _vm.InsertFrameAtPlayhead(FrameRole.Inbetween);
+
+    private void OnMenuMarkAsKey(object? sender, RoutedEventArgs e) => _vm.MarkCelAtPlayheadAs(FrameRole.Key);
+
+    private void OnMenuMarkAsBreakdown(object? sender, RoutedEventArgs e) => _vm.MarkCelAtPlayheadAs(FrameRole.Breakdown);
+
+    private void OnMenuMarkAsInbetween(object? sender, RoutedEventArgs e) => _vm.MarkCelAtPlayheadAs(FrameRole.Inbetween);
 
     private void OnMenuExtendExposure(object? sender, RoutedEventArgs e) => _vm.ExtendExposureAtPlayhead();
 
