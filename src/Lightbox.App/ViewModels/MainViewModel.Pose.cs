@@ -52,6 +52,9 @@ public partial class MainViewModel
     /// <summary>A joint being dragged: which, on which key (0 for A, 1 for B), and where it is now.</summary>
     private (int Part, int Joint, int Key, PosePoint At)? _poseDrag;
 
+    /// <summary>The frame a drag began on: it belongs there, and a playhead that moves on drops it.</summary>
+    private int _poseDragFrame;
+
     partial void OnPoseGuideVisibleChanged(bool value) => RaisePoseGuideChanged();
 
     partial void OnPoseEditModeChanged(bool value)
@@ -73,33 +76,52 @@ public partial class MainViewModel
     private void PushPoseGuide() => PoseGuideChanged?.Invoke(IsPlaying ? null : PoseGuideView);
 
     /// <summary>
-    /// Each key's ink, gathered once and kept while its strokes are the same
-    /// strokes (Q274 review): the guide is asked for on every playhead step,
+    /// Each key's ink, gathered once and kept while its points are the same
+    /// points (Q274 review): the guide is asked for on every playhead step,
     /// every stroke committed to an inbetween and every move of a drag, and
     /// gathering a key's ink each time was most of its cost.
     /// </summary>
-    private readonly List<(Frame Frame, (Stroke Stroke, List<StrokePoint> Points, int Count)[] Strokes, PoseInk Ink)> _poseInk = [];
+    /// <remarks>
+    /// Keyed by what the points say, not by which lists hold them: a Transform
+    /// commit, a rig write-back and a gradient handle all move points in place,
+    /// in the same list, and a key of references kept measuring ink from before
+    /// the move (the adversary). Hashing every point is a read of each once,
+    /// no allocation — a small part of gathering the ink it saves.
+    /// </remarks>
+    private readonly List<(Frame Frame, int Content, PoseInk Ink)> _poseInk = [];
 
     private PoseInk PoseInkOf(Frame frame)
     {
         var strokes = StrokesOf(frame);
+        var content = PoseInkContent(strokes);
         foreach (var held in _poseInk)
         {
-            if (!ReferenceEquals(held.Frame, frame) || held.Strokes.Length != strokes.Count) continue;
-            var same = true;
-            for (var i = 0; i < strokes.Count && same; i++)
-            {
-                var (stroke, points, count) = held.Strokes[i];
-                same = ReferenceEquals(stroke, strokes[i]) && ReferenceEquals(points, strokes[i].Points) && count == strokes[i].Points.Count;
-            }
-            if (same) return held.Ink;
+            if (ReferenceEquals(held.Frame, frame) && held.Content == content) return held.Ink;
         }
         var ink = PoseGuides.Ink(strokes);
         _poseInk.RemoveAll(h => ReferenceEquals(h.Frame, frame));
         // Two keys make a gap: anything older is a gap the playhead has left.
         if (_poseInk.Count >= 2) _poseInk.RemoveAt(0);
-        _poseInk.Add((frame, [.. strokes.Select(s => (s, s.Points, s.Points.Count))], ink));
+        _poseInk.Add((frame, content, ink));
         return ink;
+    }
+
+    /// <summary>What a key's ink is made of, as one number: each stroke's tool and every point's place.</summary>
+    private static int PoseInkContent(IReadOnlyList<Stroke> strokes)
+    {
+        var hash = new HashCode();
+        hash.Add(strokes.Count);
+        foreach (var stroke in strokes)
+        {
+            hash.Add(stroke.Tool);
+            hash.Add(stroke.Points.Count);
+            foreach (var p in stroke.Points)
+            {
+                hash.Add(p.X);
+                hash.Add(p.Y);
+            }
+        }
+        return hash.ToHashCode();
     }
 
     /// <summary>
@@ -113,7 +135,7 @@ public partial class MainViewModel
             if (!PoseGuideVisible || IsPlaying || PoseGapAt(CurrentFrameIndex) is not { } gap) return null;
             var (layer, a, b, pose) = gap;
             // A drag holds its joint by position; an undo mid-drag can take it away.
-            if (_poseDrag is { } held && !PoseHolds(pose, held)) _poseDrag = null;
+            if (_poseDrag is { } held && (!PoseHolds(pose, held) || _poseDragFrame != CurrentFrameIndex)) _poseDrag = null;
             if (_poseDrag is { } drag)
             {
                 pose = pose.Clone();
@@ -299,6 +321,7 @@ public partial class MainViewModel
             .FirstOrDefault();
         if (hit is null) return false;
         _poseDrag = (hit.PartIndex, hit.JointIndex, CurrentFrameIndex == gap.A ? 0 : 1, new PosePoint(hit.At.X, hit.At.Y));
+        _poseDragFrame = CurrentFrameIndex;
         return true;
     }
 
@@ -315,6 +338,11 @@ public partial class MainViewModel
     {
         if (_poseDrag is not { } drag) return;
         _poseDrag = null;
+        if (_poseDragFrame != CurrentFrameIndex)
+        {
+            RaisePoseGuideChanged();
+            return;
+        }
         if (PoseGapAt(CurrentFrameIndex) is not { } gap)
         {
             RaisePoseGuideChanged();

@@ -261,4 +261,45 @@ public sealed class PoseGuideVmTests : BrushStateIsolated
         Assert.Contains("drag", vm.AiStatus, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Esc", vm.AiStatus);
     }
+    /// <summary>
+    /// A key's points moved in place — a Transform commit maps every point of
+    /// the same list (adversary, Q274 review) — change the volume measured from
+    /// it: the ink is not served from before the move.
+    /// </summary>
+    [AvaloniaFact]
+    public void AKeyWhosePointsMoveInPlaceIsMeasuredAgain()
+    {
+        var (vm, _) = Keys();
+        vm.PaintLayer().Cels[0].Frame!.Pose = Shin();
+        vm.CurrentFrameIndex = 1;
+        var before = Assert.Single(vm.PoseGuideView!.Bones).Width;
+
+        // Key A's right-hand line, 30 further out, in the same list.
+        var right = vm.PaintLayer().Cels[0].Frame!.Strokes[1].Points;
+        for (var i = 0; i < right.Count; i++) right[i] = right[i] with { X = right[i].X + 30 };
+
+        var after = Assert.Single(vm.PoseGuideView!.Bones).Width;
+        Assert.True(after > before + 10, $"before {before:0.0}, after {after:0.0}");
+    }
+
+    /// <summary>
+    /// A drag belongs to the frame it started on (adversary, Q274 review): the
+    /// playhead stepping mid-drag drops it rather than writing the joint into
+    /// whichever gap the playhead reached.
+    /// </summary>
+    [AvaloniaFact]
+    public void ADragDoesNotFollowThePlayheadToAnotherFrame()
+    {
+        var (vm, _) = Keys();
+        vm.PaintLayer().Cels[0].Frame!.Pose = Shin();
+        vm.PoseEditMode = true;
+        Assert.True(vm.PosePress(100, 300, 6));
+
+        vm.CurrentFrameIndex = 2;
+        vm.PoseRelease(120, 310);
+
+        var ankle = vm.PaintLayer().Cels[0].Frame!.Pose!.Parts[0].Joints[1];
+        Assert.Equal(new PosePoint(100, 300), ankle.A);
+        Assert.Equal(new PosePoint(200, 200), ankle.B);
+    }
 }
