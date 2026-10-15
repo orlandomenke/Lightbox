@@ -344,8 +344,38 @@ public sealed class DockLayout
         // on the SAME side used to skip this, and the vacated slot left a hole
         // in the strip's numbering — harmless to draw and a lie to every piece
         // of arithmetic that assumes 0..n-1.
-        if (from != into.Side) Renumber(SlotsIn(from));
+        //
+        // Only a real strip, though. Closed and floating panels are not one:
+        // their Order is where each remembers it was, and closing those up as
+        // if they were a strip moved every other closed panel's reopening spot
+        // whenever one closed panel was opened into a group — as Hide and Float
+        // already knew.
+        if (from != into.Side)
+        {
+            if (from is not (DockSide.Hidden or DockSide.Floating)) Renumber(SlotsIn(from));
+        }
         else if (fromOrder != into.Order) Renumber(SlotsIn(into.Side));
+    }
+
+    /// <summary>
+    /// Open a panel as a tab in <paramref name="target"/>'s group and bring it
+    /// forward — the header menu's one verb (Q276).
+    /// </summary>
+    /// <remarks>
+    /// Whatever the panel was doing before: closed, floating, or open in another
+    /// group, which it leaves, because no panel is ever open twice. A panel
+    /// already in this group only comes forward. A floating target has no group
+    /// to join and an unmovable panel cannot leave its edge, and both are
+    /// no-ops — the same refusals <see cref="JoinGroup"/> makes.
+    /// </remarks>
+    public void OpenInGroup(DockPanelId id, DockPanelId target)
+    {
+        if (SlotOf(target).Contains(id))
+        {
+            if (IsVisible(id)) Activate(id);
+            return;
+        }
+        JoinGroup(id, target);
     }
 
     /// <summary>

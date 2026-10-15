@@ -525,6 +525,9 @@ public sealed partial class WorkspaceViewModel : ObservableObject
     public void JoinGroup(DockPanelId id, DockPanelId target, int? tabIndex = null) =>
         Mutate(l => l.JoinGroup(id, target, tabIndex));
 
+    /// <summary>The header menu's verb: this panel, as a tab in that group (Q276).</summary>
+    public void OpenInGroup(DockPanelId id, DockPanelId target) => Mutate(l => l.OpenInGroup(id, target));
+
     /// <summary>Show a tab, and stop showing its siblings.</summary>
     /// <remarks>
     /// Through <see cref="Mutate"/> like every other layout change, which is
