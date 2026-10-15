@@ -4226,8 +4226,8 @@
 
         <!-- Ruler (scrubbable numbering, range indication) above one row per layer -->
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-          <StackPanel Orientation="Vertical" Spacing="{StaticResource Space2}">
-            <controls:TimelineRuler x:Name="Ruler" Height="22" HorizontalAlignment="Left"
+          <StackPanel Orientation="Vertical" Spacing="{StaticResource Space2}" EffectiveViewportChanged="OnXsheetViewportChanged">
+            <controls:TimelineRuler x:Name="Ruler" Height="22" HorizontalAlignment="Stretch"
                                     LeadingInset="152"
                                     CellWidth="{Binding TimelineRulerCellWidth}"
                                     Extent="{Binding TimelineExtent}"
