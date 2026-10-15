@@ -3749,23 +3749,22 @@
 
                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                   <ListBox ItemsSource="{Binding PaletteDocker.Swatches}"
-                           SelectedItem="{Binding PaletteDocker.SelectedSwatch}"
+                           SelectedItem="{Binding PaletteDocker.SelectedSwatch}" DragDrop.AllowDrop="True"
+                           DragDrop.DragOver="OnSwatchListDragOver" DragDrop.DragLeave="OnSwatchListDragLeave" DragDrop.Drop="OnSwatchListDrop"
                            Background="Transparent" BorderThickness="0" Margin="4">
                     <ListBox.ItemsPanel>
                       <ItemsPanelTemplate>
                         <WrapPanel Orientation="Horizontal" />
                       </ItemsPanelTemplate>
                     </ListBox.ItemsPanel>
+                    <!-- Padding 2 is also the room the drop line is drawn in (SwatchDropBefore), unclipped. -->
                     <ListBox.Styles>
-                      <Style Selector="ListBoxItem">
-                        <Setter Property="Padding" Value="2" />
-                        <Setter Property="Margin" Value="0" />
-                      </Style>
+                      <Style Selector="ListBoxItem"><Setter Property="Padding" Value="2" /><Setter Property="Margin" Value="0" /><Setter Property="ClipToBounds" Value="False" /></Style>
                     </ListBox.Styles>
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="vm:SwatchRow">
                         <Border Width="26" Height="26" CornerRadius="{StaticResource RadiusPreview}" BorderBrush="#666" BorderThickness="1"
-                                Background="{Binding Fill}"
+                                Background="{Binding Fill}" Classes="swatch" Classes.dropBefore="{Binding DropBefore}" Classes.dropAfter="{Binding DropAfter}"
                                 PointerPressed="OnSwatchPressed"
                                 PointerMoved="OnSwatchMoved"
                                 PointerReleased="OnSwatchReleased"

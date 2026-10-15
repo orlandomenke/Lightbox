@@ -3,7 +3,8 @@
 
   <!--
     The layers docker's rows: a layer, a folder header, and what a drag over
-    either of them says it would do.
+    either of them says it would do — and the palette grid's drop line beside
+    a swatch, which is the same line and so lives with it.
 
     Lifted out of MainWindow.axaml whole rather than split. The comment below
     already records why these live in one place — three inline copies drifted
@@ -126,6 +127,15 @@
   <Style Selector="Border.dropBelow">
     <Setter Property="BorderBrush" Value="{DynamicResource AccentCoralBrush}" />
     <Setter Property="BorderThickness" Value="0,0,0,2" />
+  </Style>
+  <!-- A swatch dragged along the palette grid: the same line, upright, in
+       the gap on the side it would land. A shadow rather than a border, so
+       the swatch keeps its own edge and the line sits outside it. -->
+  <Style Selector="Border.swatch.dropBefore">
+    <Setter Property="BoxShadow" Value="{DynamicResource SwatchDropBefore}" />
+  </Style>
+  <Style Selector="Border.swatch.dropAfter">
+    <Setter Property="BoxShadow" Value="{DynamicResource SwatchDropAfter}" />
   </Style>
   <!-- Into a folder is the one drop that is not an edge, so it is the one
        that lights the row instead of drawing a line beside it. -->
