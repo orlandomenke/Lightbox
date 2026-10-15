@@ -60,6 +60,7 @@ public partial class MainWindow : IFollowsUiScale
             // the bottom, so it offers no way to try.
             panel.CanFloat = DockPanels.Of(panel.PanelId).Movable;
             panel.FloatToggleRequested += OnFloatToggle;
+            panel.HeaderMenuRequested += (p, subject) => HeaderMenuFor(p, subject).Open(p);
         }
         foreach (var strip in Strips())
         {
@@ -803,6 +804,70 @@ public partial class MainWindow : IFollowsUiScale
             info.MaxExtent ?? 360, Math.Max(240, info.DefaultExtent));
     }
 
+    /// <summary>
+    /// A header's right-click menu: every panel, to open as a tab here, then
+    /// the clicked tab's own float and close (Q276).
+    /// </summary>
+    /// <remarks>
+    /// Built fresh on every right-click rather than held, because what it says
+    /// — which panels are here, which are elsewhere and where — is the layout
+    /// at that moment, and a held menu would have to be kept in step with
+    /// every drag.
+    /// </remarks>
+    internal ContextMenu HeaderMenuFor(Docker panel, DockPanelId subject)
+    {
+        var target = panel.PanelId;
+        var menu = new ContextMenu();
+        HeaderMenuPanelState? group = null;
+        foreach (var offer in DockHeaderMenu.Panels(_vm.Workspace.Layout, target, IsPanelUsable))
+        {
+            // A rule between here, elsewhere and closed: the list arrives in
+            // those groups, and the rule is what makes them read as groups.
+            if (group is { } was && was != offer.State) menu.Items.Add(new Separator());
+            group = offer.State;
+            var item = new MenuItem
+            {
+                // Where a panel is now, beside its name, because picking it
+                // moves it from there.
+                Header = offer.State switch
+                {
+                    HeaderMenuPanelState.InThisGroup => $"{offer.Title} — here",
+                    HeaderMenuPanelState.Elsewhere => $"{offer.Title} — {offer.Where}",
+                    _ => offer.Title,
+                },
+                // The tick means what it means in View ▸ Dockers, open, so one
+                // glyph says one thing across the app. Which header it is open
+                // in is the suffix's job.
+                ToggleType = MenuItemToggleType.CheckBox,
+                IsChecked = offer.State != HeaderMenuPanelState.Closed,
+            };
+            var id = offer.Id;
+            item.Click += (_, _) => _vm.Workspace.OpenInGroup(id, target);
+            menu.Items.Add(item);
+        }
+        if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+
+        var title = DockPanels.TitleOf(subject);
+        if (DockPanels.Of(subject).Movable)
+        {
+            var floating = _vm.Workspace.Layout.SideOf(subject) == DockSide.Floating;
+            var flip = new MenuItem { Header = floating ? $"Dock {title} back" : $"Float {title}" };
+            flip.Click += (_, _) =>
+            {
+                if (floating) _vm.Workspace.Redock(subject);
+                else FloatFrom(subject, panel);
+            };
+            menu.Items.Add(flip);
+        }
+        var close = new MenuItem { Header = $"Close {title}" };
+        // The header's own close button says how to get it back; so does this.
+        ToolTip.SetTip(close, "Reopen it from this menu or the View menu");
+        close.Click += (_, _) => _vm.Workspace.ClosePanel(subject);
+        menu.Items.Add(close);
+        return menu;
+    }
+
+
     private void EndPanelDrag()
     {
         if (_dragHost is { } host)
@@ -914,13 +979,25 @@ public partial class MainWindow : IFollowsUiScale
             _vm.Workspace.Redock(id);
             return;
         }
-        // Float it where it already is, so the panel appears to pop out of
-        // the strip rather than teleporting somewhere new.
-        var at = panel.PointToScreen(default);
+        FloatFrom(id, panel);
+    }
+
+    /// <summary>
+    /// Float a panel where <paramref name="shownIn"/> stands, so it appears to
+    /// pop out of the strip rather than teleporting somewhere new.
+    /// </summary>
+    /// <remarks>
+    /// The panel and the docker can differ: from the header menu, the tab
+    /// floated may be one behind the panel in front, and it pops out of the
+    /// slot it was a tab in.
+    /// </remarks>
+    private void FloatFrom(DockPanelId id, Docker shownIn)
+    {
+        var at = shownIn.PointToScreen(default);
         var info = DockPanels.Of(id);
         _vm.Workspace.Float(
             id, at.X + 24, at.Y + 24,
-            Math.Max(panel.Bounds.Width, 260), Math.Max(panel.Bounds.Height, Math.Max(240, info.DefaultExtent)));
+            Math.Max(shownIn.Bounds.Width, 260), Math.Max(shownIn.Bounds.Height, Math.Max(240, info.DefaultExtent)));
     }
 
     private void ShowFloating(DockPanelId id, Docker panel, DockLayout layout)

@@ -99,6 +99,24 @@ hold it there. There is a short pause first, so a drag that is only crossing a
 list on its way somewhere else leaves it where it was. *Not yet in the project window or in a panel floated out into
 its own window, apart from the Layers panel, whose drag carries it everywhere.*
 
+**Right-click a header for every panel.** On a tab or on the empty space
+beside the tabs, the menu lists all the panels in three groups: the ones in
+this header (*Palette — here*), the ones open somewhere else (*Layers — right*),
+and the closed ones. A tick means open, as in **View ▸ Dockers**. Pick one and
+it opens as a tab right there, in front:
+
+- A **closed** panel opens here.
+- A panel **open somewhere else** moves here — no panel is ever open twice, so
+  picking it takes it out of its old group, which is why the menu says where
+  it is now.
+- A panel **already here** comes forward.
+
+Below the list, **Float** and **Close** act on the tab you right-clicked, which
+need not be the one in front. A right-click never switches tabs on its own. The
+timeline is not offered on other headers, since it never leaves the bottom, and
+a floating panel's menu has only Dock back and Close, because a window of its
+own holds one panel.
+
 **Panels share a slot by being dragged onto each other's headers.** Drop a panel
 on another panel's header and the two become tabs in one slot; drop it on the
 body, or on an edge, and it gets a slot of its own as before. Dragging the last
