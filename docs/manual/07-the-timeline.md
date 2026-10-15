@@ -611,6 +611,21 @@ The **Set playback start / end** items on a cel's context menu still work and
 do the same thing; the grips are the version you can aim. The **Animation**
 menu carries the same pair, taking the playhead's frame as the bound.
 
+**The range belongs to the document.** It is saved with it and comes back when
+you reopen the file; a document that never had a range saves none. Setting it
+is **not** an undo step: undo a few strokes to compare, set a range to play
+that part, and the strokes are still there to redo. Undo and redo leave the
+range you have alone — except when the step being undone is one that moved it,
+which the next paragraph is about.
+
+**It stays on the drawings it framed.** Hold the last drawing in the range a
+frame longer (Extend exposure) and the end moves with it; insert or extend
+before the range and both bounds move along. The same goes for every edit that
+moves cels along a row or the whole sheet — Reduce exposure, Insert empty cell,
+Delete and pull, adding or removing frames, re-timing — so the range keeps
+playing the same drawings whichever verb moved them. An edit on one layer moves
+the range for the whole scene, since there is only one.
+
 ## Looping
 
 Playback loops, because a cycle is usually what you are watching and stopping

@@ -106,6 +106,9 @@ public partial class MainViewModel
         // scene entirely (AttachEditor ends by calling this). The axis in use
         // follows the scene here, where every one of those lands.
         ResyncSymmetry();
+        // The playback range is the document's too (Scene.PlaybackStart): an
+        // undo, a ripple or another document's arrival moves it the same way.
+        ResyncPlaybackRange();
         // Q271: an undo of a match, or of anything under the keys being
         // matched, changes what the Match lines overlay shows.
         if (LineMatchMode) LineMatchDocumentChanged();

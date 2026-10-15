@@ -301,6 +301,28 @@ public sealed class Scene
     public List<int>? GhostFrames { get; set; }
 
     /// <summary>
+    /// The first frame playback runs from, or null — the scene's first frame.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// In the document rather than in the view model because a range names
+    /// frames of <i>this</i> sequence, and setting one up is work an artist
+    /// expects to find again on reopening. Null unless set, so a document that
+    /// never sets a range writes no key. It reaches no pixels and no export.
+    /// </para>
+    /// <para>
+    /// The edits that move cels move it too (<c>DocumentEditor</c>'s ripple),
+    /// so the range keeps framing the drawings it was set on: hold the last
+    /// drawing in it a frame longer and the end moves with it.
+    /// </para>
+    /// </remarks>
+    public int? PlaybackStart { get; set; }
+
+    /// <summary>The last frame playback runs to, or null — the scene's last frame.</summary>
+    /// <remarks>See <see cref="PlaybackStart"/>.</remarks>
+    public int? PlaybackEnd { get; set; }
+
+    /// <summary>
     /// Whether any frame is pinned. Derived; never serialized — see
     /// <see cref="HasReferences"/>, which got this right and which this one
     /// was written next to.
