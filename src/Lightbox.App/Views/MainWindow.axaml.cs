@@ -281,8 +281,6 @@ public partial class MainWindow : Window
         // mark the event handled.
         AddHandler(ContextRequestedEvent, OnTimelineContextRequested, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, OnTimelinePointerReleased, RoutingStrategies.Tunnel);
-        AddHandler(DragDrop.DragOverEvent, OnCelDragOver);
-        AddHandler(DragDrop.DropEvent, OnCelDrop);
         DragDrop.SetAllowDrop(Canvas, true);
         // B80. Closing a tab asked about unsaved work and closing the window did
         // not, so quitting mid-edit lost it silently.

@@ -3716,6 +3716,11 @@ test reopens the bug.
   - Fix: interleave — for each layer, its own ghosts, then the layer. That is also what makes multi-layer onion read correctly.
   - Regression I introduced with the paper layer. Cost: S
 
+- [x] **B477** `P2` `timeline` Dragging a cel along its row works with the mouse but not with a pen `evidence: CelDragWithAPenTests`
+  - Reported by the owner 2026-10-15. The drag was an operating-system drag-and-drop (`DoDragDropAsync`), and on Windows that runs OLE's modal loop, which keeps the drag going only while it sees a mouse button down. A pen's press reaches Avalonia as a pointer message, not a mouse button, so the most likely reading is that OLE dropped the cel on its first poll, back on the cel it came from, and nothing moved. The layer docker left OLE for the same family of reasons (`OnLayerListPointerMoved`).
+  - Fixed by carrying the cel on the pointer the press already captured, with the dock ghost as feedback, edge-scrolling while held, and the drop on release over the cel under the pointer. A pen also gets the layer drag's wider threshold (`CelDragGesture.ThresholdFor`).
+  - The headless platform completes an OS drag of its own, so "the cel moved" passes on either version. `MidDragTheGestureIsTheAppsOwn` is the discriminating test, measured red on the OLE version. The pen itself is confirmed only by the owner's hand.
+
 - [x] **B453** `P2` `timeline` The playback composite cache switches off for the session at the first stroke: it waited for a scratch bitmap that is kept, not freed `evidence: TheSamePlayTwiceIsStillServedFromTheCache`
 
 - [x] **B417** `P2` `timeline` Arrow keys do nothing on the canvas, and a focused docker tab swallows them `evidence: ArrowKeyScrubTests`
