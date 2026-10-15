@@ -506,9 +506,14 @@
         <MenuItem Header="_Next key drawing" Command="{Binding NextKeyframeCommand}"
                   ToolTip.Tip="Flip forward to the next key (2)" />
         <Separator />
-        <MenuItem Header="Insert _keyframe" Click="OnMenuInsertKeyframe" ToolTip.Tip="Mark the frame at the playhead as a key drawing" />
+        <MenuItem Header="Insert _keyframe" Click="OnMenuInsertKeyframe" ToolTip.Tip="A key drawing at the playhead, or the picked cel — after the drawing's hold when there is one there already" />
         <MenuItem Header="Insert _breakdown" Click="OnMenuInsertBreakdown" />
         <MenuItem Header="Insert _inbetween frame" Click="OnMenuInsertInbetween" />
+        <MenuItem Header="Mark _as" ToolTip.Tip="Re-mark the drawing at the playhead, or the cels picked; nothing moves">
+          <MenuItem Header="Key" Click="OnMenuMarkAsKey" />
+          <MenuItem Header="Breakdown" Click="OnMenuMarkAsBreakdown" />
+          <MenuItem Header="Inbetween" Click="OnMenuMarkAsInbetween" />
+        </MenuItem>
         <MenuItem Header="_Match lines between keys" ToggleType="CheckBox" IsChecked="{Binding LineMatchMode}" ToolTip.Tip="Click a line of the first key, then the lines it becomes in the second; the inbetweens follow" />
         <MenuItem Header="_Redraw inbetweens" Command="{Binding RedrawInbetweensCommand}" ToolTip.Tip="Redraw this run's inbetweens from its keys and matches. Replaces touched-up ones; Undo restores them" />
         <MenuItem Header="Insert empt_y cell" Click="OnMenuInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n — the playhead's cel, or the selection" />
@@ -4305,10 +4310,15 @@
                                      IsVisible="{Binding IsKeyed}" />
                               <Button.ContextMenu>
                                 <ContextMenu>
-                                  <MenuItem Header="Insert frame">
+                                  <MenuItem Header="Insert frame" ToolTip.Tip="On an empty cel the cel becomes the drawing; on a drawing, a new one goes in after its hold and the rest of the row moves along">
                                     <MenuItem Header="Insert keyframe" Click="OnInsertKeyframe" />
                                     <MenuItem Header="Insert breakdown frame" Click="OnInsertBreakdown" />
                                     <MenuItem Header="Insert inbetween frame" Click="OnInsertInbetweenFrame" />
+                                  </MenuItem>
+                                  <MenuItem Header="Mark as" ToolTip.Tip="Re-mark the drawings picked as keys, breakdowns or inbetweens; nothing moves">
+                                    <MenuItem Header="Key" Click="OnMarkAsKey" />
+                                    <MenuItem Header="Breakdown" Click="OnMarkAsBreakdown" />
+                                    <MenuItem Header="Inbetween" Click="OnMarkAsInbetween" />
                                   </MenuItem>
                                   <MenuItem Header="Insert empty cell" Click="OnInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n" />
                                   <MenuItem Header="Insert blank keyframe" Click="OnInsertBlankKeyframe" ToolTip.Tip="Empty cels become keyframes with nothing drawn on them (I)" />

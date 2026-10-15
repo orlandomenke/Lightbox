@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4423
+budget: 4433
 
 ## Why it is here despite being XAML
 
@@ -350,3 +350,5 @@ leaves a number nobody can account for. So every reason above stays, and
   AI Inbetween a directions menu, which would otherwise have grown this file. The
   bar's three sizes went onto tokens on the way (`SizeIcon9`, `SizeIcon10`, the new
   `SizeAiBusyBar`), so the literal budget drops 251 → 248 with it.
+
+- **4,423 → 4,433** (2026-10-15): the *Mark as* submenu, in the X-sheet cel menu and the Animation menu (five lines each). Re-marking a drawing's role used to hide behind *Insert frame*; once Insert started adding a drawing after the hold, it needed its own item. Menu items have nowhere else to live, and the handlers went to `MainWindow.Timeline.cs`.

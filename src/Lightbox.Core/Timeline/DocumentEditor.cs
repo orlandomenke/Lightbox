@@ -920,6 +920,87 @@ public sealed class DocumentEditor
     }
 
     /// <summary>
+    /// <b>Insert frame</b> over a selection on any number of layers, as one undo
+    /// step. On a layer where a picked cel has a drawing, each picked drawing
+    /// gets a new, blank drawing with the given role <em>after its hold</em>, and
+    /// the rest of that row moves right; picked holds on that layer are left
+    /// alone. On a layer where every picked cel is empty (a hold, or past the
+    /// end of the scene) each becomes a blank drawing in place, as
+    /// <see cref="SetKeyAt"/> does. Returns where the drawing made for
+    /// <paramref name="follow"/> ended up, or -1.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>After the hold rather than directly after the cel</b>: A A B B becomes
+    /// A A new B B. Directly after would turn A's hold into a hold of the new
+    /// drawing and quietly put A on ones — an insert that re-times the drawing
+    /// it was aimed at. The owner chose this when the verb stopped being a
+    /// re-mark (re-marking is <see cref="SetKeyAt"/> on a drawn cel).
+    /// </para>
+    /// <para>
+    /// <b>Drawings win over holds on a layer.</b> A Shift+click run over A A B B
+    /// picks two drawings and two holds; keying the holds as well would
+    /// interleave four new drawings through the run. One new drawing per picked
+    /// drawing is what "insert a frame after each of these" means.
+    /// </para>
+    /// </remarks>
+    public int InsertKeys(IEnumerable<(string LayerId, int Index)> cels, FrameRole role,
+                          (string LayerId, int Index)? follow = null)
+    {
+        var byLayer = GroupByLayer(cels);
+        if (byLayer.Count == 0) return -1;
+        var landed = -1;
+        Perform(doc =>
+        {
+            var scene = doc.Scene;
+            // Where each row grew, in the sheet as it was: latest first within a
+            // row means no insert moves one still to come. The range moves once
+            // per position, by the most any row grew there (InsertHolds' rule).
+            var grew = new SortedDictionary<int, int>();
+            var furthest = byLayer.Values.SelectMany(v => v).Max();
+            if (furthest >= scene.FrameCount) scene.FrameCount = furthest + 1;
+            foreach (var layer in scene.Layers) PadCels(layer, scene.FrameCount);
+            foreach (var (layerId, indices) in byLayer)
+            {
+                if (scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) continue;
+                var drawn = indices.Where(i => layer.Cels[i].Frame is not null).OrderDescending().ToList();
+                if (drawn.Count == 0)
+                {
+                    foreach (var i in indices)
+                    {
+                        layer.Cels[i].Frame = NewEmptyFrame(layer);
+                        layer.Cels[i].Frame!.Role = role;
+                        if (follow == (layerId, i)) landed = i;
+                    }
+                    continue;
+                }
+                // Latest first, so an insert never moves a drawing still to come.
+                var grewHere = new Dictionary<int, int>();
+                foreach (var i in drawn)
+                {
+                    var at = i + 1;
+                    while (at < layer.Cels.Count && layer.Cels[at].Frame is null) at++;
+                    grewHere[at] = grewHere.GetValueOrDefault(at) + 1;
+                    var frame = NewEmptyFrame(layer);
+                    frame.Role = role;
+                    layer.Cels.Insert(at, new Cel { Frame = frame });
+                    if (follow is { } f && f.LayerId == layerId)
+                    {
+                        if (f.Index == i) landed = at;
+                        else if (landed >= at) landed++;
+                    }
+                }
+                foreach (var (at, count) in grewHere) grew[at] = Math.Max(count, grew.GetValueOrDefault(at));
+            }
+            var longest = scene.Layers.Max(l => l.Cels.Count);
+            if (longest > scene.FrameCount) scene.FrameCount = longest;
+            foreach (var layer in scene.Layers) PadCels(layer, scene.FrameCount);
+            foreach (var (at, count) in grew.Reverse()) ShiftPlaybackRange(scene, at, count);
+        }, label: "Insert frame");
+        return landed;
+    }
+
+    /// <summary>
     /// Extend the drawing exposed at <paramref name="index"/> by one frame:
     /// a hold cel is inserted after it on this layer only, shifting the rest
     /// of the layer right (other layers are untouched — classic X-sheet).
