@@ -437,9 +437,57 @@ public class TrackView : Control
 
     // Chrome drawn in code reads the theme (ThemeColour). This renders on every
     // playback frame, so it reads once and keeps it until the theme switches.
-    public TrackView() => ThemeColour.RepaintOnThemeChange(this, () => _chrome = null);
+    public TrackView()
+    {
+        ThemeColour.RepaintOnThemeChange(this, () => (_chrome, _rulerBand) = (null, null));
+        EffectiveViewportChanged += (_, e) => PinRuler(e.EffectiveViewport);
+    }
 
     private (IBrush Text, Pen Faint, Pen Grid)? _chrome;
+
+    // ---- the ruler stays in view ---------------------------------------------
+
+    /// <summary>
+    /// How far down the control the ruler is painted: zero normally, and the
+    /// scrolled-away height when the docker has been scrolled down a long
+    /// track list, so the frame numbers and the playhead stay in view.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Painted at an offset rather than moved out of the scroller, because the
+    /// ruler and the rows are one control that scrolls sideways as one: a
+    /// separate ruler would need its horizontal scroll kept in step by hand.
+    /// </para>
+    /// <para>
+    /// <c>EffectiveViewportChanged</c> rather than finding a scroller: it
+    /// reports what of this control is visible whichever ancestor is doing
+    /// the scrolling — today the docker's own vertical scroller — so nothing
+    /// here has to know which one that is.
+    /// </para>
+    /// </remarks>
+    internal double RulerTop { get; private set; }
+
+    /// <summary>
+    /// The ruler's top for a visible region starting <paramref name="visibleTop"/>
+    /// down a control <paramref name="height"/> tall: never above the control,
+    /// never below its last ruler-height of rows.
+    /// </summary>
+    internal static double StickyTop(double visibleTop, double height, double rulerHeight) =>
+        Math.Clamp(visibleTop, 0, Math.Max(0, height - rulerHeight));
+
+    /// <summary>Whether a point at <paramref name="y"/> is on the ruler where it is painted now.</summary>
+    internal bool OnRuler(double y) => y >= RulerTop && y <= RulerTop + RulerHeight;
+
+    private void PinRuler(Rect viewport)
+    {
+        // An empty viewport is "not on screen at all", not "scrolled to 0".
+        var top = viewport.Width <= 0 || viewport.Height <= 0
+            ? 0
+            : StickyTop(viewport.Y, Bounds.Height, RulerHeight);
+        if (top == RulerTop) return;
+        RulerTop = top;
+        InvalidateVisual();
+    }
 
     // ---- painting -------------------------------------------------------------
 
@@ -481,19 +529,6 @@ public class TrackView : Control
         {
             var x = XAtFrame(f, FrameWidth);
             context.DrawLine(faint, new Point(x, RulerHeight), new Point(x, Bounds.Height));
-        }
-
-        // The numbers, as close together as they will legibly go.
-        var playhead = XAtFrame(CurrentFrame, FrameWidth);
-        for (var f = 0; f < FrameCount; f += LabelStep(FrameWidth))
-        {
-            var x = XAtFrame(f, FrameWidth);
-            // The playhead's chip is drawn last, over everything, and carries
-            // its own number. A ruler number underneath it is not hidden so
-            // much as half-visible around the edges, which reads as a smudge.
-            if (Math.Abs(x - playhead) < 11) continue;
-            var label = Label(f, typeface, 10, text);
-            context.DrawText(label, new Point(x - label.Width / 2, 2));
         }
 
         for (var r = 0; r < tracks.Count; r++)
@@ -664,17 +699,46 @@ public class TrackView : Control
                 new Point(XAtFrame(d.ToFrame, FrameWidth), YAtRow(d.Row)), DotRadius, DotRadius);
         }
 
-        // The playhead, over everything.
+        // The playhead line, over everything below the ruler.
         var playX = XAtFrame(CurrentFrame, FrameWidth);
         var play = new Pen(new SolidColorBrush(Color.Parse("#B49CFF")), 1.5);
         context.DrawLine(play, new Point(playX, 0), new Point(playX, Bounds.Height));
+
+        // The ruler band last, so that scrolled down a long track list it
+        // covers the rows it is pinned over (RulerTop). At the top it sits on
+        // empty space and the band is not filled, exactly as it always was.
+        var rulerTop = RulerTop;
+        if (rulerTop > 0)
+        {
+            context.FillRectangle(RulerBandBrush(), new Rect(0, rulerTop, Bounds.Width, RulerHeight));
+            context.DrawLine(play, new Point(playX, rulerTop), new Point(playX, rulerTop + RulerHeight));
+        }
+
+        // The numbers, as close together as they will legibly go.
+        for (var f = 0; f < FrameCount; f += LabelStep(FrameWidth))
+        {
+            var x = XAtFrame(f, FrameWidth);
+            // The playhead's chip is drawn last, over everything, and carries
+            // its own number. A ruler number underneath it is not hidden so
+            // much as half-visible around the edges, which reads as a smudge.
+            if (Math.Abs(x - playX) < 11) continue;
+            var label = Label(f, typeface, 10, text);
+            context.DrawText(label, new Point(x - label.Width / 2, rulerTop + 2));
+        }
+
         context.DrawRectangle(new SolidColorBrush(Color.Parse("#7B61FF")), null,
-            new RoundedRect(new Rect(playX - 9, 2, 18, 13), 3));
+            new RoundedRect(new Rect(playX - 9, rulerTop + 2, 18, 13), 3));
         var frameLabel = new FormattedText(
             (CurrentFrame + 1).ToString(), System.Globalization.CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight, typeface, 9, Brushes.White);
-        context.DrawText(frameLabel, new Point(playX - frameLabel.Width / 2, 4));
+        context.DrawText(frameLabel, new Point(playX - frameLabel.Width / 2, rulerTop + 4));
     }
+
+    private IBrush? _rulerBand;
+
+    /// <summary>The docker's own surface, so the pinned band reads as part of the panel.</summary>
+    private IBrush RulerBandBrush() =>
+        _rulerBand ??= new SolidColorBrush(ThemeColour.Of(this, "BackgroundSecondaryBrush", Color.Parse("#181818")));
 
     // ---- clip bars (Q57) --------------------------------------------------------
 
@@ -809,7 +873,7 @@ public class TrackView : Control
             // about x — the whole indent is easier to hit than a 9px glyph —
             // and strict about the row actually folding, so a click on a
             // plain layer's name stays inert.
-            if (p.Y > RulerHeight && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            if (!OnRuler(p.Y) && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             {
                 var row = RowAtY(p.Y, tracks.Count);
                 if (row < tracks.Count && tracks[row].HasChildren
@@ -822,7 +886,7 @@ public class TrackView : Control
             return;
         }
 
-        if (p.Y > RulerHeight)
+        if (!OnRuler(p.Y))
         {
             var row = RowAtY(p.Y, tracks.Count);
             if (Math.Abs(p.Y - YAtRow(row)) <= RowPitch / 2 &&
@@ -866,7 +930,7 @@ public class TrackView : Control
 
         // A clip bar under the pointer takes the drag before scrubbing does
         // (Q57) — body slides, edges trim, right-click opens the section menu.
-        if (ClipHitAt(p, tracks.Count) is { } hit)
+        if (!OnRuler(p.Y) && ClipHitAt(p, tracks.Count) is { } hit)
         {
             if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
             {
@@ -882,7 +946,7 @@ public class TrackView : Control
 
         // A right-click that hit no dot and no clip asks for the track-area
         // menu — paste and the key-here verbs need a frame, not a key.
-        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed && p.Y > RulerHeight)
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed && !OnRuler(p.Y))
         {
             var row = RowAtY(p.Y, tracks.Count);
             if (Math.Abs(p.Y - YAtRow(row)) <= RowPitch / 2)
