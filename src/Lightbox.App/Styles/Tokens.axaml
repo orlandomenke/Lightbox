@@ -51,6 +51,10 @@
   <x:Double x:Key="SizeField">44</x:Double>
   <!-- A numeric field's own height, two under the row. -->
   <x:Double x:Key="SizeFieldHeight">22</x:Double>
+  <!-- The effect slider's ring (Q275), and how far its centre stays in from
+       the pill's ends so the ring never hangs over them. -->
+  <x:Double x:Key="SizeEffectThumb">16</x:Double>
+  <Thickness x:Key="EffectTrackInset">3,0</Thickness>
 
   <!-- ===== Docker content (step 2, area 1: the dockers) ===== -->
   <!-- A setting row in a docker: label · slider · value. One label width
