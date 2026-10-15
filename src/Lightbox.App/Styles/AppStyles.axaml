@@ -176,6 +176,18 @@
             <Border x:Name="PART_Header" DockPanel.Dock="Top">
               <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{StaticResource Space2}">
+                  <!-- Carry the whole group (Q278). Always shown, unlike the
+                       buttons beside it: the bare header it stands in for is
+                       often all tabs, and a grip that appears on hover is one
+                       nobody finds. The glyph the canvas bars are dragged by.
+                       The near-transparent fill makes the whole box a target. -->
+                  <Border x:Name="PART_GroupGrip" Cursor="SizeAll" Background="#00000001"
+                          IsVisible="{TemplateBinding CanDragGroup}"
+                          ToolTip.Tip="Drag to move every panel in this header (a tab moves one)">
+                    <Path Classes="icon" Opacity="0.55" Data="{StaticResource IconGrip}"
+                          Width="{StaticResource SizeIcon12}" Height="{StaticResource SizeIcon12}"
+                          VerticalAlignment="Center" />
+                  </Border>
                   <ContentPresenter Content="{TemplateBinding TitleBarExtra}" VerticalAlignment="Center" />
                   <!-- Roll the slot up to this header, or open it (Q277). Down
                        while open, sideways while rolled up: the pair every tree

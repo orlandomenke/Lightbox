@@ -70,6 +70,12 @@ public class LoneDockerDragTests
     /// The reported bug. The empty part of a header exists to give the title
     /// room, and it was the largest drag target in the application.
     /// </summary>
+    /// <remarks>
+    /// Still true for one panel. Q278 gave the bare header back as the grip
+    /// for the whole <em>group</em> (<c>DockerGroupDragTests</c>), which is a
+    /// different drag: it moves every tab, and let go over nothing it stays put
+    /// rather than tearing anything out.
+    /// </remarks>
     [AvaloniaFact]
     public void APressOnTheBareHeaderIsNotAGrip()
     {

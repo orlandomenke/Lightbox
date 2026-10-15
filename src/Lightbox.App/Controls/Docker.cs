@@ -184,6 +184,35 @@ public class Docker : ContentControl
     /// </summary>
     public event Action<Docker, PointerEventArgs>? PanelDragStarted;
 
+    /// <summary>
+    /// The ⠿ grip or the bare header was picked up and pulled: the whole group
+    /// moves (Q278). The tab is still the grip for one panel.
+    /// </summary>
+    public event Action<Docker, PointerEventArgs>? GroupDragStarted;
+
+    public static readonly StyledProperty<bool> CanDragGroupProperty =
+        AvaloniaProperty.Register<Docker, bool>(nameof(CanDragGroup), true);
+
+    /// <summary>
+    /// Whether every panel in this header can move. A group holding the
+    /// timeline cannot be carried whole, so it shows no grip.
+    /// </summary>
+    public bool CanDragGroup
+    {
+        get => GetValue(CanDragGroupProperty);
+        set => SetValue(CanDragGroupProperty, value);
+    }
+
+    /// <summary>What a press in the header picks up.</summary>
+    internal enum Grip
+    {
+        None,
+        /// <summary>One panel: its tab, or the title of a docker with no tabs.</summary>
+        Tab,
+        /// <summary>The whole group: the ⠿ grip or the bare header (Q278).</summary>
+        Group,
+    }
+
     /// <summary>A tab in this slot's header was picked: show it instead.</summary>
     public event Action<Docker, DockPanelId>? TabPicked;
 
@@ -198,6 +227,7 @@ public class Docker : ContentControl
 
     private ListBox? _tabs;
     private Border? _header;
+    private Control? _groupGrip;
     private TextBlock? _title;
 
     protected override void OnApplyTemplate(Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)
@@ -236,6 +266,8 @@ public class Docker : ContentControl
             header.AddHandler(ContextRequestedEvent, (_, args) => HeaderContextRequested(args),
                 Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
         }
+
+        _groupGrip = e.NameScope.Find<Control>("PART_GroupGrip");
 
         if (e.NameScope.Find<Button>("PART_Collapse") is { } chevron)
         {
@@ -413,6 +445,9 @@ public class Docker : ContentControl
 
     private Point? _pressed;
 
+    /// <summary>What the armed press will pick up when it is pulled.</summary>
+    private Grip _pressedGrip;
+
     /// <summary>
     /// How far the pointer has to travel before a press on the header counts
     /// as a drag. Without it, every click on a header — to focus the docker,
@@ -427,9 +462,23 @@ public class Docker : ContentControl
     /// </summary>
     internal void HeaderPressed(PointerPressedEventArgs e)
     {
-        if (!LandedOnTheGrip(e.Source as Visual)) return;
+        // Every press starts clean. One that lands on a button returns below
+        // without arming, and a press armed earlier whose release went missing
+        // would otherwise still be waiting — and the next pull anywhere in the
+        // header would start a drag, now possibly of the whole group.
+        _pressed = null;
+        var grip = GripAt(e.Source as Visual);
+        if (grip == Grip.Group)
+        {
+            if (!CanDragGroup) return;
+            _pressedGrip = grip;
+            _pressed = e.GetPosition(this);
+            return;
+        }
+        if (grip != Grip.Tab) return;
         // A double-click on a tab rolls the slot up or opens it, Photoshop's
-        // gesture.
+        // gesture. Only on a tab: the bare header is a grip, and two quick
+        // presses on a grip are not a request to roll anything up.
         if (IsSecondPress(e, TabUnder(e.Source as Visual) ?? PanelId) is { } wasCollapsed && CanCollapse
             && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
@@ -439,6 +488,7 @@ public class Docker : ContentControl
             return;
         }
         if (!DockPanels.Of(PanelId).Movable) return;
+        _pressedGrip = grip;
         _pressed = e.GetPosition(this);
     }
 
@@ -482,18 +532,25 @@ public class Docker : ContentControl
     /// </remarks>
     // Internal for the tests: pointer simulation is not reliable enough here to
     // guard this end to end, and the rule has now been reported broken twice.
-    internal bool LandedOnTheGrip(Visual? source)
+    internal bool LandedOnTheGrip(Visual? source) => GripAt(source) == Grip.Tab;
+
+    /// <summary>What a press on <paramref name="source"/> would pick up.</summary>
+    internal Grip GripAt(Visual? source)
     {
         for (var node = source; node is not null && !ReferenceEquals(node, this); node = node.GetVisualParent())
         {
-            if (node is Button or ComboBox or ToggleButton or TextBox or Slider or CheckBox) return false;
+            if (node is Button or ComboBox or ToggleButton or TextBox or Slider or CheckBox) return Grip.None;
             // The tab strip, and the plain title a docker wears when it has no
             // tabs at all. Both are "the name of this panel", which is the
             // thing you pick a panel up by.
-            if (node is ListBox) return true;
-            if (ReferenceEquals(node, _title)) return true;
+            if (node is ListBox) return Grip.Tab;
+            if (ReferenceEquals(node, _title)) return Grip.Tab;
+            if (ReferenceEquals(node, _groupGrip)) return Grip.Group;
+            // The bare header: what B155 made inert because it tore single
+            // panels out, given back by Q278 as the grip for the group.
+            if (ReferenceEquals(node, _header)) return Grip.Group;
         }
-        return false;
+        return Grip.None;
     }
 
     internal void HeaderMoved(PointerEventArgs e)
@@ -513,7 +570,8 @@ public class Docker : ContentControl
         var now = e.GetPosition(this);
         if (Math.Abs(now.X - start.X) < DragThreshold && Math.Abs(now.Y - start.Y) < DragThreshold) return;
         _pressed = null;
-        PanelDragStarted?.Invoke(this, e);
+        if (_pressedGrip == Grip.Group) GroupDragStarted?.Invoke(this, e);
+        else PanelDragStarted?.Invoke(this, e);
     }
 
     internal void HeaderReleased() => _pressed = null;

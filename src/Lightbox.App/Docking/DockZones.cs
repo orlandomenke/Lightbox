@@ -118,8 +118,13 @@ public static class DockZones
         DockRect content,
         IReadOnlyList<PanelSlot> slots,
         DockPanelId dragged,
-        DockLayout layout)
+        DockLayout layout,
+        bool wholeGroup = false)
     {
+        // wholeGroup: the carried thing is the slot <paramref name="dragged"/>
+        // fronts, not the one panel (Q278). Its own header then means nothing —
+        // a tab over its own header is a rearrangement, a group over its own
+        // header is the group where it already is.
         if (!DockPanels.Of(dragged).Movable) return null;
         if (!content.Contains(x, y)) return null;
 
@@ -132,8 +137,8 @@ public static class DockZones
             // position is different from the one it is in — unless it shares
             // its slot with other tabs, in which case its own header is
             // somewhere to go and the whole of what rearranging tabs means.
-            if (slot.Id == dragged && CountIn(slots, slot.Side) == 1 && slot.Strip.Count < 2) return null;
-            return Beside(slot, x, y, dragged, slots);
+            if (slot.Id == dragged && CountIn(slots, slot.Side) == 1 && (wholeGroup || slot.Strip.Count < 2)) return null;
+            return Beside(slot, x, y, dragged, slots, wholeGroup);
         }
 
         // Not over a panel: the edges of the free space are the offer.
@@ -186,7 +191,8 @@ public static class DockZones
     /// been the entire docker.
     /// </remarks>
     private static DropTarget? Beside(
-        PanelSlot slot, double x, double y, DockPanelId dragged, IReadOnlyList<PanelSlot> slots)
+        PanelSlot slot, double x, double y, DockPanelId dragged, IReadOnlyList<PanelSlot> slots,
+        bool wholeGroup = false)
     {
         var vertical = slot.Side is DockSide.Left or DockSide.Right;
         var along = vertical ? y - slot.Bounds.Y : x - slot.Bounds.X;
@@ -199,6 +205,7 @@ public static class DockZones
         // resolves further than the body does.
         if (slot.HeaderHeight > 0 && (slot.Header.Contains(x, y) || OverStrip(slot, x, y)))
         {
+            if (wholeGroup && slot.Id == dragged) return null;
             return JoinAtTab(slot, x, dragged);
         }
         if (along >= band && along <= span - band)
