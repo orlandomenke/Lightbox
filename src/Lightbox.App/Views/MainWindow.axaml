@@ -3706,9 +3706,9 @@
                 <TreeView x:Name="PaletteTree" Grid.Row="0"
                           ItemsSource="{Binding PaletteDocker.Tree}"
                           SelectedItem="{Binding PaletteDocker.SelectedNode, Mode=TwoWay}"
-                          Background="Transparent" BorderThickness="0"
-                          ScrollViewer.VerticalScrollBarVisibility="Auto"
-                          DragDrop.AllowDrop="True">
+                          Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" DragDrop.AllowDrop="True">
+                  <TreeView.Styles><Style Selector="TreeViewItem" x:DataType="vm:PaletteNode">
+                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" /></Style></TreeView.Styles>
                   <TreeView.ItemTemplate>
                     <TreeDataTemplate x:DataType="vm:PaletteNode" ItemsSource="{Binding Children}">
                       <!--
@@ -3728,9 +3728,9 @@
                         <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                           <TextBlock Text="{Binding Glyph}" FontSize="{StaticResource TypeDense}" VerticalAlignment="Center" />
                           <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}" VerticalAlignment="Center"
-                                     IsVisible="{Binding !IsRenaming}" />
-                          <TextBox Text="{Binding Name, Mode=TwoWay}" FontSize="{StaticResource TypeDense}" MinWidth="90"
-                                   IsVisible="{Binding IsRenaming}"
+                                     IsVisible="{Binding !IsRenaming}" DoubleTapped="OnPaletteNameDoubleTapped" ToolTip.Tip="Double-click to rename" ToolTip.ServiceEnabled="{Binding IsDraggable}" />
+                          <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" FontSize="{StaticResource TypeDense}" MinWidth="90"
+                                   IsVisible="{Binding IsRenaming}" PropertyChanged="OnPaletteNameBoxChanged"
                                    LostFocus="OnPaletteNameCommitted" KeyDown="OnPaletteNameKey" />
                         </StackPanel>
                       </Border>

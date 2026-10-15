@@ -310,6 +310,9 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
         var keep = SelectedNode is { } node
             ? node.Palette?.Id ?? node.Folder?.Id
             : SelectedPalette?.Id;
+        // What the artist shut stays shut: a rebuild is the model changing,
+        // not a request to open everything.
+        var shut = Flatten(Tree).Where(n => !n.IsExpanded).Select(KeyOf).ToHashSet();
 
         Tree.Clear();
 
@@ -322,8 +325,22 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
             Fill(host?.Children ?? Tree, scope, null);
         }
 
+        foreach (var n in Flatten(Tree)) if (shut.Contains(KeyOf(n))) n.IsExpanded = false;
+
         RebuildAssignTargets();
         SelectedNode = keep is null ? null : Find(Tree, keep);
+    }
+
+    private static string KeyOf(PaletteNode node) =>
+        node.Folder?.Id ?? node.Palette?.Id ?? $"scope:{node.Scope}";
+
+    private static IEnumerable<PaletteNode> Flatten(IEnumerable<PaletteNode> nodes)
+    {
+        foreach (var node in nodes)
+        {
+            yield return node;
+            foreach (var child in Flatten(node.Children)) yield return child;
+        }
     }
 
     private PaletteScope[] Scopes => Project is null
