@@ -65,7 +65,11 @@ public class XsheetClickKeepsLayerTests(Xunit.ITestOutputHelper output) : BrushS
         {
             for (var i = 0; i < Frames; i++)
             {
-                vm.InsertFrameAt(Cell(vm, layer, i), FrameRole.Key);
+                // Insert on a drawn cel adds one after it, so only an empty one is keyed.
+                if (ExposureSheet.FrameAtExactIndex(vm.Doc.Scene.Layers[layer], i) is null)
+                {
+                    vm.InsertFrameAt(Cell(vm, layer, i), FrameRole.Key);
+                }
                 ExposureSheet.FrameAtExactIndex(vm.Doc.Scene.Layers[layer], i)!.Strokes.Add(Mark(colours[layer]));
             }
         }
@@ -278,7 +282,7 @@ public class XsheetClickKeepsLayerTests(Xunit.ITestOutputHelper output) : BrushS
         var vm = Sheet();
         vm.SelectFrameCommand.Execute(Cell(vm, Bottom, 2));
 
-        vm.InsertFrameAtPlayhead(FrameRole.Breakdown);
+        vm.MarkCelAtPlayheadAs(FrameRole.Breakdown);
 
         Assert.Equal(FrameRole.Breakdown, ExposureSheet.FrameAtExactIndex(vm.Doc.Scene.Layers[Bottom], 2)!.Role);
         Assert.Equal(FrameRole.Key, ExposureSheet.FrameAtExactIndex(vm.Doc.Scene.Layers[Top], 2)!.Role);
@@ -292,7 +296,7 @@ public class XsheetClickKeepsLayerTests(Xunit.ITestOutputHelper output) : BrushS
         var vm = Sheet();
         vm.CurrentFrameIndex = 1;
 
-        vm.InsertFrameAtPlayhead(FrameRole.Breakdown);
+        vm.MarkCelAtPlayheadAs(FrameRole.Breakdown);
         vm.CopyCurrentCel();
         vm.CurrentFrameIndex = 5;
         vm.PasteCurrentCel();
@@ -315,19 +319,22 @@ public class XsheetClickKeepsLayerTests(Xunit.ITestOutputHelper output) : BrushS
         string.Concat(vm.Doc.Scene.Layers[layer].Cels.Select(c => c.Frame is null ? '.' : 'x'));
 
     [AvaloniaFact]
-    public void TheIKeyMarksTheClickedCelToo()
+    public void TheIKeyInsertsOnTheClickedCelsLayerToo()
     {
         // The key and the Animation menu's item were two methods, and only the
-        // menu's had been taught to ask which cel is picked.
+        // menu's had been taught to ask which cel is picked. Insert on a drawing
+        // now adds a new one after it, so the pick's row is the one that grows.
         var vm = Sheet();
+        var top = Timing(vm, Top);
         SetRole(vm, Bottom, 2, FrameRole.Breakdown);
-        SetRole(vm, Top, 2, FrameRole.Breakdown);
         vm.SelectFrameCommand.Execute(Cell(vm, Bottom, 2));
 
         vm.InsertKeyframeAtPlayhead();
 
-        Assert.Equal(FrameRole.Key, RoleOf(vm, Bottom, 2));
-        Assert.Equal(FrameRole.Breakdown, RoleOf(vm, Top, 2));
+        Assert.Equal(FrameRole.Breakdown, RoleOf(vm, Bottom, 2));
+        Assert.Equal(FrameRole.Key, RoleOf(vm, Bottom, 3));
+        Assert.Empty(ExposureSheet.FrameAtExactIndex(vm.Doc.Scene.Layers[Bottom], 3)!.Strokes);
+        Assert.Equal(top, Timing(vm, Top).TrimEnd('.'));
     }
 
     [AvaloniaFact]
@@ -339,7 +346,7 @@ public class XsheetClickKeepsLayerTests(Xunit.ITestOutputHelper output) : BrushS
         vm.SelectFrameCommand.Execute(Cell(vm, Top, 1));
         vm.ToggleCelSelection(Cell(vm, Top, 4));
 
-        vm.InsertFrameAtPlayhead(FrameRole.Breakdown);
+        vm.MarkCelAtPlayheadAs(FrameRole.Breakdown);
 
         Assert.Equal(FrameRole.Breakdown, RoleOf(vm, Top, 4));
         Assert.Equal(FrameRole.Key, RoleOf(vm, Top, 1));

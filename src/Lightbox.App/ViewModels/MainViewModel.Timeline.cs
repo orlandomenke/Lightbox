@@ -267,9 +267,81 @@ public partial class MainViewModel
     [ObservableProperty]
     private int _playbackEndFrame = -1;
 
-    partial void OnPlaybackStartFrameChanged(int value) => RefreshRangeHighlights();
+    partial void OnPlaybackStartFrameChanged(int value)
+    {
+        RefreshRangeHighlights();
+        CommitPlaybackRange();
+    }
 
-    partial void OnPlaybackEndFrameChanged(int value) => RefreshRangeHighlights();
+    partial void OnPlaybackEndFrameChanged(int value)
+    {
+        RefreshRangeHighlights();
+        CommitPlaybackRange();
+    }
+
+    /// <summary>Set while the two bounds are written from the scene or together.</summary>
+    private bool _holdRangeCommit;
+
+    /// <summary>
+    /// Write the range into the document (<see cref="Scene.PlaybackStart"/>),
+    /// so it is saved, and mark the file as having unsaved work.
+    /// </summary>
+    /// <remarks>
+    /// <b>Not an undo step (Q280).</b> Every new step empties the redo stack,
+    /// so a range set after undoing a few strokes to compare would have thrown
+    /// those strokes away. Undo keeps the range you have instead
+    /// (<c>DocumentEditor</c>'s snapshot step), and only an edit that moved the
+    /// range takes it back with it. No pixel depends on it, so it pays only for
+    /// the bookkeeping: a ruler drag writes on every move and costs two ints.
+    /// </remarks>
+    private void CommitPlaybackRange()
+    {
+        if (_holdRangeCommit) return;
+        int? start = PlaybackStartFrame < 0 ? null : PlaybackStartFrame;
+        int? end = PlaybackEndFrame < 0 ? null : PlaybackEndFrame;
+        if (Scene.PlaybackStart == start && Scene.PlaybackEnd == end) return;
+        Scene.PlaybackStart = start;
+        Scene.PlaybackEnd = end;
+        MarkEditedOutsideTheRecord(); // the camera's route: badge, close prompt, recovery copy
+    }
+
+    /// <summary>Both bounds at once: one write, not two.</summary>
+    private void SetPlaybackRange(int start, int end)
+    {
+        _holdRangeCommit = true;
+        try
+        {
+            PlaybackStartFrame = start;
+            PlaybackEndFrame = end;
+        }
+        finally
+        {
+            _holdRangeCommit = false;
+        }
+        CommitPlaybackRange();
+    }
+
+    /// <summary>
+    /// Show the range the document holds — after an undo, a ripple, a load or a
+    /// switch of document, every one of which lands in <c>OnDocumentChanged</c>.
+    /// </summary>
+    /// <remarks>
+    /// A hand-edited file can hold anything; a negative bound reads as unset,
+    /// and the rest is clamped wherever it is used (<see cref="EffectiveStartFrame"/>).
+    /// </remarks>
+    private void ResyncPlaybackRange()
+    {
+        _holdRangeCommit = true;
+        try
+        {
+            PlaybackStartFrame = Math.Max(-1, Scene.PlaybackStart ?? -1);
+            PlaybackEndFrame = Math.Max(-1, Scene.PlaybackEnd ?? -1);
+        }
+        finally
+        {
+            _holdRangeCommit = false;
+        }
+    }
 
     internal int EffectiveStartFrame =>
         Math.Clamp(PlaybackStartFrame < 0 ? 0 : PlaybackStartFrame, 0, Math.Max(0, Scene.FrameCount - 1));
@@ -465,16 +537,15 @@ public partial class MainViewModel
     public void SetPlaybackEndAt(int frame) =>
         PlaybackEndFrame = Math.Clamp(frame, 0, Scene.FrameCount - 1);
 
-    public void ClearPlaybackRange()
-    {
-        PlaybackStartFrame = -1;
-        PlaybackEndFrame = -1;
-    }
+    public void ClearPlaybackRange() => SetPlaybackRange(-1, -1);
 
     /// <summary>
-    /// Insert a drawn frame with the given role at a timeline cell (possibly a
-    /// virtual one beyond the current end — the timeline extends to reach it),
-    /// or re-mark an existing frame's role.
+    /// Insert a drawn frame with the given role at a timeline cell: on an empty
+    /// cel (possibly a virtual one beyond the current end — the timeline extends
+    /// to reach it) the cel becomes the drawing; on a cel that already has one,
+    /// a blank drawing goes in after that drawing's hold
+    /// (<see cref="DocumentEditor.InsertKeys"/>), and arriving lands on it.
+    /// Re-marking a drawing's role is <see cref="MarkCelAs"/>.
     /// </summary>
     /// <param name="arrive">
     /// Whether to go to the cel afterwards: its layer becomes the one being
@@ -487,15 +558,50 @@ public partial class MainViewModel
     public void InsertFrameAt(FrameCell cell, FrameRole role, bool arrive = true)
     {
         if (cell.LayerIndex < 0 || cell.LayerIndex >= Scene.Layers.Count) return;
-        // Every selected cel, so marking a run as breakdowns is one gesture
-        // rather than one click per drawing. With nothing selected this is the
-        // clicked cel alone, which is what every programmatic caller passes.
-        ForEachSelectedCel(cell, "insert a drawing on it",
-            (layer, index) => _editor.SetKeyAt(layer.Id, index, role));
+        // Every selected cel, so starting a run of drawings is one gesture and
+        // one undo step. With nothing selected this is the clicked cel alone,
+        // which is what every programmatic caller passes. Past the end is kept:
+        // a drawing there grows the scene (Q103).
+        var picks = new List<(Layer Layer, int Index)>();
+        foreach (var layerIndex in OpLayersFor(cell))
+        {
+            if (LayerAt(layerIndex) is not { } layer) continue;
+            foreach (var i in OpCelsOn(cell, layerIndex))
+            {
+                if (i >= 0) picks.Add((layer, i));
+            }
+        }
+        var editable = EditablePicks(picks, "insert a drawing on it");
+        if (editable.Count == 0) return;
+        var cellLayerId = Scene.Layers[cell.LayerIndex].Id;
+        var landed = _editor.InsertKeys(editable, role, follow: (cellLayerId, cell.Index));
+        if (landed < 0) landed = cell.Index;
         if (arrive)
         {
             ActiveLayerIndex = cell.LayerIndex;
-            CurrentFrameIndex = Math.Min(cell.Index, Scene.FrameCount - 1);
+            CurrentFrameIndex = Math.Min(landed, Scene.FrameCount - 1);
+        }
+    }
+
+    /// <summary>
+    /// <b>Mark as</b>: re-mark the drawings in the selection — or the clicked
+    /// cel — as keys, breakdowns or inbetweens, in place. A hold has no drawing
+    /// to mark and is left alone: starting one is Insert's job.
+    /// </summary>
+    public void MarkCelAs(FrameCell cell, FrameRole role)
+    {
+        if (LayerOfCell(cell) is not { } cellLayer) return;
+        ForEachSelectedCel(cell, "mark a drawing on it", (layer, index) =>
+        {
+            if (ExposureSheet.FrameAtExactIndex(layer, index) is { } frame && frame.Role != role)
+            {
+                _editor.SetKeyAt(layer.Id, index, role);
+            }
+        });
+        var alone = !_keySelection.Contains(TimelineKey.Cel(cell.LayerIndex, cell.Index));
+        if (alone && ExposureSheet.FrameAtExactIndex(cellLayer, cell.Index) is null)
+        {
+            AiStatus = "That cel is a hold — there is no drawing on it to mark.";
         }
     }
 
@@ -1150,20 +1256,29 @@ public partial class MainViewModel
     // A menu item has no cel under a pointer, so these are the same twins the
     // shortcuts above use: the active layer's cel at the current frame.
 
-    /// <summary>Mark the playhead's cel as a drawing of the given role (Animation menu).</summary>
+    /// <summary>Insert frame at the playhead's cel (Animation menu) — see <see cref="InsertFrameAt"/>.</summary>
     public void InsertFrameAtPlayhead(FrameRole role)
     {
         // A cel that is picked is the one meant (Q224) — on another layer, or
         // on this one away from the playhead, where Ctrl+click picks without
         // moving it. With nothing picked, or the pick being the playhead's own
-        // cel, exactly what this always did: straight to the editor.
+        // cel, the cel menu's verb on the playhead's cel.
         if (PickedOrCurrentCell() is { } picked
             && (picked.LayerIndex != ActiveLayerIndex || picked.Index != CurrentFrameIndex))
         {
             InsertFrameAt(picked, role, arrive: false);
             return;
         }
-        _editor.SetKeyAt(ActiveLayer.Id, CurrentFrameIndex, role);
+        // The playhead's own cel: the same verb as the cel menu's — the lock
+        // check, the selection it may sit in — and the playhead goes to the new
+        // drawing, which is the one the artist asked for.
+        InsertFrameAt(CurrentCell() ?? new FrameCell(CurrentFrameIndex) { LayerIndex = ActiveLayerIndex }, role);
+    }
+
+    /// <summary>Mark as, aimed at the picked cel or the playhead's (Animation menu).</summary>
+    public void MarkCelAtPlayheadAs(FrameRole role)
+    {
+        if (PickedOrCurrentCell() is { } cell) MarkCelAs(cell, role);
     }
 
     public void ExtendExposureAtPlayhead()

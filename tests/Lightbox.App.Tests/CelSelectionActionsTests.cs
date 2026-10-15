@@ -91,16 +91,16 @@ public class CelSelectionActionsTests : BrushStateIsolated
         Assert.Equal(before[2] - 2, KeyedIndices(vm)[2]);
     }
 
-    // ---- insert -----------------------------------------------------------------
+    // ---- mark as ----------------------------------------------------------------
 
     [AvaloniaFact]
-    public void InsertFrameMarksEverySelectedCel()
+    public void MarkAsMarksEverySelectedCel()
     {
         var vm = Vm(5);
         vm.SelectFrameCommand.Execute(Cell(vm, 1));
         vm.RangeSelectTo(Cell(vm, 3));
 
-        vm.InsertFrameAt(Cell(vm, 1), FrameRole.Breakdown);
+        vm.MarkCelAs(Cell(vm, 1), FrameRole.Breakdown);
 
         var layer = vm.PaintLayer();
         Assert.All(new[] { 1, 2, 3 }, i => Assert.Equal(FrameRole.Breakdown, layer.Cels[i].Frame!.Role));
@@ -117,7 +117,7 @@ public class CelSelectionActionsTests : BrushStateIsolated
         vm.ToggleCelSelection(Cell(vm, 1));
         vm.ToggleCelSelection(Cell(vm, 3));
 
-        vm.InsertFrameAt(Cell(vm, 1), FrameRole.Breakdown);
+        vm.MarkCelAs(Cell(vm, 1), FrameRole.Breakdown);
 
         var layer = vm.PaintLayer();
         Assert.Equal(FrameRole.Breakdown, layer.Cels[1].Frame!.Role);
@@ -155,7 +155,7 @@ public class CelSelectionActionsTests : BrushStateIsolated
         vm.SelectFrameCommand.Execute(Cell(vm, 0));
         vm.RangeSelectTo(Cell(vm, 1));
 
-        vm.InsertFrameAt(Cell(vm, 4), FrameRole.Breakdown);
+        vm.MarkCelAs(Cell(vm, 4), FrameRole.Breakdown);
 
         var layer = vm.PaintLayer();
         Assert.Equal(FrameRole.Breakdown, layer.Cels[4].Frame!.Role);

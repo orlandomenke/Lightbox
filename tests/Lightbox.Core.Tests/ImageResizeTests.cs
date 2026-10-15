@@ -1140,7 +1140,8 @@ public class ImageResizeTests
 
             // Carry no document coordinate, on purpose.
             nameof(Scene.Id), nameof(Scene.Name), nameof(Scene.Fps),
-            nameof(Scene.FrameCount), nameof(Scene.BackgroundColor),
+            nameof(Scene.FrameCount), nameof(Scene.PlaybackStart), nameof(Scene.PlaybackEnd),
+            nameof(Scene.BackgroundColor),
             nameof(Scene.TransparentBackground), nameof(Scene.Markers),
             nameof(Scene.LayerGroups), nameof(Scene.FrameGroups),
             // A link is a relationship between layers, not a place on the
