@@ -17,7 +17,7 @@ namespace Lightbox.App.ViewModels;
 /// <para>
 /// <b>Why the state and not the engine.</b> The methods that drive this —
 /// <c>MoveStroke</c>, <c>FlushLivePreview</c>, <c>StampLiveDabs</c>,
-/// <c>StampLiveSmudge</c>, <c>RenderLivePostProcess</c>, <c>EndStroke</c> — stay on
+/// <c>StampLiveRework</c>, <c>RenderLivePostProcess</c>, <c>EndStroke</c> — stay on
 /// the view model, because they also need the editor, the frame cache, the brush
 /// settings and the stroke builder. Moving them here would drag those four in behind
 /// them and this would become a second view model. What moves is the thing that was

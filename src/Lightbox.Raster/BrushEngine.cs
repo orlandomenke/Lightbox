@@ -1334,7 +1334,8 @@ public static class BrushEngine
         // starts from, and that copy at pen-up is the replay to the byte in
         // both its modes (PenUpChangesNothingTests.ASmudgeStrokeIsKept). Every
         // smudge stroke used to be rendered again at pen-up for nothing - 20
-        // to 68 ms for the Damp brush at 60 to 300 px in the perf lab.
+        // to 68 ms for the Damp brush at 60 to 300 px in the perf lab. A blur
+        // too, since B475 (ABlurStrokeUnderThePenIsWhatIsKept).
         if (WritesTheLayerItself(stroke))
         {
             return brush.SampleSource == SampleSource.ThisLayer
@@ -1373,13 +1374,17 @@ public static class BrushEngine
     /// <summary>
     /// A stroke whose live result is the layer's own pixels, in a working copy
     /// of the layer, and not paint in a scratch to be laid over it: a
-    /// rewetting brush and a smudge. Kept at pen-up by copying those pixels in
-    /// place.
+    /// rewetting brush, a smudge and a blur. Kept at pen-up by copying those
+    /// pixels in place.
     /// </summary>
+    /// <remarks>
+    /// A plain blur joined in B475, once its live path stamped each dab once and
+    /// in order, as a replay does - before that its draft took back under the
+    /// tail what earlier dabs had done, and was hundreds of pixels off.
+    /// </remarks>
     public static bool WritesTheLayerItself(Stroke stroke) =>
         stroke.Tool == ToolKind.Brush
-        && (stroke.Brush.Kind == BrushKind.Smudge
-            || (stroke.Brush.Kind == BrushKind.Blur && stroke.Brush.Wet is not null));
+        && stroke.Brush.Kind is BrushKind.Smudge or BrushKind.Blur;
 
     public static void PromoteMark(SKCanvas target, SKBitmap mark, SKRectI region, Stroke stroke)
     {
@@ -5705,6 +5710,28 @@ public static class BrushEngine
     }
 
     /// <summary>
+    /// Stamp blur dabs <paramref name="from"/> to <paramref name="to"/> of a walked stroke onto
+    /// <paramref name="target"/>, each once, reading <paramref name="read"/> - the layer as it was
+    /// before the stroke. Nothing under them is taken back first (B475).
+    /// </summary>
+    /// <remarks>
+    /// The live path's half of making a blur preview the commit. A replay stamps every dab once, in
+    /// order, onto the layer; the live path does the same by stamping the settled dabs for good and
+    /// lending the tail out over a copy it takes back next event, as a smudge does. The draft entry
+    /// in <see cref="StampStroke"/> instead restores under the dabs it draws, which takes back what
+    /// earlier dabs did where they overlap.
+    /// </remarks>
+    public static void StampBlurRange(
+        SKCanvas target, SKBitmap read, Stroke stroke, SKImageInfo info, IReadOnlyList<Dab> dabs, int from, int to)
+    {
+        using var owned = SampledSource(stroke, read, null, info);
+        var source = owned ?? read;
+        WithHardClip(
+            target, stroke, 1.0, default,
+            () => StampBlurDraft(target, source, stroke, info, dabs, from, default, to, restore: false));
+    }
+
+    /// <summary>
     /// The shape of one dab, sampled per pixel: a tip's own alpha when the brush has one, and the
     /// radial hardness falloff when it does not.
     /// </summary>
@@ -6549,13 +6576,14 @@ public static class BrushEngine
     /// </remarks>
     private static void StampBlurDraft(
         SKCanvas target, SKBitmap pixels, Stroke stroke, SKImageInfo info,
-        IReadOnlyList<Dab> dabs, int from, SKPointI origin)
+        IReadOnlyList<Dab> dabs, int from, SKPointI origin, int to = int.MaxValue, bool restore = true)
     {
         var brush = stroke.Brush;
         var sigma = (float)(Math.Clamp(brush.Flow, 0, 1) * Math.Max(1, brush.Size) / 4);
         if (sigma <= 0) return;
         from = Math.Max(0, from);
-        if (from >= dabs.Count) return;
+        to = Math.Min(to, dabs.Count);
+        if (from >= to) return;
 
         // **Only the unsettled dabs, and that is a measured trade rather than a preference.**
         // Replaying every dab of the stroke each event makes the preview *pixel-identical* to the
@@ -6566,9 +6594,14 @@ public static class BrushEngine
         // pixels, because a pixel the commit reached with three overlapping dabs is reached here by
         // one and reads `α·blurred + (1-α)·pre-stroke`.
         //
+        // B475 removed that residue without paying the 194 ms: the live path calls this through
+        // StampBlurRange with `restore` off and lends the tail over a backup, so every dab is
+        // stamped once - and the draft entry below keeps the old behaviour only for a caller that
+        // stamps a whole stroke in one go, where the two are the same.
+        //
         // The region those dabs can reach, plus the blur's own spread so a dab at its edge still
         // sees real neighbours rather than the crop.
-        if (RangeBounds(dabs, from, brush, info, origin) is not { } dabReach) return;
+        if (RangeBounds(dabs, from, to, brush, info, null, origin) is not { } dabReach) return;
         var rect = SKRectI.Intersect(
             SKRectI.Inflate(dabReach, (int)Math.Ceiling(sigma * 4), (int)Math.Ceiling(sigma * 4)),
             new SKRectI(0, 0, info.Width, info.Height));
@@ -6582,7 +6615,12 @@ public static class BrushEngine
 
         using var subset = new SKBitmap();
         if (!pixels.ExtractSubset(subset, rect)) return;
-        using var snapshot = SKImage.FromBitmap(subset); // copies only the subset
+        // A copy of only the subset - except for a range stamp (restore off), whose source is the
+        // layer as it was before the stroke and is never the bitmap being drawn into, so a view of
+        // its pixels reads the same and saves copying the crop twice an event (B475 review: at
+        // 300 px and full flow the crop is about 900 px square).
+        using var view = restore ? null : subset.PeekPixels();
+        using var snapshot = view is not null ? SKImage.FromPixels(view) : SKImage.FromBitmap(subset);
         if (snapshot is null) return;
         // Src for the same reason as the committed path — see StampBlur.
         using var blurPaint = new SKPaint
@@ -6604,9 +6642,15 @@ public static class BrushEngine
         // the range back to every dab overlapping the rectangle instead reaches 10,738 px out by
         // 255. Aliased on purpose: a partially restored rim would then be blended a second time by
         // the dab drawn over it.
-        using (var covered = new SKPath())
+        //
+        // **B475: and it is what kept the preview off the commit.** The restore also takes back
+        // what the settled dabs behind did where they overlap the tail, so a rim pixel three dabs
+        // reach in a replay is reached here by one. The live path no longer asks for it - it takes
+        // the tail it lent back itself and stamps each dab once, in order (StampBlurRange).
+        if (restore)
         {
-            for (var i = from; i < dabs.Count; i++)
+            using var covered = new SKPath();
+            for (var i = from; i < to; i++)
             {
                 var r = (float)RadiusAt(brush, dabs[i].Pressure);
                 if (r > 0) covered.AddCircle(dabs[i].Pos.X, dabs[i].Pos.Y, r);
@@ -6615,8 +6659,8 @@ public static class BrushEngine
             {
                 target.Save();
                 target.ClipPath(covered, antialias: false);
-                using var restore = new SKPaint { BlendMode = SKBlendMode.Src };
-                target.DrawImage(snapshot, docRect.Left, docRect.Top, restore);
+                using var put = new SKPaint { BlendMode = SKBlendMode.Src };
+                target.DrawImage(snapshot, docRect.Left, docRect.Top, put);
                 target.Restore();
             }
         }
@@ -6627,7 +6671,7 @@ public static class BrushEngine
             docRect.Left, docRect.Top, docRect.Left + rect.Width, docRect.Top + rect.Height);
         var sampling = new SKSamplingOptions(SKFilterMode.Linear);
 
-        for (var i = from; i < dabs.Count; i++)
+        for (var i = from; i < to; i++)
         {
             var radius = (float)RadiusAt(brush, dabs[i].Pressure);
             if (radius <= 0) continue;
