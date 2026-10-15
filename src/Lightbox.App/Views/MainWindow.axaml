@@ -1175,7 +1175,7 @@
                        FormatString="0.#" Classes="value" VerticalAlignment="Center"
                        ToolTip.Tip="Size of the mark the tool in hand makes (type an exact value)" />
         <TextBlock Text="Opacity" VerticalAlignment="Center" Margin="8,0,0,0" />
-        <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Classes="param" VerticalAlignment="Center" />
+        <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Classes="param effect checker" VerticalAlignment="Center" Background="{Binding ForegroundColorHex, Converter={x:Static controls:PaintRamp.FromHex}}" />
         <NumericUpDown controls:FieldMath.Percent="True" Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Increment="0.05"
                        FormatString="0.00" Classes="value" VerticalAlignment="Center"
                        ToolTip.Tip="Opacity of the mark the tool in hand makes, in percent" />
@@ -1204,7 +1204,7 @@
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center"
                       IsVisible="{Binding !ShowsEffectOptions}">
             <TextBlock Text="Flow" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Classes="param" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Classes="param effect" VerticalAlignment="Center" Background="{Binding ForegroundColorHex, Converter={x:Static controls:PaintRamp.FromHex}}" />
             <NumericUpDown controls:FieldMath.Percent="True" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Increment="0.05"
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Paint each dab lays down, in percent. Overlapping dabs build up, so low flow darkens where the stroke is worked." />
@@ -1421,7 +1421,7 @@
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center"
                       IsVisible="True">
             <TextBlock Text="Flow" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Classes="param" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Classes="param effect" VerticalAlignment="Center" Background="{Binding ForegroundColorHex, Converter={x:Static controls:PaintRamp.FromHex}}" />
             <NumericUpDown controls:FieldMath.Percent="True" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Increment="0.05"
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Paint each dab lays down, in percent. Overlapping dabs build up, so low flow darkens where the stroke is worked." />
@@ -3711,9 +3711,9 @@
                 <TreeView x:Name="PaletteTree" Grid.Row="0"
                           ItemsSource="{Binding PaletteDocker.Tree}"
                           SelectedItem="{Binding PaletteDocker.SelectedNode, Mode=TwoWay}"
-                          Background="Transparent" BorderThickness="0"
-                          ScrollViewer.VerticalScrollBarVisibility="Auto"
-                          DragDrop.AllowDrop="True">
+                          Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" DragDrop.AllowDrop="True">
+                  <TreeView.Styles><Style Selector="TreeViewItem" x:DataType="vm:PaletteNode">
+                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" /></Style></TreeView.Styles>
                   <TreeView.ItemTemplate>
                     <TreeDataTemplate x:DataType="vm:PaletteNode" ItemsSource="{Binding Children}">
                       <!--
@@ -3733,9 +3733,9 @@
                         <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                           <TextBlock Text="{Binding Glyph}" FontSize="{StaticResource TypeDense}" VerticalAlignment="Center" />
                           <TextBlock Text="{Binding Name}" FontSize="{StaticResource TypeDense}" VerticalAlignment="Center"
-                                     IsVisible="{Binding !IsRenaming}" />
-                          <TextBox Text="{Binding Name, Mode=TwoWay}" FontSize="{StaticResource TypeDense}" MinWidth="90"
-                                   IsVisible="{Binding IsRenaming}"
+                                     IsVisible="{Binding !IsRenaming}" DoubleTapped="OnPaletteNameDoubleTapped" ToolTip.Tip="Double-click to rename" ToolTip.ServiceEnabled="{Binding IsDraggable}" />
+                          <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" FontSize="{StaticResource TypeDense}" MinWidth="90"
+                                   IsVisible="{Binding IsRenaming}" PropertyChanged="OnPaletteNameBoxChanged"
                                    LostFocus="OnPaletteNameCommitted" KeyDown="OnPaletteNameKey" />
                         </StackPanel>
                       </Border>
@@ -3754,23 +3754,22 @@
 
                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                   <ListBox ItemsSource="{Binding PaletteDocker.Swatches}"
-                           SelectedItem="{Binding PaletteDocker.SelectedSwatch}"
+                           SelectedItem="{Binding PaletteDocker.SelectedSwatch}" DragDrop.AllowDrop="True"
+                           DragDrop.DragOver="OnSwatchListDragOver" DragDrop.DragLeave="OnSwatchListDragLeave" DragDrop.Drop="OnSwatchListDrop"
                            Background="Transparent" BorderThickness="0" Margin="4">
                     <ListBox.ItemsPanel>
                       <ItemsPanelTemplate>
                         <WrapPanel Orientation="Horizontal" />
                       </ItemsPanelTemplate>
                     </ListBox.ItemsPanel>
+                    <!-- Padding 2 is also the room the drop line is drawn in (SwatchDropBefore), unclipped. -->
                     <ListBox.Styles>
-                      <Style Selector="ListBoxItem">
-                        <Setter Property="Padding" Value="2" />
-                        <Setter Property="Margin" Value="0" />
-                      </Style>
+                      <Style Selector="ListBoxItem"><Setter Property="Padding" Value="2" /><Setter Property="Margin" Value="0" /><Setter Property="ClipToBounds" Value="False" /></Style>
                     </ListBox.Styles>
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="vm:SwatchRow">
                         <Border Width="26" Height="26" CornerRadius="{StaticResource RadiusPreview}" BorderBrush="#666" BorderThickness="1"
-                                Background="{Binding Fill}"
+                                Background="{Binding Fill}" Classes="swatch" Classes.dropBefore="{Binding DropBefore}" Classes.dropAfter="{Binding DropAfter}"
                                 PointerPressed="OnSwatchPressed"
                                 PointerMoved="OnSwatchMoved"
                                 PointerReleased="OnSwatchReleased"
@@ -4232,8 +4231,8 @@
 
         <!-- Ruler (scrubbable numbering, range indication) above one row per layer -->
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-          <StackPanel Orientation="Vertical" Spacing="{StaticResource Space2}">
-            <controls:TimelineRuler x:Name="Ruler" Height="22" HorizontalAlignment="Left"
+          <StackPanel Orientation="Vertical" Spacing="{StaticResource Space2}" EffectiveViewportChanged="OnXsheetViewportChanged">
+            <controls:TimelineRuler x:Name="Ruler" Height="22" HorizontalAlignment="Stretch"
                                     LeadingInset="152"
                                     CellWidth="{Binding TimelineRulerCellWidth}"
                                     Extent="{Binding TimelineExtent}"

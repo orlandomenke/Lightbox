@@ -194,6 +194,23 @@ public static class Program
         Shoot(main, "folders-pinned-only");
         vm.SheetPinnedOnly = false;
 
+        // A palette being renamed, selected, with the caret in it: the row
+        // state the empty docker above cannot show.
+        vm.Workspace.SetVisible(Lightbox.App.Docking.DockPanelId.Palette, true);
+        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Palette);
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+        var renaming = vm.PaletteDocker.Tree[^1];
+        vm.PaletteDocker.SelectedNode = renaming;
+        renaming.IsRenaming = true;
+        // A layer being renamed beside it: the rename box the rest of the
+        // application is judged against.
+        var layerRenaming = vm.LayerRows.Single(r => r.Name == "Notes");
+        layerRenaming.IsRenaming = true;
+        Shoot(main, "palette-renaming");
+        renaming.IsRenaming = false;
+        layerRenaming.IsRenaming = false;
+
         // The brush editor (Q211), every option, with the brush in hand. Hosted
         // in a window of its own rather than its popup: a popup is a second
         // top level, and the picture is the same.
@@ -220,6 +237,25 @@ public static class Program
         var project = new Lightbox.App.Views.ProjectWindow { Width = 1080, Height = 700 };
         project.Show();
         Shoot(project, "project-window");
+
+        // A swatch being dragged along its palette: the line in the gap it
+        // would land in, which the empty docker above cannot show.
+        vm.Workspace.SetVisible(Lightbox.App.Docking.DockPanelId.Palette, true);
+        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Palette);
+        foreach (var hex in new[] { "#c0392b", "#e67e22", "#f1c40f", "#27ae60", "#2980b9" })
+        {
+            vm.ColorHex = hex;
+            vm.PaletteDocker.AddSwatchCommand.Execute(null);
+        }
+        var swatches = vm.PaletteDocker.Swatches;
+        // Taller, so the docker's swatch half has rows to show.
+        main.Height = 1500;
+        vm.PaletteDocker.ShowSwatchDrop(swatches[2], Lightbox.App.ViewModels.SwatchDropSide.Before);
+        Shoot(main, "palette-swatch-drop-before");
+        vm.PaletteDocker.ShowSwatchDrop(swatches[^1], Lightbox.App.ViewModels.SwatchDropSide.After);
+        Shoot(main, "palette-swatch-drop-after");
+        vm.PaletteDocker.ShowSwatchDrop(null, Lightbox.App.ViewModels.SwatchDropSide.None);
+        main.Height = 1000;
         project.Close();
 
         // Every other window and panel in the app's views that opens without

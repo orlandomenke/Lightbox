@@ -21,7 +21,7 @@ nothing you do in one is invisible in another:
 
 | | |
 | --- | --- |
-| **Timeline** | One coloured track per layer: drawings are dots, holds are the bars behind them, the camera is its own orange track on top, and the scratch track's waveform is its own band underneath. **Drag a dot** to retime that drawing; click anywhere else to scrub. The ruler numbers as closely as the frames are wide — every frame when they are wide, every second or third when they are narrow — and always numbers 1, 13, 25, so the second's cadence stays where you expect it. **Ctrl+click** picks dots and **Shift+click** ranges over the keys on that track, across the camera, the bones and the drawings alike — see *Picking keys on the Timeline* below. |
+| **Timeline** | One coloured track per layer: drawings are dots, holds are the bars behind them, the camera is its own orange track on top, and the scratch track's waveform is its own band underneath. **Drag a dot** to retime that drawing; click anywhere else to scrub. The ruler numbers as closely as the frames are wide — every frame when they are wide, every second or third when they are narrow — and always numbers 1, 13, 25, so the second's cadence stays where you expect it. Scroll down a long list of tracks and the ruler, playhead chip included, stays pinned to the top of the panel — the X-sheet's ruler does the same over its rows. **Ctrl+click** picks dots and **Shift+click** ranges over the keys on that track, across the camera, the bones and the drawings alike — see *Picking keys on the Timeline* below. |
 | **X-sheet** | The exposure sheet — the grid described below, where cels are edited, exposed, re-timed and annotated. |
 | **Graph editor** | Value over time for the things that interpolate: the camera's position, zoom and rotation (drag a key dot — up and down for value, sideways to retime; a chip shows the value as you drag), and the **measured spacing** of your drawings — how far the ink actually moves between poses, the spacing chart read off the art itself. Even spacing is constant speed; widening is an ease; a spike is the drawing that pops. **Double-click** the plot to key the camera's framing at that frame (it keys what is already there, so nothing jumps — then drag it). **Right-click a key** for its easing into the next key, and to remove it. The **legend** on the bar toggles each curve, and its swatch says which colour is whose; the dashed **Spacing (intended)** curve is the same travel redistributed by the easing picked on the X-sheet bar — where the hollow dots and the filled ones disagree is the drawing that misses the ease. Spacing curves read the active layer. With one curve showing, the axis carries its numbers. |
 
@@ -619,6 +619,21 @@ the bar still scrubs.
 The **Set playback start / end** items on a cel's context menu still work and
 do the same thing; the grips are the version you can aim. The **Animation**
 menu carries the same pair, taking the playhead's frame as the bound.
+
+**The range belongs to the document.** It is saved with it and comes back when
+you reopen the file; a document that never had a range saves none. Setting it
+is **not** an undo step: undo a few strokes to compare, set a range to play
+that part, and the strokes are still there to redo. Undo and redo leave the
+range you have alone — except when the step being undone is one that moved it,
+which the next paragraph is about.
+
+**It stays on the drawings it framed.** Hold the last drawing in the range a
+frame longer (Extend exposure) and the end moves with it; insert or extend
+before the range and both bounds move along. The same goes for every edit that
+moves cels along a row or the whole sheet — Reduce exposure, Insert empty cell,
+Delete and pull, adding or removing frames, re-timing — so the range keeps
+playing the same drawings whichever verb moved them. An edit on one layer moves
+the range for the whole scene, since there is only one.
 
 ## Looping
 

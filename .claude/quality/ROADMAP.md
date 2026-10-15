@@ -315,6 +315,7 @@ available in every project, defaulted for the ones that need it.
 - [x] Color picker with history `evidence: ColorPickerViewModel, ColorSwatch`
 - [x] Advanced color wheel `evidence: ColorWheelFidelityTests, ColorSpace, ColorOps`
 - [x] Palette management `evidence: PaletteDockerViewModel, GimpPalette, PaletteTests, PaletteDockerTests`
+- [x] Swatches put in order by dragging, the landing gap shown as the layer rows show theirs `evidence: SwatchDropSide, SwatchOrderTests, DroppingASwatchBeforeAnotherPutsItThere, ADropInTheGapBetweenTwoSwatchesLandsInThatGap, TheLineIsStyledOntoTheSideItWillLand`
 - [x] Live palettes — recolour a swatch, the art follows `evidence: PaletteRegistry, StrokeColor, LivePaletteTests, RecolouringASwatchRepaintsTheArtThatUsedIt`
 - [x] Gradient editor `evidence: GradientDockerViewModel, GradientOps, GradientTests, GradientToolTests`
 - [x] Gradient tool `evidence: GradientDragStarted, BeginGradient, EndGradient, TheRampRunsAlongTheDrag, TheRampIsVisibleWhileDragging_AndSurvivesThePenLift`
@@ -1062,6 +1063,14 @@ palette can live* and *one of the places a palette can live*.
   - **The drop resolution needed geometry it did not have.** A tab is as wide as its title, so "which gap is the pointer between" cannot be derived from a count; `PanelSlot.Tabs` carries the measured rectangles the way `HeaderHeight` already carried the measured band, and a header that reports none falls back to the join it always meant.
   - **Two indices that are not the same number**, and the reason is written into `JoinAtTab`: the caret is drawn between the tabs as they stand, while the index handed to the layout describes the strip with the dragged tab already lifted out of it. Drawing the corrected one puts the mark a whole tab from the pointer; applying the visual one walks a tab forward a place on every drag that lets go where it started.
   - **Its own header is the one place a panel can drop on itself.** Everywhere else that resolves to no target, and no target means the release floats the panel — so the rearrangement had to be a real target or a drag that let go over its own name would tear the panel out of the window.
+- [x] A docker header's right-click menu — every panel, picked to open as a tab in that header, plus the clicked tab's float and close (Q276) `evidence: DockHeaderMenu, OpenInGroup, DockerHeaderMenuTests, ARealRightClickOnATabReachesTheMenu, APanelOpenElsewhereMovesHereAndItsOldGroupClosesUp, OpeningAClosedPanelLeavesOtherClosedPanelsWhereTheyWere`
+  - **A panel open elsewhere moves here** (Q276): no panel is open twice, so the menu prints where each one is now, and picking it is a move rather than a surprise.
+  - **A right press no longer picks the tab it lands on.** The list box selected on any button, selecting a tab behind the front one swaps the docker the slot shows, and the release — which is what becomes the context request — then came from the strip instead of the header. Only a real right-click through the input pipeline showed it; the hand-raised request passed.
+  - **Opening a closed panel into a group renumbered every other closed panel's remembered slot.** `JoinGroup` closed up the side the joiner left, and for a closed panel that side is Hidden, which is not a strip. The family reopen in `Show` had the same path.
+- [ ] Collapse a docker slot to its header so a crowded side keeps every group's name in view (Q277) `evidence: ADoubleClickedTabCollapsesItsSlot, ACollapsedSlotGivesItsHeightToTheOthers, AnUncollapsedLayoutWritesNoCollapseKey`
+- [ ] Drag a whole tab group by the empty header beside its tabs (Q278) `evidence: TheEmptyHeaderDragsTheWholeGroup, AGroupDroppedOnAnEdgeArrivesWhole`
+- [ ] Esc cancels a panel drag (Q278) `evidence: EscapeCancelsAPanelDragAndNothingMoves`
+- [ ] Drop a panel above the first one in a strip — the band Q130 chose, never built `evidence: ABandAboveTheTopmostHeaderInsertsAtTheTop`
 - [~] Project browser — characters and their animations `evidence: ProjectViewModel, ProjectRow, TheDockerListsCharactersWithTheirAnimationsUnderThem`
 - [x] Reach the files from the browser — reveal, open externally, duplicate `evidence: FileReveal, FileRevealTests, EveryRowKnowsWhereItIsOnDisk, DuplicatingAnAnimationCopiesItsArtIntoTheSameCharacter`
 - [x] Movable canvas overlay bars — view controls and view shortcuts, on any edge `evidence: CanvasOverlayLayout, CanvasOverlayBar, CanvasOverlayGeometryTests, CanvasOverlayTests`

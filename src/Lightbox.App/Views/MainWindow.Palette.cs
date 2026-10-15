@@ -633,6 +633,67 @@ public partial class MainWindow
 
     private void OnSwatchReleased(object? sender, PointerReleasedEventArgs e) => _swatchDrag = null;
 
+    // ---- dragging a swatch along its own palette --------------------------------
+
+    /// <summary>
+    /// The swatch a drop over the grid would land beside, and on which side.
+    /// </summary>
+    /// <remarks>
+    /// Measured on the list item, not the swatch inside it: the 2px padding
+    /// round each swatch is the gap between two of them, which is exactly
+    /// where a hand aims, and it is the item's rather than the swatch's.
+    /// Over empty grid, the swatch to the left in that row — the space after
+    /// a row's last swatch is beside it — and below every row, the end.
+    /// </remarks>
+    private (SwatchRow? Target, SwatchDropSide Side) SwatchDropAt(DragEventArgs e) =>
+        SwatchDropAt(e.Source as Visual, v => e.GetPosition(v), _vm.PaletteDocker.Swatches);
+
+    /// <param name="hit">What the pointer is over.</param>
+    /// <param name="at">Where the pointer is, in the coordinates of a given visual.</param>
+    internal static (SwatchRow? Target, SwatchDropSide Side) SwatchDropAt(
+        Visual? hit, Func<Visual, Point> at, IReadOnlyList<SwatchRow> swatches)
+    {
+        for (var v = hit; v is not null; v = v.GetVisualParent())
+        {
+            if (v is ListBoxItem { DataContext: SwatchRow row } item)
+            {
+                return (row, PaletteDockerViewModel.SideOf(at(item).X, item.Bounds.Width));
+            }
+            if (v is ListBox list)
+            {
+                // The rightmost item left of the pointer in the pointer's row.
+                var beside = list.GetRealizedContainers().OfType<ListBoxItem>()
+                    .Select(i => (Item: i, P: at(i)))
+                    .Where(c => c.Item.DataContext is SwatchRow && c.P.Y >= 0 && c.P.Y < c.Item.Bounds.Height && c.P.X >= c.Item.Bounds.Width)
+                    .OrderBy(c => c.P.X)
+                    .FirstOrDefault();
+                if (beside.Item?.DataContext is SwatchRow left) return (left, SwatchDropSide.After);
+                break;
+            }
+        }
+        return swatches.Count == 0 ? (null, SwatchDropSide.None) : (swatches[^1], SwatchDropSide.After);
+    }
+
+    private void OnSwatchListDragOver(object? sender, DragEventArgs e)
+    {
+        if (DraggedSwatch(e) is null) return;
+        var (target, side) = SwatchDropAt(e);
+        _vm.PaletteDocker.ShowSwatchDrop(target, side);
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private void OnSwatchListDragLeave(object? sender, DragEventArgs e) =>
+        _vm.PaletteDocker.ShowSwatchDrop(null, SwatchDropSide.None);
+
+    private void OnSwatchListDrop(object? sender, DragEventArgs e)
+    {
+        if (DraggedSwatch(e) is not { } row) return;
+        var (target, side) = SwatchDropAt(e);
+        _vm.PaletteDocker.ReorderSwatch(row, target, side);
+        e.Handled = true;
+    }
+
     /// <summary>
     /// The right-click menu, built here rather than declared in the template.
     /// </summary>
@@ -672,15 +733,56 @@ public partial class MainWindow
         menu.ShowAt(anchor, showAtPointer: true);
     }
 
+    private void OnPaletteNameDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (NodeOf(sender) is not { IsDraggable: true } node) return;
+        node.IsRenaming = true;
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// The box takes the caret the moment it appears, whatever asked for it —
+    /// the menu, a double-click, or a new folder that wants its name.
+    /// </summary>
+    private void OnPaletteNameBoxChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != IsVisibleProperty || sender is not TextBox { IsVisible: true } box) return;
+        // Deferred: the menu's Rename runs while its flyout is closing, and the
+        // flyout hands focus back as it goes — after a focus taken here.
+        Dispatcher.Post(() =>
+        {
+            box.Focus();
+            box.SelectAll();
+        });
+    }
+
+    /// <remarks>
+    /// The box's text is bound with <c>UpdateSourceTrigger=LostFocus</c>, as
+    /// every other rename box here is: a name is one edit, not one per letter
+    /// (B476). Per letter, a project palette's rename was a project edit per
+    /// keystroke, each rebuilding the tree under the box being typed in.
+    /// </remarks>
     private void OnPaletteNameCommitted(object? sender, RoutedEventArgs e)
     {
+        // The LostFocus binding has already written the name by now.
         if (NodeOf(sender) is { } node) node.IsRenaming = false;
     }
 
     private void OnPaletteNameKey(object? sender, KeyEventArgs e)
     {
-        if (e.Key is not (Key.Enter or Key.Escape)) return;
-        if (NodeOf(sender) is { } node) node.IsRenaming = false;
+        if (sender is not TextBox box || NodeOf(sender) is not { } node) return;
+        switch (e.Key)
+        {
+            case Key.Enter:
+                node.Name = box.Text ?? "";
+                break;
+            case Key.Escape:
+                box.Text = node.Name;
+                break;
+            default:
+                return;
+        }
+        node.IsRenaming = false;
         e.Handled = true;
     }
 }

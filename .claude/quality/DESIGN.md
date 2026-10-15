@@ -113,6 +113,15 @@ number and to *read* one. A value that is only ever set exactly (frame count,
 canvas size) gets the field alone. A value with fewer than about six choices
 gets buttons or a combo, never a slider.
 
+**Opacity and flow are effect sliders** (Q275, `Slider.effect` in
+`Styles/Controls.axaml`): a pill whose track is the picture of its value — the
+paint in hand fading in, over transparency (`.checker`) for opacity and over the
+ground for flow — with a ring thumb, still beside its field. It is the
+reference's second slider, and it exists because those two values have a
+picture; a value without one keeps the line and the dot. The colour is the
+artist's (`PaintRamp`), not an accent: Q203 keeps colour for data, and the
+paint is data.
+
 **Button sizes are consistent by role, not by neighbour.** Four roles:
 
 | Role | Size | Examples |

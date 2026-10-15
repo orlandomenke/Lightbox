@@ -201,7 +201,8 @@ public partial class MainViewModel
         // document-sized bitmaps of a scene nobody is looking at.
         _stackBake.Reset();
         _allThumbsDirty = true;
-        ClearPlaybackRange();
+        // No range reset: the incoming document carries its own, and
+        // OnDocumentChanged shows it.
         OnDocumentChanged();
     }
 

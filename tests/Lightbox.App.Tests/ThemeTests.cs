@@ -164,4 +164,24 @@ public sealed class ThemeTests : BrushStateIsolated
             Assert.True(shadows.Count == 0, $"{file} shadows themed keys: {string.Join(", ", shadows)}");
         }
     }
+
+    [Fact]
+    public void ASwatchDropLineIsTheDropAccentInBothThemes()
+    {
+        // A BoxShadows value cannot name a resource, so the drop line beside a
+        // swatch spells AccentCoral out in each theme. This keeps the two
+        // spellings on the token, as the layer rows' line is by construction.
+        var coral = Regex.Match(Styles("Palette.axaml"), @"x:Key=""AccentCoral"">(#[0-9A-Fa-f]+)<").Groups[1].Value;
+        Assert.NotEmpty(coral);
+        foreach (var file in new[] { "DarkLit.axaml", "StudioGrey.axaml" })
+        {
+            foreach (var key in new[] { "SwatchDropBefore", "SwatchDropAfter" })
+            {
+                var shadow = Regex.Match(Styles("Themes", file), $@"x:Key=""{key}"">([^<]+)<").Groups[1].Value;
+                var parsed = BoxShadows.Parse(shadow);
+                Assert.Equal(Color.Parse(coral), parsed[0].Color);
+                Assert.Equal(key == "SwatchDropBefore" ? -3 : 3, parsed[0].OffsetX);
+            }
+        }
+    }
 }

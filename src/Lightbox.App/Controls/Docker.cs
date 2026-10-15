@@ -149,6 +149,14 @@ public class Docker : ContentControl
     /// <summary>A tab in this slot's header was picked: show it instead.</summary>
     public event Action<Docker, DockPanelId>? TabPicked;
 
+    /// <summary>
+    /// The header was right-clicked (or its context key pressed), naming the
+    /// tab the menu is about: the one under the pointer, or the panel in front
+    /// when the click landed beside the tabs. The host builds the menu (Q276),
+    /// because only it knows the layout.
+    /// </summary>
+    public event Action<Docker, DockPanelId>? HeaderMenuRequested;
+
 
     private ListBox? _tabs;
     private Border? _header;
@@ -173,6 +181,21 @@ public class Docker : ContentControl
             header.AddHandler(PointerMovedEvent, (_, args) => HeaderMoved(args),
                 Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
             header.AddHandler(PointerReleasedEvent, (_, _) => HeaderReleased(),
+                Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+            // A right press must not pick the tab it lands on. The list box
+            // selects on any press, and selecting a tab that is not in front
+            // swaps which docker the slot shows — so by the release the
+            // pointer is over a different control, the context request comes
+            // from the strip rather than from this header, and the menu never
+            // opens. Tunnel, so the list box never sees it; the release still
+            // reaches the tab and becomes the request.
+            header.AddHandler(PointerPressedEvent, (_, args) =>
+            {
+                if (args.GetCurrentPoint(this).Properties.IsRightButtonPressed) args.Handled = true;
+            }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+            // The whole header, tabs and the empty space beside them: that is
+            // the target Photoshop and Krita both put this menu on.
+            header.AddHandler(ContextRequestedEvent, (_, args) => HeaderContextRequested(args),
                 Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
         }
 
@@ -441,4 +464,29 @@ public class Docker : ContentControl
     }
 
     internal void HeaderReleased() => _pressed = null;
+
+    internal void HeaderContextRequested(ContextRequestedEventArgs e)
+    {
+        if (HeaderMenuRequested is not { } ask) return;
+        // PanelId rather than ActiveTab for the empty header: one control is
+        // shown per slot and it is the one in front, while ActiveTab reads as
+        // the enum's first value on a docker that has never been given tabs.
+        ask(this, TabUnder(e.Source as Visual) ?? PanelId);
+        e.Handled = true;
+    }
+
+    /// <summary>The tab a visual belongs to, if it is part of one.</summary>
+    /// <remarks>
+    /// From the visual tree rather than from <see cref="TabRects"/> and a
+    /// pointer position: a context request from the keyboard has no position,
+    /// and the item the event came from already says which tab it is.
+    /// </remarks>
+    private DockPanelId? TabUnder(Visual? source)
+    {
+        for (var node = source; node is not null && !ReferenceEquals(node, this); node = node.GetVisualParent())
+        {
+            if (node is ListBoxItem { DataContext: DockPanelInfo info }) return info.Id;
+        }
+        return null;
+    }
 }

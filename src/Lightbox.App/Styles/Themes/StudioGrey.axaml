@@ -119,4 +119,10 @@
   <BoxShadows x:Key="InsetShadow">inset 0 1 2 0 #26000000</BoxShadows>
   <!-- A selected row's bar: 2 px on the left edge, TextPrimary at 70% (B400). -->
   <BoxShadows x:Key="SelectionBar">inset 2 0 0 0 #B31C1C1B</BoxShadows>
+  <!-- The drop accent (AccentCoral) in the 4px gap beside a swatch — the
+       layer rows' line, upright, drawn into the swatch item's padding.
+       Spelt out because a BoxShadows value cannot name a resource;
+       ASwatchDropLineIsTheDropAccentInBothThemes keeps it on the token. -->
+  <BoxShadows x:Key="SwatchDropBefore">-3 0 0 0 #FF6A3D</BoxShadows>
+  <BoxShadows x:Key="SwatchDropAfter">3 0 0 0 #FF6A3D</BoxShadows>
 </ResourceDictionary>

@@ -104,10 +104,12 @@ public partial class MainWindow
 
         if (XsheetLayerList.ContainerFromIndex(index) is { } sheetRow)
         {
-            RevealVertically(sheetRow, 0, sheetRow.Bounds.Height);
+            // The ruler pinned over the sheet's top would otherwise cover the row.
+            RevealVertically(sheetRow, 0, sheetRow.Bounds.Height, band: Ruler.Bounds.Height);
         }
         var row = TimelineRowOfActiveLayer(_vm);
-        RevealVertically(TimelineTrackView, TrackView.RulerHeight + row * TrackView.RowPitch, TrackView.RowPitch);
+        RevealVertically(TimelineTrackView, TrackView.RulerHeight + row * TrackView.RowPitch, TrackView.RowPitch,
+            band: TrackView.RulerHeight);
     }
 
     /// <summary>The active layer's place in <see cref="MainViewModel.SheetRows"/>, or -1 when its folder is folded there.</summary>
@@ -159,7 +161,12 @@ public partial class MainWindow
     /// amount already scrolled rather than read back stale.
     /// </para>
     /// </remarks>
-    internal static void RevealVertically(Control control, double y, double height)
+    /// <param name="band">
+    /// The height of a ruler pinned over the top of the view, which covers
+    /// whatever is scrolled to sit beneath it. The span is revealed with that
+    /// much room above it, so it lands below the band rather than under it.
+    /// </param>
+    internal static void RevealVertically(Control control, double y, double height, double band = 0)
     {
         if (!control.IsEffectivelyVisible || height <= 0) return;
         var alreadyScrolled = 0.0;
@@ -169,16 +176,49 @@ public partial class MainWindow
             if (control.TranslatePoint(new Point(0, y), scroller) is not { } inView) continue;
 
             var offset = scroller.Offset.Y;
-            var top = inView.Y - alreadyScrolled + offset;
+            var top = inView.Y - alreadyScrolled + offset - band;
             var furthest = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
             var target = Math.Clamp(
-                Input.ScrollReveal.Offset(offset, scroller.Viewport.Height, top, top + height), 0, furthest);
+                Input.ScrollReveal.Offset(offset, scroller.Viewport.Height, top, top + band + height), 0, furthest);
             if (Math.Abs(target - offset) <= 0.5) continue;
             scroller.Offset = scroller.Offset.WithY(target);
             alreadyScrolled += target - offset;
         }
     }
 
+
+    // ---- the X-sheet's ruler stays in view ---------------------------------------
+
+    /// <summary>
+    /// Keep the X-sheet's frame ruler at the top of what is visible when the
+    /// sheet is scrolled down a long layer list.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A translate rather than moving the ruler out of the scroller: the ruler
+    /// and the rows share one horizontal scroll, and a ruler outside it would
+    /// need that scroll kept in step by hand. Raised above the rows so it
+    /// covers them rather than being covered; its own background is opaque.
+    /// </para>
+    /// <para>
+    /// The panel's viewport rather than a particular scroller's offset: it
+    /// says how much of the sheet is scrolled away whichever ancestor is doing
+    /// the scrolling, which in a docker is not always the nearest one. Read
+    /// off the panel, not the ruler, because the ruler's own position moves
+    /// with the translate (see TranslatePoint through a render transform).
+    /// </para>
+    /// </remarks>
+    private void OnXsheetViewportChanged(object? sender, Avalonia.Layout.EffectiveViewportChangedEventArgs e)
+    {
+        if (sender is not Control panel) return;
+        var viewport = e.EffectiveViewport;
+        var top = viewport.Width <= 0 || viewport.Height <= 0
+            ? 0
+            : TrackView.StickyTop(viewport.Y, panel.Bounds.Height, Ruler.Bounds.Height);
+        Ruler.ZIndex = 1;
+        if (Ruler.RenderTransform is Avalonia.Media.TranslateTransform shift && shift.Y == top) return;
+        Ruler.RenderTransform = top == 0 ? null : new Avalonia.Media.TranslateTransform(0, top);
+    }
 
     // ---- timeline cell context menu -----------------------------------------
 
