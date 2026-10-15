@@ -80,11 +80,15 @@ Each panel's header is three things at once:
 - **A title** — or **tabs**, when more than one panel shares the slot. Click a
   tab to bring that panel forward. No panel is ever open twice, so "where is the
   palette" always has one answer.
-- **A grip — and it is the tab.** Drag a panel by its tab, the way you would
-  anywhere else. The rest of the header is not draggable: pressing the empty
-  space beside the tabs does nothing, which is deliberate, because that space is
-  there to give the title room rather than to be the biggest target in the
-  panel.
+- **Two grips.** Drag **a tab** to move that one panel, the way you would
+  anywhere else. Drag the **⠿ grip** beside the header's buttons — or the
+  empty header beside the tabs, where there is any — to move the **whole
+  group**, its tabs in the same order and the same one in front. The ghost
+  names every panel it is carrying. A group dropped on an edge gets a slot of
+  its own; dropped on another panel it joins that group's tabs at the place
+  you aim. Let go over nothing and the group stays where it was — a floating
+  window holds one panel. The timeline's group has no grip, because the
+  timeline never leaves the bottom.
 - **A close button.**
 
 **A pen drags; only a finger pans.** Dragging a pen inside a list picks things

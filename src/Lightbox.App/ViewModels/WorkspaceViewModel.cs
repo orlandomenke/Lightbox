@@ -514,6 +514,13 @@ public sealed partial class WorkspaceViewModel : ObservableObject
 
     public void Redock(DockPanelId id) => Mutate(l => l.Redock(id));
 
+    /// <summary>The whole group, to a slot of its own (Q278).</summary>
+    public void DockGroup(DockPanelId id, DockSide side, int index) => Mutate(l => l.DockGroup(id, side, index));
+
+    /// <summary>The whole group, tabbed into another (Q278).</summary>
+    public void JoinGroupWhole(DockPanelId id, DockPanelId target, int? tabIndex = null) =>
+        Mutate(l => l.JoinGroupWhole(id, target, tabIndex));
+
     /// <summary>Roll a panel's slot up to its header, or open it (Q277).</summary>
     public void SetCollapsed(DockPanelId id, bool collapsed)
     {

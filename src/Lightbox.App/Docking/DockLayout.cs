@@ -506,6 +506,74 @@ public sealed class DockLayout
     }
 
     /// <summary>Detach into its own window at the given screen rectangle.</summary>
+    /// <summary>
+    /// Move the whole slot <paramref name="id"/> is in to a slot of its own at
+    /// <paramref name="side"/>/<paramref name="index"/>, in its tab order and
+    /// with the same panel in front (Q278).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The index is the one <see cref="DockZones"/> computes, which assumes the
+    /// carried slot is already gone. So the other members leave first, then
+    /// the front one docks (its old slot closes up as it goes, as a lone panel's
+    /// would), and the rest join it. Docking the front one while its slot-mates
+    /// were still standing would land the group one place too far down.
+    /// </para>
+    /// <para>
+    /// A full side takes the group as tabs in its nearest slot, the way
+    /// <see cref="Dock"/> takes one panel. A group holding a panel that cannot
+    /// move (the timeline) does not move at all: moving the rest would split
+    /// the group the artist picked up.
+    /// </para>
+    /// </remarks>
+    public void DockGroup(DockPanelId id, DockSide side, int index)
+    {
+        var members = SlotOf(id);
+        if (members.Any(m => !DockPanels.Of(m).Movable)) return;
+        var front = ActiveOf(members);
+        var rest = members.Where(m => m != front).ToList();
+        foreach (var m in rest) LiftOut(m);
+        Dock(front, side, index);
+        foreach (var m in rest) JoinGroup(m, front);
+        // In the order they came, wherever the front landed among them.
+        var landed = SlotOf(front);
+        var at = landed.IndexOf(members[0]) is var first and >= 0 ? first : 0;
+        for (var i = 0; i < members.Count; i++) MoveTabTo(members[i], at + i);
+        Activate(front);
+    }
+
+    /// <summary>
+    /// Tab the whole slot <paramref name="id"/> is in into
+    /// <paramref name="target"/>'s group, at <paramref name="tabIndex"/> (last
+    /// when null), in its order and with its front panel in front (Q278).
+    /// </summary>
+    public void JoinGroupWhole(DockPanelId id, DockPanelId target, int? tabIndex = null)
+    {
+        var members = SlotOf(id);
+        if (members.Contains(target)) return;
+        if (members.Any(m => !DockPanels.Of(m).Movable)) return;
+        if (Place(target).Side is DockSide.Hidden or DockSide.Floating) return;
+        var front = ActiveOf(members);
+        for (var i = 0; i < members.Count; i++)
+        {
+            JoinGroup(members[i], target, tabIndex is { } at ? at + i : null);
+        }
+        Activate(front);
+    }
+
+    /// <summary>
+    /// Take a panel out of its strip as if it had been closed, without the
+    /// bookkeeping a close does: it is about to be placed again, and its
+    /// remembered group and slot are not to be touched.
+    /// </summary>
+    private void LiftOut(DockPanelId id)
+    {
+        var placement = Place(id);
+        var from = placement.Side;
+        placement.Side = DockSide.Hidden;
+        if (from is not (DockSide.Floating or DockSide.Hidden)) Renumber(SlotsIn(from));
+    }
+
     public void Float(DockPanelId id, double x, double y, double width, double height)
     {
         var placement = Place(id);

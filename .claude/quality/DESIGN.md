@@ -457,6 +457,15 @@ everywhere, and dropping a panel onto any docker reads as joining tabs that
 are already there. The one wrinkle that buys is in `Docker.LandedOnAControl`
 — a lone tab is a grip, not a control, or the panel cannot be dragged at all.
 
+**A header has two grips, and one of them is always drawn.** The tab carries
+one panel; the ⠿ grip beside the header's buttons (and the bare header, where
+there is any) carries every panel in the slot (Q278). The grip is the one piece
+of header chrome that does not wait for the pointer, and it is not in
+`docs/design/ui-reference.png` — a deliberate addition: the bare header it
+stands in for is usually all tabs at sidebar width (Q281), and a grip that
+appears on hover is one nobody finds. Same glyph, size and opacity as the
+canvas bars' grip.
+
 **Dropping onto a docker's body joins its tabs** — full width, full height,
 previewed over the whole panel. The half-panel insert targets are gone (the
 owner: a dead lower half, and a top target that should have been the entire

@@ -55,7 +55,8 @@ public partial class MainWindow : IFollowsUiScale
             // model rather than the layout, so it marks the workspace dirty like
             // any other rearrangement.
             panel.TabPicked += (_, id) => _vm.Workspace.Activate(id);
-            panel.PanelDragStarted += BeginPanelDrag;
+            panel.PanelDragStarted += (p, e) => BeginPanelDrag(p, e, wholeGroup: false);
+            panel.GroupDragStarted += (p, e) => BeginPanelDrag(p, e, wholeGroup: true);
             // The float button follows movability: the timeline cannot leave
             // the bottom, so it offers no way to try.
             panel.CanFloat = DockPanels.Of(panel.PanelId).Movable;
@@ -214,6 +215,10 @@ public partial class MainWindow : IFollowsUiScale
                 // tabs that are already there.
                 panel.ShowTabs(usable.Select(DockPanels.Of).ToList(), active);
                 panel.CanCollapse = layout.CanCollapse(active);
+                // From the whole slot, not the tabs shown: a timeline hidden
+                // because the document cannot use it is still in the group, and
+                // a group holding it does not move (DockLayout.DockGroup).
+                panel.CanDragGroup = slot.All(m => DockPanels.Of(m).Movable);
                 panel.IsCollapsed = layout.IsCollapsed(active);
                 panels.Add(panel);
             }
@@ -754,10 +759,11 @@ public partial class MainWindow : IFollowsUiScale
     /// that is being moved between visual trees does not survive the move, and
     /// the drag would end halfway through itself.
     /// </remarks>
-    private void BeginPanelDrag(Docker panel, PointerEventArgs e)
+    private void BeginPanelDrag(Docker panel, PointerEventArgs e, bool wholeGroup)
     {
         if (_dragging is not null) return;
         _dragging = panel;
+        _draggingGroup = wholeGroup;
         // A floating panel lives in its own window, so its pointer events never
         // reach this one. Capture where the panel actually is and translate to
         // main-window coordinates through the screen — that is what makes a
@@ -795,9 +801,19 @@ public partial class MainWindow : IFollowsUiScale
         // torn down — the float fallback below needs it.
         Visual hostVisual = _dragHost ?? this;
         var origin = hostVisual.PointToScreen(e.GetPosition((Visual)(_dragHost ?? this)));
+        _draggingGroupAtRelease = _draggingGroup;
         EndPanelDrag();
         e.Handled = true;
 
+        if (_draggingGroupAtRelease)
+        {
+            // The whole group (Q278). Over nothing it stays where it was: a
+            // float holds one panel, so there is nothing for it to become.
+            if (target is not { } carried) return;
+            if (carried.IntoGroupOf is { } into) _vm.Workspace.JoinGroupWhole(panel.PanelId, into, carried.TabIndex);
+            else _vm.Workspace.DockGroup(panel.PanelId, carried.Side, carried.Index);
+            return;
+        }
         if (target is { } drop)
         {
             // Onto a header: tab into that slot. Onto a body: a slot of its own.
@@ -901,6 +917,7 @@ public partial class MainWindow : IFollowsUiScale
         _dragPointer = null;
         _dragHost = null;
         _dragging = null;
+        _draggingGroup = false;
         DropIndicator.Show(null);
         DragGhost.Hide();
     }
@@ -917,7 +934,13 @@ public partial class MainWindow : IFollowsUiScale
         // this window's overlay, so it stops at the edge rather than following.
         if (_dragging is { } panel && PointerOverRoot(e) is { } at)
         {
-            DragGhost.Show(DockPanels.TitleOf(panel.PanelId), at);
+            // A carried group names every panel in it, so the ghost says what
+            // the drop will move.
+            DragGhost.Show(
+                _draggingGroup
+                    ? string.Join(" · ", _vm.Workspace.Layout.SlotOf(panel.PanelId).Select(DockPanels.TitleOf))
+                    : DockPanels.TitleOf(panel.PanelId),
+                at);
         }
     }
 
@@ -926,7 +949,7 @@ public partial class MainWindow : IFollowsUiScale
         if (_dragging is not { } panel) return null;
         if (PointerOverRoot(e) is not { } at) return null;
         return DockZones.Resolve(
-            at.X, at.Y, RectOf(RootGrid), CurrentSlots(), panel.PanelId, _vm.Workspace.Layout);
+            at.X, at.Y, RectOf(RootGrid), CurrentSlots(), panel.PanelId, _vm.Workspace.Layout, _draggingGroup);
     }
 
     /// <summary>
@@ -1072,6 +1095,15 @@ public partial class MainWindow : IFollowsUiScale
         _floating[id] = window;
         window.Show(this);
     }
+
+    /// <summary>The drag in flight carries the whole group (Q278).</summary>
+    private bool _draggingGroup;
+
+    /// <summary>
+    /// <see cref="_draggingGroup"/>, read before the drag state is torn down,
+    /// for the release that is about to apply it.
+    /// </summary>
+    private bool _draggingGroupAtRelease;
 
     /// <summary>The panels currently in windows of their own.</summary>
     internal IReadOnlyCollection<FloatingPanelWindow> FloatingWindowsForTests => _floating.Values;
