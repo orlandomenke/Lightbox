@@ -953,6 +953,10 @@ public sealed class DocumentEditor
         Perform(doc =>
         {
             var scene = doc.Scene;
+            // Where each row grew, in the sheet as it was: latest first within a
+            // row means no insert moves one still to come. The range moves once
+            // per position, by the most any row grew there (InsertHolds' rule).
+            var grew = new SortedDictionary<int, int>();
             var furthest = byLayer.Values.SelectMany(v => v).Max();
             if (furthest >= scene.FrameCount) scene.FrameCount = furthest + 1;
             foreach (var layer in scene.Layers) PadCels(layer, scene.FrameCount);
@@ -971,10 +975,12 @@ public sealed class DocumentEditor
                     continue;
                 }
                 // Latest first, so an insert never moves a drawing still to come.
+                var grewHere = new Dictionary<int, int>();
                 foreach (var i in drawn)
                 {
                     var at = i + 1;
                     while (at < layer.Cels.Count && layer.Cels[at].Frame is null) at++;
+                    grewHere[at] = grewHere.GetValueOrDefault(at) + 1;
                     var frame = NewEmptyFrame(layer);
                     frame.Role = role;
                     layer.Cels.Insert(at, new Cel { Frame = frame });
@@ -984,10 +990,12 @@ public sealed class DocumentEditor
                         else if (landed >= at) landed++;
                     }
                 }
+                foreach (var (at, count) in grewHere) grew[at] = Math.Max(count, grew.GetValueOrDefault(at));
             }
             var longest = scene.Layers.Max(l => l.Cels.Count);
             if (longest > scene.FrameCount) scene.FrameCount = longest;
             foreach (var layer in scene.Layers) PadCels(layer, scene.FrameCount);
+            foreach (var (at, count) in grew.Reverse()) ShiftPlaybackRange(scene, at, count);
         }, label: "Insert frame");
         return landed;
     }

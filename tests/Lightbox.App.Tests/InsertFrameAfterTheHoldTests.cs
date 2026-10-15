@@ -155,6 +155,20 @@ public class InsertFrameAfterTheHoldTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void InsertingInsideThePlaybackRangeMovesItsEnd()
+    {
+        // Q280's rule reaches Insert frame too: the range keeps playing the
+        // drawings it framed, now with the new one among them.
+        var vm = OnTwos();
+        vm.SetPlaybackStartAt(0);
+        vm.SetPlaybackEndAt(3);
+
+        vm.InsertFrameAt(Cell(vm, 0), FrameRole.Key);
+
+        Assert.Equal((0, 4), (vm.PlaybackStartFrame, vm.PlaybackEndFrame));
+    }
+
+    [AvaloniaFact]
     public void MarkAsReMarksTheDrawingInPlace()
     {
         var vm = OnTwos();
