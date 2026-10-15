@@ -207,7 +207,8 @@ public sealed class DocumentEditor
         using var whole = Measure?.Invoke("edit", name);
         Doc before;
         using (Measure?.Invoke("edit.snapshot", name)) before = Freeze(Doc);
-        PushStep(new SnapshotStep(before, Freeze, frameContentUnchanged, touchedFrames), name);
+        var step = new SnapshotStep(before, Freeze, frameContentUnchanged, touchedFrames);
+        PushStep(step, name);
         using (Measure?.Invoke("edit.apply", name))
         {
             mutate(Doc);
@@ -215,6 +216,7 @@ public sealed class DocumentEditor
             // layers around it. The snapshot is already the "before" it needs.
             FolderTree.Settle(Doc.Scene, before.Scene);
         }
+        step.RangeAfter = PlaybackRange.Of(Doc.Scene);
         // Everything listening — invalidation, the sheet, thumbnails, the canvas.
         using (Measure?.Invoke("edit.changed", name)) Changed?.Invoke();
     }
@@ -583,21 +585,48 @@ public sealed class DocumentEditor
     {
         private Doc _other = other;
 
+        /// <summary>The playback range as this step found it.</summary>
+        private readonly PlaybackRange _rangeBefore = PlaybackRange.Of(other.Scene);
+
+        /// <summary>The playback range as this step left it — set once the mutation has run.</summary>
+        public PlaybackRange RangeAfter { get; set; }
+
         public string? FrameId => null; // whole-document
 
         public bool FrameContentUnchanged => frameContentUnchanged;
 
         public IReadOnlyCollection<string>? FrameIds => frameIds;
 
-        public Doc Rollback(Doc doc) => Swap(doc);
+        public Doc Rollback(Doc doc) => Swap(doc, from: RangeAfter, to: _rangeBefore);
 
-        public Doc Apply(Doc doc) => Swap(doc);
+        public Doc Apply(Doc doc) => Swap(doc, from: _rangeBefore, to: RangeAfter);
 
-        private Doc Swap(Doc doc)
+        /// <remarks>
+        /// <b>The playback range is not history (Q280)</b>, so the snapshot's
+        /// copy of it is not what comes back. The range the artist has now
+        /// stays — unless it is still exactly what this step made it, in which
+        /// case the step moved it (Extend exposure on the range's last drawing)
+        /// and undoing the step moves it back.
+        /// </remarks>
+        private Doc Swap(Doc doc, PlaybackRange from, PlaybackRange to)
         {
+            var live = PlaybackRange.Of(doc.Scene);
             var restored = Thaw(_other);
             _other = freeze(doc);
+            (live == from ? to : live).WriteTo(restored.Scene);
             return restored;
+        }
+    }
+
+    /// <summary>A scene's playback bounds, compared as a pair.</summary>
+    private readonly record struct PlaybackRange(int? Start, int? End)
+    {
+        public static PlaybackRange Of(Scene scene) => new(scene.PlaybackStart, scene.PlaybackEnd);
+
+        public void WriteTo(Scene scene)
+        {
+            scene.PlaybackStart = Start;
+            scene.PlaybackEnd = End;
         }
     }
 
@@ -733,6 +762,7 @@ public sealed class DocumentEditor
     /// </remarks>
     private static void RippleReferences(Scene scene, int at, int delta)
     {
+        ShiftPlaybackRange(scene, at, delta);
         if (scene.References is not { Count: > 0 } strips) return;
         foreach (var strip in strips)
         {
@@ -744,6 +774,45 @@ public sealed class DocumentEditor
             else if (at < strip.Slots.Count)
             {
                 strip.Slots.RemoveAt(at);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Keep the playback range on the drawings it framed when cels move:
+    /// <paramref name="delta"/> cels inserted at <paramref name="at"/>, or
+    /// <c>-delta</c> cels removed from <paramref name="at"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An insert at <c>at</c> lengthens whatever is exposed at <c>at - 1</c>, so
+    /// the end moves when that frame is inside the range — the owner's case,
+    /// holding the last drawing in the range a frame longer — and the start
+    /// moves when the insert is at or before it. A removal pulls back whichever
+    /// bounds lie past it, and never leaves the end before the start.
+    /// </para>
+    /// <para>
+    /// Scene-wide, while a row edit moves one layer: the range is one per
+    /// scene, and leaving it where it was would push the drawing it was set to
+    /// end on out of it. The row edits call this once per distinct position,
+    /// not once per layer, so the same insert on three rows moves it by one.
+    /// </para>
+    /// </remarks>
+    private static void ShiftPlaybackRange(Scene scene, int at, int delta)
+    {
+        if (delta == 0 || scene.PlaybackStart is null && scene.PlaybackEnd is null) return;
+        if (delta > 0)
+        {
+            if (scene.PlaybackStart is { } start && start >= at) scene.PlaybackStart = start + delta;
+            if (scene.PlaybackEnd is { } end && end >= at - 1) scene.PlaybackEnd = end + delta;
+            return;
+        }
+        for (var k = 0; k < -delta; k++)
+        {
+            if (scene.PlaybackStart is { } start && start > at) scene.PlaybackStart = start - 1;
+            if (scene.PlaybackEnd is { } end && end >= at)
+            {
+                scene.PlaybackEnd = Math.Max(Math.Max(0, end - 1), scene.PlaybackStart ?? 0);
             }
         }
     }
@@ -865,6 +934,7 @@ public sealed class DocumentEditor
             var at = Math.Clamp(index + 1, 0, layer.Cels.Count);
             layer.Cels.Insert(at, new Cel());
             if (layer.Cels.Count > doc.Scene.FrameCount) doc.Scene.FrameCount = layer.Cels.Count;
+            ShiftPlaybackRange(doc.Scene, at, +1);
         });
     }
 
@@ -882,7 +952,11 @@ public sealed class DocumentEditor
         Perform(doc =>
         {
             var target = doc.Scene.Layers.First(l => l.Id == layerId);
-            if (next < target.Cels.Count && target.Cels[next].Frame is null) target.Cels.RemoveAt(next);
+            if (next < target.Cels.Count && target.Cels[next].Frame is null)
+            {
+                target.Cels.RemoveAt(next);
+                ShiftPlaybackRange(doc.Scene, next, -1);
+            }
         });
     }
 
@@ -920,6 +994,7 @@ public sealed class DocumentEditor
             layer.Cels.InsertRange(lo, rebuilt);
             grew = rebuilt.Count - original;
             if (layer.Cels.Count > doc.Scene.FrameCount) doc.Scene.FrameCount = layer.Cels.Count;
+            ShiftPlaybackRange(doc.Scene, hi + 1, grew);
         });
         return grew;
     }
@@ -945,6 +1020,9 @@ public sealed class DocumentEditor
             var lo = Math.Clamp(Math.Min(from, to), 0, layer.Cels.Count - 1);
             var hi = Math.Clamp(Math.Max(from, to), 0, layer.Cels.Count - 1);
             change = ExposureSheet.ApplyTiming(layer, lo, hi - lo + 1, preset);
+            // The pattern lengthened or shortened the span at its far end.
+            if (change.Grew > 0) ShiftPlaybackRange(doc.Scene, hi + 1, change.Grew);
+            for (var k = 0; k < -change.Grew; k++) ShiftPlaybackRange(doc.Scene, hi - k, -1);
             // The row may now be longer than the scene. Growing the scene is
             // what StretchExposure already does; never shrinking it is
             // deliberate, because other layers still occupy those frames.
@@ -1115,6 +1193,7 @@ public sealed class DocumentEditor
             var count = last - from + 1;
             if (count <= 0) return;
             target.Cels.RemoveRange(from, count);
+            ShiftPlaybackRange(doc.Scene, from, -count);
             // Pad back to the scene's length: the other layers did not change,
             // and a short row would desynchronise every cel after it.
             while (target.Cels.Count < doc.Scene.FrameCount) target.Cels.Add(new Cel());
@@ -1252,10 +1331,12 @@ public sealed class DocumentEditor
         var trimmed = 0;
         Perform(doc =>
         {
+            var pulled = new SortedSet<int>();
             foreach (var (layerId, indices) in byLayer)
             {
                 if (doc.Scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) continue;
                 PadCels(layer, doc.Scene.FrameCount);
+                pulled.UnionWith(indices.Where(i => i >= 0 && i < layer.Cels.Count));
                 // From the end, so an earlier removal never shifts a later pick.
                 foreach (var i in indices.OrderDescending())
                 {
@@ -1265,6 +1346,7 @@ public sealed class DocumentEditor
                 }
                 PadCels(layer, doc.Scene.FrameCount);
             }
+            foreach (var i in pulled.Reverse()) ShiftPlaybackRange(doc.Scene, i, -1);
             if (trailingPicked) trimmed = TrimToLastDrawing(doc.Scene);
         }, label: "Delete and pull");
         LastTrim = trailingPicked ? trimmed : -1;
@@ -1437,12 +1519,16 @@ public sealed class DocumentEditor
         Perform(doc =>
         {
             var scene = doc.Scene;
+            // Per position, the longest run any row inserted there: the scene
+            // grew by that much at that point, not by the sum across rows.
+            var runs = new SortedDictionary<int, int>();
             foreach (var (layerId, indices) in byLayer)
             {
                 if (scene.Layers.FirstOrDefault(l => l.Id == layerId) is not { } layer) continue;
                 PadCels(layer, scene.FrameCount);
                 foreach (var (start, count) in RunsDescending(indices))
                 {
+                    runs[start] = Math.Max(count, runs.GetValueOrDefault(start));
                     var at = Math.Min(start, layer.Cels.Count);
                     for (var k = 0; k < count; k++) layer.Cels.Insert(at, new Cel());
                     inserted += count;
@@ -1451,6 +1537,7 @@ public sealed class DocumentEditor
             var longest = scene.Layers.Count == 0 ? 0 : scene.Layers.Max(l => l.Cels.Count);
             if (longest > scene.FrameCount) scene.FrameCount = longest;
             foreach (var layer in scene.Layers) PadCels(layer, scene.FrameCount);
+            foreach (var (start, count) in runs.Reverse()) ShiftPlaybackRange(scene, start, count);
         }, label: "Insert empty cell");
         return inserted;
     }

@@ -267,9 +267,81 @@ public partial class MainViewModel
     [ObservableProperty]
     private int _playbackEndFrame = -1;
 
-    partial void OnPlaybackStartFrameChanged(int value) => RefreshRangeHighlights();
+    partial void OnPlaybackStartFrameChanged(int value)
+    {
+        RefreshRangeHighlights();
+        CommitPlaybackRange();
+    }
 
-    partial void OnPlaybackEndFrameChanged(int value) => RefreshRangeHighlights();
+    partial void OnPlaybackEndFrameChanged(int value)
+    {
+        RefreshRangeHighlights();
+        CommitPlaybackRange();
+    }
+
+    /// <summary>Set while the two bounds are written from the scene or together.</summary>
+    private bool _holdRangeCommit;
+
+    /// <summary>
+    /// Write the range into the document (<see cref="Scene.PlaybackStart"/>),
+    /// so it is saved, and mark the file as having unsaved work.
+    /// </summary>
+    /// <remarks>
+    /// <b>Not an undo step (Q280).</b> Every new step empties the redo stack,
+    /// so a range set after undoing a few strokes to compare would have thrown
+    /// those strokes away. Undo keeps the range you have instead
+    /// (<c>DocumentEditor</c>'s snapshot step), and only an edit that moved the
+    /// range takes it back with it. No pixel depends on it, so it pays only for
+    /// the bookkeeping: a ruler drag writes on every move and costs two ints.
+    /// </remarks>
+    private void CommitPlaybackRange()
+    {
+        if (_holdRangeCommit) return;
+        int? start = PlaybackStartFrame < 0 ? null : PlaybackStartFrame;
+        int? end = PlaybackEndFrame < 0 ? null : PlaybackEndFrame;
+        if (Scene.PlaybackStart == start && Scene.PlaybackEnd == end) return;
+        Scene.PlaybackStart = start;
+        Scene.PlaybackEnd = end;
+        MarkEditedOutsideTheRecord(); // the camera's route: badge, close prompt, recovery copy
+    }
+
+    /// <summary>Both bounds at once: one write, not two.</summary>
+    private void SetPlaybackRange(int start, int end)
+    {
+        _holdRangeCommit = true;
+        try
+        {
+            PlaybackStartFrame = start;
+            PlaybackEndFrame = end;
+        }
+        finally
+        {
+            _holdRangeCommit = false;
+        }
+        CommitPlaybackRange();
+    }
+
+    /// <summary>
+    /// Show the range the document holds — after an undo, a ripple, a load or a
+    /// switch of document, every one of which lands in <c>OnDocumentChanged</c>.
+    /// </summary>
+    /// <remarks>
+    /// A hand-edited file can hold anything; a negative bound reads as unset,
+    /// and the rest is clamped wherever it is used (<see cref="EffectiveStartFrame"/>).
+    /// </remarks>
+    private void ResyncPlaybackRange()
+    {
+        _holdRangeCommit = true;
+        try
+        {
+            PlaybackStartFrame = Math.Max(-1, Scene.PlaybackStart ?? -1);
+            PlaybackEndFrame = Math.Max(-1, Scene.PlaybackEnd ?? -1);
+        }
+        finally
+        {
+            _holdRangeCommit = false;
+        }
+    }
 
     internal int EffectiveStartFrame =>
         Math.Clamp(PlaybackStartFrame < 0 ? 0 : PlaybackStartFrame, 0, Math.Max(0, Scene.FrameCount - 1));
@@ -465,11 +537,7 @@ public partial class MainViewModel
     public void SetPlaybackEndAt(int frame) =>
         PlaybackEndFrame = Math.Clamp(frame, 0, Scene.FrameCount - 1);
 
-    public void ClearPlaybackRange()
-    {
-        PlaybackStartFrame = -1;
-        PlaybackEndFrame = -1;
-    }
+    public void ClearPlaybackRange() => SetPlaybackRange(-1, -1);
 
     /// <summary>
     /// Insert a drawn frame with the given role at a timeline cell (possibly a
