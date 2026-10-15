@@ -219,6 +219,23 @@
   -->
   <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="#C42B1C" />
 
+  <!--
+    The effect slider's (Q275). Transparency as every paint program shows it,
+    two greys in 4 px cells, the same in either theme because it stands for
+    "nothing here", not for chrome. The ring is white on both: it rides the
+    artist's paint colour, which a theme does not choose.
+  -->
+  <DrawingBrush x:Key="EffectCheckerBrush" TileMode="Tile" DestinationRect="0,0,8,8" SourceRect="0,0,8,8">
+    <DrawingBrush.Drawing>
+      <DrawingGroup>
+        <GeometryDrawing Brush="#9A9A9A" Geometry="M0,0 H8 V8 H0 Z" />
+        <GeometryDrawing Brush="#6A6A6A" Geometry="M0,0 H4 V4 H0 Z M4,4 H8 V8 H4 Z" />
+      </DrawingGroup>
+    </DrawingBrush.Drawing>
+  </DrawingBrush>
+  <SolidColorBrush x:Key="EffectThumbRingBrush" Color="#FFFFFF" />
+  <SolidColorBrush x:Key="EffectThumbFillBrush" Color="#FFFFFF" Opacity="0.15" />
+
 
   <!-- ===== Themes (Q203) ===================================================
        The brushes that differ between Dark-lit and Studio grey. A brush listed

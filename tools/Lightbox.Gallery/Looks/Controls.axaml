@@ -2,22 +2,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <!--
     Prototype controls (Q203), from the owner's slider-and-selector reference:
-    an effect slider whose track shows what the value does, and segmented
-    selectors for a handful of choices. Live-editable like every look file.
+    segmented selectors for a handful of choices, and the effect slider's end
+    icons. Live-editable like every look file. The effect slider itself is
+    built (Q275) and lives in src/Lightbox.App/Styles/Controls.axaml.
 
     Not in the app yet. When one is chosen it becomes a real style in
     src/Lightbox.App/Styles/, and the prototype here is deleted.
   -->
   <Styles.Resources>
-    <!-- Transparency, as every paint program shows it. Two greys, 4 px cells. -->
-    <DrawingBrush x:Key="LookCheckerBrush" TileMode="Tile" DestinationRect="0,0,8,8" SourceRect="0,0,8,8">
-      <DrawingBrush.Drawing>
-        <DrawingGroup>
-          <GeometryDrawing Brush="#9A9A9A" Geometry="M0,0 H8 V8 H0 Z" />
-          <GeometryDrawing Brush="#6A6A6A" Geometry="M0,0 H4 V4 H0 Z M4,4 H8 V8 H4 Z" />
-        </DrawingGroup>
-      </DrawingBrush.Drawing>
-    </DrawingBrush>
     <!-- A half-filled disc: how much of what is under it shows through. -->
     <StreamGeometry x:Key="LookIconOpacity">M8,1.5 A6.5,6.5 0 1 0 8,14.5 A6.5,6.5 0 1 0 8,1.5 Z M8,1.5 L8,14.5</StreamGeometry>
     <StreamGeometry x:Key="LookIconOpacityFill">M8,1.5 A6.5,6.5 0 0 1 8,14.5 Z</StreamGeometry>
@@ -28,45 +20,6 @@
     <!-- Two overlapping sheets: how a layer combines with what is under it. -->
     <StreamGeometry x:Key="LookIconBlend">M2.5,2.5 H10.5 V10.5 H2.5 Z M5.5,5.5 H13.5 V13.5 H5.5 Z</StreamGeometry>
   </Styles.Resources>
-
-  <!--
-    The effect slider: a pill that is the picture of its own value. The track
-    is a well; Background is the effect drawn over it (a story or a binding
-    supplies it — paint colour fading in, say); .checker puts transparency
-    under the effect for a value that is about seeing through.
-  -->
-  <Style Selector="Slider.effect">
-    <Setter Property="Height" Value="{StaticResource LookRowHeight}" />
-    <Setter Property="MinWidth" Value="120" />
-    <Setter Property="Template">
-      <ControlTemplate>
-        <Panel>
-          <!-- The track is a control, so it takes the control radius; the
-               thumb is a handle, so it takes the pill. -->
-          <Border CornerRadius="{StaticResource LookControlRadius}" Background="{DynamicResource FieldGroundBrush}" />
-          <Border x:Name="PART_Checker" CornerRadius="{StaticResource LookControlRadius}" Background="{DynamicResource LookCheckerBrush}" IsVisible="False" />
-          <Border CornerRadius="{StaticResource LookControlRadius}" Background="{TemplateBinding Background}" />
-          <Track x:Name="PART_Track" Orientation="Horizontal" Margin="3,0"
-                 Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
-                 Value="{TemplateBinding Value, Mode=TwoWay}">
-            <Track.Thumb>
-              <Thumb Width="16" Height="16" Cursor="Hand">
-                <Thumb.Template>
-                  <ControlTemplate>
-                    <Border BorderBrush="White" BorderThickness="2" Background="#26FFFFFF"
-                            CornerRadius="{StaticResource LookPillRadius}" />
-                  </ControlTemplate>
-                </Thumb.Template>
-              </Thumb>
-            </Track.Thumb>
-          </Track>
-        </Panel>
-      </ControlTemplate>
-    </Setter>
-  </Style>
-  <Style Selector="Slider.effect.checker /template/ Border#PART_Checker">
-    <Setter Property="IsVisible" Value="True" />
-  </Style>
 
   <!-- The icon at the end of an effect slider: it names the value, so no label. -->
   <Style Selector="Path.effectIcon">

@@ -732,6 +732,91 @@
     <Setter Property="Foreground" Value="{DynamicResource SliderTrackValueFill}" />
   </Style>
 
+  <!--
+    The effect slider (Q275), the reference's second slider and the gallery's
+    prototype made real: a pill that is the picture of its own value. The well
+    is the field ground; Background is the effect drawn over it — the paint in
+    hand fading in, bound through PaintRamp — and .checker puts transparency
+    under it for a value that is about seeing through (opacity). Flow has no
+    checker: it is paint over the ground. A ring thumb rides it.
+
+    The two RepeatButtons either side of the thumb are not decoration. A Slider
+    moves to a press only through them, and the gallery's template had none,
+    so its pill could be dragged by the ring and nowhere else — a brush value
+    is set blind, by a press anywhere along it.
+
+    Opacity and flow only. Everything else keeps the line and the dot: an
+    effect track needs an effect to show, and size is not one.
+  -->
+  <Style Selector="Slider.effect">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel>
+          <!-- The track is a control, so it takes the control radius; the
+               thumb is a handle, so it takes the pill. -->
+          <Border CornerRadius="{StaticResource RadiusControl}" Background="{DynamicResource FieldGroundBrush}" />
+          <Border x:Name="PART_Checker" CornerRadius="{StaticResource RadiusControl}"
+                  Background="{DynamicResource EffectCheckerBrush}" IsVisible="False" />
+          <Border CornerRadius="{StaticResource RadiusControl}" Background="{TemplateBinding Background}" />
+          <!-- The rim, over the effect: black paint fading in over a dark
+               ground is no picture at all, and the pill must still read as
+               one. The fields' own faint rim, so it is the same object. -->
+          <Border CornerRadius="{StaticResource RadiusControl}" BorderBrush="{DynamicResource RimStrongBrush}"
+                  BorderThickness="1" IsHitTestVisible="False" />
+          <Track x:Name="PART_Track" Orientation="Horizontal" Margin="{StaticResource EffectTrackInset}"
+                 Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
+                 Value="{TemplateBinding Value, Mode=TwoWay}"
+                 IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
+            <Track.DecreaseButton>
+              <RepeatButton x:Name="PART_DecreaseButton" Classes="effectTrack" Focusable="False" />
+            </Track.DecreaseButton>
+            <Track.IncreaseButton>
+              <RepeatButton x:Name="PART_IncreaseButton" Classes="effectTrack" Focusable="False" />
+            </Track.IncreaseButton>
+            <Track.Thumb>
+              <Thumb>
+                <Thumb.Template>
+                  <ControlTemplate>
+                    <Border BorderBrush="{DynamicResource EffectThumbRingBrush}" BorderThickness="2"
+                            Background="{DynamicResource EffectThumbFillBrush}"
+                            CornerRadius="{StaticResource RadiusPill}" />
+                  </ControlTemplate>
+                </Thumb.Template>
+              </Thumb>
+            </Track.Thumb>
+          </Track>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector="Slider.effect.checker /template/ Border#PART_Checker">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+  <!-- Density.axaml shapes every slider's track and thumb for the line and
+       the dot — a 10 px dot on a track centred to it — and a style outranks
+       the template's own values, so the pill says what it needs here, after
+       it: the track the full height of the pill, the ring its own size. -->
+  <Style Selector="Slider.effect /template/ Track">
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="Slider.effect /template/ Thumb">
+    <Setter Property="Width" Value="{StaticResource SizeEffectThumb}" />
+    <Setter Property="Height" Value="{StaticResource SizeEffectThumb}" />
+  </Style>
+  <!-- The halves of the track either side of the ring: there to be pressed,
+       not seen. Stretched, because a button sits left and centred at its own
+       size, which for these is nothing — and a press zone of nothing is the
+       prototype's fault again. -->
+  <Style Selector="RepeatButton.effectTrack">
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="Transparent" />
+      </ControlTemplate>
+    </Setter>
+  </Style>
+
   <!-- ===== Toggles and checks ======================================== -->
   <!--
     Only the label. The checked grounds used to be set here — the switch to the

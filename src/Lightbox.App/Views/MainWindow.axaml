@@ -1170,7 +1170,7 @@
                        FormatString="0.#" Classes="value" VerticalAlignment="Center"
                        ToolTip.Tip="Size of the mark the tool in hand makes (type an exact value)" />
         <TextBlock Text="Opacity" VerticalAlignment="Center" Margin="8,0,0,0" />
-        <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Classes="param" VerticalAlignment="Center" />
+        <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Classes="param effect checker" VerticalAlignment="Center" Background="{Binding ForegroundColorHex, Converter={x:Static controls:PaintRamp.FromHex}}" />
         <NumericUpDown controls:FieldMath.Percent="True" Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Increment="0.05"
                        FormatString="0.00" Classes="value" VerticalAlignment="Center"
                        ToolTip.Tip="Opacity of the mark the tool in hand makes, in percent" />
@@ -1199,7 +1199,7 @@
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center"
                       IsVisible="{Binding !ShowsEffectOptions}">
             <TextBlock Text="Flow" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Classes="param" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Classes="param effect" VerticalAlignment="Center" Background="{Binding ForegroundColorHex, Converter={x:Static controls:PaintRamp.FromHex}}" />
             <NumericUpDown controls:FieldMath.Percent="True" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Increment="0.05"
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Paint each dab lays down, in percent. Overlapping dabs build up, so low flow darkens where the stroke is worked." />
@@ -1416,7 +1416,7 @@
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" VerticalAlignment="Center"
                       IsVisible="True">
             <TextBlock Text="Flow" VerticalAlignment="Center" />
-            <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Classes="param" VerticalAlignment="Center" />
+            <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Classes="param effect" VerticalAlignment="Center" Background="{Binding ForegroundColorHex, Converter={x:Static controls:PaintRamp.FromHex}}" />
             <NumericUpDown controls:FieldMath.Percent="True" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Increment="0.05"
                            FormatString="0.00" Classes="value" VerticalAlignment="Center"
                            ToolTip.Tip="Paint each dab lays down, in percent. Overlapping dabs build up, so low flow darkens where the stroke is worked." />

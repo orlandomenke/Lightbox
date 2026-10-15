@@ -284,8 +284,9 @@ public static partial class Catalog
     private static readonly Color Paint = Color.Parse("#E0703A");
 
     private static Story EffectSliders() => new(
-        "Effect sliders (prototype)",
-        "The owner's reference: a pill that shows what its value does, a ring thumb, the icon at the end naming it. "
+        "Effect sliders",
+        "Built (Q275): the app's brush opacity and flow, in the bar and the brush editor. The end icons are still a prototype. "
+        + "The owner's reference: a pill that shows what its value does, a ring thumb, the icon at the end naming it. "
         + "Opacity fades the paint in over transparency; flow fades it in over the ground, the paint each dab lays down. "
         + "With and without the number, because DESIGN.md asks for a field beside any slider explored by feel.",
         [
@@ -431,12 +432,7 @@ public static partial class Catalog
     {
         var slider = With(new Slider { Minimum = 0, Maximum = 100, Value = value }, "effect");
         if (checker) slider.Classes.Add("checker");
-        slider.Background = new LinearGradientBrush
-        {
-            StartPoint = new RelativePoint(0, 0.5, RelativeUnit.Relative),
-            EndPoint = new RelativePoint(1, 0.5, RelativeUnit.Relative),
-            GradientStops = { new GradientStop(Color.FromArgb(0, Paint.R, Paint.G, Paint.B), 0), new GradientStop(Paint, 1) },
-        };
+        slider.Background = PaintRamp.Ramp(Paint);
         return slider;
     }
 

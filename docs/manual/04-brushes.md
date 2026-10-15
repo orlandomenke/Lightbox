@@ -13,6 +13,14 @@ narrow; the pinned section never folds. For the brush that is what changes
 every few strokes: **Flow**, the **blend mode**, the **eraser** switch (on
 puts the eraser in your hand, off the brush) and the layer's **alpha lock**.
 
+**Opacity and Flow look different from the other sliders, on purpose.** Their
+track is a picture of the value: your current colour fading in from nothing,
+over a checkerboard for Opacity (how much shows through) and over the dark
+ground for Flow (how much paint each dab lays). Change colour and the tracks
+change with it. A ring rides the track; press anywhere along it to put the
+value there, or drag the ring. The brush editor's Opacity and Flow pages use
+the same slider. Size and the rest keep the plain line and dot.
+
 The brush button is pinned for the same reason the colours are: which brush
 you are holding is something you change from any tool. Picking a preset also
 **puts its tool in your hand** — a brush preset hands you the brush, an

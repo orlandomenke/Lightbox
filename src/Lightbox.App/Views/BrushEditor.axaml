@@ -217,7 +217,8 @@
             <TextBlock Text="Opacity" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1"
                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
-            <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+            <Slider Value="{Binding BrushOpacity}" Minimum="0.01" Maximum="1" Margin="{StaticResource RowColumnGap}" Classes="effect checker"
+                    Background="{Binding ForegroundColorHex, Converter={x:Static controls:PaintRamp.FromHex}}" />
           </DockPanel>
           <TextBlock Classes="note" Text="Opacity caps the stroke as a whole; Flow is how much paint each dab lays down within it." />
         </StackPanel>
@@ -227,7 +228,8 @@
             <TextBlock Text="Flow" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
             <NumericUpDown controls:FieldMath.Percent="True" DockPanel.Dock="Right" Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1"
                            Increment="0.05" FormatString="0.00" MinWidth="{StaticResource SizeField}" />
-            <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Margin="{StaticResource RowColumnGap}" />
+            <Slider Value="{Binding BrushFlow}" Minimum="0.01" Maximum="1" Margin="{StaticResource RowColumnGap}" Classes="effect"
+                    Background="{Binding ForegroundColorHex, Converter={x:Static controls:PaintRamp.FromHex}}" />
           </DockPanel>
           <DockPanel ToolTip.Tip="Per-dab paint amount varies, giving wash and build-up variation that pressure alone cannot.">
             <TextBlock Text="Flow jitter" Width="{StaticResource SizeDockerLabel}" VerticalAlignment="Center" />
