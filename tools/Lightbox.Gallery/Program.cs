@@ -142,6 +142,14 @@ public static class Program
         vm.NewDocument(new Lightbox.App.ViewModels.NewDocumentSettings("Snapshot", 1280, 720, 12, 72, "#ffffff", false));
         Shoot(main, "main-window-document");
 
+        // Two groups rolled up to their headers (Q277): the state the right
+        // side is in when an artist has made room for the layer stack.
+        vm.Workspace.SetCollapsed(Lightbox.App.Docking.DockPanelId.Navigator, true);
+        vm.Workspace.SetCollapsed(Lightbox.App.Docking.DockPanelId.Color, true);
+        Shoot(main, "dockers-collapsed");
+        vm.Workspace.SetCollapsed(Lightbox.App.Docking.DockPanelId.Navigator, false);
+        vm.Workspace.SetCollapsed(Lightbox.App.Docking.DockPanelId.Color, false);
+
         // Every docker, one at a time at the front of its slot, and every
         // tool's options page — the default layout shows only a few of them,
         // and the dockers hold most of the window's literals.

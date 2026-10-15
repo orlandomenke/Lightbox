@@ -67,6 +67,18 @@ public sealed class DockPlacement
     /// </summary>
     public List<DockPanelId> LastGroupedWith { get; set; } = [];
 
+    /// <summary>
+    /// Whether the slot this panel is in is rolled up to its header (Q277).
+    /// </summary>
+    /// <remarks>
+    /// Held by every member of the slot, the way <see cref="Extent"/> is, so
+    /// switching tabs cannot open the slot by reading another member's flag.
+    /// Written only when set: a workspace nobody collapsed anything in
+    /// serializes exactly as it did before the field existed.
+    /// </remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Collapsed { get; set; }
+
     public DockPlacement Clone()
     {
         var copy = (DockPlacement)MemberwiseClone();
@@ -297,7 +309,15 @@ public sealed class DockLayout
     /// <summary>Show this panel in its slot, and stop showing its siblings.</summary>
     public void Activate(DockPanelId id)
     {
-        foreach (var sibling in SlotOf(id)) Place(sibling).TabActive = sibling == id;
+        foreach (var sibling in SlotOf(id))
+        {
+            Place(sibling).TabActive = sibling == id;
+            // Bringing a panel forward is asking to see it, and a header with
+            // nothing under it would answer with nothing. This one rule covers
+            // a tab click, a panel opened or dropped into the group, and the
+            // toolbar gear.
+            Place(sibling).Collapsed = false;
+        }
     }
 
     /// <summary>
@@ -396,6 +416,24 @@ public sealed class DockLayout
         for (var i = 0; i < order.Count; i++) Place(order[i]).TabOrder = i;
     }
 
+    /// <summary>Whether the panel's slot is rolled up to its header (Q277).</summary>
+    public bool IsCollapsed(DockPanelId id) => CanCollapse(id) && Place(id).Collapsed;
+
+    /// <summary>
+    /// Only a side strip collapses. The bottom strip lays its panels side by
+    /// side, where a collapsed one would be a header standing in a full-height
+    /// column of nothing, and a floating window is already as tall as the
+    /// artist made it.
+    /// </summary>
+    public bool CanCollapse(DockPanelId id) => SideOf(id) is DockSide.Left or DockSide.Right;
+
+    /// <summary>Roll the panel's whole slot up to its header, or open it again.</summary>
+    public void SetCollapsed(DockPanelId id, bool collapsed)
+    {
+        if (collapsed && !CanCollapse(id)) return;
+        foreach (var member in SlotOf(id)) Place(member).Collapsed = collapsed;
+    }
+
     /// <summary>
     /// True when a strip has nothing in it. The view collapses those rather
     /// than leaving an empty gutter — dragging the last panel out of an area
@@ -460,6 +498,7 @@ public sealed class DockLayout
         placement.Side = side;
         placement.HomeSide = side;
         placement.TabActive = true;       // a slot of its own, so it is showing
+        placement.Collapsed = false;      // and open: it was put there to be seen
         index = Math.Clamp(index, 0, slots.Count);
         slots.Insert(index, [id]);
         Renumber(slots);
@@ -479,6 +518,9 @@ public sealed class DockLayout
         }
         placement.Side = DockSide.Floating;
         placement.HomeSide = DockSide.Floating;
+        // A window is not a slot and does not collapse; a flag carried out of
+        // a rolled-up group would only sit in the workspace file.
+        placement.Collapsed = false;
         placement.FloatX = x;
         placement.FloatY = y;
         placement.FloatWidth = width;
@@ -512,6 +554,9 @@ public sealed class DockLayout
             placement.LastGroupedWith = SlotOf(id).Where(m => m != id).ToList();
         }
         placement.Side = DockSide.Hidden;
+        // Closed is not collapsed, and reopening decides afresh: it joins an
+        // open group or opens a slot of its own.
+        placement.Collapsed = false;
         if (from is not (DockSide.Floating or DockSide.Hidden)) Renumber(SlotsIn(from));
     }
 
