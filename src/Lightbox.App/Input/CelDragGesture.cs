@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Input;
 using Lightbox.App.ViewModels;
 
 namespace Lightbox.App.Input;
@@ -35,6 +36,17 @@ public sealed class CelDragGesture
     /// </remarks>
     public const double ThresholdPx = 6;
 
+    /// <summary>
+    /// How far a pen has to travel. Wider than the mouse's, because a pen tip
+    /// wanders during an ordinary tap — the layer docker's drag learned the
+    /// same number for the same reason.
+    /// </summary>
+    public const double PenThresholdPx = 10;
+
+    /// <summary>The threshold for the kind of pointer pressing.</summary>
+    public static double ThresholdFor(PointerType type) =>
+        type == PointerType.Mouse ? ThresholdPx : PenThresholdPx;
+
     /// <summary>The cel a press has armed, or null when nothing is pending.</summary>
     public FrameCell? Candidate { get; private set; }
 
@@ -68,7 +80,7 @@ public sealed class CelDragGesture
     /// A move arriving with the button up means the press ended somewhere this
     /// gesture never saw, so it disarms rather than waiting.
     /// </remarks>
-    public bool ShouldStart(FrameCell over, Point at, bool leftButton)
+    public bool ShouldStart(FrameCell over, Point at, bool leftButton, double threshold = ThresholdPx)
     {
         if (Dragging || Candidate is null || !ReferenceEquals(Candidate, over)) return false;
         if (!leftButton)
@@ -77,7 +89,7 @@ public sealed class CelDragGesture
             return false;
         }
         var delta = at - _from;
-        if (Math.Abs(delta.X) < ThresholdPx && Math.Abs(delta.Y) < ThresholdPx) return false;
+        if (Math.Abs(delta.X) < threshold && Math.Abs(delta.Y) < threshold) return false;
         Dragging = true;
         return true;
     }

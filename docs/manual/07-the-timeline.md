@@ -420,7 +420,8 @@ sight is deleted. Both verbs can be given keys in **Edit ▸ Configure ▸
 Shortcuts** — *Show only pinned rows* and *Pin or unpin the active layer* —
 and have none by default.
 
-**Drag a drawing along its row to move it** — no modifier. Hold Ctrl as you
+**Drag a drawing along its row to move it** — no modifier, with a mouse or a
+pen; a label naming the frame you picked up follows the pointer. Hold Ctrl as you
 drop to leave the original where it was and place a copy. This is how timing is
 changed by hand: pick the drawing up and put it on the frame it belongs on.
 Whatever the frame you drop on held is replaced, and dropping past the end of

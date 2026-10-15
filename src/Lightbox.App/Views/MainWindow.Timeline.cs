@@ -554,20 +554,72 @@ public partial class MainWindow
     /// </remarks>
     private void OnTimelinePointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        DropCel(e);
         _celDrag.Cancel();
         _celDragPress = null;
         _celSelect.Cancel();
     }
 
     // ---- drag a cel along its row ------------------------------------------------
+    //
+    // B477: on a captured pointer, not an operating-system drag-and-drop. It
+    // was DoDragDropAsync, which on Windows runs OLE's own modal loop, and
+    // that loop decides whether the drag goes on by asking whether a mouse
+    // button is down. A pen's press is a pointer message, not a mouse button,
+    // so OLE dropped the cel on its first poll, back where it started — "works
+    // with mouse, not with pen". The layer docker left OLE for the same family
+    // of reasons (MainWindow.Workspace.cs, OnLayerListPointerMoved). The press
+    // already captured the pointer on the cel's button, so every move keeps
+    // arriving at OnCellPointerMoved and the release at the window's tunnel.
 
-    private static readonly DataFormat<FrameCell> CelDragFormat =
-        DataFormat.CreateInProcessFormat<FrameCell>("lightbox-cel");
+    /// <summary>The cel being carried, and the pointer carrying it.</summary>
+    private (FrameCell Source, IPointer Pointer)? _celCarry;
+
+    /// <summary>The cel under a point in the window, whatever has the pointer captured.</summary>
+    private FrameCell? CelAt(Point inWindow) =>
+        this.GetVisualsAt(inWindow).Select(CellUnder).FirstOrDefault(c => c is not null);
+
+    private void TrackCelDrag(PointerEventArgs e)
+    {
+        var at = e.GetPosition(this);
+        EdgeScroll.TrackUnder(this, at);
+        if (_celCarry is { } carry) DragGhost.Show($"Frame {carry.Source.Index + 1}", at);
+        e.Handled = true;
+    }
+
+    private void EndCelDrag()
+    {
+        _celCarry = null;
+        _celDrag.Finished();
+        _celDragPress = null;
+        EdgeScroll.Stop();
+        DragGhost.Hide();
+    }
+
+    /// <summary>Put a carried cel down on the cel under the pointer, along its own row.</summary>
+    private void DropCel(PointerReleasedEventArgs e)
+    {
+        if (_celCarry is not { } carry || !ReferenceEquals(e.Pointer, carry.Pointer)) return;
+        var target = CelAt(e.GetPosition(this));
+        var copy = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        EndCelDrag();
+        if (target is null || ReferenceEquals(target, carry.Source)) return;
+        // Another row is refused by MoveCel, with a status line saying so.
+        _vm.MoveCel(carry.Source, target, copy);
+    }
 
 
-    private async void OnCellPointerMoved(object? sender, PointerEventArgs e)
+    private void OnCellPointerMoved(object? sender, PointerEventArgs e)
     {
         if (sender is not Button button || button.DataContext is not FrameCell cell) return;
+        if (_celCarry is { } carrying)
+        {
+            if (!ReferenceEquals(e.Pointer, carrying.Pointer)) return;
+            // The button came up somewhere this never heard about: put it back.
+            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) EndCelDrag();
+            else TrackCelDrag(e);
+            return;
+        }
         if (_celSelect.From is { } from)
         {
             var at = e.GetCurrentPoint(this);
@@ -583,49 +635,17 @@ public partial class MainWindow
             }
             return;
         }
-        if (_celDragPress is not { } press) return;
+        if (_celDragPress is null) return;
         var point = e.GetCurrentPoint(this);
-        if (!_celDrag.ShouldStart(cell, point.Position, point.Properties.IsLeftButtonPressed))
+        if (!_celDrag.ShouldStart(cell, point.Position, point.Properties.IsLeftButtonPressed,
+                Input.CelDragGesture.ThresholdFor(e.Pointer.Type)))
         {
             if (_celDrag.Candidate is null) _celDragPress = null;
             return;
         }
-
-        try
-        {
-            var transfer = new DataTransfer();
-            transfer.Add(DataTransferItem.Create(CelDragFormat, cell));
-            await DragDrop.DoDragDropAsync(press, transfer, DragDropEffects.Move | DragDropEffects.Copy);
-        }
-        finally
-        {
-            _celDrag.Finished();
-            _celDragPress = null;
-        }
-    }
-
-    private static FrameCell? DraggedCelOf(DragEventArgs e) =>
-        e.DataTransfer is { } transfer ? transfer.TryGetValue(CelDragFormat) : null;
-
-    private void OnCelDragOver(object? sender, DragEventArgs e)
-    {
-        if (DraggedCelOf(e) is not { } source || CellUnder(e.Source) is not { } target
-            || target.LayerIndex != source.LayerIndex)
-        {
-            e.DragEffects = DragDropEffects.None;
-            return;
-        }
-        e.DragEffects = e.KeyModifiers.HasFlag(KeyModifiers.Control)
-            ? DragDropEffects.Copy
-            : DragDropEffects.Move;
-        e.Handled = true;
-    }
-
-    private void OnCelDrop(object? sender, DragEventArgs e)
-    {
-        if (DraggedCelOf(e) is not { } source || CellUnder(e.Source) is not { } target) return;
-        _vm.MoveCel(source, target, copy: e.KeyModifiers.HasFlag(KeyModifiers.Control));
-        e.Handled = true;
+        _celCarry = (cell, e.Pointer);
+        e.Pointer.Capture(button); // already the press's; said so the drag owns it
+        TrackCelDrag(e);
     }
 
     // ---- frame markers -------------------------------------------------------------
