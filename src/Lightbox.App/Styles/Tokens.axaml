@@ -193,6 +193,9 @@
   <!-- The icon buttons in a docker's header: collapse, float, close. -->
   <Thickness x:Key="HeaderButtonPadding">6,2</Thickness>
   <Thickness x:Key="TabPadding">14,6</Thickness>
+  <!-- A tab the strip has had to cut (Q281): the same height, and the side
+       room given to the title instead. -->
+  <Thickness x:Key="TabPaddingCut">6,6</Thickness>
   <!-- Text and icons inside a list row, from its own edge. -->
   <Thickness x:Key="ItemPadding">8,0</Thickness>
   <!-- Either side of a transport button's icon: a text button's padding, not a

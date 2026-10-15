@@ -338,6 +338,11 @@
       </ControlTemplate>
     </Setter>
   </Style>
+  <!-- A tab the strip has cut keeps its height and gives its side padding to
+       the title, or a cut tab reads as one letter and an ellipsis (Q281). -->
+  <Style Selector="ListBox.tabs > ListBoxItem[(controls|TabStripPanel.IsCut)=True]">
+    <Setter Property="Padding" Value="{StaticResource TabPaddingCut}" />
+  </Style>
   <!-- Hover is the active tab's own shape at half its weight, so the strip
        never shows a differently rounded block (Q203). -->
   <Style Selector="ListBox.tabs > ListBoxItem:pointerover /template/ Border#PART_Tab">

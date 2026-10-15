@@ -34,7 +34,6 @@ to how `DockStrip` shares height.
   no splitter between each other. Not asked: the cost is one extra click (open
   the middle one), and the alternative is a splitter that resizes across a row,
   which the grid does not do.
-- **Not decided here: the front tab of a collapsed slot.** The tab is drawn as a
-  sheet rising into its panel (Q203), and collapsed there is no panel under it,
-  so it ends against the card's edge. Left as drawn for the owner to judge on
-  screen.
+- **The front tab of a collapsed slot stays as drawn** (asked 2026-10-15,
+  recommendation taken). It is drawn rising into a panel that is not there,
+  but it is the one cue for which panel expanding will show.
