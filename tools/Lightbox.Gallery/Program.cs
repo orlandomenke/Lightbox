@@ -237,6 +237,25 @@ public static class Program
         var project = new Lightbox.App.Views.ProjectWindow { Width = 1080, Height = 700 };
         project.Show();
         Shoot(project, "project-window");
+
+        // A swatch being dragged along its palette: the line in the gap it
+        // would land in, which the empty docker above cannot show.
+        vm.Workspace.SetVisible(Lightbox.App.Docking.DockPanelId.Palette, true);
+        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Palette);
+        foreach (var hex in new[] { "#c0392b", "#e67e22", "#f1c40f", "#27ae60", "#2980b9" })
+        {
+            vm.ColorHex = hex;
+            vm.PaletteDocker.AddSwatchCommand.Execute(null);
+        }
+        var swatches = vm.PaletteDocker.Swatches;
+        // Taller, so the docker's swatch half has rows to show.
+        main.Height = 1500;
+        vm.PaletteDocker.ShowSwatchDrop(swatches[2], Lightbox.App.ViewModels.SwatchDropSide.Before);
+        Shoot(main, "palette-swatch-drop-before");
+        vm.PaletteDocker.ShowSwatchDrop(swatches[^1], Lightbox.App.ViewModels.SwatchDropSide.After);
+        Shoot(main, "palette-swatch-drop-after");
+        vm.PaletteDocker.ShowSwatchDrop(null, Lightbox.App.ViewModels.SwatchDropSide.None);
+        main.Height = 1000;
         project.Close();
 
         // Every other window and panel in the app's views that opens without

@@ -109,6 +109,15 @@ colour picked off the canvas is a colour, not a palette entry.
 In a project, palettes belong to the project, so all of a character's animations
 paint from the same one.
 
+**Drag a swatch along the grid** to put it somewhere else in its palette. While
+you drag, a coral line in the gap shows where it will land — before the swatch
+under the pointer if you are over its left half, after it if over its right
+half. In the empty space after a row it lands after that row's last swatch, and
+below every row at the end of the palette. It is the same coral line the Layers
+panel draws at a row's edge. The swatch keeps its identity, so the art
+painted with it still follows it; in a document palette the move is one undo
+step. Dragging it onto another palette in the tree above moves it there instead.
+
 ## Filing palettes
 
 The Palette panel's top half is a tree. **🗀** makes a folder, **＋** makes a

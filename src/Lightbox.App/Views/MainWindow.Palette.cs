@@ -633,6 +633,67 @@ public partial class MainWindow
 
     private void OnSwatchReleased(object? sender, PointerReleasedEventArgs e) => _swatchDrag = null;
 
+    // ---- dragging a swatch along its own palette --------------------------------
+
+    /// <summary>
+    /// The swatch a drop over the grid would land beside, and on which side.
+    /// </summary>
+    /// <remarks>
+    /// Measured on the list item, not the swatch inside it: the 2px padding
+    /// round each swatch is the gap between two of them, which is exactly
+    /// where a hand aims, and it is the item's rather than the swatch's.
+    /// Over empty grid, the swatch to the left in that row — the space after
+    /// a row's last swatch is beside it — and below every row, the end.
+    /// </remarks>
+    private (SwatchRow? Target, SwatchDropSide Side) SwatchDropAt(DragEventArgs e) =>
+        SwatchDropAt(e.Source as Visual, v => e.GetPosition(v), _vm.PaletteDocker.Swatches);
+
+    /// <param name="hit">What the pointer is over.</param>
+    /// <param name="at">Where the pointer is, in the coordinates of a given visual.</param>
+    internal static (SwatchRow? Target, SwatchDropSide Side) SwatchDropAt(
+        Visual? hit, Func<Visual, Point> at, IReadOnlyList<SwatchRow> swatches)
+    {
+        for (var v = hit; v is not null; v = v.GetVisualParent())
+        {
+            if (v is ListBoxItem { DataContext: SwatchRow row } item)
+            {
+                return (row, PaletteDockerViewModel.SideOf(at(item).X, item.Bounds.Width));
+            }
+            if (v is ListBox list)
+            {
+                // The rightmost item left of the pointer in the pointer's row.
+                var beside = list.GetRealizedContainers().OfType<ListBoxItem>()
+                    .Select(i => (Item: i, P: at(i)))
+                    .Where(c => c.Item.DataContext is SwatchRow && c.P.Y >= 0 && c.P.Y < c.Item.Bounds.Height && c.P.X >= c.Item.Bounds.Width)
+                    .OrderBy(c => c.P.X)
+                    .FirstOrDefault();
+                if (beside.Item?.DataContext is SwatchRow left) return (left, SwatchDropSide.After);
+                break;
+            }
+        }
+        return swatches.Count == 0 ? (null, SwatchDropSide.None) : (swatches[^1], SwatchDropSide.After);
+    }
+
+    private void OnSwatchListDragOver(object? sender, DragEventArgs e)
+    {
+        if (DraggedSwatch(e) is null) return;
+        var (target, side) = SwatchDropAt(e);
+        _vm.PaletteDocker.ShowSwatchDrop(target, side);
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private void OnSwatchListDragLeave(object? sender, DragEventArgs e) =>
+        _vm.PaletteDocker.ShowSwatchDrop(null, SwatchDropSide.None);
+
+    private void OnSwatchListDrop(object? sender, DragEventArgs e)
+    {
+        if (DraggedSwatch(e) is not { } row) return;
+        var (target, side) = SwatchDropAt(e);
+        _vm.PaletteDocker.ReorderSwatch(row, target, side);
+        e.Handled = true;
+    }
+
     /// <summary>
     /// The right-click menu, built here rather than declared in the template.
     /// </summary>

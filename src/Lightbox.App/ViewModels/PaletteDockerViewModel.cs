@@ -7,6 +7,14 @@ using Lightbox.Core.Projects;
 
 namespace Lightbox.App.ViewModels;
 
+/// <summary>Which side of a swatch a dragged one would land on.</summary>
+public enum SwatchDropSide
+{
+    None,
+    Before,
+    After,
+}
+
 /// <summary>
 /// One swatch, as the docker sees it. Wraps the document's <see cref="Swatch"/>
 /// rather than copying it, because the whole point of the feature is that the
@@ -14,6 +22,18 @@ namespace Lightbox.App.ViewModels;
 /// </summary>
 public sealed partial class SwatchRow : ObservableObject
 {
+    /// <summary>
+    /// Where a swatch being dragged over this one would land, or None.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DropBefore))]
+    [NotifyPropertyChangedFor(nameof(DropAfter))]
+    private SwatchDropSide _dropSide;
+
+    public bool DropBefore => DropSide == SwatchDropSide.Before;
+
+    public bool DropAfter => DropSide == SwatchDropSide.After;
+
     private readonly Action<SwatchRow, string> _edited;
 
     /// <param name="edited">Called with the row and the colour it held before the edit.</param>
@@ -423,6 +443,66 @@ public sealed partial class PaletteDockerViewModel : ObservableObject
         var model = row.Model;
         EditPalette(from, source => source.Swatches.RemoveAll(s => s.Id == swatchId));
         EditPalette(into, target => target.Swatches.Add(model));
+        if (_doc is not null) Load(_doc);
+        return true;
+    }
+
+    // ---- putting the swatches in order -----------------------------------------
+
+    /// <summary>
+    /// Which side of a swatch <paramref name="width"/> wide a pointer at
+    /// <paramref name="x"/> across it would drop on.
+    /// </summary>
+    /// <remarks>
+    /// Halves, because a swatch has no inside to drop into — unlike a folder
+    /// header, which needs thirds. Every point over a swatch is one of its
+    /// two edges, so there is no dead zone where a drop does nothing.
+    /// </remarks>
+    public static SwatchDropSide SideOf(double x, double width) =>
+        x < width / 2 ? SwatchDropSide.Before : SwatchDropSide.After;
+
+    /// <summary>Show where a drag would land — on one swatch, or nowhere.</summary>
+    public void ShowSwatchDrop(SwatchRow? over, SwatchDropSide side)
+    {
+        foreach (var row in Swatches)
+        {
+            row.DropSide = ReferenceEquals(row, over) ? side : SwatchDropSide.None;
+        }
+    }
+
+    /// <summary>
+    /// Move a swatch to the gap before or after another in the same palette.
+    /// </summary>
+    /// <remarks>
+    /// The swatch keeps its id, as it does moving into another palette, so a
+    /// stroke painted with it still follows it. By position rather than by id
+    /// inside the edit: a palette may hold the same colour twice on purpose,
+    /// and the row in hand is the one the artist picked up. A drop that would
+    /// leave it where it is makes no edit, so it leaves no undo step that
+    /// undoes nothing.
+    /// </remarks>
+    public bool ReorderSwatch(SwatchRow? row, SwatchRow? target, SwatchDropSide side)
+    {
+        ShowSwatchDrop(null, SwatchDropSide.None);
+        if (row is null || target is null || side == SwatchDropSide.None) return false;
+        if (SelectedPalette is not { } palette) return false;
+
+        var from = Swatches.IndexOf(row);
+        var at = Swatches.IndexOf(target);
+        if (from < 0 || at < 0) return false;
+        var to = side == SwatchDropSide.After ? at + 1 : at;
+        // Taking it out first shifts everything after it one place left.
+        if (to > from) to--;
+        if (to == from) return false;
+
+        var id = row.Id;
+        EditPalette(palette, p =>
+        {
+            if (from >= p.Swatches.Count || p.Swatches[from].Id != id) return;
+            var swatch = p.Swatches[from];
+            p.Swatches.RemoveAt(from);
+            p.Swatches.Insert(Math.Min(to, p.Swatches.Count), swatch);
+        });
         if (_doc is not null) Load(_doc);
         return true;
     }

@@ -315,6 +315,7 @@ available in every project, defaulted for the ones that need it.
 - [x] Color picker with history `evidence: ColorPickerViewModel, ColorSwatch`
 - [x] Advanced color wheel `evidence: ColorWheelFidelityTests, ColorSpace, ColorOps`
 - [x] Palette management `evidence: PaletteDockerViewModel, GimpPalette, PaletteTests, PaletteDockerTests`
+- [x] Swatches put in order by dragging, the landing gap shown as the layer rows show theirs `evidence: SwatchDropSide, SwatchOrderTests, DroppingASwatchBeforeAnotherPutsItThere, ADropInTheGapBetweenTwoSwatchesLandsInThatGap, TheLineIsStyledOntoTheSideItWillLand`
 - [x] Live palettes — recolour a swatch, the art follows `evidence: PaletteRegistry, StrokeColor, LivePaletteTests, RecolouringASwatchRepaintsTheArtThatUsedIt`
 - [x] Gradient editor `evidence: GradientDockerViewModel, GradientOps, GradientTests, GradientToolTests`
 - [x] Gradient tool `evidence: GradientDragStarted, BeginGradient, EndGradient, TheRampRunsAlongTheDrag, TheRampIsVisibleWhileDragging_AndSurvivesThePenLift`
