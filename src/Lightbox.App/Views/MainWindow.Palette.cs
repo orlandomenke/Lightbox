@@ -672,15 +672,56 @@ public partial class MainWindow
         menu.ShowAt(anchor, showAtPointer: true);
     }
 
+    private void OnPaletteNameDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (NodeOf(sender) is not { IsDraggable: true } node) return;
+        node.IsRenaming = true;
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// The box takes the caret the moment it appears, whatever asked for it —
+    /// the menu, a double-click, or a new folder that wants its name.
+    /// </summary>
+    private void OnPaletteNameBoxChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != IsVisibleProperty || sender is not TextBox { IsVisible: true } box) return;
+        // Deferred: the menu's Rename runs while its flyout is closing, and the
+        // flyout hands focus back as it goes — after a focus taken here.
+        Dispatcher.Post(() =>
+        {
+            box.Focus();
+            box.SelectAll();
+        });
+    }
+
+    /// <remarks>
+    /// The box's text is bound with <c>UpdateSourceTrigger=LostFocus</c>, as
+    /// every other rename box here is: a name is one edit, not one per letter
+    /// (B476). Per letter, a project palette's rename was a project edit per
+    /// keystroke, each rebuilding the tree under the box being typed in.
+    /// </remarks>
     private void OnPaletteNameCommitted(object? sender, RoutedEventArgs e)
     {
+        // The LostFocus binding has already written the name by now.
         if (NodeOf(sender) is { } node) node.IsRenaming = false;
     }
 
     private void OnPaletteNameKey(object? sender, KeyEventArgs e)
     {
-        if (e.Key is not (Key.Enter or Key.Escape)) return;
-        if (NodeOf(sender) is { } node) node.IsRenaming = false;
+        if (sender is not TextBox box || NodeOf(sender) is not { } node) return;
+        switch (e.Key)
+        {
+            case Key.Enter:
+                node.Name = box.Text ?? "";
+                break;
+            case Key.Escape:
+                box.Text = node.Name;
+                break;
+            default:
+                return;
+        }
+        node.IsRenaming = false;
         e.Handled = true;
     }
 }

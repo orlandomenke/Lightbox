@@ -194,6 +194,23 @@ public static class Program
         Shoot(main, "folders-pinned-only");
         vm.SheetPinnedOnly = false;
 
+        // A palette being renamed, selected, with the caret in it: the row
+        // state the empty docker above cannot show.
+        vm.Workspace.SetVisible(Lightbox.App.Docking.DockPanelId.Palette, true);
+        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Palette);
+        vm.PaletteDocker.AddPaletteCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+        var renaming = vm.PaletteDocker.Tree[^1];
+        vm.PaletteDocker.SelectedNode = renaming;
+        renaming.IsRenaming = true;
+        // A layer being renamed beside it: the rename box the rest of the
+        // application is judged against.
+        var layerRenaming = vm.LayerRows.Single(r => r.Name == "Notes");
+        layerRenaming.IsRenaming = true;
+        Shoot(main, "palette-renaming");
+        renaming.IsRenaming = false;
+        layerRenaming.IsRenaming = false;
+
         // The brush editor (Q211), every option, with the brush in hand. Hosted
         // in a window of its own rather than its popup: a popup is a second
         // top level, and the picture is the same.

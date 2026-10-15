@@ -88,6 +88,16 @@ public sealed partial class PaletteNode : ObservableObject
         _ => "▤",
     };
 
+    /// <summary>
+    /// Whether the row is open — held here, not by the tree's container.
+    /// </summary>
+    /// <remarks>
+    /// The tree is rebuilt whenever the model under it changes, and a rebuild
+    /// makes new containers. With the container holding it, every rebuild shut
+    /// every folder, which is how renaming a project palette folded the panel
+    /// up after one letter (B476). The docker carries a shut row across a
+    /// rebuild by id.
+    /// </remarks>
     [ObservableProperty]
     private bool _isExpanded = true;
 

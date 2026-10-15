@@ -124,6 +124,12 @@ choosing *Assign to*. The two do the same thing; the menu lists every folder by
 its full path, which is what tells two folders called "Knight" apart. Right-click
 also has *Rename* and *Delete*.
 
+**Double-click** a palette or folder's name to rename it — or choose *Rename* —
+and type. **Enter** or clicking away keeps the new name, **Esc** leaves the old
+one. In a document palette the whole name is one undo step; a project palette's
+rename, like every project palette change, is not on the undo stack. Folders you closed stay closed while
+you work; the tree only opens what you open.
+
 Deleting a folder keeps the palettes in it — they come back one level up. A
 folder can hold folders, and can sit empty: filing before there is anything to
 file is the normal way round.
