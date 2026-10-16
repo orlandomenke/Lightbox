@@ -45,6 +45,9 @@ public static partial class Catalog
         LayerRows(),
         Badges(),
         IconSheet(),
+        XsheetCells(),
+        XsheetAdditions(),
+        XsheetVertical(),
     ];
 
     /// <summary>
