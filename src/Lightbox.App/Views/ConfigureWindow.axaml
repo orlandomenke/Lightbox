@@ -553,6 +553,15 @@
         </StackPanel>
 
         <StackPanel Spacing="{StaticResource Space6}">
+          <TextBlock Text="What an X-sheet cel shows" FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
+                     Text="The drawing's number, as a paper sheet writes it, with a line along its hold; a dot, as the Timeline draws it; or a small picture of the drawing." />
+          <ComboBox x:Name="XsheetCellStyleBox" Width="{StaticResource SizeSettingsCombo}" SelectionChanged="OnXsheetCellStyleChanged" />
+          <TextBlock FontSize="{StaticResource TypeDense}" Opacity="0.6" TextWrapping="Wrap"
+                     Text="Pictures are the one that costs something: every drawing on the sheet is drawn again, small, and kept up to date as you work. Numbers and dots draw nothing extra." />
+        </StackPanel>
+
+        <StackPanel Spacing="{StaticResource Space6}">
           <TextBlock Text="The X-sheet and the Timeline" FontWeight="SemiBold" />
           <CheckBox x:Name="OffSheetKeyBox" Content="Mark frames where the camera or a bone is keyed"
                     IsCheckedChanged="OnMarkOffSheetKeysChanged"

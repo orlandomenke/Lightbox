@@ -2221,7 +2221,10 @@ public partial class MainViewModel
             foreach (var cell in row.Cells)
             {
                 var frame = ExposureSheet.FrameAtExactIndex(row.Layer, cell.Index);
-                if (frame is null)
+                // Every edit comes through here, so this is where the sheet
+                // learns that a blank drawing has been drawn on.
+                cell.IsBlank = frame is not null && IsBlankDrawing(frame);
+                if (frame is null || !CelPicturesShown)
                 {
                     cell.Thumb = null;
                     cell.ThumbFrameId = null;

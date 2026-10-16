@@ -510,11 +510,7 @@ public class XsheetClickKeepsLayerTests(Xunit.ITestOutputHelper output) : BrushS
         return (window, vm);
     }
 
-    private static Point CentreOfCell(MainWindow window, FrameCell cell)
-    {
-        var button = window.GetVisualDescendants().OfType<Button>().First(b => ReferenceEquals(b.DataContext, cell));
-        return button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
-    }
+    private static Point CentreOfCell(MainWindow window, FrameCell cell) => XsheetProbe.CentreOfCell(window, cell);
 
     [AvaloniaFact]
     public void ARealClickInTheSheetKeepsTheLayer()
