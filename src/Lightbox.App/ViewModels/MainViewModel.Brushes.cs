@@ -180,6 +180,11 @@ public partial class MainViewModel
         // B409. Asked at every fetch rather than told: the paper's corner
         // changes on a resize, a crop, the undo of either and a switch of tab.
         _cache.OriginSource = () => new SkiaSharp.SKPointI(Scene.Left, Scene.Top);
+        // B483. The editor, because it is one per open document and outlives
+        // every undo that swaps the scene: two tabs whose drawings share ids —
+        // a template's copy, the same file opened twice — no longer share the
+        // pictures B362 keeps for both.
+        _cache.ScopeSource = () => _editor;
         // A blur reads neighbours, so a document with live kernel effects
         // dirties more than the stroke touched. Asked per mark rather than
         // cached, because a keyed radius changes per frame; a document with
