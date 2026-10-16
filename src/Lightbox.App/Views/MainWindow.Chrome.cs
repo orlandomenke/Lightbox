@@ -204,6 +204,21 @@ public partial class MainWindow
     private bool _closeConfirmed;
 
     /// <summary>
+    /// Close without the unsaved-changes question — for the test suite, which
+    /// shuts every window it opened after each test and has no artist to ask.
+    /// </summary>
+    /// <remarks>
+    /// Asking would open the dialog, which is a window of its own, and refuse
+    /// the close: the window the cleanup existed to remove would stay, with a
+    /// second one beside it. Not a recovery-clean exit — nothing was saved.
+    /// </remarks>
+    internal void CloseWithoutAsking()
+    {
+        _closeConfirmed = true;
+        Close();
+    }
+
+    /// <summary>
     /// Closing the application asks about unsaved work, the way closing a tab does.
     /// </summary>
     /// <remarks>
