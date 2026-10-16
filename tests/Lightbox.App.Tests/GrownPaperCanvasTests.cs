@@ -128,6 +128,54 @@ public class GrownPaperCanvasTests(Xunit.ITestOutputHelper output) : BrushStateI
     }
 
     /// <summary>
+    /// Scrubbing or playing grown paper still shows the drawing, moved (B480).
+    /// The tile path is refused on moved paper because its rasterizer stamps
+    /// with no origin — but the per-layer gate only asked about the camera and
+    /// the viewport, so each pass was marked as a tile frame on a route that
+    /// never draws tiles, and every layer vanished. It needs a viewport, which
+    /// the real canvas always has and the other tests here do not set.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ScrubbingOrPlayingGrownPaperStillShowsEveryLayer(bool playing)
+    {
+        var (vm, shown) = Open();
+        // A second layer, active, holding a blue square well clear of the red,
+        // so both an inactive layer and the active one are asked about.
+        vm.AddPaintedLayerCommand.Execute(null);
+        vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame = new Frame
+        {
+            Strokes =
+            [
+                new Stroke
+                {
+                    Tool = ToolKind.Fill,
+                    Color = "#0000ff",
+                    Brush = new BrushSettings { Opacity = 1, AntiAlias = false },
+                    Points = [new(40, 40, 1), new(48, 40, 1), new(48, 48, 1), new(40, 48, 1)],
+                },
+            ],
+        };
+        GrowLeftAndUp(vm);
+        vm.SetViewport(SKRectI.Create(0, 0, 64 + GrewX, 64 + GrewY));
+        if (playing) vm.IsPlaying = true;
+        else vm.IsScrubbing = true;
+        vm.ReportTileFallbacks.Reset();
+        vm.PublishSnapshot();
+
+        using var after = shown();
+        var red = RedCorner(after);
+        var blue = after.GetPixel(44 + GrewX, 44 + GrewY);
+        output.WriteLine($"{(playing ? "playing" : "scrubbing")}: red corner at {red}, expected ({4 + GrewX}, {6 + GrewY}); blue square's middle {blue}");
+        Assert.Equal((4 + GrewX, 6 + GrewY), red);
+        Assert.True(blue.Blue > 200 && blue.Red < 60 && blue.Alpha > 200, blue.ToString());
+        // And the render report says why these passes did not tile, rather
+        // than leaving a slower scrub unexplained.
+        Assert.Equal(TileFallbackReason.PaperMoved, vm.ReportTileFallbacks.Dominant);
+    }
+
+    /// <summary>
     /// An eraser that rubs ink out on grown paper is kept. The commit asks the
     /// pixels whether an erasure changed anything (B236) by holding the cached
     /// drawing across the stamp — and on grown paper the stamp is replaced by

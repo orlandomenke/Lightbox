@@ -285,6 +285,6 @@ public class EffectPassTests(ITestOutputHelper output)
             TileFallbackReason.Effects,
             TileFallback.Reason(
                 frame, hasCamera: false, haveViewport: true, liveEffectHere: false,
-                posed: false, shaped: false, docEffects: true));
+                posed: false, shaped: false, paperMoved: false, docEffects: true));
     }
 }

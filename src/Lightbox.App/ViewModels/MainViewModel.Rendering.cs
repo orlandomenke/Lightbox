@@ -2623,6 +2623,9 @@ public partial class MainViewModel
                         frame, scene.Camera is not null, true, liveEffectHere: false,
                         posed: _cache.Rig.IsPosed(frame),
                         shaped: LayerShapes.Carves(scene, layerIndex),
+                        // Already folded into tileNativeDoc, but asked again so
+                        // the warm cannot tile moved paper if that gate changes.
+                        paperMoved: scene.Left != 0 || scene.Top != 0,
                         // tileNativeDoc already folded the document-level
                         // effects gate in (the builder computed it), so the
                         // per-frame ask cannot be reached with effects live.

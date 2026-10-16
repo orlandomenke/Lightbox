@@ -485,6 +485,7 @@ report says which, in one line:
 | It says | What to do about it |
 | --- | --- |
 | *the scene has a camera* | A scene with a camera never uses tiles yet. Nothing to fix in your drawing — this one is on us. |
+| *the paper was grown to the left or upward* | After **Resize canvas** adds paper on the left or top, playback and scrubbing draw the scene whole rather than from tiles, because the tiles do not yet know the paper moved. Nothing to fix in your drawing — this one is on us. |
 | *frames carry imported or flattened pixels* | Imported artwork and flattened frames are held whole. Keep imported reference on its own layer rather than flattened into the animation. |
 | *frames place symbols* | Placed symbols are drawn whole. Fewer placements on the animated layers, or draw them in. |
 | *frames contain smudge or blur strokes* | Smudge and blur have to read the pixels around them, which a tile does not hold. Keep them off the layers that animate, or flatten that pass when it is finished. |

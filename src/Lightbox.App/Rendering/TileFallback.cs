@@ -53,6 +53,13 @@ public enum TileFallbackReason
     /// on a surface of its own that a single tile does not hold.
     /// </summary>
     Group,
+
+    /// <summary>
+    /// The paper has grown left or upward, so its corner is no longer at the
+    /// origin (B409) — and the tiled rasterizer stamps with no origin, so its
+    /// tiles would show the drawing un-moved.
+    /// </summary>
+    PaperMoved,
 }
 
 /// <summary>
@@ -105,6 +112,13 @@ public static class TileFallback
     /// forgot would tile the layer and show it uncarved — the mask visibly
     /// not working — exactly while the sequence moves.
     /// </param>
+    /// <param name="paperMoved">
+    /// The scene's corner is not at the origin. Required for
+    /// <paramref name="posed"/>'s reason, and learned the hard way (B480): it
+    /// was once asked only of the route, so a scrub on grown paper marked
+    /// every pass as a tile frame on a route that never draws tiles, and the
+    /// canvas went blank.
+    /// </param>
     /// <param name="docEffects">
     /// The document carries a live effect stack somewhere — a document-level
     /// condition like <paramref name="hasCamera"/>, asked here so the report
@@ -112,10 +126,11 @@ public static class TileFallback
     /// </param>
     public static TileFallbackReason Reason(
         Frame frame, bool hasCamera, bool haveViewport, bool liveEffectHere, bool posed,
-        bool shaped, bool docEffects = false)
+        bool shaped, bool paperMoved, bool docEffects = false)
     {
         if (!haveViewport) return TileFallbackReason.NoViewport;
         if (hasCamera) return TileFallbackReason.Camera;
+        if (paperMoved) return TileFallbackReason.PaperMoved;
         if (docEffects) return TileFallbackReason.Effects;
         if (liveEffectHere) return TileFallbackReason.LiveEffect;
         if (shaped) return TileFallbackReason.Shaped;
@@ -146,6 +161,7 @@ public static class TileFallback
         TileFallbackReason.LiveEffect => "a smudge, blur or colour-mixing stroke was in flight",
         TileFallbackReason.Shaped => "layers carry a mask or clip to another",
         TileFallbackReason.Effects => "the document carries live effects",
+        TileFallbackReason.PaperMoved => "the paper was grown to the left or upward",
         _ => reason.ToString(),
     };
 }
