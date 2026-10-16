@@ -503,8 +503,11 @@ public sealed class FramePrewarmer : IDisposable
         return new Warmed
         {
             Request = job,
+            // Unmoved paper on purpose: a warm is never adopted once the corner
+            // has moved (MainViewModel.TakeWarmedFrames), so zero is the only
+            // corner a warm can be for.
             Bitmap = FrameBitmapCache.RenderDetached(
-                job.Frame, job.Width, job.Height, celIndex: job.CelIndex),
+                job.Frame, job.Width, job.Height, default, celIndex: job.CelIndex),
             Generation = generation,
         };
     }

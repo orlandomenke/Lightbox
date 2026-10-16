@@ -92,13 +92,13 @@ public class FrameCacheMissCostTests(ITestOutputHelper output)
 
         // Warm the engine so the first render does not also pay for jitting the
         // dab walk and building the grain tile.
-        using (var warm = FrameBitmapCache.RenderDetached(new Frame(), 64, 64)) { }
+        using (var warm = FrameBitmapCache.RenderDetached(new Frame(), 64, 64, default)) { }
 
         var runs = new List<double>();
         for (var i = 0; i < 2; i++)
         {
             var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
-            using var bmp = FrameBitmapCache.RenderDetached(frame, Width, Height);
+            using var bmp = FrameBitmapCache.RenderDetached(frame, Width, Height, default);
             var ms = (System.Diagnostics.Stopwatch.GetTimestamp() - t0)
                      * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
             runs.Add(ms);

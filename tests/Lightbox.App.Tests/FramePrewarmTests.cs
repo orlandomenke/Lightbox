@@ -88,7 +88,7 @@ public class FramePrewarmTests(ITestOutputHelper output)
     public async Task AWarmedFrameIsBitIdenticalToOneRenderedOnThisThread()
     {
         var frame = JitteryFrame(0);
-        using var onThisThread = FrameBitmapCache.RenderDetached(frame, W, H);
+        using var onThisThread = FrameBitmapCache.RenderDetached(frame, W, H, default);
         var expected = BytesOf(onThisThread);
 
         // Not vacuous: a blank render would match a blank render.
@@ -97,7 +97,7 @@ public class FramePrewarmTests(ITestOutputHelper output)
         var races = await Task.WhenAll(Enumerable.Range(0, 4)
             .Select(_ => Task.Run(() =>
             {
-                using var bmp = FrameBitmapCache.RenderDetached(frame, W, H);
+                using var bmp = FrameBitmapCache.RenderDetached(frame, W, H, default);
                 return BytesOf(bmp);
             })));
 
@@ -162,7 +162,7 @@ public class FramePrewarmTests(ITestOutputHelper output)
         Assert.Equal(12, got.Count);
         foreach (var f in frames)
         {
-            using var here = FrameBitmapCache.RenderDetached(f, W, H, celIndex: 0);
+            using var here = FrameBitmapCache.RenderDetached(f, W, H, default, celIndex: 0);
             Assert.Equal(BytesOf(here), got[f.Id]);
         }
         Assert.True(settled > 0, "the prewarmer never said it had settled");
@@ -388,7 +388,7 @@ public class WarmInsertionTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(2, cache.CachedFrames);
 
         var speculative = Inked(2);
-        var bmp = FrameBitmapCache.RenderDetached(speculative, 100, 100);
+        var bmp = FrameBitmapCache.RenderDetached(speculative, 100, 100, default);
         var took = cache.InsertWarm(speculative, 100, 100, 1.0, 0, bmp);
         if (!took) bmp.Dispose();
 
@@ -416,7 +416,7 @@ public class WarmInsertionTests(ITestOutputHelper output) : IDisposable
         cache.Get(onScreen, 100, 100);
 
         var ahead = Inked(1);
-        var bmp = FrameBitmapCache.RenderDetached(ahead, 100, 100);
+        var bmp = FrameBitmapCache.RenderDetached(ahead, 100, 100, default);
         Assert.True(cache.InsertWarm(ahead, 100, 100, 1.0, 0, bmp));
 
         // A real miss now arrives and pushes the cache over its budget. Under
@@ -438,7 +438,7 @@ public class WarmInsertionTests(ITestOutputHelper output) : IDisposable
         var frame = Inked(0);
         cache.Get(frame, 100, 100);
 
-        var bmp = FrameBitmapCache.RenderDetached(frame, 100, 100);
+        var bmp = FrameBitmapCache.RenderDetached(frame, 100, 100, default);
         var took = cache.InsertWarm(frame, 100, 100, 1.0, 0, bmp);
         if (!took) bmp.Dispose();
 
