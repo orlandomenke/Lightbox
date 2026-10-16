@@ -48,6 +48,7 @@ public static partial class Catalog
         XsheetCells(),
         XsheetAdditions(),
         XsheetVertical(),
+        ResizeDialogStory(),
     ];
 
     /// <summary>

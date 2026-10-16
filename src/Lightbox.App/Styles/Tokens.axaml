@@ -126,6 +126,10 @@
        a 16:9 drawing at the dialog's inner width — (SizeDialogWidth − 2 ×
        DialogPadding) × 9/16. Keep it in step with both. -->
   <x:Double x:Key="SizeDialogPreview">252</x:Double>
+  <!-- The resize dialog's anchor grid and the outline preview beside it: one
+       height, so the two read as one control. Three 36 px cells, the anchor
+       grid's size before it was a token. -->
+  <x:Double x:Key="SizeResizeAnchor">108</x:Double>
 
   <!-- ===== The brush editor (Q211) ===== -->
   <!-- The popup from the bar's gear: wide enough for an option list, a panel on

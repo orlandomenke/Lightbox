@@ -63,8 +63,16 @@ whole point.
 have drawn moves — add 200px on the left and every line stays exactly where it
 was, with the new paper appearing beside it. The **anchor** grid says which way
 the paper grows: anchor top-left and it all appears on the right and below;
-anchor centre and it splits evenly. Crop by giving a smaller number, and the
-anchor decides which edge is kept.
+anchor centre and it splits evenly (an odd pixel goes right or below). Crop by
+giving a smaller number, and the anchor decides which edge is kept.
+
+Beside the anchor grid, the **preview** draws the paper as it will be before
+you press Resize: today's paper as a dashed outline, the new paper as a solid
+one around or inside it, placed exactly where the resize will put it. It moves
+as you type a size or pick an anchor. When a smaller number crops, the part of
+today's paper that will be cut away is left dim, outside the solid outline. It
+shows the paper only, not your drawing. Resize image has no anchor and no
+preview, since every edge moves.
 
 Paper added on the **left or top** is the less travelled case and has two rough
 edges today. While the pen is down, the stroke is previewed where the paper
