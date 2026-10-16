@@ -133,7 +133,24 @@ jobs:
         # the log and the run fails, rather than going silent until cancelled.
         # The App suite runs here as one process, unlike build.yml's six legs,
         # so a hang that only shows in a whole-suite run shows here first.
-        run: dotnet test Lightbox.sln -c Release --blame-hang --blame-hang-timeout 10m --blame-hang-dump-type none
+        # The step's own limit, under the job's, so a run that overstays fails
+        # this step and the log is kept — a job that times out loses it.
+        timeout-minutes: 45
+        run: >
+          dotnet test Lightbox.sln -c Release
+          --blame-hang --blame-hang-timeout 10m --blame-hang-dump-type none
+          --logger "console;verbosity=normal"
+          --results-directory test-results
+
+      # Which tests were running when it stopped, if it stopped: the blame
+      # collector writes a sequence file per test host.
+      - name: Keep the test record of a run that did not pass
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_number }}
+          path: test-results/
+          if-no-files-found: ignore
 
       # An untested bundle has to say so on its own, because a zip is not
       # self-describing: handed to somebody a week later it is indistinguishable
