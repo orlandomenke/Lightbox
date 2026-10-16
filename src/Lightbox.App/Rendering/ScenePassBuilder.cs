@@ -434,6 +434,8 @@ internal static class ScenePassBuilder
         // B409: nor paper whose corner has moved. The tiled rasterizer stamps
         // with no origin, so its tiles would show a grown document un-moved;
         // the bounded compositor draws from the frame cache, which knows.
+        // Asked again per pass below (B480): refusing only the route left
+        // each pass marked as a tile frame with nothing to draw it.
         var paperHasMoved = scene.Left != 0 || scene.Top != 0;
         var tileNativeDoc = tileModeOn && scene.Camera is null && state.HaveViewport
             && !docEffects && !paperHasMoved;
@@ -588,7 +590,7 @@ internal static class ScenePassBuilder
                 var why = TileFallback.Reason(
                     frame, scene.Camera is not null, state.HaveViewport, liveEffectHere,
                     posed: cache.Rig.IsPosed(frame), shaped: shapes is not null,
-                    docEffects: docEffects);
+                    paperMoved: paperHasMoved, docEffects: docEffects);
                 tileFallbacks.Note(why);
                 if (why == TileFallbackReason.None) tileFrame = frame;
             }

@@ -66,6 +66,33 @@ drawing along another layer's row, and the commands on a cel's own right-click
 menu, which have always meant "here". A **keyed** cell holds a drawing; a **hold** repeats the drawing
 before it, which is what animating on 2s and 3s is made of.
 
+### What a cell shows
+
+**The drawing's number, the way a paper sheet writes it.** Drawings are
+numbered along their row, 1 first. The number sits where the drawing lands and
+a line runs on through the cells it is held across, so a row on 2s reads
+*1 — 2 — 3 —* and you can count the timing without opening a drawing. How the
+number is written says what kind of drawing it is: **bold** for a keyframe,
+**ringed** for a breakdown, quieter for an inbetween. A **×** is a blank
+drawing, a keyframe with nothing on it yet.
+
+The selector on the X-sheet's own bar — also **Edit → Configure → Timeline ▸
+A cel shows** — offers two other ways to read the same row:
+
+| | |
+| --- | --- |
+| **Numbers** | The default, described above. |
+| **Dots** | The Timeline's language: a filled dot for a key, a ring for a breakdown, a small dot for an inbetween, a white square for a blank drawing, on a bar along the hold. |
+| **Pictures** | A small picture of each drawing in its cell, on a cell tinted by its kind — violet for a breakdown, teal for an inbetween — since a picture cannot say that on its own. In the other two the number or the mark says it, and the cells stay plain. The only one of the three that renders anything: every drawing on the sheet is drawn again, small, and kept up to date as you work, so a long scene pays for it. Chosen, it makes the pictures; left, it lets them go. |
+
+It is a preference, not part of the document: it changes how you read the sheet,
+never a pixel of the art, and a file opened on another machine shows whatever
+that machine prefers.
+
+Numbers count the drawings on the row as they are today, where every exposure
+is a drawing of its own. A cycle that repeats the same drawings — *1 2 3 4 1 2
+3 4* — needs one drawing to be exposable in several cells, which is *Planned*.
+
 **Two kinds of cell look empty, and they are not the same thing.** A plain empty
 cell is inside the scene: it is a hold or a blanked drawing, and a mark on it
 keys a drawing. A **hatched** cell is past the end of the scene — there is no
@@ -558,6 +585,11 @@ path of one point, or one left unfinished, leaves the hold as it was. A cel beco
 its own when you actually change something, never because you were looking at
 it.
 
+A transform whose scope reaches past this frame — *This layer, every frame*, or
+the whole animation — keys nothing, even when you opened it on a hold and
+widened the scope afterwards: it moves the drawings themselves, so every frame
+holding one moves with it.
+
 Keying is a separate undo step from the mark that prompted it: one undo takes
 the stroke back and leaves the new drawing, a second takes the drawing away and
 restores the hold.
@@ -594,7 +626,7 @@ Timeline → Volume check**, ten percent unless you say otherwise.
 
 **Frames** on the timeline's own bar sets how wide a frame cell is. Narrow
 enough to see the shape of the timing on a two-hundred-frame scene, wide enough
-to read the thumbnails on a twelve-drawing cycle — it depends entirely on what
+to read the numbers, or the pictures, on a twelve-drawing cycle — it depends entirely on what
 you are doing, so it is a slider rather than a constant. The same number is in
 Edit → Configure → Timeline.
 

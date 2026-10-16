@@ -6503,22 +6503,19 @@ public static class BrushEngine
         target.Save();
         if (outputScale != 1.0) target.Scale((float)outputScale);
         if (origin.X != 0 || origin.Y != 0) target.Translate(-origin.X, -origin.Y);
-        var previous = (SKPoint?)null;
-        var heading = double.NaN;
         // WalkDabs rather than DabPositions so a posed stroke's dabs arrive
-        // with their bind-pose seeds; heading is still recomputed here, from
-        // every step, as this path always has.
+        // with their bind-pose seeds - and with the walk's heading, which is
+        // the one the live path turns a dab by (B481). This path used to work
+        // the heading out again and skipped a dab of no size before doing so,
+        // so after pressure took the pen to nothing the next dab was turned
+        // by the step from the last dab DRAWN, while live it was turned by the
+        // step from the dab just before: a reload drew a tipped blur up to 7
+        // levels off what had been on screen.
         foreach (var walked in WalkDabs(stroke))
         {
-            var (pos, pressure) = (walked.Pos, walked.Pressure);
+            var (pos, pressure, heading) = (walked.Pos, walked.Pressure, walked.Heading);
             var radius = (float)RadiusAt(brush, pressure);
             if (radius <= 0) continue;
-            if (previous is { } from)
-            {
-                float hx = pos.X - from.X, hy = pos.Y - from.Y;
-                if (hx * hx + hy * hy > 0.0001f) heading = Math.Atan2(hy, hx) * 180 / Math.PI;
-            }
-            previous = pos;
 
             if (tip is not null && tipBitmap is not null)
             {

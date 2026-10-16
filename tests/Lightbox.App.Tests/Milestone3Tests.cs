@@ -112,15 +112,25 @@ public class ThumbnailTests
     public void KeyedCells_GetThumbnails_HoldsDoNot()
     {
         var vm = new MainViewModel(null);
-        vm.BeginStroke(10, 10, 0.5);
-        vm.MoveStroke(100, 100, 0.5);
-        vm.EndStroke();
-        vm.AddFrameCommand.Execute(null);
-        vm.PaintLayer().Cels[1].Frame = null; // make it a hold
-        vm.UndoCommand.Execute(null); // force full refresh path
-        vm.RedoCommand.Execute(null);
+        // About the cel pictures, which only the pictures style makes (Q282). Put
+        // back after: this class shares the process's settings with others.
+        vm.XsheetCellStyle = Lightbox.App.Controls.XsheetCellStyle.Pictures;
+        try
+        {
+            vm.BeginStroke(10, 10, 0.5);
+            vm.MoveStroke(100, 100, 0.5);
+            vm.EndStroke();
+            vm.AddFrameCommand.Execute(null);
+            vm.PaintLayer().Cels[1].Frame = null; // make it a hold
+            vm.UndoCommand.Execute(null); // force full refresh path
+            vm.RedoCommand.Execute(null);
 
-        Assert.NotNull(vm.FrameCells[0].Thumb);
+            Assert.NotNull(vm.FrameCells[0].Thumb);
+        }
+        finally
+        {
+            vm.XsheetCellStyle = Lightbox.App.Controls.XsheetCellStyle.Numbers;
+        }
     }
 }
 

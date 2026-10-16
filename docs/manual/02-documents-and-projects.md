@@ -74,6 +74,17 @@ today's paper that will be cut away is left dim, outside the solid outline. It
 shows the paper only, not your drawing. Resize image has no anchor and no
 preview, since every edge moves.
 
+What the new paper looks like depends on the **Background** layer, as it does
+in Photoshop. While it is **locked** — as every new document's is — it grows
+with the canvas: the new margin is filled in the paper's own colour (a grey
+sheet grows grey), as part of the same step, so one undo takes back the resize
+and the fill together. Only the new strip is filled — nothing inside the old
+edges changes, so a Background you had made partly see-through stays that way.
+Each drawing on that layer gets the fill; a frame where the Background has no
+drawing of its own stays empty. **Unlock** the Background
+and it behaves like any other layer: its new margin, like every other layer's,
+is transparent. Cropping never adds paper.
+
 Paper added on the **left or top** is the less travelled case and has two rough
 edges today. While the pen is down, the stroke is previewed where the paper
 *used* to be — the distance you grew it by, up and to the left — and jumps to

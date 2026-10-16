@@ -152,11 +152,11 @@ public class PenDoesNotPanTests(Xunit.ITestOutputHelper output) : BrushStateIsol
         vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Xsheet);
         Pump();
         var cell = vm.LayerRows.First(r => r.SceneIndex == 1).Cells.First(c => c.Index == 2);
-        var button = window.GetVisualDescendants().OfType<Button>().First(b => ReferenceEquals(b.DataContext, cell));
-        var at = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
+        var row = XsheetProbe.RowOf(window, cell);
+        var at = XsheetProbe.CentreOfCell(window, cell);
         var pen = new Pointer(Pointer.GetNextFreeId(), PointerType.Pen, isPrimary: true);
 
-        button.RaiseEvent(new PointerPressedEventArgs(button, pen, window, at, _clock += 16, Down, KeyModifiers.None, 2));
+        row.RaiseEvent(new PointerPressedEventArgs(row, pen, window, at, _clock += 16, Down, KeyModifiers.None, 2));
         Pump();
 
         Assert.Equal(1, vm.ActiveLayerIndex);

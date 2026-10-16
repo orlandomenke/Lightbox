@@ -7,6 +7,14 @@
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+
+    <!-- The performance budgets here time a few hundred calls, and under dynamic PGO a method
+         passes through an instrumented tier slower than tier 0 before it is optimised, on a
+         background clock. IncrementalDensifyTests caught the cache's scan in that tier while
+         Densify was already optimised, and read 3.0x against a 4x floor: main went red three
+         times in three days. Off, the same test read 33-50x across ten runs. This assembly's
+         budgets want steady optimised code; tools/Lightbox.Bench is where PGO is measured. -->
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
 
   <ItemGroup>

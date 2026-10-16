@@ -45,6 +45,15 @@ What it blocks: any change to how the X-sheet draws a cel.
      already settled vertical as an orientation of the same sheet. The onion
      range tinted on the sheet rides along, being cheap.
 
+## Afterwards: the kind of drawing is said once (2026-10-16)
+
+Seen in the first screenshots of the drawn sheet: a breakdown was ringed *and*
+on a violet cel, an inbetween quiet *and* on a teal one. Put to the owner with
+the recommendation to drop the tints where the glyph already says it, and keep
+them for pictures, where a picture cannot. **Taken: "drop the tints in Numbers
+and Dots."** The current, picked and past-the-end grounds are unchanged in all
+three styles.
+
 ## What did not need deciding
 
 - **The Timeline docker keeps its dots.** It is the track view; the X-sheet is

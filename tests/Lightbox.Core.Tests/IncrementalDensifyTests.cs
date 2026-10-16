@@ -221,6 +221,20 @@ public class IncrementalDensifyTests(ITestOutputHelper output)
     public void AnAppendCostsAFractionOfReDensifying()
     {
         var points = Arc(600);
+
+        // Optimised code, not the JIT's first drafts. Every method starts at tier 0 — unoptimised —
+        // and under dynamic PGO passes through an instrumented tier slower still before it is
+        // promoted, on a background clock nothing here controls. Measured once, straight away, this
+        // test timed tier-0 StrokePoint equality in the cache's change scan: a late append at
+        // 0.22 ms that is 0.045 ms optimised, which against CI's faster Densify left a 2–3× margin
+        // and turned main red three times in three days (2026-10-14 to 10-16). Warming alone did
+        // not cure it — repeats spread over a second still caught the scan instrumented while
+        // Densify was optimised, one run in ten — so the project turns PGO off (see the csproj),
+        // and this warm pass plus the least of ten spaced repeats covers the tier-0 half.
+        var warm = new IncrementalDensify();
+        for (var k = 3; k <= points.Count; k++) warm.Of(new Prefix(points, k));
+        for (var i = 0; i < 40; i++) GeometryOps.Densify(points);
+
         var cache = new IncrementalDensify();
         cache.Of(new Prefix(points, 3));
 
@@ -245,8 +259,18 @@ public class IncrementalDensifyTests(ITestOutputHelper output)
 
         var early = Appends(4, 54);
         Appends(54, 550);       // walk the middle so the cache is warm at the far end
-        var late = Appends(550, 600);
-        var reference = FullDensifies(50);
+        // The least of several, both sides: contention and the JIT only ever add, so the minimum
+        // is the closest either number gets to the work itself. Going back to 550 points is a
+        // shortened list, which invalidates only the tail.
+        var late = double.MaxValue;
+        var reference = double.MaxValue;
+        for (var repeat = 0; repeat < 10; repeat++)
+        {
+            Thread.Sleep(100);
+            cache.Of(new Prefix(points, 550));
+            late = Math.Min(late, Appends(550, 600));
+            reference = Math.Min(reference, FullDensifies(20));
+        }
 
         output.WriteLine(
             $"append cost: first 50 events {early:F4} ms, last 50 {late:F4} ms; "

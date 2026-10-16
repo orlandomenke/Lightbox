@@ -19,7 +19,7 @@ public static class Program
     public static int Main(string[] args)
     {
         var app = Array.IndexOf(args, "--snapshot-app");
-        if (app >= 0) return SnapshotApp(app + 1 < args.Length ? args[app + 1] : "app-snapshots", light: args.Contains("--light"));
+        if (app >= 0) return SnapshotApp(app + 1 < args.Length ? args[app + 1] : "app-snapshots", light: args.Contains("--light"), xsheetOnly: args.Contains("--xsheet"));
 
         var at = Array.IndexOf(args, "--snapshot");
         if (at >= 0)
@@ -95,7 +95,7 @@ public static class Program
     /// settings and logs go to a scratch folder and the workspace store saves
     /// nowhere, so a snapshot never touches the person's own setup.
     /// </remarks>
-    private static int SnapshotApp(string dir, bool light = false)
+    private static int SnapshotApp(string dir, bool light = false, bool xsheetOnly = false)
     {
         var scratch = Path.Combine(Path.GetTempPath(), $"lightbox-gallery-{Guid.NewGuid():N}");
         Directory.CreateDirectory(scratch);
@@ -141,6 +141,18 @@ public static class Program
         // window's literals.
         vm.NewDocument(new Lightbox.App.ViewModels.NewDocumentSettings("Snapshot", 1280, 720, 12, 72, "#ffffff", false));
         Shoot(main, "main-window-document");
+
+        // The X-sheet's cels in each style (Q282), on a scene with something to
+        // show: an ink layer on 2s with keys, breakdowns and inbetweens, a colour
+        // layer that stops at a blank drawing, and rough keys held on 8s. With
+        // --xsheet this is all that is shot.
+        ShootXsheetCels(vm, main, Shoot);
+        if (xsheetOnly)
+        {
+            Console.WriteLine($"x-sheet snapshots in {Path.GetFullPath(dir)}");
+            return 0;
+        }
+        vm.NewDocument(new Lightbox.App.ViewModels.NewDocumentSettings("Snapshot", 1280, 720, 12, 72, "#ffffff", false));
 
         // Two groups rolled up to their headers (Q277): the state the right
         // side is in when an artist has made room for the layer stack.
@@ -307,4 +319,51 @@ public static class Program
 
     private static string Slug(string name) =>
         new string(name.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray()).Trim('-');
+
+    private static void ShootXsheetCels(Lightbox.App.ViewModels.MainViewModel vm, Window main, Action<TopLevel, string> shoot)
+    {
+        const int frames = 24;
+        Lightbox.Core.Documents.Frame Drawing(int seed, Lightbox.Core.Documents.FrameRole role, bool blank = false) => new()
+        {
+            Role = role,
+            Strokes = blank ? [] :
+            [
+                new Lightbox.Core.Documents.Stroke
+                {
+                    Color = "#222222",
+                    Brush = new Lightbox.Core.Documents.BrushSettings { Size = 18, Opacity = 1 },
+                    Points = [new(200 + seed * 30, 300, 1), new(500 + seed * 20, 200 + seed * 10, 1), new(900, 420, 1)],
+                },
+            ],
+        };
+        Lightbox.Core.Documents.Layer Row(string name, Func<int, Lightbox.Core.Documents.Frame?> at)
+        {
+            var layer = new Lightbox.Core.Documents.Layer { Name = name };
+            for (var i = 0; i < frames; i++) layer.Cels.Add(new Lightbox.Core.Documents.Cel { Frame = at(i) });
+            return layer;
+        }
+        var doc = Lightbox.Core.Documents.DocumentFactory.CreateDoc(1280, 720);
+        var paper = doc.Scene.Layers[0];
+        while (paper.Cels.Count < frames) paper.Cels.Add(new Lightbox.Core.Documents.Cel());
+        doc.Scene.Layers.Add(Row("Rough", i => i % 8 == 0 ? Drawing(i, Lightbox.Core.Documents.FrameRole.Key) : null));
+        doc.Scene.Layers.Add(Row("Colour", i => i < 12 && i % 2 == 0
+            ? Drawing(i, i % 8 == 0 ? Lightbox.Core.Documents.FrameRole.Key : Lightbox.Core.Documents.FrameRole.Inbetween)
+            : i == 12 ? Drawing(i, Lightbox.Core.Documents.FrameRole.Key, blank: true) : null));
+        doc.Scene.Layers.Add(Row("Ink", i => i % 2 != 0 ? null
+            : Drawing(i, i % 8 == 0 ? Lightbox.Core.Documents.FrameRole.Key
+                : i % 4 == 0 ? Lightbox.Core.Documents.FrameRole.Breakdown
+                : Lightbox.Core.Documents.FrameRole.Inbetween)));
+        doc.Scene.FrameCount = frames;
+        vm.ReplaceDocument(doc);
+        vm.ActiveLayerIndex = doc.Scene.Layers.Count - 1;
+        vm.CurrentFrameIndex = 9;
+        vm.Workspace.SetVisible(Lightbox.App.Docking.DockPanelId.Xsheet, true);
+        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Xsheet);
+        foreach (var style in Enum.GetValues<Lightbox.App.Controls.XsheetCellStyle>())
+        {
+            vm.XsheetCellStyle = style;
+            shoot(main, $"xsheet-cels-{style.ToString().ToLowerInvariant()}");
+        }
+        vm.XsheetCellStyle = Lightbox.App.Controls.XsheetCellStyle.Numbers;
+    }
 }
