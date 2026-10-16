@@ -167,6 +167,10 @@ sealed class TransformSession
         FrameIds.Clear();
         foreach (var f in Frames) FrameIds.Add(f.Id);
         Filter = filter;
+        // Asked afresh with the scope: a hold recorded under "this cel" and
+        // kept through a widening to the whole layer was keyed at the commit,
+        // and the copy moved instead of the drawing the hold showed.
+        HeldToKey.Clear();
     }
 
     /// <summary>Drop the whole session — scope, filter, preview and cached splits.</summary>

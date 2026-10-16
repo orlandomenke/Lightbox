@@ -558,6 +558,11 @@ path of one point, or one left unfinished, leaves the hold as it was. A cel beco
 its own when you actually change something, never because you were looking at
 it.
 
+A transform whose scope reaches past this frame — *This layer, every frame*, or
+the whole animation — keys nothing, even when you opened it on a hold and
+widened the scope afterwards: it moves the drawings themselves, so every frame
+holding one moves with it.
+
 Keying is a separate undo step from the mark that prompted it: one undo takes
 the stroke back and leaves the new drawing, a second takes the drawing away and
 restores the hold.
