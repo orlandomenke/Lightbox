@@ -3,6 +3,7 @@ using Lightbox.App.Services;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
 using Lightbox.Raster;
+using Lightbox.Raster.Tips;
 using SkiaSharp;
 
 namespace Lightbox.App.Tests;
@@ -946,8 +947,13 @@ public class PenUpChangesNothingTests(ITestOutputHelper output) : BrushStateIsol
 
         vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == "builtin-blur"));
         vm.BrushSize = size;
+        // Chosen the way the picker chooses it, which puts the tip's pixels in
+        // the drawing. Setting TipId alone named a tip nothing had loaded, so
+        // both sides drew the round dab and this passed without a tip in it -
+        // unless an earlier test in the same process had loaded that tip.
+        vm.SetBrushTip(TipCatalogue.All.Single(t => t.Id == tip));
+        Assert.NotNull(BrushTipRegistry.Resolve(tip));
         var brush = vm.CurrentToolSettingsForTest;
-        brush.TipId = tip;
         brush.AngleFollowsDirection = true;
         // Flat, so a turn of a few degrees moves pixels.
         brush.Roundness = 0.25;
