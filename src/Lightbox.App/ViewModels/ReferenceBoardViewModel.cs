@@ -359,7 +359,8 @@ public sealed class ReferenceBoardViewModel
     public async Task<int> RefreshDocumentTilesAsync()
     {
         var stale = Board.Tiles
-            .Where(t => t.IsDocument && !_flatteningTiles.Contains(t.Id) && File.Exists(t.Origin)
+            .Where(t => t.IsDocument && !_flatteningTiles.Contains(t.Id)
+                && Services.DocumentReference.IsLocal(t.Origin!) && File.Exists(t.Origin)
                 && Services.DocumentReference.StampOf(t.Origin!) != t.DocumentStamp)
             .ToList();
         if (stale.Count == 0) return 0;
@@ -385,15 +386,7 @@ public sealed class ReferenceBoardViewModel
                 var png = Lightbox.Raster.PngCodec.Encode(flat.Sheet);
                 if (tile.IsFile)
                 {
-                    if (Project is not { } project || ProjectBoards.ResolveImage(project, tile) is not { } target) continue;
-                    try
-                    {
-                        File.WriteAllBytes(target, Convert.FromBase64String(png));
-                    }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                    {
-                        continue;
-                    }
+                    if (Project is not { } project || !RewriteDocumentPicture(project, tile, png)) continue;
                 }
                 else
                 {
@@ -410,6 +403,52 @@ public sealed class ReferenceBoardViewModel
             Changed?.Invoke();
         }
         return changed;
+    }
+
+    /// <summary>
+    /// Put a document tile's new picture where its old one was — only if that
+    /// is a PNG in the project's references folder, which is the only kind of
+    /// file this feature ever writes. Anything else gets a fresh copy there and
+    /// the tile is pointed at it.
+    /// </summary>
+    /// <remarks>
+    /// <b>A board file is data, not a licence to write.</b> Its tile paths are
+    /// plain JSON: a received project or a hand edit can point a document
+    /// tile's <see cref="BoardTile.Path"/> at a drawing, the manifest, a PSD —
+    /// and a refresh that wrote where the tile said would replace that file
+    /// with a picture, with no prompt and nothing to undo. Written beside and
+    /// moved over, so a crash mid-write cannot leave a truncated copy where the
+    /// last good picture was.
+    /// </remarks>
+    private static bool RewriteDocumentPicture(Project project, BoardTile tile, string png)
+    {
+        var bytes = Convert.FromBase64String(png);
+        var target = ProjectBoards.ResolveImage(project, tile);
+        var folder = ProjectIo.ResolveInProject(project, ProjectBoards.ImagesDir);
+        var ours = target is not null && folder is not null
+            && string.Equals(Path.GetExtension(target), ".png", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(
+                Path.GetFullPath(Path.GetDirectoryName(target)!).TrimEnd(Path.DirectorySeparatorChar),
+                Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase);
+        if (!ours)
+        {
+            if (ProjectBoards.ImportImage(project, bytes, $"{ProjectIo.Slug(tile.Name)}.png") is not { } fresh) return false;
+            tile.Path = fresh;
+            return true;
+        }
+        var temp = target + ".tmp";
+        try
+        {
+            File.WriteAllBytes(temp, bytes);
+            File.Move(temp, target!, overwrite: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            try { File.Delete(temp); } catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException) { }
+            return false;
+        }
     }
 
     private BoardTile AddTile(

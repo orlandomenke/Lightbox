@@ -23,6 +23,10 @@ public partial class MainViewModel
     /// </remarks>
     public async Task<(ReferenceStrip? Strip, string? Error)> ImportDocumentReferenceAsync(string path)
     {
+        if (!DocumentReference.IsLocal(path))
+        {
+            return (null, $"“{Path.GetFileName(path)}” is on a network share — copy it to this machine to draw against it.");
+        }
         var full = Path.GetFullPath(path);
         if (SaveTargetTab?.FilePath is { Length: > 0 } own
             && string.Equals(Path.GetFullPath(own), full, StringComparison.OrdinalIgnoreCase))
@@ -92,7 +96,7 @@ public partial class MainViewModel
     /// </summary>
     public async Task<ReferenceStrip?> LayBoardTileOntoTimelineAsync(BoardTile tile, byte[]? pixels)
     {
-        if (tile.IsDocument && File.Exists(tile.Origin)
+        if (tile.IsDocument && DocumentReference.IsLocal(tile.Origin!) && File.Exists(tile.Origin)
             && await ImportDocumentReferenceAsync(tile.Origin!) is { Strip: { } linked })
         {
             return linked;
@@ -156,6 +160,9 @@ public partial class MainViewModel
             if (flats[i] is not { } flat) continue;
             using (flat)
             {
+                // Taken down while it was being flattened: registering it now
+                // would hold a sheet for a strip nobody can see.
+                if (scene.References?.Contains(stale[i].Strip) != true) continue;
                 Reflatten(stale[i].Strip, flat);
                 ReferenceStripRegistry.Replace(stale[i].Strip.Id, flat.Sheet.Copy());
             }
@@ -185,7 +192,15 @@ public partial class MainViewModel
             var flat = DocumentReference.Flatten(path, out var error);
             return (flat, error);
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (OutOfMemoryException)
+        {
+            // Caught on purpose, against the usual rule: the alternative is an
+            // async click handler taking the app down with unsaved work in the
+            // document the artist is drawing in. The flatten's own budgets make
+            // this the unexpected case; the crops it held are garbage now.
+            return (null, $"“{Path.GetFileName(path)}” is too large to flatten as a reference.");
+        }
+        catch (Exception ex)
         {
             return (null, $"“{Path.GetFileName(path)}” could not be flattened — {ex.Message}");
         }
@@ -197,7 +212,7 @@ public partial class MainViewModel
     /// nudge and pivot; a run that grew or shrank is laid out again from where
     /// it started.
     /// </summary>
-    private static void Reflatten(ReferenceStrip strip, FlattenedDocument flat)
+    internal static void Reflatten(ReferenceStrip strip, FlattenedDocument flat)
     {
         var old = strip.Cells;
         var cells = flat.Cells;
@@ -234,12 +249,10 @@ public partial class MainViewModel
             }
             else
             {
-                // Retimed by hand: keep the artist's timing, drop the slots
-                // whose drawing is gone.
-                for (var i = 0; i < strip.Slots.Count; i++)
-                {
-                    if (strip.Slots[i] >= cells.Count) strip.Slots[i] = -1;
-                }
+                // Retimed by hand: keep the artist's timing exactly. A slot
+                // whose drawing is gone shows nothing (CellAt answers null past
+                // the end) and shows it again when the drawing comes back —
+                // clearing it would lose timing nobody can undo.
                 strip.Cells = cells;
             }
         }
@@ -296,12 +309,27 @@ public partial class MainViewModel
         return path;
     }
 
-    /// <summary>A stored reference path made absolute, or null when it cannot be.</summary>
-    private string? ResolveReferencePath(string stored)
+    /// <summary>
+    /// A stored reference path made absolute, or null when it cannot be — or
+    /// must not be followed.
+    /// </summary>
+    /// <remarks>
+    /// The path came out of a document, which may have come from anyone, and
+    /// it is followed without the artist asking. So a network share is never
+    /// followed, and a relative path stays relative: it resolves inside this
+    /// document's folder or not at all, never up out of it with "..".
+    /// Absolute local paths are followed, as <see cref="ReferenceStrip.VideoPath"/>
+    /// already is, because that is what an artist's own pick outside the
+    /// folder is stored as.
+    /// </remarks>
+    internal string? ResolveReferencePath(string stored)
     {
+        if (!DocumentReference.IsLocal(stored)) return null;
         if (Path.IsPathRooted(stored)) return stored;
-        return Path.GetDirectoryName(SaveTargetTab?.FilePath) is { Length: > 0 } docDir
-            ? Path.Combine(docDir, stored)
-            : null;
+        if (Path.GetDirectoryName(SaveTargetTab?.FilePath) is not { Length: > 0 } docDir) return null;
+        var root = Path.GetFullPath(docDir);
+        var resolved = Path.GetFullPath(Path.Combine(root, stored));
+        var inside = Path.GetRelativePath(root, resolved);
+        return inside.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(inside) ? null : resolved;
     }
 }

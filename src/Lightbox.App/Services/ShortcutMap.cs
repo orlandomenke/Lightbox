@@ -471,6 +471,10 @@ public sealed class ShortcutMap
                 G(Key.Delete), ShortcutContext.Board),
             new("reference.paste", "Paste a picture onto the board", "Reference",
                 G(Key.V, KeyModifiers.Control), ShortcutContext.Board),
+            // Unbound by default, like most of the map: here so it can be
+            // found and given a key, not because it needed one.
+            new("reference.add", "Add a picture or document to the board", "Reference",
+                null, ShortcutContext.Board),
             // The one that is not board-scoped, because it is how the board is
             // reached from the art in the first place.
             new("reference.board", "Open the reference board", "Reference",

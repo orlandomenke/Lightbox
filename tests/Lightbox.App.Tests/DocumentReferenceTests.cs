@@ -398,4 +398,212 @@ public sealed class DocumentReferenceTests : IDisposable
         Assert.Equal(3, strip!.Cells.Count);
         Assert.Equal("run.lightbox.json", strip.Document!.Path);
     }
+
+    // ---- what a refresh keeps (adversarial review) ------------------------------
+
+    [AvaloniaFact]
+    public async Task HandRetimingSurvivesTheSourceShrinkingAndGrowingBack()
+    {
+        // The artist holds drawing 2 for three frames. The run loses a drawing
+        // and gets it back: the hold must come back with it, because a cleared
+        // slot is timing nobody can undo.
+        var path = Source(frames: 3);
+        var vm = SavedVm();
+        var strip = (await vm.ImportDocumentReferenceAsync(path)).Strip!;
+        strip.Slots = [0, 1, 2, 2, 2];
+
+        Source(frames: 2);
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
+        await vm.RefreshDocumentReferencesAsync();
+        Assert.Equal([0, 1, 2, 2, 2], strip.Slots);
+        Assert.Null(strip.CellAt(2));
+
+        Source(frames: 3);
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(2));
+        await vm.RefreshDocumentReferencesAsync();
+        Assert.Equal([0, 1, 2, 2, 2], strip.Slots);
+        Assert.NotNull(strip.CellAt(4));
+    }
+
+    [AvaloniaFact]
+    public async Task AHandRetimedRunThatGrowsKeepsItsTiming()
+    {
+        var path = Source(frames: 2);
+        var vm = SavedVm();
+        var strip = (await vm.ImportDocumentReferenceAsync(path)).Strip!;
+        strip.Slots = [1, 0];
+
+        Source(frames: 3);
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
+        await vm.RefreshDocumentReferencesAsync();
+
+        // Not re-laid from the first slot: the artist's order stands.
+        Assert.Equal([1, 0], strip.Slots);
+        Assert.Equal(3, strip.Cells.Count);
+    }
+
+    [AvaloniaFact]
+    public async Task APivotIsCarriedAsAPlaceInsideItsWindow()
+    {
+        var path = Source(frames: 2);
+        var vm = SavedVm();
+        var strip = (await vm.ImportDocumentReferenceAsync(path)).Strip!;
+        var cell = strip.Cells[1];
+        cell.PivotX = cell.X + 10;
+        cell.PivotY = cell.Y + 7;
+
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
+        await vm.RefreshDocumentReferencesAsync();
+
+        var after = strip.Cells[1];
+        Assert.Equal(after.X + 10, after.PivotX!.Value, 3);
+        Assert.Equal(after.Y + 7, after.PivotY!.Value, 3);
+    }
+
+    [Fact]
+    public void AChangeInShrinkKeepsThePictureTheSameSizeInTheDocument()
+    {
+        // Doc pixels per source pixel is what must hold: a column flattened at
+        // half size is drawn at twice the scale, so the run does not halve.
+        var strip = new ReferenceStrip
+        {
+            Cells = [new ReferenceCell { Width = 100, Height = 50 }],
+            Scale = 1,
+            OffsetX = 30,
+            OffsetY = 40,
+            Document = new DocumentSource { Path = "run.lightbox.json", OriginX = 30, OriginY = 40, Scale = 1 },
+        };
+        using var flat = new FlattenedDocument
+        {
+            Sheet = new SKBitmap(50, 25),
+            Cells = [new ReferenceCell { Width = 50, Height = 25 }],
+            OriginX = 30,
+            OriginY = 40,
+            Scale = 0.5,
+        };
+
+        MainViewModel.Reflatten(strip, flat);
+
+        Assert.Equal(2, strip.Scale, 6);
+        Assert.Equal((30.0, 40.0), (strip.OffsetX, strip.OffsetY));
+        Assert.Equal(0.5, strip.Document!.Scale);
+    }
+
+    [AvaloniaFact]
+    public async Task AStripTakenDownMidFlattenIsNotRegisteredAgain()
+    {
+        var path = Source(frames: 2);
+        var vm = SavedVm();
+        var strip = (await vm.ImportDocumentReferenceAsync(path)).Strip!;
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
+
+        // Started, not awaited: the flatten is off the UI thread, and the
+        // removal below happens before its continuation can run.
+        var refresh = vm.RefreshDocumentReferencesAsync();
+        vm.Doc.Scene.References!.Remove(strip);
+        Lightbox.Raster.ReferenceStripRegistry.Forget(strip.Id);
+
+        Assert.Equal(0, await refresh);
+        Assert.Null(Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id));
+    }
+
+    // ---- what is never followed or written (sensitivity review) ----------------
+
+    [AvaloniaFact]
+    public async Task ANetworkShareIsNeverFollowed()
+    {
+        var vm = SavedVm();
+
+        var (strip, error) = await vm.ImportDocumentReferenceAsync(@"\\nohost\share\run.lightbox.json");
+        Assert.Null(strip);
+        Assert.Contains("network share", error);
+        Assert.Null(vm.ResolveReferencePath(@"\\nohost\share\run.lightbox.json"));
+        Assert.Null(vm.ResolveReferencePath("//nohost/share/run.lightbox.json"));
+        Assert.False(DocumentReference.IsLocal(@"\\?\C:\run.lightbox.json"));
+    }
+
+    [AvaloniaFact]
+    public void ARelativePathNeverClimbsOutOfThisDocumentsFolder()
+    {
+        var vm = SavedVm();
+
+        Assert.Null(vm.ResolveReferencePath(Path.Combine("..", "OtherShow", "hero.lightbox.json")));
+        Assert.Equal(Path.Combine(_dir, "run.lightbox.json"), vm.ResolveReferencePath("run.lightbox.json"));
+        Assert.Equal(Path.Combine(_dir, "cycles", "run.lightbox.json"),
+            vm.ResolveReferencePath(Path.Combine("cycles", "run.lightbox.json")));
+    }
+
+    [Fact]
+    public void ASourceWithTooManyFramesIsRefusedBeforeAnyRender()
+    {
+        var doc = DocumentFactory.CreateDoc(64, 64, 24);
+        doc.Scene.FrameCount = 100_000;
+        var path = Path.Combine(_dir, "endless.lightbox.json");
+        DocJson.Save(doc, path);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        Assert.Null(DocumentReference.Flatten(path, out var error));
+
+        Assert.Contains("frames", error);
+        // Refused, not rendered: a hundred thousand renders would take minutes.
+        Assert.True(clock.ElapsedMilliseconds < 5000, $"took {clock.ElapsedMilliseconds} ms");
+    }
+
+    [Fact]
+    public void ACanvasTooLargeToFlattenIsRefused()
+    {
+        var doc = DocumentFactory.CreateDoc(10_000, 10_000, 24);
+        var path = Path.Combine(_dir, "mural.lightbox.json");
+        DocJson.Save(doc, path);
+
+        Assert.Null(DocumentReference.Flatten(path, out var error));
+        Assert.Contains("too large", error);
+    }
+
+    [AvaloniaFact]
+    public async Task ABoardTilePointedAtADrawing_NeverOverwritesIt()
+    {
+        // A board file is data: a received project can aim a document tile's
+        // path at the artist's drawing. A refresh must not write there.
+        var vm = SavedVm();
+        var root = Path.Combine(_dir, "project");
+        vm.ProjectDocker.Project = Lightbox.Core.Projects.ProjectIo.Create("Demo", root);
+        var hero = Path.Combine(root, "scenes", "hero.lightbox.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(hero)!);
+        DocJson.Save(DocumentFactory.CreateDoc(64, 64, 24), hero);
+        var before = File.ReadAllBytes(hero);
+        var source = Source(frames: 2);
+        var board = new ReferenceBoardViewModel(vm);
+        var tile = new BoardTile { Name = "run", Path = "scenes/hero.lightbox.json", Origin = source, DocumentStamp = 0 };
+        board.Board.Tiles.Add(tile);
+
+        Assert.Equal(1, await board.RefreshDocumentTilesAsync());
+
+        Assert.Equal(before, File.ReadAllBytes(hero));
+        // The picture went where pictures go, and the tile follows it there.
+        Assert.StartsWith(Lightbox.Core.Projects.ProjectBoards.ImagesDir + "/", tile.Path);
+        Assert.EndsWith(".png", tile.Path);
+        Assert.NotNull(board.PixelsFor(tile));
+    }
+
+    [AvaloniaFact]
+    public async Task ABoardTilesOwnPictureIsRewrittenInPlace()
+    {
+        var vm = SavedVm();
+        vm.ProjectDocker.Project = Lightbox.Core.Projects.ProjectIo.Create("Demo", Path.Combine(_dir, "project"));
+        var source = Source(frames: 2);
+        var board = new ReferenceBoardViewModel(vm);
+        var tile = (await board.AddDocumentAsync(source)).Tile!;
+        var path = tile.Path;
+        Assert.StartsWith(Lightbox.Core.Projects.ProjectBoards.ImagesDir + "/", path);
+
+        Source(frames: 4);
+        File.SetLastWriteTimeUtc(source, DateTime.UtcNow.AddMinutes(1));
+        Assert.Equal(1, await board.RefreshDocumentTilesAsync());
+
+        Assert.Equal(path, tile.Path);
+        using var sheet = SKBitmap.Decode(board.PixelsFor(tile));
+        using var flat = DocumentReference.Flatten(source, out _)!;
+        Assert.Equal(flat.Sheet.Height, sheet.Height);
+    }
 }

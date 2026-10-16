@@ -66,6 +66,7 @@ public sealed class ReferenceBoardWindow : Window
     {
         VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
         Opacity = 0.75,
+        TextTrimming = TextTrimming.CharacterEllipsis,
     };
 
     /// <summary>Where a tile grab counts as the resize corner rather than a move.</summary>
@@ -167,28 +168,34 @@ public sealed class ReferenceBoardWindow : Window
         var fit = new Button { Content = "Fit", Classes = { "tertiary" } };
         fit.Click += (_, _) => FitToView();
 
-        var add = new Button { Content = "Add image…", Classes = { "tertiary" } };
+        // One Add, the way the Reference panel's ＋ is one import: the picker
+        // offers pictures and documents, and a document goes up as a column of
+        // its frames (Q284–Q286).
+        var add = new Button { Content = "Add…", Classes = { "tertiary" } };
+        ToolTip.SetTip(add,
+            "Add pictures, or another Lightbox document — a document goes up as a column of its frames, read and never changed, refreshed when it is saved");
         add.Click += async (_, _) => await AddImageAsync();
-
-        var addDocument = new Button
-        {
-            Content = "Add document…",
-            Classes = { "tertiary" },
-        };
-        ToolTip.SetTip(addDocument,
-            "Pin up another Lightbox document as a column of its frames — read, never changed, and refreshed when it is saved");
-        addDocument.Click += async (_, _) => await AddDocumentAsync();
 
         _sheetsButton.Click += (_, _) => ShowSheetsMenu();
         _ownerButton.Click += (_, _) => ShowOwnerMenu();
         RefreshOwnerButton();
 
-        var bar = new StackPanel
+        var tools = new StackPanel
         {
             Orientation = Avalonia.Layout.Orientation.Horizontal,
             Spacing = 6,
+            Children = { arrange, fit, add, _sheetsButton, _ownerButton },
+        };
+        DockPanel.SetDock(tools, Dock.Left);
+        // The status takes what is left and trims, with the whole sentence in
+        // its tooltip: a long result clipped at the window edge was the one
+        // place the artist looks for it.
+        _status.Margin = new Thickness(6, 0, 0, 0);
+        var bar = new DockPanel
+        {
             Margin = new Thickness(8, 6),
-            Children = { arrange, fit, add, addDocument, _sheetsButton, _ownerButton, _status },
+            LastChildFill = true,
+            Children = { tools, _status },
         };
         Grid.SetRow(bar, 0);
         return bar;
@@ -201,6 +208,7 @@ public sealed class ReferenceBoardWindow : Window
     private void Say(string message)
     {
         _status.Text = message;
+        ToolTip.SetTip(_status, message.Length > 0 ? message : null);
         if (message.Length > 0) _vm.AiStatus = message;
     }
 
@@ -623,6 +631,9 @@ public sealed class ReferenceBoardWindow : Window
             case "reference.paste":
                 _ = PasteImageAsync();
                 break;
+            case "reference.add":
+                _ = AddImageAsync();
+                break;
             default:
                 return;
         }
@@ -666,9 +677,17 @@ public sealed class ReferenceBoardWindow : Window
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Add reference images",
+            Title = "Add reference",
             AllowMultiple = true,
-            FileTypeFilter = [FilePickerFileTypes.ImageAll],
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Pictures and Lightbox documents")
+                {
+                    Patterns = [.. FilePickerFileTypes.ImageAll.Patterns ?? [], "*.lightbox.json"],
+                },
+                FilePickerFileTypes.ImageAll,
+                new FilePickerFileType("Lightbox documents") { Patterns = ["*.lightbox.json"] },
+            ],
         });
         // Into the middle of what the artist is looking at, which is the picker's
         // equivalent of "where you dropped it".
@@ -677,36 +696,23 @@ public sealed class ReferenceBoardWindow : Window
         foreach (var file in files)
         {
             if (file.TryGetLocalPath() is not { } path) continue;
-            BoardModel.AddImageFile(path, (centre.X + step * 24, centre.Y + step * 24));
-            step++;
-        }
-    }
-
-    /// <summary>
-    /// Pin up other documents as columns of their frames (Q284–Q286). Each is
-    /// read and never written; a file that cannot be read says so on the board.
-    /// </summary>
-    private async Task AddDocumentAsync()
-    {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Add a document as reference",
-            AllowMultiple = true,
-            FileTypeFilter = [new FilePickerFileType("Lightbox documents") { Patterns = ["*.lightbox.json"] }],
-        });
-        var centre = ViewCentre;
-        var step = 0;
-        foreach (var file in files)
-        {
-            if (file.TryGetLocalPath() is not { } path) continue;
-            Say($"Flattening “{Path.GetFileName(path)}”…");
-            var (tile, error) = await BoardModel.AddDocumentAsync(path, (centre.X + step * 24, centre.Y + step * 24));
-            if (tile is null)
+            var at = (centre.X + step * 24, centre.Y + step * 24);
+            if (path.EndsWith(".lightbox.json", StringComparison.OrdinalIgnoreCase))
             {
-                Say(error ?? $"“{Path.GetFileName(path)}” could not be read.");
-                continue;
+                // Another document (Q284–Q286): read, never written.
+                Say($"Flattening “{Path.GetFileName(path)}”…");
+                var (tile, error) = await BoardModel.AddDocumentAsync(path, at);
+                if (tile is null)
+                {
+                    Say(error ?? $"“{Path.GetFileName(path)}” could not be read.");
+                    continue;
+                }
+                Say($"“{tile.Name}” is up — read, never changed, and refreshed when it is saved.");
             }
-            Say($"“{tile.Name}” is up — read, never changed, and refreshed when it is saved.");
+            else
+            {
+                BoardModel.AddImageFile(path, at);
+            }
             step++;
         }
     }

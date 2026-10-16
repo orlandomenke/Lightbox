@@ -72,8 +72,57 @@ public static class DocumentReference
     /// <summary>The most pixels a column may hold — about 160 MB decoded. Past this it shrinks.</summary>
     public const long MaxPixels = 40_000_000;
 
+    /// <summary>
+    /// The most frames a source may have. A reference is something to draw
+    /// against; ten thousand frames of it is a file that was not meant for this.
+    /// </summary>
+    public const int MaxFrames = 2000;
+
+    /// <summary>
+    /// The most pixels one frame of the source may have — refused before any
+    /// render, since every frame is composed whole before it is cropped.
+    /// </summary>
+    public const long MaxFramePixels = 64_000_000;
+
+    /// <summary>
+    /// The most drawn pixels held across frames while the window is found —
+    /// about a gigabyte. A shot with a full-bleed card on every frame reaches
+    /// this long before the output caps would, so it is checked as it grows.
+    /// </summary>
+    public const long MaxHeldPixels = 250_000_000;
+
     /// <summary>Breathing room round the drawn area, so a soft edge is not shaved.</summary>
     private const int Margin = 4;
+
+    /// <summary>
+    /// Whether a source path may be followed at all: a local file, never a
+    /// network share or a device path.
+    /// </summary>
+    /// <remarks>
+    /// A reference is re-read on its own — on open, on a tab switch, whenever
+    /// the window comes forward — with no action from the artist. A UNC path
+    /// in a received document would make Windows open a connection to a host
+    /// the artist never named and offer it their credentials. So a share is
+    /// refused at the door, picked or not: copy the document locally to draw
+    /// against it.
+    /// </remarks>
+    public static bool IsLocal(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        if (path.StartsWith(@"\\", StringComparison.Ordinal) || path.StartsWith("//", StringComparison.Ordinal))
+        {
+            return false;
+        }
+        try
+        {
+            return !Path.IsPathRooted(path) || !new Uri(Path.GetFullPath(path)).IsUnc;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or UriFormatException
+            or PathTooLongException)
+        {
+            return false;
+        }
+    }
 
     public static long StampOf(string path) => File.GetLastWriteTimeUtc(path).Ticks;
 
@@ -84,6 +133,11 @@ public static class DocumentReference
     public static FlattenedDocument? Flatten(string path, out string? error)
     {
         error = null;
+        if (!IsLocal(path))
+        {
+            error = $"“{Path.GetFileName(path)}” is on a network share — copy it to this machine to draw against it.";
+            return null;
+        }
         if (!File.Exists(path))
         {
             error = $"“{Path.GetFileName(path)}” is not there any more.";
@@ -106,6 +160,17 @@ public static class DocumentReference
         }
 
         var count = Math.Max(1, doc.Scene.FrameCount);
+        if (count > MaxFrames)
+        {
+            error = $"“{Path.GetFileName(path)}” has {count:N0} frames — more than the {MaxFrames:N0} a reference can hold.";
+            return null;
+        }
+        if ((long)doc.Scene.Width * doc.Scene.Height > MaxFramePixels)
+        {
+            error = $"“{Path.GetFileName(path)}” is {doc.Scene.Width}×{doc.Scene.Height} — too large a canvas to flatten as a reference.";
+            return null;
+        }
+        long held = 0;
         var crops = new List<(SKBitmap? Picture, SKRectI Bounds)>(count);
         int width = 0, height = 0;
         try
@@ -117,7 +182,14 @@ public static class DocumentReference
                     using var image = SequenceExporter.RenderFrame(doc, cache, i, withoutPaper: true);
                     width = image.Width;
                     height = image.Height;
-                    crops.Add(Crop(image));
+                    var crop = Crop(image);
+                    crops.Add(crop);
+                    held += (long)crop.Bounds.Width * crop.Bounds.Height;
+                    if (held > MaxHeldPixels)
+                    {
+                        error = $"“{Path.GetFileName(path)}” draws too much to flatten as a reference — hide its full-frame layers and try again.";
+                        return null;
+                    }
                 }
             }
 

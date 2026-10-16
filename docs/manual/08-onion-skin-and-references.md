@@ -273,6 +273,13 @@ ten seconds — and it happens in the background: the status line says
 A long run wraps into a second column rather than shrinking, so a big character
 keeps its full resolution.
 
+**What it will not follow.** A document on a **network share** is refused — copy it
+to this machine first — because a reference is re-read on its own, and Lightbox
+will not reach out to another computer without you asking. A reference saved as a
+path *beside* this document only ever looks beside it. And a source too big to be a
+reference — more than 2,000 frames, or a canvas past 64 megapixels — says so
+rather than trying.
+
 ### The reference board
 
 **View → Reference board…**, the **Board…** button at the top of the
@@ -303,8 +310,8 @@ view onto the wall rather than the whole of it.
 | Take one down | Right-click ▸ **Take off the board**, or `Delete` |
 | Tidy the whole wall | **Auto-arrange** — every picture fitted into the space there is, in the order they are in |
 | Find something you have lost | **Fit** (`Ctrl+Shift+F`) zooms out until everything on the board is on screen |
-| Add a picture from disk | Drag files onto the board, or **Add image…** |
-| Add another document | **Add document…** — its frames, flattened and stacked in a column (see below) |
+| Add a picture from disk | Drag files onto the board, or **Add…** |
+| Add another document | **Add…** and pick a Lightbox document — its frames, flattened and stacked in a column (see below) |
 | Add one from a web page | Drag the image off the page onto the board — as many times as you like |
 | Paste one | `Ctrl+V` — a copied file, a screenshot (`PrtScn`, `Win+Shift+S`, the Snipping Tool), or an image address copied out of a browser |
 | Put a sheet back up | **Sheets ▾** lists everything in scope that is not on the wall |
@@ -354,7 +361,7 @@ way it failed rather than leaving you wondering; what the drag was carrying is
 written to the diagnostics log, which is the thing to attach if a drop that
 should work does not.
 
-**A document on the wall is its frames, top to bottom.** **Add document…** pins
+**A document on the wall is its frames, top to bottom.** **Add…** pins
 another Lightbox document up as one picture: every frame flattened the way *Another
 document to draw against* describes, stacked in a column — two columns for a long
 run. It is read and never changed, and it refreshes when the document is saved,
