@@ -51,6 +51,14 @@ internal sealed class RevisitKey(
         && surface == other.Surface
         && _passes.AsSpan().SequenceEqual(other._passes);
 
+    /// <summary>
+    /// The same picture's key under another render epoch — for a document that
+    /// was not being looked at while the epoch moved (see
+    /// <see cref="RevisitCache.Rebase"/>).
+    /// </summary>
+    internal RevisitKey WithEpoch(int newEpoch) =>
+        new(_passes, background, scale, origin, surface, newEpoch, history);
+
     private long History => history;
     private SKColor Background => background;
     private double Scale => scale;
@@ -144,6 +152,57 @@ internal sealed class RevisitCache : IDisposable
         _map[key] = _order.AddFirst((key, image));
         CachedBytes += BytesOf(image);
         while (_map.Count > 2 && CachedBytes > BudgetBytes && _order.Last is { } last) Remove(last);
+    }
+
+    /// <summary>
+    /// Keep only the <paramref name="count"/> most recently used pictures.
+    /// </summary>
+    /// <remarks>
+    /// For a document being left: a return needs the frame it was showing, and
+    /// the whole budget per open document would multiply by the tabs.
+    /// </remarks>
+    internal void TrimTo(int count)
+    {
+        while (_map.Count > count && _order.Last is { } last) Remove(last);
+    }
+
+    /// <summary>
+    /// Carry every picture to <paramref name="epoch"/>, for a document coming
+    /// back from another tab.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The render epoch is the view model's, not the document's: it moved for
+    /// every edit made on the tab the artist was using meanwhile, none of which
+    /// touched this document's pixels. Without this every kept picture would be
+    /// stale by the key's say-so and never found.
+    /// </para>
+    /// <para>
+    /// <b>Sound because the rest of the key still checks everything else.</b>
+    /// The epoch exists for drawings changed in place without a history step;
+    /// in-place changes reach only the document being looked at (B483 scopes
+    /// the frame cache's repairs to it). Anything that did reach this document
+    /// while it was away drops its drawings from the frame cache, so they come
+    /// back as new bitmaps and the passes no longer match; an edit to it moves
+    /// its history, which is in the key as well.
+    /// </para>
+    /// </remarks>
+    internal void Rebase(int epoch)
+    {
+        var entries = _order.ToList();
+        _order.Clear();
+        _map.Clear();
+        foreach (var (key, image) in entries)
+        {
+            var moved = key.WithEpoch(epoch);
+            if (_map.ContainsKey(moved))
+            {
+                CachedBytes -= BytesOf(image);
+                image.Dispose();
+                continue;
+            }
+            _map[moved] = _order.AddLast((moved, image));
+        }
     }
 
     private void DropOlderThan(int epoch)

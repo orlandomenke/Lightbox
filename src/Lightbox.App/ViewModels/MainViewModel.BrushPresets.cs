@@ -151,7 +151,12 @@ public partial class MainViewModel
     [RelayCommand]
     private void ActivateTab(DocumentTab tab) => ActiveTab = tab;
 
-    private void AttachEditor(DocumentEditor editor)
+    /// <param name="keepPictures">
+    /// A tab switch, which has already put the arriving document's own picture
+    /// and bake in place (<see cref="ParkPictures"/>). Every other caller is
+    /// replacing what the document is, and they describe nothing.
+    /// </param>
+    private void AttachEditor(DocumentEditor editor, bool keepPictures = false)
     {
         _clock.Stop();
         IsPlaying = false;
@@ -195,11 +200,11 @@ public partial class MainViewModel
         // change: every crossing rebuilt 4,147,200 bytes at 1080p, inside the
         // switch, however briefly you had been away — which is the delay the
         // owner reported between clicking a tab and seeing it.
-        ClearFrameRenders(keepFramesOf: _editor.Doc.Scene);
+        ClearFrameRenders(keepFramesOf: _editor.Doc.Scene, keepPictures);
         // The bakes hold bitmaps folded from the old document's cache; the
         // keys would miss anyway, but a document switch should not keep two
         // document-sized bitmaps of a scene nobody is looking at.
-        _stackBake.Reset();
+        if (!keepPictures) _stackBake.Reset();
         _allThumbsDirty = true;
         // No range reset: the incoming document carries its own, and
         // OnDocumentChanged shows it.

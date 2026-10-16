@@ -172,7 +172,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// key; content changes arrive through <c>InvalidateFrameRender</c>, which
     /// is why that funnel must not grow bypasses.
     /// </summary>
-    private readonly LayerStackBake _stackBake = new();
+    private LayerStackBake _stackBake = new();
 
     /// <summary>The bake's counters, for tests and the render report.</summary>
     internal LayerStackBake StackBake => _stackBake;

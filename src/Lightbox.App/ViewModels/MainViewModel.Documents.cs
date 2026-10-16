@@ -77,6 +77,16 @@ public partial class MainViewModel
         if (value.Editor == _editor) return;
 
         _switchingTabs = true;
+        // One picture for the whole switch, drawn once the arriving tab's frame,
+        // layer and framing are back: released at the end of this method, after
+        // TabSwitched, because the window restores the tab's zoom there and the
+        // compose scale follows the zoom. Publishing earlier composed the
+        // arriving document at the leaving one's layer index and scale — a
+        // picture nobody sees, whose key could not match the one the tab kept,
+        // and whose bake segments could be too short to keep, which threw away
+        // the bake the tab had brought back. A using, so a throw part way
+        // through cannot leave every later publish held.
+        using var held = HoldPublishes();
         var leaving = Tabs.FirstOrDefault(t => t.Editor == _editor);
         if (leaving is not null)
         {
@@ -88,7 +98,8 @@ public partial class MainViewModel
             // owner and there is nothing left to alias.
             leaving.State.Selection = HasSelection ? _selectionContours : null;
         }
-        AttachEditor(value.Editor);
+        ParkPictures(leaving, value);
+        AttachEditor(value.Editor, keepPictures: true);
         // B56, and note that the line below it already had the guard: a document with no layers
         // is loadable, `Clamp(0, 0, -1)` throws, and the frame clamp beside this one was written
         // defensively while the layer clamp was not.
@@ -733,6 +744,8 @@ public partial class MainViewModel
         // Nothing renders those documents after this, whichever tab comes next.
         _cache.ForgetScope(tab.Editor);
         foreach (var orphan in orphans) _cache.ForgetScope(orphan.Editor);
+        // And the pictures each kept for a return that cannot happen.
+        foreach (var closed in orphans.Prepend(tab)) ForgetPictures(closed.State);
         // B99. Closing a document that was never written takes its row with it.
         // Here rather than in the close handler because this is the one funnel
         // every close goes through, and the handler has already resolved the
@@ -753,6 +766,10 @@ public partial class MainViewModel
         // the start screen asks, at the only other moment it is the right one.
         if (Tabs.Count == 0)
         {
+            // No switch follows to put the closed document's picture and bake
+            // down anywhere, so they go here (leak-hunter's finding on B484).
+            _revisits.Clear();
+            _stackBake.Reset();
             ActiveTab = null;
             OnPropertyChanged(nameof(HasDocument));
             LastDocumentClosed?.Invoke();
