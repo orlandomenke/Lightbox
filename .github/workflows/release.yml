@@ -39,6 +39,9 @@ concurrency:
 jobs:
   win-x64:
     runs-on: ubuntu-latest
+    # A green run takes about 20 minutes. Without a limit a hung test holds
+    # the runner for GitHub's default six hours, and says nothing while it does.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
@@ -126,7 +129,11 @@ jobs:
         if: >
           github.event_name != 'workflow_dispatch'
           || inputs.skip_tests != true
-        run: dotnet test Lightbox.sln -c Release
+        # --blame-hang: a test that has not finished in 10 minutes is named in
+        # the log and the run fails, rather than going silent until cancelled.
+        # The App suite runs here as one process, unlike build.yml's six legs,
+        # so a hang that only shows in a whole-suite run shows here first.
+        run: dotnet test Lightbox.sln -c Release --blame-hang --blame-hang-timeout 10m --blame-hang-dump-type none
 
       # An untested bundle has to say so on its own, because a zip is not
       # self-describing: handed to somebody a week later it is indistinguishable
