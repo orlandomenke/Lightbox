@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Lightbox.Core.Documents;
 using SkiaSharp;
 
@@ -90,6 +91,9 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
 
         /// <summary>The publish that last used it, or -1 (<see cref="BeginPublish"/>).</summary>
         public long Publish { get; init; } = -1;
+
+        /// <summary>Which document it is a picture of (<see cref="ScopeSource"/>); 0 for none named.</summary>
+        public long Scope { get; init; }
     }
 
     private readonly Dictionary<string, LinkedListNode<Entry>> _map = [];
@@ -363,6 +367,14 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         var key = string.Create(
             CultureInfo.InvariantCulture,
             $"{frame.Id}|{width}x{height}@{outputScale:0.####}");
+        // Which document, before anything else that varies (B483): two open
+        // documents can hold drawings with the same id — a copy made from a
+        // template keeps them — and since B362 both documents' pictures are
+        // held at once. Without this they shared one bitmap.
+        if (CurrentScope is var scope and not 0)
+        {
+            key = string.Create(CultureInfo.InvariantCulture, $"{key}~{scope}");
+        }
         // Paper of the same size with a different corner is a different
         // picture: grown on the left and cropped on the right by the same
         // amount, the size is unchanged and every pixel has moved.
@@ -444,6 +456,50 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     /// those and not by the one somebody adds next.
     /// </summary>
     public Func<SKPointI>? OriginSource { get; set; }
+
+    /// <summary>
+    /// Asks the owner which document is being rendered — any object that stays
+    /// the same for one document and differs between two, compared by
+    /// reference. Null keys by drawing alone, as a cache serving one document
+    /// always has.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B483.</b> A drawing's id is unique within its document, not across
+    /// documents: <c>DocJson.Clone</c> keeps ids, so a document made from a
+    /// template, a duplicated project document and the same file opened twice
+    /// all share them. B362 made the cache keep every open document's pictures
+    /// across a tab switch, and from then on two such tabs read and wrote one
+    /// bitmap — a stroke drawn on the copy showed on the original, whose record
+    /// does not hold it.
+    /// </para>
+    /// <para>
+    /// Asked at every fetch for <see cref="OriginSource"/>'s reason: a tab switch
+    /// changes it, and a cache that had to be told would be told by the switch
+    /// and not by whatever swaps the document next.
+    /// </para>
+    /// <para>
+    /// What is scoped and what is not follows from which way a mistake goes.
+    /// Fetches, stores and the in-place repairs (<see cref="RepaintRegion"/>,
+    /// <see cref="EntriesFor"/>) are scoped, because each one reads or writes
+    /// pixels on behalf of this document's record. <see cref="Invalidate"/> and
+    /// <see cref="Holds(string)"/> are not: dropping another document's picture
+    /// of a drawing with the same id costs one render, and B102 relies on
+    /// invalidating a document nobody is looking at.
+    /// </para>
+    /// </remarks>
+    public Func<object?>? ScopeSource { get; set; }
+
+    /// <summary>A number per scope object, so a key can name one without holding it.</summary>
+    private static readonly ConditionalWeakTable<object, StrongBox<long>> ScopeIds = new();
+
+    private static long _lastScopeId;
+
+    /// <summary>The current document's number, or 0 when <see cref="ScopeSource"/> names none.</summary>
+    private long CurrentScope =>
+        ScopeSource?.Invoke() is { } owner
+            ? ScopeIds.GetValue(owner, _ => new StrongBox<long>(Interlocked.Increment(ref _lastScopeId))).Value
+            : 0;
 
     /// <summary>
     /// Turns a frame into what a render at a timeline position should see —
@@ -549,7 +605,7 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         // keeps that true by construction rather than by coincidence.
         var checkpoint = ReferenceEquals(source, frame) ? CheckpointResolver?.Invoke(frame) : null;
         var bmp = Render(source, width, height, outputScale, celIndex, backdrop, checkpoint);
-        var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale) { Publish = Stamp(-1) });
+        var newNode = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale) { Publish = Stamp(-1), Scope = CurrentScope });
         _map[key] = newNode;
         CachedBytes += BytesOf(bmp);
 
@@ -647,7 +703,7 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         var bytes = BytesOf(bmp);
         if (_lru.Count >= MaxFrames || CachedBytes + bytes > ByteBudget) return false;
 
-        var node = _lru.AddLast(new Entry(key, frame.Id, bmp, width, height, outputScale));
+        var node = _lru.AddLast(new Entry(key, frame.Id, bmp, width, height, outputScale) { Scope = CurrentScope });
         _map[key] = node;
         CachedBytes += bytes;
         return true;
@@ -676,7 +732,7 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         // At the most-recent end, as a fetch would put it: eviction takes from
         // the far end, and never the only entry, so this one stays.
         // Inside a publish it is the frame on screen, as a fetch would be.
-        var node = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale) { Publish = Stamp(-1) });
+        var node = _lru.AddFirst(new Entry(key, frame.Id, bmp, width, height, outputScale) { Publish = Stamp(-1), Scope = CurrentScope });
         _map[key] = node;
         CachedBytes += BytesOf(bmp);
         Evict();
@@ -802,12 +858,16 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         if (!FrameRasterizer.CanRepaintRegion(frame)) return false;
 
         var patched = false;
+        var scope = CurrentScope;
         var node = _lru.First;
         while (node is not null)
         {
             var next = node.Next;
             var entry = node.Value;
-            if (entry.FrameId == frame.Id)
+            // This document's renderings only (B483): another document's drawing
+            // with the same id has its own record, and replaying this one's into
+            // it is how an undo on a copy erased the original's mark.
+            if (entry.FrameId == frame.Id && entry.Scope == scope)
             {
                 var target = Clamped(region, entry.OutputScale, entry.Bmp.Width, entry.Bmp.Height);
                 if (FrameRasterizer.RepaintRegion(
@@ -839,10 +899,12 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     internal List<(string Key, SKBitmap Bmp, double OutputScale)> EntriesFor(string frameId)
     {
         var found = new List<(string, SKBitmap, double)>();
+        var scope = CurrentScope;
         for (var node = _lru.First; node is not null; node = node.Next)
         {
             var entry = node.Value;
-            if (entry.FrameId == frameId) found.Add((entry.Key, entry.Bmp, entry.OutputScale));
+            // The same set RepaintRegion patches, so scoped the same way (B483).
+            if (entry.FrameId == frameId && entry.Scope == scope) found.Add((entry.Key, entry.Bmp, entry.OutputScale));
         }
         return found;
     }
@@ -880,6 +942,27 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
         var right = Math.Clamp(scaled.Right, 0, width);
         var bottom = Math.Clamp(scaled.Bottom, 0, height);
         return new SKRectI(left, top, right, bottom);
+    }
+
+    /// <summary>
+    /// Drop every picture held for one document — what <see cref="ScopeSource"/>
+    /// answered while it was being rendered.
+    /// </summary>
+    /// <remarks>
+    /// For a document that has been closed (B483's review). Its pictures can no
+    /// longer be found — no live owner answers with that object again — but they
+    /// would still count against <see cref="ByteBudget"/> until the LRU reached
+    /// them, pushing out pictures somebody can still use.
+    /// </remarks>
+    public void ForgetScope(object owner)
+    {
+        if (!ScopeIds.TryGetValue(owner, out var id)) return;
+        for (var node = _lru.First; node is not null;)
+        {
+            var next = node.Next;
+            if (node.Value.Scope == id.Value) RemoveNode(node);
+            node = next;
+        }
     }
 
     public void Invalidate(string frameId)

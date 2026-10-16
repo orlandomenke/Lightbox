@@ -725,7 +725,14 @@ public partial class MainViewModel
         if (index < 0) return;
         Tabs.Remove(tab);
         // An animation tab takes its reference-view tabs with it.
-        foreach (var orphan in Tabs.Where(t => t.Owner == tab).ToList()) Tabs.Remove(orphan);
+        var orphans = Tabs.Where(t => t.Owner == tab).ToList();
+        foreach (var orphan in orphans) Tabs.Remove(orphan);
+        // B483's review. The frame cache keeps every open document's pictures
+        // (B362), keyed per document, so a closed one's can never be asked for
+        // again — and would hold budget until the LRU got round to them.
+        // Nothing renders those documents after this, whichever tab comes next.
+        _cache.ForgetScope(tab.Editor);
+        foreach (var orphan in orphans) _cache.ForgetScope(orphan.Editor);
         // B99. Closing a document that was never written takes its row with it.
         // Here rather than in the close handler because this is the one funnel
         // every close goes through, and the handler has already resolved the
