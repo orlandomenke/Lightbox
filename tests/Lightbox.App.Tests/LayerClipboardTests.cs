@@ -197,9 +197,13 @@ public class LayerClipboardTests(ITestOutputHelper output) : BrushStateIsolated
     {
         var (window, vm) = Open();
         vm.SelectLayer(RowOf(vm, "a"), toggle: false, range: false);
-        var cel = window.GetVisualDescendants().OfType<Button>()
-            .First(b => b.Classes.Contains("cel") && b.DataContext is FrameCell { LayerIndex: 1, Index: 0 });
-        cel.Focus();
+        // A click is what puts a cel in the hand: the drawn row takes focus and
+        // remembers the cel (Q282), as the cel's button used to take focus.
+        var cel = vm.LayerRows.SelectMany(r => r.Cells).First(c => c is { LayerIndex: 1, Index: 0 });
+        var at = XsheetProbe.CentreOfCell(window, cel);
+        window.MouseDown(at, Avalonia.Input.MouseButton.Left);
+        window.MouseUp(at, Avalonia.Input.MouseButton.Left);
+        vm.SelectLayer(RowOf(vm, "a"), toggle: false, range: false);
         Pump();
 
         Press(window, PhysicalKey.C);

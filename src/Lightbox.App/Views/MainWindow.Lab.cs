@@ -255,15 +255,12 @@ public partial class MainWindow
 
         Control? found = kindEl.GetString() switch
         {
-            // A cel on the X-sheet: the button whose cell is at that frame, in the
-            // row of the layer with that name.
-            "xsheet-cel" => XsheetLayerList.GetVisualDescendants().OfType<Button>().FirstOrDefault(b =>
-                b.DataContext is FrameCell cell && cell.Index == Int("frame")
-                // The nearest presenter up is the cell's own (the row's inner list
-                // of cells); the row is further up — the first ancestor carrying it.
-                && b.GetVisualAncestors().OfType<Control>().FirstOrDefault(a => a.DataContext is LayerRow)
-                    ?.DataContext is LayerRow row
-                && row.Layer.Name == Str("layer")),
+            // A cel on the X-sheet: the drawn row of the layer with that name,
+            // narrowed below to the cel at that frame (Q282 — a cel is a place in
+            // its row, not a control of its own).
+            "xsheet-cel" => XsheetLayerList.GetVisualDescendants().OfType<Controls.XsheetRowView>().FirstOrDefault(r =>
+                r.DataContext is LayerRow row && row.Layer.Name == Str("layer")
+                && Int("frame") is var frame && frame >= 0 && frame < (r.Cells?.Count ?? 0)),
             // A row of the layer docker, by layer name — its item container, so the
             // centre is the row and not one of its small buttons.
             "layer-row" => LayerList.GetVisualDescendants().OfType<ContentPresenter>().FirstOrDefault(c =>
@@ -300,7 +297,8 @@ public partial class MainWindow
         // panel covered by another, is laid out and "visible" and still not where
         // a click would land — the first lab run clicked two hidden rows and read
         // the misses as the app ignoring them.
-        var centre = new Point(found.Bounds.Width / 2, found.Bounds.Height / 2);
+        var area = found is Controls.XsheetRowView cels ? cels.CellBounds(Int("frame")) : new Rect(found.Bounds.Size);
+        var centre = area.Center;
         if (TopLevel.GetTopLevel(found) is Visual root && found.TranslatePoint(centre, root) is { } inRoot
             && root is IInputElement input && input.InputHitTest(inRoot) is Visual hit
             && !ReferenceEquals(hit, found) && !found.IsVisualAncestorOf(hit))
@@ -311,8 +309,8 @@ public partial class MainWindow
                     + (c.DataContext is LayerRow lr ? $"[row {lr.Layer.Name}]" : c.DataContext is FrameCell fc ? $"[cell {fc.Index}]" : "")));
             return IpcProtocol.Response.Fail($"{p} is laid out but not clickable: on top of it is {chain}");
         }
-        var topLeft = found.PointToScreen(new Point(0, 0));
-        var bottomRight = found.PointToScreen(new Point(found.Bounds.Width, found.Bounds.Height));
+        var topLeft = found.PointToScreen(area.TopLeft);
+        var bottomRight = found.PointToScreen(area.BottomRight);
         return IpcProtocol.Response.Success(new
         {
             x = topLeft.X,

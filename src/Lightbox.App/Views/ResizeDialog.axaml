@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Lightbox.App.ViewModels"
+        xmlns:controls="using:Lightbox.App.Controls"
         x:Class="Lightbox.App.Views.ResizeDialog"
         x:DataType="vm:ResizeDialogViewModel"
         Width="420" SizeToContent="Height"
@@ -45,12 +46,23 @@
       The anchor grid: nine buttons, because the answer is a direction and a
       direction is faster to point at than to read out of a list. Canvas mode
       only — rescaling artwork has no corner to hold still.
+
+      Beside it, the outline preview: the current paper dashed, the new paper
+      solid, the part a crop cuts away dimmed. It is the same height as the
+      grid so the two read as one control — point at a direction, see the
+      paper go that way.
     -->
-    <StackPanel Spacing="{StaticResource Space6}" IsVisible="{Binding IsCanvas}">
-      <TextBlock Text="Anchor" />
-      <UniformGrid x:Name="AnchorGrid" Rows="3" Columns="3"
-                   Width="108" Height="108" HorizontalAlignment="Left" />
-    </StackPanel>
+    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto"
+          ColumnSpacing="{StaticResource Space12}" RowSpacing="{StaticResource Space6}"
+          IsVisible="{Binding IsCanvas}">
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="Anchor" />
+      <TextBlock Grid.Row="0" Grid.Column="1" Text="Preview" />
+      <UniformGrid Grid.Row="1" Grid.Column="0" x:Name="AnchorGrid" Rows="3" Columns="3"
+                   Width="{StaticResource SizeResizeAnchor}" Height="{StaticResource SizeResizeAnchor}"
+                   HorizontalAlignment="Left" />
+      <controls:ResizeOutlinePreview Grid.Row="1" Grid.Column="1" x:Name="OutlinePreview"
+                                     Height="{StaticResource SizeResizeAnchor}" Outline="{Binding Outline}" />
+    </Grid>
 
     <!--
       The preview, as a sentence. It names the one consequence an artist cannot

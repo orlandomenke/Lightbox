@@ -47,8 +47,8 @@ public sealed class TimelineRowAlignmentTests : BrushStateIsolated
         // The name column and the cel strip, found by the height they are both
         // bound to rather than by name — the point is that they agree, so
         // asserting on the shared source would prove nothing.
-        var cels = window.GetVisualDescendants().OfType<Button>()
-            .Where(b => b.Classes.Contains("cel") && b.Bounds.Height > 0)
+        var cels = window.GetVisualDescendants().OfType<Lightbox.App.Controls.XsheetRowView>()
+            .Where(r => r.Bounds.Height > 0)
             .ToList();
         Assert.NotEmpty(cels);
 

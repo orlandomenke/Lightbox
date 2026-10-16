@@ -88,6 +88,7 @@ public sealed class ThumbnailWorkerTests : BrushStateIsolated
     public void OpeningRendersThumbnailsOffTheUiThreadAndFillsEveryCell()
     {
         var vm = new MainViewModel(null);
+        vm.XsheetCellStyle = Lightbox.App.Controls.XsheetCellStyle.Pictures; // These are about the cel pictures, which only the pictures style makes (Q282).
         vm.ReplaceDocument(Drawings(8));
 
         Assert.Equal(0, vm.FrameCache.RecentMisses.Count(m => m.Scale < 1));
@@ -121,6 +122,7 @@ public sealed class ThumbnailWorkerTests : BrushStateIsolated
         }
         doc.Scene.FrameCount = 6;
         var vm = new MainViewModel(null);
+        vm.XsheetCellStyle = Lightbox.App.Controls.XsheetCellStyle.Pictures; // These are about the cel pictures, which only the pictures style makes (Q282).
         vm.ReplaceDocument(doc);
         DeliverUntilQuiet();
         Assert.All(KeyedCells(vm), c => Assert.NotNull(c.Thumb)); // the sheet's thumbnails are all held

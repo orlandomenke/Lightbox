@@ -1,3 +1,4 @@
+using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Lightbox.Core.Documents;
 
@@ -18,6 +19,20 @@ public enum ResizeMode
     /// <summary>The artwork scales, and the grain re-rolls with it.</summary>
     Image,
 }
+
+/// <summary>
+/// The resize dialog's outline preview: the paper as it is and as it will be,
+/// placed by the anchor, in a unit space the control only has to fit.
+/// </summary>
+/// <param name="Old">The current paper.</param>
+/// <param name="New">The paper after the resize.</param>
+/// <param name="Kept">The part of the current paper that survives — all of it
+/// unless the resize crops; the rest of <paramref name="Old"/> is what is cut away.</param>
+/// <param name="Extent">The union of the two, whose larger side is 1. Every
+/// rectangle lies inside <c>(0, 0, Extent)</c>.</param>
+/// <param name="Scale">Units per pixel, so a test can read the picture back in pixels.</param>
+/// <param name="Crops">Whether any of the current paper is cut away.</param>
+public sealed record ResizeOutline(Rect Old, Rect New, Rect Kept, Size Extent, double Scale, bool Crops);
 
 /// <summary>
 /// Resize canvas and resize image, as an artist asks for them.
@@ -74,11 +89,13 @@ public sealed partial class ResizeDialogViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Summary))]
     [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyPropertyChangedFor(nameof(Outline))]
     private int _width;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Summary))]
     [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyPropertyChangedFor(nameof(Outline))]
     private int _height;
 
     /// <summary>
@@ -100,6 +117,7 @@ public sealed partial class ResizeDialogViewModel : ObservableObject
     /// </remarks>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Summary))]
+    [NotifyPropertyChangedFor(nameof(Outline))]
     private ResizeAnchor _anchor = ResizeAnchor.Center;
 
     /// <summary>Keep the aspect ratio: editing one dimension moves the other.</summary>
@@ -217,6 +235,47 @@ public sealed partial class ResizeDialogViewModel : ObservableObject
         ResizeAnchor.BottomRight => "bottom-right",
         _ => "centre",
     };
+
+    /// <summary>
+    /// The preview as a picture: where the old paper sits in the new, so the
+    /// direction the paper grows is visible before the button rather than after.
+    /// </summary>
+    /// <remarks>
+    /// <b>Placed by <see cref="CanvasResize.OriginShift"/>, the same call the
+    /// edit makes</b>, so the picture and the result cannot disagree — not even
+    /// about which side a centred anchor's spare pixel goes to. A size below
+    /// one pixel (a field mid-edit) shows the old paper alone rather than a
+    /// rectangle that is not a size.
+    /// </remarks>
+    public ResizeOutline Outline
+    {
+        get
+        {
+            var oldW = Math.Max(1, _startWidth);
+            var oldH = Math.Max(1, _startHeight);
+            var isSize = Width >= 1 && Height >= 1;
+            var (newW, newH) = isSize ? (Width, Height) : (oldW, oldH);
+            var (dx, dy) = isSize
+                ? CanvasResize.OriginShift(oldW, oldH, newW, newH, Anchor)
+                : (0, 0);
+
+            // In pixels, relative to the old paper's top-left.
+            var oldPx = new Rect(0, 0, oldW, oldH);
+            var newPx = new Rect(dx, dy, newW, newH);
+            var union = oldPx.Union(newPx);
+            var scale = 1.0 / Math.Max(union.Width, union.Height);
+
+            Rect Unit(Rect r) => new(
+                (r.X - union.X) * scale, (r.Y - union.Y) * scale, r.Width * scale, r.Height * scale);
+
+            var kept = oldPx.Intersect(newPx);
+            return new ResizeOutline(
+                Unit(oldPx), Unit(newPx), Unit(kept),
+                new Size(union.Width * scale, union.Height * scale),
+                scale,
+                Crops: kept != oldPx);
+        }
+    }
 
     /// <summary>Pick the anchor from the nine-square grid.</summary>
     public void SetAnchor(ResizeAnchor anchor) => Anchor = anchor;

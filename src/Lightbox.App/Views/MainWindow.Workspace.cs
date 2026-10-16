@@ -1422,18 +1422,14 @@ public partial class MainWindow : IFollowsUiScale
     }
 
     /// <summary>
-    /// The cel whose timeline or X-sheet button holds keyboard focus, or null —
+    /// The cel last clicked in the X-sheet row that holds keyboard focus, or null —
     /// the cel counterpart of <see cref="LayerSurfaceHasFocus"/>, and the reason
     /// Ctrl+C on a cel is still the cel's (B474).
     /// </summary>
     private FrameCell? FocusedCel()
     {
         if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is not Visual focused) return null;
-        return focused.FindAncestorOfType<Button>(includeSelf: true) is { } button
-            && button.Classes.Contains("cel")
-            && button.DataContext is FrameCell cell
-                ? cell
-                : null;
+        return (focused as Visual)?.FindAncestorOfType<Controls.XsheetRowView>(includeSelf: true)?.FocusedCell;
     }
 
     private void OnXsheetLayerPressedTunnel(object? sender, PointerPressedEventArgs e)

@@ -481,12 +481,15 @@ public partial class MainWindow
     /// <summary>A drag from an empty cel selects a block (Q207); a drag from a drawing moves it.</summary>
     private readonly Input.CelBlockSelectGesture _celSelect = new();
 
-    private static FrameCell? CellUnder(object? source) =>
-        (source as Control)?.FindAncestorOfType<Button>(includeSelf: true)?.DataContext as FrameCell;
+    /// <summary>The cel under the pointer, read off the drawn row it is over (Q282).</summary>
+    private static FrameCell? CellUnder(PointerEventArgs e) =>
+        (e.Source as Visual)?.FindAncestorOfType<XsheetRowView>(includeSelf: true) is { } row
+            ? row.CellAt(e.GetPosition(row))
+            : null;
 
     private void OnTimelinePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (CellUnder(e.Source) is not { } cell) return;
+        if (CellUnder(e) is not { } cell) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         // Both are handled here and marked handled, so the cell's own click —
         // which selects the frame and clears the selection — never also runs.
@@ -577,7 +580,9 @@ public partial class MainWindow
 
     /// <summary>The cel under a point in the window, whatever has the pointer captured.</summary>
     private FrameCell? CelAt(Point inWindow) =>
-        this.GetVisualsAt(inWindow).Select(CellUnder).FirstOrDefault(c => c is not null);
+        this.GetVisualsAt(inWindow).OfType<XsheetRowView>()
+            .Select(row => this.TranslatePoint(inWindow, row) is { } at ? row.CellAt(at) : null)
+            .FirstOrDefault(c => c is not null);
 
     private void TrackCelDrag(PointerEventArgs e)
     {
@@ -611,7 +616,10 @@ public partial class MainWindow
 
     private void OnCellPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (sender is not Button button || button.DataContext is not FrameCell cell) return;
+        if (sender is not XsheetRowView row) return;
+        // Null when the row holding the pointer is not the one under it — a
+        // carry or a block on its way to another row.
+        var cell = row.CellAt(e.GetPosition(row));
         if (_celCarry is { } carrying)
         {
             if (!ReferenceEquals(e.Pointer, carrying.Pointer)) return;
@@ -625,26 +633,34 @@ public partial class MainWindow
             var at = e.GetCurrentPoint(this);
             if (_celSelect.Moved(at.Position, at.Properties.IsLeftButtonPressed, out var started))
             {
-                // The pressed cel holds the pointer, so every move would report
-                // it. Letting go of the capture sends moves to whichever cel is
+                // The pressed row holds the pointer, so every move would report
+                // it. Letting go of the capture sends moves to whichever row is
                 // under the pointer — and means the release is no longer a click
                 // on the first cel, which would move the playhead and clear the
                 // block just made.
                 if (started) e.Pointer.Capture(null);
-                if (_celSelect.CornerMovedTo(cell)) _vm.DragSelectTo(from, cell);
+                if (cell is not null && _celSelect.CornerMovedTo(cell)) _vm.DragSelectTo(from, cell);
             }
             return;
         }
         if (_celDragPress is null) return;
+        // The press holds the pointer on its row, as the button held it on its
+        // cel: what is being dragged is the cel pressed, wherever the pointer
+        // has got to since.
+        if (_celDrag.Candidate is not { } pressed)
+        {
+            _celDragPress = null;
+            return;
+        }
         var point = e.GetCurrentPoint(this);
-        if (!_celDrag.ShouldStart(cell, point.Position, point.Properties.IsLeftButtonPressed,
+        if (!_celDrag.ShouldStart(pressed, point.Position, point.Properties.IsLeftButtonPressed,
                 Input.CelDragGesture.ThresholdFor(e.Pointer.Type)))
         {
             if (_celDrag.Candidate is null) _celDragPress = null;
             return;
         }
-        _celCarry = (cell, e.Pointer);
-        e.Pointer.Capture(button); // already the press's; said so the drag owns it
+        _celCarry = (pressed, e.Pointer);
+        e.Pointer.Capture(row); // already the press's; said so the drag owns it
         TrackCelDrag(e);
     }
 

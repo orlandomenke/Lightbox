@@ -492,6 +492,16 @@ public sealed class AppSettings
     /// </remarks>
     public bool MarkOffSheetKeys { get; set; }
 
+    /// <summary>How the X-sheet shows a cel's drawing: its number, a dot, or a picture (Q282).</summary>
+    /// <remarks>
+    /// Written by name, so the file says what it means and a reordered enum
+    /// cannot change it. Read leniently: a name this build does not know — a
+    /// style a newer build added — reads as the default, where the plain string
+    /// converter would throw and the whole file would load as defaults.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonConverter(typeof(LenientEnumConverter<Controls.XsheetCellStyle>))]
+    public Controls.XsheetCellStyle XsheetCellStyle { get; set; }
+
     /// <summary>
     /// Whether the bone overlay follows the playhead while the animation
     /// plays, rather than being hidden.
@@ -657,3 +667,21 @@ public sealed class AppSettings
     public TimeSpan? AutosaveInterval =>
         AutosaveMinutes <= 0 ? null : TimeSpan.FromMinutes(Math.Clamp(AutosaveMinutes, 0.25, 60));
 }
+
+/// <summary>
+/// An enum written by name and read forgivingly: an unknown name or a stray
+/// number reads as the enum's default rather than failing the whole settings
+/// file, which <see cref="AppSettings"/> would otherwise replace with defaults.
+/// </summary>
+internal sealed class LenientEnumConverter<T> : System.Text.Json.Serialization.JsonConverter<T> where T : struct, Enum
+{
+    public override T Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.TokenType == System.Text.Json.JsonTokenType.String
+        && Enum.TryParse<T>(reader.GetString(), ignoreCase: true, out var value) && Enum.IsDefined(value)
+            ? value
+            : default;
+
+    public override void Write(System.Text.Json.Utf8JsonWriter writer, T value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToString());
+}
+
