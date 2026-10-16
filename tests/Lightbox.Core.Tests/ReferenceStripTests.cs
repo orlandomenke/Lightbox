@@ -31,6 +31,37 @@ public class ReferenceStripTests
         return (new DocumentEditor(doc), strip);
     }
 
+    // ---- a reference to another document ---------------------------------------
+
+    [Fact]
+    public void AStripThatIsNotADocumentReferenceWritesNoDocumentKeys()
+    {
+        // Optional means absent: every image, video and sheet reference in every
+        // existing file must serialize exactly as it did before documents could
+        // be referenced.
+        var json = DocJson.Serialize(Doc().Editor.Doc);
+
+        Assert.DoesNotContain("\"document\"", json);
+        Assert.DoesNotContain("\"isDocument\"", json);
+    }
+
+    [Fact]
+    public void ADocumentReferenceRoundTripsItsSource()
+    {
+        var (editor, strip) = Doc();
+        strip.Document = new DocumentSource
+        {
+            Path = "run.lightbox.json", Stamp = 638_000_000_000_000_000, OriginX = 12, OriginY = 34, Scale = 0.5,
+        };
+
+        var back = DocJson.Deserialize(DocJson.Serialize(editor.Doc)).Scene.References![0];
+
+        Assert.Equal("run.lightbox.json", back.Document!.Path);
+        Assert.Equal(638_000_000_000_000_000, back.Document.Stamp);
+        Assert.Equal((12, 34, 0.5), (back.Document.OriginX, back.Document.OriginY, back.Document.Scale));
+        Assert.True(back.IsDocument);
+    }
+
     // ---- the mapping ------------------------------------------------------------
 
     [Fact]

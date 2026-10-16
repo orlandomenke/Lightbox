@@ -98,6 +98,9 @@ public sealed class ReferenceBoardWindow : Window
         _vm = vm;
         _shortcuts = shortcuts;
         BoardModel = new ReferenceBoardViewModel(vm);
+        // A document pinned up may have been saved since the wall last looked
+        // (Q284). Coming back to the board is the moment to check.
+        Activated += (_, _) => _ = BoardModel.RefreshDocumentTilesAsync();
 
         Title = "Reference board";
         ShowInTaskbar = false;
@@ -167,6 +170,15 @@ public sealed class ReferenceBoardWindow : Window
         var add = new Button { Content = "Add image…", Classes = { "tertiary" } };
         add.Click += async (_, _) => await AddImageAsync();
 
+        var addDocument = new Button
+        {
+            Content = "Add document…",
+            Classes = { "tertiary" },
+        };
+        ToolTip.SetTip(addDocument,
+            "Pin up another Lightbox document as a column of its frames — read, never changed, and refreshed when it is saved");
+        addDocument.Click += async (_, _) => await AddDocumentAsync();
+
         _sheetsButton.Click += (_, _) => ShowSheetsMenu();
         _ownerButton.Click += (_, _) => ShowOwnerMenu();
         RefreshOwnerButton();
@@ -176,7 +188,7 @@ public sealed class ReferenceBoardWindow : Window
             Orientation = Avalonia.Layout.Orientation.Horizontal,
             Spacing = 6,
             Margin = new Thickness(8, 6),
-            Children = { arrange, fit, add, _sheetsButton, _ownerButton, _status },
+            Children = { arrange, fit, add, addDocument, _sheetsButton, _ownerButton, _status },
         };
         Grid.SetRow(bar, 0);
         return bar;
@@ -408,9 +420,10 @@ public sealed class ReferenceBoardWindow : Window
         // scale and the alignment live — an import you then cannot adjust
         // reads as a wrong guess rather than a starting point.
         var lay = new MenuItem { Header = "Lay onto the timeline as frames" };
-        lay.Click += (_, _) =>
+        lay.Click += async (_, _) =>
         {
-            if (_vm.ImportBoardTileAsAnimation(tile, BoardModel.PixelsFor(tile)) is not null)
+            if (tile.IsDocument) Say($"Flattening “{tile.Name}”…");
+            if (await _vm.LayBoardTileOntoTimelineAsync(tile, BoardModel.PixelsFor(tile)) is not null)
             {
                 _vm.ReferenceDockerVisible = true;
             }
@@ -665,6 +678,35 @@ public sealed class ReferenceBoardWindow : Window
         {
             if (file.TryGetLocalPath() is not { } path) continue;
             BoardModel.AddImageFile(path, (centre.X + step * 24, centre.Y + step * 24));
+            step++;
+        }
+    }
+
+    /// <summary>
+    /// Pin up other documents as columns of their frames (Q284–Q286). Each is
+    /// read and never written; a file that cannot be read says so on the board.
+    /// </summary>
+    private async Task AddDocumentAsync()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Add a document as reference",
+            AllowMultiple = true,
+            FileTypeFilter = [new FilePickerFileType("Lightbox documents") { Patterns = ["*.lightbox.json"] }],
+        });
+        var centre = ViewCentre;
+        var step = 0;
+        foreach (var file in files)
+        {
+            if (file.TryGetLocalPath() is not { } path) continue;
+            Say($"Flattening “{Path.GetFileName(path)}”…");
+            var (tile, error) = await BoardModel.AddDocumentAsync(path, (centre.X + step * 24, centre.Y + step * 24));
+            if (tile is null)
+            {
+                Say(error ?? $"“{Path.GetFileName(path)}” could not be read.");
+                continue;
+            }
+            Say($"“{tile.Name}” is up — read, never changed, and refreshed when it is saved.");
             step++;
         }
     }

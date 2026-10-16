@@ -154,6 +154,7 @@ public sealed class ReferenceBoardViewModel
     /// </remarks>
     public void AutoLoad(double viewWidth, double viewHeight)
     {
+        _ = RefreshDocumentTilesAsync();
         var available = AvailableViews;
         var known = available.Select(p => p.View.Id).ToHashSet(StringComparer.Ordinal);
         var wasEmpty = Board.Tiles.Count == 0;
@@ -305,6 +306,110 @@ public sealed class ReferenceBoardViewModel
             return AddTile(name, decoded.Width, decoded.Height, at, tile => tile.Path = relative);
         }
         return AddTile(name, decoded.Width, decoded.Height, at, tile => tile.Png = png);
+    }
+
+    /// <summary>
+    /// Pin up another Lightbox document as a column of its frames, flattened
+    /// (Q284–Q286). The source is read and never written; the tile remembers
+    /// it in <see cref="BoardTile.Origin"/> and refreshes when it is newer.
+    /// The tile, or null with a reason. The flatten runs off the UI thread.
+    /// </summary>
+    /// <inheritdoc cref="AddImageFile(string, ValueTuple{double,double}?)" path="/param[@name='at']"/>
+    public async Task<(BoardTile? Tile, string? Error)> AddDocumentAsync(string path, (double X, double Y)? at = null)
+    {
+        var full = Path.GetFullPath(path);
+        var (flat, error) = await Task.Run(() => MainViewModel.FlattenQuietly(full));
+        if (flat is null) return (null, error);
+        using (flat)
+        {
+            var name = MainViewModel.DocumentName(full);
+            var png = Lightbox.Raster.PngCodec.Encode(flat.Sheet);
+            if (Project is { } project
+                && ProjectBoards.ImportImage(project, Convert.FromBase64String(png), $"{ProjectIo.Slug(name)}.png") is { } relative)
+            {
+                return (AddTile(name, flat.Sheet.Width, flat.Sheet.Height, at, tile =>
+                {
+                    tile.Path = relative;
+                    tile.Origin = full;
+                    tile.DocumentStamp = flat.Stamp;
+                }), null);
+            }
+            return (AddTile(name, flat.Sheet.Width, flat.Sheet.Height, at, tile =>
+            {
+                tile.Png = png;
+                tile.Origin = full;
+                tile.DocumentStamp = flat.Stamp;
+            }), null);
+        }
+    }
+
+    /// <summary>Tiles being flattened right now, so a second trigger does not start a second render.</summary>
+    private readonly HashSet<string> _flatteningTiles = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Re-flatten every document tile whose source is newer than its picture.
+    /// Returns how many changed; a source that has gone leaves its picture up.
+    /// </summary>
+    /// <remarks>
+    /// The picture is rewritten in place — the same copied file, or the same
+    /// embedded PNG — so the tile keeps its id, its place on the wall and any
+    /// projection of it. The width stays where the artist dragged it and the
+    /// height follows the picture, which grows when the run gains a drawing.
+    /// </remarks>
+    public async Task<int> RefreshDocumentTilesAsync()
+    {
+        var stale = Board.Tiles
+            .Where(t => t.IsDocument && !_flatteningTiles.Contains(t.Id) && File.Exists(t.Origin)
+                && Services.DocumentReference.StampOf(t.Origin!) != t.DocumentStamp)
+            .ToList();
+        if (stale.Count == 0) return 0;
+
+        foreach (var tile in stale) _flatteningTiles.Add(tile.Id);
+        List<Services.FlattenedDocument?> flats;
+        try
+        {
+            flats = await Task.Run(() => stale.Select(t => MainViewModel.FlattenQuietly(t.Origin!).Flat).ToList());
+        }
+        finally
+        {
+            foreach (var tile in stale) _flatteningTiles.Remove(tile.Id);
+        }
+
+        var changed = 0;
+        for (var i = 0; i < stale.Count; i++)
+        {
+            if (flats[i] is not { } flat) continue;
+            using (flat)
+            {
+                var tile = stale[i];
+                var png = Lightbox.Raster.PngCodec.Encode(flat.Sheet);
+                if (tile.IsFile)
+                {
+                    if (Project is not { } project || ProjectBoards.ResolveImage(project, tile) is not { } target) continue;
+                    try
+                    {
+                        File.WriteAllBytes(target, Convert.FromBase64String(png));
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    tile.Png = png;
+                }
+                tile.DocumentStamp = flat.Stamp;
+                if (flat.Sheet.Width > 0) tile.Height = tile.Width * flat.Sheet.Height / flat.Sheet.Width;
+                changed++;
+            }
+        }
+        if (changed > 0)
+        {
+            Save();
+            Changed?.Invoke();
+        }
+        return changed;
     }
 
     private BoardTile AddTile(

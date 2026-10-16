@@ -29,6 +29,10 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = _vm;
+        // Coming back to the window is when a referenced document may have
+        // been saved elsewhere (Q284); the stamp check makes this a file-time
+        // read per document reference, nothing more.
+        Activated += (_, _) => _vm.RefreshDocumentReferences();
         HandPlaybackTheScreen();
         Canvas.SetSelectionManager(_vm.Selection);
         Canvas.SetLinePicker(_vm.PickStrokeAt);
