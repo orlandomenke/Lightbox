@@ -146,7 +146,7 @@ jobs:
       # collector writes a sequence file per test host.
       - name: Keep the test record of a run that did not pass
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-results-${{ github.run_number }}
           path: test-results/
