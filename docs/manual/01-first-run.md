@@ -78,7 +78,10 @@ the undo limit. For a state that should outlive the session, keep a version
 Each panel's header is three things at once:
 
 - **A title** — or **tabs**, when more than one panel shares the slot. Click a
-  tab to bring that panel forward. No panel is ever open twice, so "where is the
+  tab to bring that panel forward. When the tabs do not fit, the tab in front
+  keeps its whole title and the others give way, longest first, ending in
+  "…" — pointing at a cut tab shows its whole name. Every tab stays on the
+  strip and clickable, however narrow the side. No panel is ever open twice, so "where is the
   palette" always has one answer.
 - **Two grips.** Drag **a tab** to move that one panel, the way you would
   anywhere else. Drag the **⠿ grip** beside the header's buttons — or the

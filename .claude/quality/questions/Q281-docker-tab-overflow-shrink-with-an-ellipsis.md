@@ -23,3 +23,18 @@ bare header the group grip can count on, which is why it was asked alongside.
 
 - **Tabs shrink to fit, titles cut with an ellipsis, the full title in a
   tooltip.** Its own branch, after the group grip.
+
+## Asked while building it, 2026-10-15
+
+- **The tab in front keeps its whole title first** (recommended, chosen). The
+  panel being looked at is always named in full and the tabs behind it are cut
+  harder. The cost is that widths move when the front tab changes. The
+  alternative, widths depending only on titles, could cut the very tab whose
+  panel is showing.
+- **Cut tabs shed side padding** (`TabPaddingCut`), not asked: rendered at the
+  normal padding the colour group read "C… P… G… C…", two of them the same.
+  With it: "Color · Palette · Gradi… · Chan…".
+- **No floor**, not asked: an equal share of the room is the least any tab is
+  cut to, and a 44 px floor that always won pushed the last tabs off the strip,
+  where they took no click (the adversary's refutation).
+

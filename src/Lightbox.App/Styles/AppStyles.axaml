@@ -235,16 +235,21 @@
                          SelectedValueBinding="{Binding Id, DataType=docking:DockPanelInfo}"
                          Background="Transparent" BorderThickness="0"
                          Padding="0" Margin="-6,0,0,0"
-                         VerticalAlignment="Bottom">
+                         VerticalAlignment="Bottom"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                  <!-- Scrolling off, so the strip is told how much room the
+                       header has; TabStripPanel shrinks the widest tabs to fit
+                       it rather than running on under the buttons (Q281). -->
                   <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                       <!-- Flush: tabs are sheets in a stack, and sheets touch. -->
-                      <StackPanel Orientation="Horizontal" Spacing="0" />
+                      <controls:TabStripPanel />
                     </ItemsPanelTemplate>
                   </ListBox.ItemsPanel>
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="docking:DockPanelInfo">
                       <TextBlock Text="{Binding Title}" FontSize="{StaticResource TypeDense}" FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis"
                                  VerticalAlignment="Center" />
                     </DataTemplate>
                   </ListBox.ItemTemplate>
