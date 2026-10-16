@@ -21,9 +21,26 @@ public class XsheetRowViewTests : BrushStateIsolated
 {
     private static void Pump() => Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-    private static (MainWindow Window, MainViewModel Vm) Open(int frames = 6, int layers = 3)
+    /// <summary>
+    /// Every window a test opened, closed when it ends. An open window keeps its
+    /// view model and its picture stores alive, and the picture budget is
+    /// shared by the whole test process: tests later in the same run that need
+    /// room under it (the idle playback warm) would find it taken.
+    /// </summary>
+    private readonly List<Window> _opened = [];
+
+    public override void Dispose()
+    {
+        foreach (var window in _opened) window.Close();
+        _opened.Clear();
+        Pump();
+        base.Dispose();
+    }
+
+    private (MainWindow Window, MainViewModel Vm) Open(int frames = 6, int layers = 3)
     {
         var window = new MainWindow { Width = 1400, Height = 1000 };
+        _opened.Add(window);
         window.Show();
         Pump();
         var vm = (MainViewModel)window.DataContext!;
@@ -173,6 +190,7 @@ public class XsheetRowViewTests : BrushStateIsolated
     {
         var vm = new MainViewModel(artist: null);
         var window = new ConfigureWindow(new Lightbox.App.Services.ShortcutMap(), vm);
+        _opened.Add(window);
         window.FindControl<ListBox>("CategoryList")!.SelectedIndex = 4;
         window.Show();
         Pump();
