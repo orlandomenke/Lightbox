@@ -54,5 +54,7 @@ public class TestAppBuilder
 
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<Lightbox.App.App>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions());
+            .UseHeadless(new AvaloniaHeadlessPlatformOptions())
+            // Every window a test shows is closed after it (TestWindows).
+            .AfterSetup(_ => TestWindows.Track());
 }
