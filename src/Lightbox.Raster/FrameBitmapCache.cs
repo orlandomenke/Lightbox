@@ -597,10 +597,18 @@ public sealed class FrameBitmapCache : IDisposable, IPictureStore
     /// this runs with no cache in hand, possibly on another thread; the caller
     /// reads <see cref="Origin"/> on the thread that owns the document and
     /// hands the value over.
+    /// <para>
+    /// <b>Required, with no default</b>, because a default of zero is the bug
+    /// rather than a convenience: a render made without it and then inserted
+    /// is filed under the key of the paper as it is now, so a grown document
+    /// shows that drawing where the paper used to put it. The parallel stills
+    /// render did exactly that, and resize canvas looked as if the anchor did
+    /// nothing. A caller that really means unmoved paper says so.
+    /// </para>
     /// </param>
     public static SKBitmap RenderDetached(
-        Frame frame, int width, int height, double outputScale = 1.0, int celIndex = 0,
-        SKPointI origin = default) =>
+        Frame frame, int width, int height, SKPointI origin, double outputScale = 1.0,
+        int celIndex = 0) =>
         FrameRasterizer.Materialize(frame, width, height, outputScale, celIndex, backdrop: null, origin: origin);
 
     /// <summary>

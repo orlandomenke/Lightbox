@@ -134,7 +134,7 @@ public sealed class ThumbnailWorker : IDisposable
             try
             {
                 bmp = FrameBitmapCache.RenderDetached(
-                    job.Frame, job.Width, job.Height, job.Scale, job.Cel, job.Origin);
+                    job.Frame, job.Width, job.Height, job.Origin, job.Scale, job.Cel);
             }
             catch (Exception)
             {
