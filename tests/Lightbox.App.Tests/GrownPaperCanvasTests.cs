@@ -128,6 +128,54 @@ public class GrownPaperCanvasTests(Xunit.ITestOutputHelper output) : BrushStateI
     }
 
     /// <summary>
+    /// Scrubbing or playing grown paper still shows the drawing, moved (B480).
+    /// The tile path is refused on moved paper because its rasterizer stamps
+    /// with no origin — but the per-layer gate only asked about the camera and
+    /// the viewport, so each pass was marked as a tile frame on a route that
+    /// never draws tiles, and every layer vanished. It needs a viewport, which
+    /// the real canvas always has and the other tests here do not set.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ScrubbingOrPlayingGrownPaperStillShowsEveryLayer(bool playing)
+    {
+        var (vm, shown) = Open();
+        // A second layer, active, holding a blue square well clear of the red,
+        // so both an inactive layer and the active one are asked about.
+        vm.AddPaintedLayerCommand.Execute(null);
+        vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame = new Frame
+        {
+            Strokes =
+            [
+                new Stroke
+                {
+                    Tool = ToolKind.Fill,
+                    Color = "#0000ff",
+                    Brush = new BrushSettings { Opacity = 1, AntiAlias = false },
+                    Points = [new(40, 40, 1), new(48, 40, 1), new(48, 48, 1), new(40, 48, 1)],
+                },
+            ],
+        };
+        GrowLeftAndUp(vm);
+        vm.SetViewport(SKRectI.Create(0, 0, 64 + GrewX, 64 + GrewY));
+        if (playing) vm.IsPlaying = true;
+        else vm.IsScrubbing = true;
+        vm.ReportTileFallbacks.Reset();
+        vm.PublishSnapshot();
+
+        using var after = shown();
+        var red = RedCorner(after);
+        var blue = after.GetPixel(44 + GrewX, 44 + GrewY);
+        output.WriteLine($"{(playing ? "playing" : "scrubbing")}: red corner at {red}, expected ({4 + GrewX}, {6 + GrewY}); blue square's middle {blue}");
+        Assert.Equal((4 + GrewX, 6 + GrewY), red);
+        Assert.True(blue.Blue > 200 && blue.Red < 60 && blue.Alpha > 200, blue.ToString());
+        // And the render report says why these passes did not tile, rather
+        // than leaving a slower scrub unexplained.
+        Assert.Equal(TileFallbackReason.PaperMoved, vm.ReportTileFallbacks.Dominant);
+    }
+
+    /// <summary>
     /// An eraser that rubs ink out on grown paper is kept. The commit asks the
     /// pixels whether an erasure changed anything (B236) by holding the cached
     /// drawing across the stamp — and on grown paper the stamp is replaced by
@@ -224,5 +272,75 @@ public class GrownPaperCanvasTests(Xunit.ITestOutputHelper output) : BrushStateI
             AttachmentOverlay.Resolver = before;
             Lightbox.Raster.SymbolRegistry.Clear();
         }
+    }
+
+    /// <summary>
+    /// A drawing on a layer nobody is drawing on moves with the paper, too.
+    /// </summary>
+    /// <remarks>
+    /// Found on the owner's six-frame jump (2026-10-16): resize canvas put the
+    /// background where it was whichever anchor was picked, so the anchor read
+    /// as doing nothing. Every test above draws on the active layer, and every
+    /// one passed. What differs is that a resize leaves two or more drawings
+    /// missing at the new size, and two or more are rendered in parallel,
+    /// detached from the cache (<c>RenderMissingStillsInParallel</c>) — which
+    /// rendered them with no origin and filed the result under the key of the
+    /// paper as it is now. A single missing drawing takes the ordinary miss,
+    /// which knew, so it only shows once there are two layers with ink on them.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ADrawingOnAnotherLayerMovesWithThePaper()
+    {
+        var vm = new MainViewModel();
+        vm.NewDocument(new NewDocumentSettings("Grown", 64, 64, 12, 72, "#ffffff", true));
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += s => latest = s;
+        vm.AddPaintedLayerCommand.Execute(null);
+        Assert.True(vm.Doc.Scene.Layers.Count >= 2, "needs a second layer to be off");
+        var other = vm.ActiveLayerIndex == 0 ? 1 : 0;
+
+        // The red square on the layer that is NOT active, and a mark on the
+        // active one so the resize leaves two drawings to render at once.
+        vm.Doc.Scene.Layers[other].Cels[0].Frame = new Frame
+        {
+            Strokes =
+            [
+                new Stroke
+                {
+                    Tool = ToolKind.Fill,
+                    Color = "#ff0000",
+                    Brush = new BrushSettings { Opacity = 1, AntiAlias = false },
+                    Points = [new(4, 6, 1), new(12, 6, 1), new(12, 14, 1), new(4, 14, 1)],
+                },
+            ],
+        };
+        vm.Doc.Scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame = new Frame
+        {
+            Strokes =
+            [
+                new Stroke
+                {
+                    Tool = ToolKind.Fill,
+                    Color = "#0000ff",
+                    Brush = new BrushSettings { Opacity = 1, AntiAlias = false },
+                    Points = [new(40, 40, 1), new(48, 40, 1), new(48, 48, 1), new(40, 48, 1)],
+                },
+            ],
+        };
+        vm.PublishSnapshot();
+        Pump();
+        using (var before = SKBitmap.FromImage(latest!.Image))
+        {
+            Assert.Equal((4, 6), RedCorner(before));
+        }
+
+        GrowLeftAndUp(vm);
+        Pump();
+
+        output.WriteLine($"stills rendered together after the resize: {vm.LargestParallelRender}");
+        using var after = SKBitmap.FromImage(latest!.Image);
+        var corner = RedCorner(after);
+        output.WriteLine($"the off layer's square is at {corner}; expected ({4 + GrewX}, {6 + GrewY})");
+        Assert.Equal((4 + GrewX, 6 + GrewY), corner);
     }
 }

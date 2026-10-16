@@ -67,7 +67,7 @@ public class WarmWhileIdleTests
 
         using var warmed = new FrameBitmapCache();
         // What the prewarmer produces off the UI thread, and hands back.
-        var detached = FrameBitmapCache.RenderDetached(frame, scene.Width, scene.Height);
+        var detached = FrameBitmapCache.RenderDetached(frame, scene.Width, scene.Height, default);
         Assert.True(warmed.InsertWarm(frame, scene.Width, scene.Height, 1.0, 0, detached));
 
         // And the very next lookup is served, not rendered.
@@ -99,7 +99,7 @@ public class WarmWhileIdleTests
         var frame = scene.Layers[0].Cels[0].Frame!;
 
         using var cache = new FrameBitmapCache();
-        var detached = FrameBitmapCache.RenderDetached(frame, scene.Width / 2, scene.Height / 2);
+        var detached = FrameBitmapCache.RenderDetached(frame, scene.Width / 2, scene.Height / 2, default);
         cache.InsertWarm(frame, scene.Width / 2, scene.Height / 2, 1.0, 0, detached);
 
         Assert.False(

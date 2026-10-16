@@ -146,7 +146,7 @@ public class LiveRigRenderTests
             TileFallbackReason.BoundStrokes,
             TileFallback.Reason(
                 BoundFrame(), hasCamera: false, haveViewport: true, liveEffectHere: false, posed: false,
-                shaped: false));
+                shaped: false, paperMoved: false));
     }
 
     [Fact]
@@ -164,6 +164,6 @@ public class LiveRigRenderTests
             TileFallbackReason.BoundStrokes,
             TileFallback.Reason(
                 plain, hasCamera: false, haveViewport: true, liveEffectHere: false, posed: true,
-                shaped: false));
+                shaped: false, paperMoved: false));
     }
 }

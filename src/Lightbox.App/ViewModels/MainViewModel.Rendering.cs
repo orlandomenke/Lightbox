@@ -2377,11 +2377,17 @@ public partial class MainViewModel
         _cache.MakeRoom(missing.Count * (long)scene.Width * scene.Height * 4);
         // The cores go to the renders this publish is waiting for, not to guesses.
         using var held = _prewarm.Hold();
+        // The corner is read here, on the thread that owns the document, and
+        // handed to every render: InsertWanted files each one under the key of
+        // the paper as it is now, so a render made at the old corner would show
+        // that layer unmoved on grown paper — every layer but the one being
+        // drawn on, whichever anchor the resize was given.
+        var origin = _cache.Origin;
         try
         {
             Parallel.For(0, missing.Count, new ParallelOptions { MaxDegreeOfParallelism = FramePrewarmer.IdleWorkers },
                 i => rendered[i] = FrameBitmapCache.RenderDetached(
-                    missing[i].Frame, scene.Width, scene.Height, celIndex: missing[i].Cel));
+                    missing[i].Frame, scene.Width, scene.Height, origin, celIndex: missing[i].Cel));
         }
         catch
         {
@@ -2617,6 +2623,9 @@ public partial class MainViewModel
                         frame, scene.Camera is not null, true, liveEffectHere: false,
                         posed: _cache.Rig.IsPosed(frame),
                         shaped: LayerShapes.Carves(scene, layerIndex),
+                        // Already folded into tileNativeDoc, but asked again so
+                        // the warm cannot tile moved paper if that gate changes.
+                        paperMoved: scene.Left != 0 || scene.Top != 0,
                         // tileNativeDoc already folded the document-level
                         // effects gate in (the builder computed it), so the
                         // per-frame ask cannot be reached with effects live.

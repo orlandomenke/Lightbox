@@ -158,7 +158,7 @@ public sealed class StillWorkingSetTests
             var frame = Drawings(12);
 
             cache.BeginPublish();
-            foreach (var f in frame) cache.InsertWanted(f, W, H, 1.0, 0, FrameBitmapCache.RenderDetached(f, W, H));
+            foreach (var f in frame) cache.InsertWanted(f, W, H, 1.0, 0, FrameBitmapCache.RenderDetached(f, W, H, default));
             var misses = cache.Misses;
             foreach (var f in frame) cache.Get(f, W, H);
 
