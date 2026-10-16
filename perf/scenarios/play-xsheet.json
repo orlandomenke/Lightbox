@@ -1,0 +1,66 @@
+{
+  "name": "play-xsheet",
+  "about": "Steady playback with the X-sheet in front (Q282): play-steady's fifteen seconds and six, on the sheet rather than the Timeline. The drawn sheet repaints every row's visible cels when the playhead moves, where the old one restyled two buttons a row; judge it the way play-steady is judged — frames dropped against the document's fps, the spread of gaps, and stalls. It waits for the app to go quiet before the first play, so both builds start from the same idle state: a build that opens faster is otherwise pressed into playing while it is still warming drawings in the background, and its first frame waits behind that.",
+  "fixture": "owner-shape",
+  "window": "maximised",
+  "panels": [
+    "Xsheet"
+  ],
+  "steps": [
+    {
+      "do": "hover",
+      "at": [
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "do": "settle",
+      "quiet_s": 3.0
+    },
+    {
+      "do": "phase",
+      "name": "first-play"
+    },
+    {
+      "do": "key",
+      "keys": "space",
+      "measure": "play.first",
+      "after_ms": 15000
+    },
+    {
+      "do": "key",
+      "keys": "space",
+      "measure": "stop",
+      "after_ms": 300
+    },
+    {
+      "do": "settle",
+      "quiet_s": 1.5
+    },
+    {
+      "do": "phase",
+      "name": "second-play"
+    },
+    {
+      "do": "key",
+      "keys": "space",
+      "measure": "play.again",
+      "after_ms": 6000
+    },
+    {
+      "do": "key",
+      "keys": "space",
+      "measure": "stop",
+      "after_ms": 300
+    },
+    {
+      "do": "phase",
+      "name": "stopped"
+    },
+    {
+      "do": "settle",
+      "quiet_s": 1.0
+    }
+  ]
+}

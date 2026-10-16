@@ -276,6 +276,7 @@ public partial class MainViewModel
                 var frame = ExposureSheet.FrameAtExactIndex(layer, cell.Index);
                 cell.LayerIndex = sceneIndex;
                 cell.IsKeyed = frame is not null;
+                cell.IsBlank = frame is not null && IsBlankDrawing(frame);
                 cell.Role = frame?.Role ?? FrameRole.Key;
                 cell.IsVirtual = cell.Index >= Scene.FrameCount;
                 cell.IsCurrent = cell.Index == CurrentFrameIndex;

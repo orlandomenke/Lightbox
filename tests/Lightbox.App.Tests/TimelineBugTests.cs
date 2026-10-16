@@ -151,6 +151,7 @@ public class TimelineBugTests : BrushStateIsolated
     public void RedrawingAClearedCel_BringsTheThumbnailBack()
     {
         var vm = Vm();
+        vm.XsheetCellStyle = Lightbox.App.Controls.XsheetCellStyle.Pictures; // These are about the cel pictures, which only the pictures style makes (Q282).
         vm.BeginStroke(40, 40, 1);
         vm.MoveStroke(90, 90, 1);
         vm.EndStroke();

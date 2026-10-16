@@ -98,6 +98,11 @@ public sealed class IdlePlaybackWarmTests : BrushStateIsolated
         var drawings = Drawings(vm);
         _output.WriteLine($"rendered {vm.Prewarm.Rendered}, installed {vm.Prewarm.Installed}, " +
                           $"tiles held {drawings.Count(f => vm.TileFrames.Holds(f.Id))} of {drawings.Count}");
+        // Why a warm that rendered nothing did not start: the switch, and the
+        // picture budget, which every view model still alive in this test run
+        // counts against.
+        _output.WriteLine($"idle warming {vm.IdleWarmingActive}; pictures held {Lightbox.Raster.PictureMemory.Total / 1048576} MB " +
+                          $"of {Lightbox.Raster.PictureMemory.Brokered / 1048576} MB brokered");
         Assert.All(drawings, f => Assert.True(vm.TileFrames.Holds(f.Id), $"{f.Id} was not prepared"));
     }
 

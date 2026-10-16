@@ -863,6 +863,8 @@ public partial class ConfigureWindow : Window
         HoldBox.SelectedItem = _vm.DrawingOnAHold;
         LoopBox.IsChecked = _vm.LoopPlayback;
         OffSheetKeyBox.IsChecked = _vm.MarkOffSheetKeys;
+        XsheetCellStyleBox.ItemsSource = _vm.XsheetCellStyles;
+        XsheetCellStyleBox.SelectedItem = _vm.XsheetCellStyle;
         AnimateRigBox.IsChecked = _vm.AnimateRigDuringPlayback;
         FrameWidthBox.Value = (decimal)_vm.TimelineFrameWidth;
         VolumeToleranceBox.Value = (decimal)Math.Round(_vm.Settings.VolumeTolerance * 100);
@@ -1013,6 +1015,12 @@ public partial class ConfigureWindow : Window
     {
         if (_loadingTimeline || _vm is null || LoopBox.IsChecked is not { } on) return;
         _vm.LoopPlayback = on;
+    }
+
+    private void OnXsheetCellStyleChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingTimeline || _vm is null || XsheetCellStyleBox.SelectedItem is not Controls.XsheetCellStyle style) return;
+        _vm.XsheetCellStyle = style;
     }
 
     private void OnMarkOffSheetKeysChanged(object? sender, RoutedEventArgs e)
