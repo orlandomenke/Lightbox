@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Lightbox.App.ViewModels"
+             x:Class="Lightbox.App.Views.ReferenceLinkBar"
+             x:DataType="vm:MainViewModel"
+             IsVisible="{Binding ActiveReferenceIsDocument}">
+  <!--
+    A reference that follows another document (Q284) says which, from which
+    save, and whether that file is still there — a name in the list cannot.
+    Its own file because MainWindow.axaml is at its size ratchet.
+  -->
+  <StackPanel Spacing="{StaticResource Space4}">
+    <TextBlock Text="{Binding ReferenceLinkLine}" FontSize="{StaticResource TypeHint}" TextWrapping="Wrap" />
+    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
+      <Button Content="Refresh now" Classes="tertiary"
+              Command="{Binding RefreshReferenceSourceCommand}"
+              ToolTip.Tip="Flatten the linked document again from its last save" />
+      <Button Content="Open source" Classes="tertiary"
+              Command="{Binding OpenReferenceSourceCommand}"
+              ToolTip.Tip="Open the linked document — its tab, if it is already open" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

@@ -479,6 +479,10 @@ public sealed class ShortcutMap
             // reached from the art in the first place.
             new("reference.board", "Open the reference board", "Reference",
                 G(Key.B, KeyModifiers.Control | KeyModifiers.Shift)),
+            // A reference that follows another document (Q284): flatten it
+            // again now, or open the document it follows.
+            new("reference.refreshSource", "Refresh the linked document now", "Reference", null),
+            new("reference.openSource", "Open the reference's document", "Reference", null),
 
             new("docker.deleteLayer", "Delete layer", "Dockers", G(Key.Delete), ShortcutContext.Panel, DockPanelId.Layers),
             new("docker.clearLayer", "Blank layer content", "Dockers", G(Key.Back), ShortcutContext.Panel, DockPanelId.Layers),

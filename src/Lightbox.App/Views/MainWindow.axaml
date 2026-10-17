@@ -2570,6 +2570,9 @@
                             <MenuItem Header="Open" Click="OnProjectOpen"
                                       ToolTip.Tip="Open as a tab in Lightbox" />                            <MenuItem Header="Open with default app…" Click="OnProjectOpenExternally"
                                       ToolTip.Tip="Hand the file to whatever application the desktop associates with it" />
+                            <MenuItem Header="Reference in current document" Click="OnProjectReferenceInCurrent"
+                                      IsVisible="{Binding Animation, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                      ToolTip.Tip="Lay its frames under the open drawing — read, never changed, kept current. Or drag the row onto the canvas." />
                             <MenuItem Header="Show in file manager" Click="OnProjectReveal" />
                             <MenuItem Header="Copy path" Click="OnProjectCopyPath" />
                             <Separator />
@@ -3971,9 +3974,11 @@
               <TextBlock Text="{Binding ReferenceSummary}" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                          TextWrapping="Wrap" />
 
+              <views:ReferenceLinkBar />
+
               <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6"
                          IsVisible="{Binding !HasReferences}"
-                         Text="Import a sprite sheet or a strip of frames. Lightbox finds the frames in it and puts one on each frame of the timeline." />
+                         Text="Import a sprite sheet or a strip of frames — or another Lightbox document, from ＋ or by right-clicking it in the project panel. Lightbox puts one frame on each frame of the timeline." />
 
               <StackPanel Spacing="{StaticResource Space8}" IsVisible="{Binding HasReferences}">
                 <TextBlock Text="{Binding ReferenceCellLabel}" FontSize="{StaticResource TypeDense}" />

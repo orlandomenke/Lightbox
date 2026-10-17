@@ -170,6 +170,41 @@ public partial class MainWindow
     private void OnProjectOpen(object? sender, RoutedEventArgs e) =>
         _vm.ProjectDocker.OpenSelectedRowCommand.Execute(null);
 
+    /// <summary>
+    /// The row's animation, flattened and laid under the document that is open
+    /// (Q284–Q286) — the road from where the animations already are.
+    /// </summary>
+    private async void OnProjectReferenceInCurrent(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.ProjectDocker.Selected?.Animation is not { } reference) return;
+        await ReferenceProjectRow(reference);
+    }
+
+    private async Task ReferenceProjectRow(Lightbox.Core.Projects.DocumentRef reference)
+    {
+        _vm.AiStatus = $"Flattening “{reference.Name}”…";
+        _vm.AiStatus = await _vm.ReferenceProjectDocumentAsync(reference);
+    }
+
+    /// <summary>
+    /// A document row dragged over the canvas offers itself as a reference.
+    /// The row drag carries only an in-process key, so the row is the one this
+    /// window started dragging.
+    /// </summary>
+    private void OnCanvasProjectRowDragOver(object? sender, DragEventArgs e)
+    {
+        if (e.DataTransfer?.Contains(ProjectRowFormat) != true || _draggedRow?.Animation is null) return;
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private async void OnCanvasProjectRowDrop(object? sender, DragEventArgs e)
+    {
+        if (e.DataTransfer?.Contains(ProjectRowFormat) != true || _draggedRow?.Animation is not { } reference) return;
+        e.Handled = true;
+        await ReferenceProjectRow(reference);
+    }
+
     private void OnProjectOpenExternally(object? sender, RoutedEventArgs e) =>
         _vm.ProjectDocker.OpenSelectedExternallyCommand.Execute(null);
 

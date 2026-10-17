@@ -234,10 +234,12 @@ the way a missing video file leaves its extracted frames.
 
 ### Another document to draw against
 
-The **＋** in the Reference panel also takes a **Lightbox document**
-(`*.lightbox.json`). Pick the run cycle while you are in the jump, and the run's
-frames are laid under the jump the way an imported sheet is: its first drawing
-on the frame you are on, the next on the next, the timeline growing to fit.
+With the jump open, **right-click the run in the project panel ▸ Reference in
+current document** — or drag the run's row onto the canvas. The run's frames are
+laid under the jump the way an imported sheet is: its first drawing on the frame
+you are on, the next on the next, the timeline growing to fit. The **＋** in the
+Reference panel does the same for any **Lightbox document** (`*.lightbox.json`),
+in a project or not, and so does dropping one onto the window.
 Everything in the table above applies — scale, opacity, lock, *Follow timeline
 edits*, aligning frames by hand.
 
@@ -258,6 +260,16 @@ turning *Follow timeline edits* off is for.
 exactly where it was drawn — its feet on your ground line — rather than being
 fitted and centred. A different-sized canvas fits and centres it like any
 imported picture.
+
+**The panel says what it is linked to.** Under the reference's name:
+*Linked to "run" · from its save at 14:32* — the run's own save, so you can tell
+which version you are drawing against. It says *flattening…* while it works,
+*not found — showing its last frames* if the run has gone, and *it has unsaved
+changes — save it to update* when the run is open with edits the reference
+cannot see yet: **the reference reads the saved file**, not the tab.
+**Refresh now** flattens it again on the spot, and **Open source** takes you to
+the run — its tab, if it is already open. Both can be given keys in
+Configure ▸ Shortcuts.
 
 **It stays current.** Save the run — in another tab, or another copy of Lightbox —
 and the next time you come back to the jump, its frames are flattened again.

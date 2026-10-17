@@ -1,5 +1,7 @@
 using Lightbox.App.Services;
+using CommunityToolkit.Mvvm.Input;
 using Lightbox.Core.Documents;
+using Lightbox.Core.Projects;
 using Lightbox.Raster;
 
 namespace Lightbox.App.ViewModels;
@@ -129,21 +131,34 @@ public partial class MainViewModel
     /// artist did here. A source that has gone leaves the last frames standing.
     /// </para>
     /// </remarks>
-    public async Task<int> RefreshDocumentReferencesAsync()
+    public Task<int> RefreshDocumentReferencesAsync() =>
+        Scene.References is { Count: > 0 } strips ? RefreshAsync(strips, force: false) : Task.FromResult(0);
+
+    /// <summary>
+    /// Re-flatten <paramref name="candidates"/> — those whose source is newer,
+    /// or every one whose source is there when <paramref name="force"/> is set.
+    /// </summary>
+    private async Task<int> RefreshAsync(IEnumerable<ReferenceStrip> candidates, bool force)
     {
-        if (Scene.References is not { Count: > 0 } strips) return 0;
         var scene = Scene;
         var stale = new List<(ReferenceStrip Strip, string Source)>();
-        foreach (var strip in strips)
+        foreach (var strip in candidates)
         {
             if (!strip.IsDocument || _flatteningDocuments.Contains(strip.Id)) continue;
             if (ResolveReferencePath(strip.Document!.Path) is not { } source || !File.Exists(source)) continue;
-            if (DocumentReference.StampOf(source) == strip.Document.Stamp) continue;
+            if (!force && DocumentReference.StampOf(source) == strip.Document.Stamp) continue;
             stale.Add((strip, source));
         }
-        if (stale.Count == 0) return 0;
+        if (stale.Count == 0)
+        {
+            // Nothing to flatten is still news when a source has gone: the
+            // link line says so.
+            OnPropertyChanged(nameof(ReferenceLinkLine));
+            return 0;
+        }
 
         foreach (var (strip, _) in stale) _flatteningDocuments.Add(strip.Id);
+        OnPropertyChanged(nameof(ReferenceLinkLine));
         List<FlattenedDocument?> flats;
         try
         {
@@ -152,6 +167,7 @@ public partial class MainViewModel
         finally
         {
             foreach (var (strip, _) in stale) _flatteningDocuments.Remove(strip.Id);
+            OnPropertyChanged(nameof(ReferenceLinkLine));
         }
 
         var changed = 0;
@@ -280,6 +296,115 @@ public partial class MainViewModel
         }
         return true;
     }
+
+    /// <summary>
+    /// Reference a document in the project — the row's right-click, or the row
+    /// dragged onto the canvas. Returns the sentence for the status line.
+    /// </summary>
+    /// <remarks>
+    /// The road from where the animations already are, which is where an
+    /// artist reaches for "draw the jump against the run" — the Reference
+    /// panel's ＋ and a file picker is the long way round to a file the
+    /// project panel is already showing.
+    /// </remarks>
+    public async Task<string> ReferenceProjectDocumentAsync(DocumentRef reference)
+    {
+        if (ProjectDocker.Project is not { } project) return "There is no project open.";
+        var path = project.PathOf(reference);
+        if (!File.Exists(path))
+        {
+            return $"Save “{reference.Name}” first — a reference reads the saved file.";
+        }
+        var (strip, error) = await ImportDocumentReferenceAsync(path);
+        if (strip is null) return error ?? $"“{reference.Name}” could not be referenced.";
+        ReferenceDockerVisible = true;
+        return HasUnsavedChanges(path)
+            ? $"Drawing against “{reference.Name}” as last saved — it has unsaved changes; save it to update the reference."
+            : $"Drawing against “{reference.Name}” — {strip.Cells.Count} frames, kept current as it is saved.";
+    }
+
+    /// <summary>
+    /// What the active reference is linked to, for the Reference panel — or
+    /// null for a reference that is not another document.
+    /// </summary>
+    /// <remarks>
+    /// The link is otherwise invisible: a name in a list cannot say that it
+    /// follows a file, which save it shows, or that the file has gone. The save
+    /// time is the source's own, not when this document last looked, because
+    /// "which version of the run is this" is the question the artist has.
+    /// </remarks>
+    public string? ReferenceLinkLine
+    {
+        get
+        {
+            if (ActiveReference is not { IsDocument: true } strip) return null;
+            var name = DocumentName(strip.Document!.Path);
+            if (_flatteningDocuments.Contains(strip.Id)) return $"Linked to “{name}” · flattening…";
+            if (ResolveReferencePath(strip.Document.Path) is not { } source || !File.Exists(source))
+            {
+                return $"Linked to “{name}” · not found — showing its last frames";
+            }
+            var saved = new DateTime(strip.Document.Stamp, DateTimeKind.Utc).ToLocalTime();
+            var when = saved.Date == DateTime.Today ? saved.ToString("HH:mm") : saved.ToString("d MMM HH:mm");
+            var line = $"Linked to “{name}” · from its save at {when}";
+            return HasUnsavedChanges(source) ? line + " · it has unsaved changes — save it to update" : line;
+        }
+    }
+
+    /// <summary>Whether the active reference follows another document.</summary>
+    public bool ActiveReferenceIsDocument => ActiveReference is { IsDocument: true };
+
+    /// <summary>
+    /// Flatten the active reference's source again now, whatever its stamp
+    /// says — a copy restored from a backup or a sync client that kept the old
+    /// time defeat the stamp, and the artist needs a way past it.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(ActiveReferenceIsDocument))]
+    public async Task RefreshReferenceSourceAsync()
+    {
+        if (ActiveReference is not { IsDocument: true } strip) return;
+        var changed = await RefreshAsync([strip], force: true);
+        AiStatus = changed > 0
+            ? $"“{strip.Name}” flattened again from its last save."
+            : ReferenceLinkLine ?? "";
+    }
+
+    /// <summary>
+    /// Open the active reference's source — its tab if it is already open, so
+    /// the artist edits the one copy rather than starting a second.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(ActiveReferenceIsDocument))]
+    public async Task OpenReferenceSourceAsync()
+    {
+        if (ActiveReference is not { IsDocument: true } strip) return;
+        if (ResolveReferencePath(strip.Document!.Path) is not { } source || !File.Exists(source))
+        {
+            AiStatus = ReferenceLinkLine ?? "";
+            return;
+        }
+        if (TabFor(source) is { } open)
+        {
+            ActiveTab = open;
+            return;
+        }
+        await OpenDocumentFileAsync(source);
+    }
+
+    /// <summary>The open tab editing the file at <paramref name="path"/>, or null.</summary>
+    private DocumentTab? TabFor(string path)
+    {
+        var full = Path.GetFullPath(path);
+        var project = ProjectDocker.Project;
+        return Tabs.FirstOrDefault(t =>
+            (t.FilePath is { Length: > 0 } file && SamePath(file, full))
+            || (project is not null && t.Source is { } source && SamePath(project.PathOf(source), full)));
+    }
+
+    /// <summary>Whether the file at <paramref name="path"/> is open with edits not yet saved.</summary>
+    private bool HasUnsavedChanges(string path) => TabFor(path) is { IsDirty: true };
+
+    private static bool SamePath(string a, string b) =>
+        string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A document's name without the double extension it is saved with.</summary>
     internal static string DocumentName(string path)

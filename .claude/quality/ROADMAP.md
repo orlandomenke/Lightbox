@@ -2024,7 +2024,7 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
     board* under the reference section below (Q87).
 - [?] Pose references
 - [x] Imported animation reference, sliced into frames and laid against the timeline `evidence: ReferenceStrip, StripSlicer, StripSlicerTests, ReferenceStripTests`
-- [x] Another document as reference — flattened, frame for frame, read only and kept current `evidence: DocumentSource, DocumentReference, FlattenedDocument, DocumentReferenceTests`
+- [x] Another document as reference — flattened, frame for frame, read only and kept current `evidence: DocumentSource, DocumentReference, FlattenedDocument, ReferenceLinkBar, DocumentReferenceTests, DocumentReferenceLinkTests`
   - **The run cycle drawn against by the jump beside it** (Q284–Q286). The source is
     read through the loader and nothing else, each frame flattened by the export's
     own compose without the paper, all frames cut to one window so a travelling
@@ -2034,6 +2034,12 @@ project structure bugs and `.claude/quality/comparison.md` for full analysis.
     document and ~0.2 s a frame to render it, ~10 s in all, off the UI thread; the
     column is 1838×15800 at full size. Reusing an open tab's in-memory document
     would save the load, and is not done yet.
+  - **Reached from where the animations are:** a project row's *Reference in current
+    document*, or the row dragged onto the canvas. **And legible once up:** the
+    Reference panel says what the strip follows, from which save, when it is
+    flattening, when the source is gone, and when the source has unsaved edits the
+    reference cannot see — with *Refresh now* (past a stamp that lies) and *Open
+    source* (its tab if already open).
 - [x] An animated symbol — a stored cycle, not a single drawing `evidence: Symbol, SymbolPlacement, FrameIndexAt, FrameOffset, SymbolRecordTests, SymbolRenderTests`
   - **Already built, and worth recording as built rather than re-asked.** `Symbol.Frames` is a list, `Symbol.Fps` sets its rate, a placement advances with the timeline, and `FrameOffset` shifts where in the cycle it starts — so one stored walk carries two characters half a stride apart. Editing one opens a cel per frame. "An animation symbol" is a symbol with more than one frame in it, not a feature to add.
 - [ ] Storyboard view with beat-to-timeline conversion — sketch and layout sequences visually, then convert to timeline frames `evidence: StoryboardPanel, StoryboardLayout, StoryboardThumbnails, BeatToFrameConversion, StoryboardTests, AStoryboardCanBeSketchedWithOneCelPerBeat, ConvertingABeatToATimelineFramePreservesTheDrawings`
