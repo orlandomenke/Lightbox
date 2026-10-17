@@ -780,9 +780,60 @@ public sealed partial class MainViewModel
         symbol.Layers = [.. layers];
         symbol.Fps = Doc.Scene.Fps;
         symbol.Version++;
+        InvalidatePlacementsOf(symbol);
         SymbolBrowser.RefreshThumbs();
         OnPropertyChanged(nameof(OutdatedPlacements));
         OnPropertyChanged(nameof(StalePlacementReport));
+    }
+
+    /// <summary>
+    /// Drop the rendered pixels of every drawing, in every open document, that
+    /// shows <paramref name="edited"/> — directly or through another symbol.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>B485. The version bump alone did not reach the screen.</b> The frame
+    /// cache keys a drawing by its id, not by the versions of the symbols it
+    /// places, and since B362 it keeps every open document's pictures across a
+    /// switch — so the animation came back showing the symbol as it was before
+    /// the edit. B484's parked picture and bake made the same answer stick
+    /// harder. Going through <c>InvalidateFrameRender</c> reaches all of them:
+    /// it drops the cache entries across documents, which makes a parked
+    /// picture's key miss, and it tells every tab's parked bake.
+    /// </para>
+    /// <para>
+    /// Every open document, for the reason a swatch recolour is (B102): one
+    /// symbol is placed in as many animations as use it, and the edit is meant
+    /// to reach every one.
+    /// </para>
+    /// </remarks>
+    private void InvalidatePlacementsOf(Symbol edited)
+    {
+        // Whether a symbol's drawings show the edited one, memoised; a symbol
+        // in the middle of being asked counts as not, which ends a cycle.
+        var shows = new Dictionary<string, bool> { [edited.Id] = true };
+        bool Shows(string id)
+        {
+            if (shows.TryGetValue(id, out var known)) return known;
+            shows[id] = false;
+            return shows[id] = SymbolRegistry.Resolve(id) is { } nested
+                && nested.AllFrames.Any(PlacesIt);
+        }
+        bool PlacesIt(Frame frame) =>
+            frame.Placements is { } placements && placements.Any(p => Shows(p.SymbolId));
+
+        // By reference: ids can repeat across documents (B483), and the
+        // drawing that places the symbol may be the second of the two.
+        var seen = new HashSet<Frame>(ReferenceEqualityComparer.Instance);
+        foreach (var layer in Tabs.SelectMany(t => t.Doc.Scene.Layers))
+        {
+            foreach (var cel in layer.Cels)
+            {
+                // A held cel names the frame it holds; once per drawing.
+                if (cel.Frame is not { } frame || !seen.Add(frame)) continue;
+                if (PlacesIt(frame)) InvalidateFrameRender(frame.Id);
+            }
+        }
     }
 
     // ---- what changed under you -----------------------------------------------------

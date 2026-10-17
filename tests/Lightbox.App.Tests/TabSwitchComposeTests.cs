@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Lightbox.App.Rendering;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Documents;
+using Lightbox.Raster;
 using SkiaSharp;
 
 namespace Lightbox.App.Tests;
@@ -288,6 +289,152 @@ public class TabSwitchComposeTests : BrushStateIsolated
         finally
         {
             vm.ProjectDocker.Dispose();
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+    /// <summary>Pixels of the published picture that are not the paper.</summary>
+    private static int Ink(SKBitmap shot)
+    {
+        var paper = shot.GetPixel(shot.Width - 2, shot.Height - 2);
+        var count = 0;
+        for (var y = 0; y < shot.Height; y += 2)
+        {
+            for (var x = 0; x < shot.Width; x += 2)
+            {
+                if (shot.GetPixel(x, y) != paper) count++;
+            }
+        }
+        return count;
+    }
+
+    private static Stroke Bar(double y) => new()
+    {
+        Tool = ToolKind.Brush,
+        Color = "#c02040",
+        Points = [new StrokePoint(30, y, 1), new StrokePoint(80, y, 1)],
+        Brush = new BrushSettings { Size = 10, Hardness = 1, Opacity = 1, Flow = 1, Spacing = 0.2 },
+    };
+
+    /// <summary>A project holding one symbol, a red bar, attached to <paramref name="vm"/>.</summary>
+    private static Symbol Sword(MainViewModel vm, string root)
+    {
+        var project = Lightbox.Core.Projects.ProjectIo.Create("Knight", root);
+        var sword = new Symbol { Name = "Sword", Fps = 12 };
+        sword.Layers = Symbol.Flat("Sword", [new Frame { Strokes = [Bar(30)] }]);
+        project.Symbols[sword.Id] = sword;
+        vm.ProjectDocker.Project = project;
+        vm.RefreshProjectResources();
+        return sword;
+    }
+
+    [AvaloniaFact]
+    public void AnEditToASymbolShowsOnTheReturn()
+    {
+        // B485. Editing a symbol in its own tab bumps the symbol's version and
+        // touches no drawing of the animation that places it, so neither a
+        // frame's cache key nor the bake's covered set sees it. Coming back must
+        // still show the edit.
+        var root = Path.Combine(Path.GetTempPath(), $"lightbox-tabsymbol-{Guid.NewGuid():N}.lbproj");
+        var vm = VmLayers.PaperVm();
+        try
+        {
+            vm.SmoothStrokes = false;
+            var sword = Sword(vm, root);
+            var animation = vm.ActiveTab!;
+            vm.PlaceSymbol(sword.Id, 40, 40);
+            // Draw on another layer as well, so the stack beneath bakes.
+            vm.AddPaintedLayerCommand.Execute(null);
+            for (var i = 0; i < 4; i++) Stroke(vm, 300 + i * 20);
+            int before;
+            using (var shot = Published(vm)) before = Ink(shot);
+
+            vm.OpenSymbol(sword);
+            vm.AppendExternalStrokes(vm.ActiveLayerForIpc.Id, 0, [Bar(70)]);
+
+            using var back = Arrive(vm, animation);
+            Assert.True(Ink(back) > before, $"the symbol's new stroke is missing on the return: {Ink(back)} inked against {before} before");
+        }
+        finally
+        {
+            vm.ProjectDocker.Dispose();
+            SymbolRegistry.Clear();
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [AvaloniaFact]
+    public void AnEditToASymbolShowsInEveryDocumentThatPlacesIt()
+    {
+        // B485, the other half: the fan-out has to reach every open document,
+        // not only the one the symbol was opened from.
+        var root = Path.Combine(Path.GetTempPath(), $"lightbox-tabsymbol-{Guid.NewGuid():N}.lbproj");
+        var vm = VmLayers.PaperVm();
+        try
+        {
+            vm.SmoothStrokes = false;
+            var sword = Sword(vm, root);
+            var first = vm.ActiveTab!;
+            vm.PlaceSymbol(sword.Id, 40, 40);
+            int firstBefore;
+            using (var shot = Published(vm)) firstBefore = Ink(shot);
+            var second = OpenSecond(vm);
+            vm.PlaceSymbol(sword.Id, 200, 200);
+            int secondBefore;
+            using (var shot = Published(vm)) secondBefore = Ink(shot);
+
+            vm.OpenSymbol(sword);
+            vm.AppendExternalStrokes(vm.ActiveLayerForIpc.Id, 0, [Bar(70)]);
+
+            using (var back = Arrive(vm, first))
+            {
+                Assert.True(Ink(back) > firstBefore, $"the first document came back without the edit: {Ink(back)} inked against {firstBefore}");
+            }
+            using (var back = Arrive(vm, second))
+            {
+                Assert.True(Ink(back) > secondBefore, $"the second document came back without the edit: {Ink(back)} inked against {secondBefore}");
+            }
+        }
+        finally
+        {
+            vm.ProjectDocker.Dispose();
+            SymbolRegistry.Clear();
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+    [AvaloniaFact]
+    public void AnEditToANestedSymbolShowsOnTheReturn()
+    {
+        // B485 through one level of nesting: the animation places a knight,
+        // the knight places the sword, and the sword is what gets edited.
+        var root = Path.Combine(Path.GetTempPath(), $"lightbox-tabsymbol-{Guid.NewGuid():N}.lbproj");
+        var vm = VmLayers.PaperVm();
+        try
+        {
+            vm.SmoothStrokes = false;
+            var sword = Sword(vm, root);
+            var knight = new Symbol { Name = "Knight", Fps = 12 };
+            knight.Layers = Symbol.Flat("Knight", [new Frame
+            {
+                Placements = [new SymbolPlacement { SymbolId = sword.Id, X = 60, Y = 60 }],
+            }]);
+            vm.ProjectDocker.Project!.Symbols[knight.Id] = knight;
+            vm.RefreshProjectResources();
+            var animation = vm.ActiveTab!;
+            vm.PlaceSymbol(knight.Id, 40, 40);
+            int before;
+            using (var shot = Published(vm)) before = Ink(shot);
+            Assert.True(before > 0, "the nested sword should show through the knight");
+
+            vm.OpenSymbol(sword);
+            vm.AppendExternalStrokes(vm.ActiveLayerForIpc.Id, 0, [Bar(70)]);
+
+            using var back = Arrive(vm, animation);
+            Assert.True(Ink(back) > before, $"the nested edit is missing on the return: {Ink(back)} inked against {before} before");
+        }
+        finally
+        {
+            vm.ProjectDocker.Dispose();
+            SymbolRegistry.Clear();
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
     }
