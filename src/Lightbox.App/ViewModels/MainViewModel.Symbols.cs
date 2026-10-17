@@ -780,9 +780,73 @@ public sealed partial class MainViewModel
         symbol.Layers = [.. layers];
         symbol.Fps = Doc.Scene.Fps;
         symbol.Version++;
+        RepaintPlacementsOf(symbol);
         SymbolBrowser.RefreshThumbs();
         OnPropertyChanged(nameof(OutdatedPlacements));
         OnPropertyChanged(nameof(StalePlacementReport));
+    }
+
+    /// <summary>
+    /// Drop every open document's pictures of a drawing that shows
+    /// <paramref name="edited"/>, however deep it is nested (B486).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The version bump alone does not reach a host drawing.</b> It keys the
+    /// symbol's own render, but the drawing that places it is cached by id, and
+    /// since B362 an open document's pictures survive a tab switch — so the
+    /// animation came back showing the symbol as it was. Through
+    /// <see cref="InvalidateFrameRender"/>, which also tells every tab's parked
+    /// bake (B484).
+    /// </para>
+    /// <para>
+    /// <b>A symbol that holds this one is edited too</b>, as far as its pixels
+    /// go, so its version moves with it: its cached render and its browser tile
+    /// are keyed by its own version, and the knight's tile would otherwise go
+    /// on holding the old sword. (A tab switch resets the registry, which drops
+    /// every symbol render, so the drawings above are answered either way.)
+    /// </para>
+    /// </remarks>
+    private void RepaintPlacementsOf(Symbol edited)
+    {
+        // Memoised per symbol id. Seeded false before the walk so a symbol that
+        // somehow holds itself ends the recursion instead of overflowing it.
+        // Inside such a cycle the answer can depend on the order of the walk,
+        // and nothing here tries to do better: a cycle overflows the symbol
+        // renderer long before it reaches this method.
+        var holds = new Dictionary<string, bool> { [edited.Id] = true };
+        bool Holds(string symbolId)
+        {
+            if (holds.TryGetValue(symbolId, out var known)) return known;
+            holds[symbolId] = false;
+            return holds[symbolId] =
+                SymbolRegistry.Resolve(symbolId) is { } symbol && symbol.AllFrames.Any(Shows);
+        }
+        bool Shows(Frame frame) =>
+            frame.Placements is { } list && list.Any(p => Holds(p.SymbolId));
+
+        var seen = new HashSet<Frame>(ReferenceEqualityComparer.Instance);
+        foreach (var layer in Tabs.SelectMany(t => t.Doc.Scene.Layers))
+        {
+            foreach (var cel in layer.Cels)
+            {
+                // A held cel names the frame it holds: once is enough.
+                if (cel.Frame is not { } frame || !seen.Add(frame)) continue;
+                if (!Shows(frame)) continue;
+                InvalidateFrameRender(frame.Id);
+                _dirtyThumbIds.Add(frame.Id);
+            }
+        }
+
+        // Symbols no open drawing places still cache a render of the old one.
+        if (ProjectDocker.Project is { } project)
+        {
+            foreach (var id in project.Symbols.Keys) Holds(id);
+        }
+        foreach (var (id, holdsIt) in holds)
+        {
+            if (holdsIt && id != edited.Id && SymbolRegistry.Resolve(id) is { } outer) outer.Version++;
+        }
     }
 
     // ---- what changed under you -----------------------------------------------------
