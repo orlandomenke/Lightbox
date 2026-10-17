@@ -516,6 +516,11 @@ public partial class MainViewModel
         _thumbs.Invalidate(frameId);
         _thumbWorker?.Invalidate(frameId);
         _stackBake.NoteFrameChanged(frameId);
+        // A parked tab's bake too: a swatch recolour reaches every open document
+        // (B102), and a bake keys on frame references, which an in-place change
+        // does not move. Ids can repeat across documents (B483), so this may drop
+        // a bake that was still good: one rebuild, never a stale picture.
+        foreach (var tab in Tabs) tab.State.Bake?.NoteFrameChanged(frameId);
     }
 
     /// <summary>
@@ -954,14 +959,18 @@ public partial class MainViewModel
         return ids;
     }
 
-    private void ClearFrameRenders(Scene? keepFramesOf = null)
+    private void ClearFrameRenders(Scene? keepFramesOf = null, bool keepPictures = false)
     {
         _publish.BumpRenderEpoch();
         if (keepFramesOf is null) _cache.Clear();
         _tileFrames.Clear();
-        // Unreachable already (the epoch moved); cleared so a closed or
-        // switched-away document's pictures are not held until the next store.
-        _revisits.Clear();
+        // A tab switch has already put the arriving document's own pictures
+        // here (ParkPictures), and the epoch it just moved is the view model's,
+        // not that document's: carry them to it, or the return re-blends every
+        // layer of a picture it already has. Anything else means the document
+        // changed wholesale, and they describe nothing.
+        if (keepPictures) _revisits.Rebase(_publish.RenderEpoch);
+        else _revisits.Clear();
         // Correctness does not need this — every flatten key carries the stamp of
         // tiles that no longer exist, so none of them can be found again. It is
         // here because "the whole document changed" is the moment those bytes are
@@ -970,7 +979,7 @@ public partial class MainViewModel
         _tileFlats.Clear();
         _thumbs.Clear();
         _thumbWorker?.Flush();
-        _stackBake.Reset();
+        if (!keepPictures) _stackBake.Reset();
         _prewarm.Flush();
         _idleWarmFull = false;
         _holdTilesAfterStop = false;
@@ -2324,7 +2333,76 @@ public partial class MainViewModel
     /// </para>
     /// </remarks>
     /// <summary>Finished pictures of paused frames, for a flip back (see <see cref="RevisitCache"/>).</summary>
-    private readonly RevisitCache _revisits = new();
+    /// <remarks>
+    /// Not readonly: it belongs to the document on screen, and a tab switch puts
+    /// it down on the tab being left and picks up the arriving tab's
+    /// (<see cref="DocumentScopedState.Picture"/>).
+    /// </remarks>
+    private RevisitCache _revisits = new();
+
+    /// <summary>
+    /// Put the pictures made for the document being left on its tab, and pick
+    /// up the arriving tab's: the finished picture (<see cref="_revisits"/>)
+    /// and the layer-stack bake.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why a tab switch was slow.</b> Every layer's pixels survive a switch
+    /// (B362), but what was made from them did not. Arriving re-blended every
+    /// layer, 0.5 to 1.0 s on 31 layers at 1080p with no frame-cache miss at
+    /// all, and the first strokes afterwards paid about the same again to
+    /// rebuild the bake.
+    /// </para>
+    /// <para>
+    /// <b>The bake has to travel too, or the picture is never found.</b> A
+    /// kept picture is keyed by the passes it was blended from, and on a
+    /// document being drawn on two of those are the bake's bitmaps; a bake
+    /// rebuilt on arrival is a new bitmap and the key misses. Measured: the
+    /// first version kept only the picture and still composed on every return.
+    /// </para>
+    /// <para>
+    /// <b>Memory, deliberately.</b> A parked tab holds one picture and its bake
+    /// bitmaps. The owner's rule is responsiveness first, memory only where it
+    /// slows the app; closing the tab frees them. A tab with nothing to bring
+    /// back arrives with an empty bake, which is what every arrival used to get.
+    /// </para>
+    /// </remarks>
+    private void ParkPictures(DocumentTab? leaving, DocumentTab arriving)
+    {
+        var picture = arriving.State.Picture;
+        var bake = arriving.State.Bake;
+        arriving.State.Picture = null;
+        arriving.State.Bake = null;
+        if (leaving is not null)
+        {
+            // A return needs the frame it left, not the revisit budget's worth.
+            _revisits.TrimTo(1);
+            leaving.State.Picture = _revisits;
+            leaving.State.Bake = _stackBake;
+        }
+        else
+        {
+            // The document on screen belonged to no tab: it was just closed.
+            _revisits.Dispose();
+            _stackBake.Reset();
+        }
+        _revisits = picture ?? new RevisitCache();
+        _stackBake = bake ?? NewStackBake();
+    }
+
+    /// <summary>Free what a tab kept for a return that will not happen.</summary>
+    private static void ForgetPictures(DocumentScopedState state)
+    {
+        state.Picture?.Dispose();
+        state.Picture = null;
+        // Through the bake's own retirement, which defers to the frame cache's
+        // pins: a published pass may still carry one of its bitmaps.
+        state.Bake?.Reset();
+        state.Bake = null;
+    }
+
+    /// <summary>A bake that retires its bitmaps the way every bake must (see <see cref="LayerStackBake"/>).</summary>
+    private LayerStackBake NewStackBake() => new() { RetireBitmap = _cache.DisposeExternal };
 
     /// <summary>Paused publishes that drew a frame's earlier picture instead of composing it — for tests.</summary>
     internal int RevisitHits { get; private set; }

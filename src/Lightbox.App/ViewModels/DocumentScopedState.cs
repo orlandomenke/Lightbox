@@ -82,6 +82,32 @@ public sealed class DocumentScopedState
     /// </para>
     /// </remarks>
     public List<List<StrokePoint>>? Selection;
+
+    /// <summary>
+    /// The finished picture the document was showing when another tab became
+    /// active, or null while it is the active one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why a tab switch was slow.</b> Every layer's pixels survive a switch
+    /// (B362), but the picture made from them did not: arriving blended every
+    /// layer again — 0.5 to 1.0 s on 31 layers at 1080p, with no frame cache
+    /// miss at all. A return now draws this instead, when nothing it was made
+    /// from has changed; <see cref="Lightbox.App.Rendering.RevisitKey"/> is
+    /// what decides that, the same as for a flip back to a frame.
+    /// </para>
+    /// <para>
+    /// One picture, not the revisit cache's whole budget: a return needs the
+    /// frame it left, and a budget per open document would multiply by tabs.
+    /// </para>
+    /// </remarks>
+    internal Lightbox.App.Rendering.RevisitCache? Picture;
+
+    /// <summary>
+    /// The layer-stack bake the document had when another tab became active,
+    /// kept with <see cref="Picture"/>, whose key it is part of.
+    /// </summary>
+    internal Lightbox.App.Rendering.LayerStackBake? Bake;
 }
 
 /// <summary>The canvas view transform, as a value that can be put down and picked up.</summary>
