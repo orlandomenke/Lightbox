@@ -232,6 +232,66 @@ and the taped copy on the canvas updates by itself. Undoing the sheet edit
 updates it back. A view that is later deleted leaves its last picture standing,
 the way a missing video file leaves its extracted frames.
 
+### Another document to draw against
+
+With the jump open, **right-click the run in the project panel ▸ Reference in
+current document** — or drag the run's row onto the canvas. The run's frames are
+laid under the jump the way an imported sheet is: its first drawing on the frame
+you are on, the next on the next, the timeline growing to fit. The **＋** in the
+Reference panel does the same for any **Lightbox document** (`*.lightbox.json`),
+in a project or not, and so does dropping one onto the window.
+Everything in the table above applies — scale, opacity, lock, *Follow timeline
+edits*, aligning frames by hand.
+
+**Your other file is only read.** Lightbox opens it to look, never to edit, and
+never saves it — so referencing the run cannot change the run, however long the
+jump is open.
+
+**Each frame is flattened** into one picture: every layer the run shows, **without
+its paper**, so the reference does not cover the paper it is taped over. Layers
+hidden in the run stay hidden.
+
+**Frame for frame, not by the clock.** The run's drawing 1 sits under your frame
+1, drawing 2 under frame 2 — even when the two documents run at different frame
+rates. That is what you draw against; matching a shot to the second is what
+turning *Follow timeline edits* off is for.
+
+**It lines up.** When the two documents have the same canvas size, the run lands
+exactly where it was drawn — its feet on your ground line — rather than being
+fitted and centred. A different-sized canvas fits and centres it like any
+imported picture.
+
+**The panel says what it is linked to.** Under the reference's name:
+*Linked to "run" · from its save at 14:32* — the run's own save, so you can tell
+which version you are drawing against. It says *flattening…* while it works,
+*not found — showing its last frames* if the run has gone, and *it has unsaved
+changes — save it to update* when the run is open with edits the reference
+cannot see yet: **the reference reads the saved file**, not the tab.
+**Refresh now** flattens it again on the spot, and **Open source** takes you to
+the run — its tab, if it is already open. Both can be given keys in
+Configure ▸ Shortcuts.
+
+**It stays current.** Save the run — in another tab, or another copy of Lightbox —
+and the next time you come back to the jump, its frames are flattened again.
+Your placement, opacity and per-frame alignment survive the refresh; a run that
+gained drawings lays them on after the old ones. If the run is moved or deleted,
+the jump keeps the last frames it had, so nothing you were drawing against
+disappears. A document cannot reference itself.
+
+**Flattening takes a moment on a long run** — a 31-frame 1080p cycle is about
+ten seconds — and it happens in the background: the status line says
+*Flattening…* and you can keep drawing.
+
+A long run wraps into a second column rather than shrinking, so a big character
+keeps its full resolution.
+
+**What it will not follow.** A document on a **network share** is refused — copy it
+to this machine first — because a reference is re-read on its own, and Lightbox
+will not reach out to another computer without you asking. A reference saved as a
+path *beside* this document only ever looks beside it. And a source too big to be a
+reference — more than 2,000 frames, or a canvas past 64 megapixels — says so
+rather than trying.
+
 ### The reference board
 
 **View → Reference board…**, the **Board…** button at the top of the
@@ -262,7 +322,8 @@ view onto the wall rather than the whole of it.
 | Take one down | Right-click ▸ **Take off the board**, or `Delete` |
 | Tidy the whole wall | **Auto-arrange** — every picture fitted into the space there is, in the order they are in |
 | Find something you have lost | **Fit** (`Ctrl+Shift+F`) zooms out until everything on the board is on screen |
-| Add a picture from disk | Drag files onto the board, or **Add image…** |
+| Add a picture from disk | Drag files onto the board, or **Add…** |
+| Add another document | **Add…** and pick a Lightbox document — its frames, flattened and stacked in a column (see below) |
 | Add one from a web page | Drag the image off the page onto the board — as many times as you like |
 | Paste one | `Ctrl+V` — a copied file, a screenshot (`PrtScn`, `Win+Shift+S`, the Snipping Tool), or an image address copied out of a browser |
 | Put a sheet back up | **Sheets ▾** lists everything in scope that is not on the wall |
@@ -311,6 +372,15 @@ Only when every one of those fails does the drop refuse, and then the board's ow
 way it failed rather than leaving you wondering; what the drag was carrying is
 written to the diagnostics log, which is the thing to attach if a drop that
 should work does not.
+
+**A document on the wall is its frames, top to bottom.** **Add…** pins
+another Lightbox document up as one picture: every frame flattened the way *Another
+document to draw against* describes, stacked in a column — two columns for a long
+run. It is read and never changed, and it refreshes when the document is saved,
+keeping its place and width on the wall. **Lay onto the timeline as frames** on
+it lays out that document's own frames, linked and live, rather than guessing
+them back out of the picture; **Project onto the canvas** pins the whole column,
+like any picture.
 
 **A picture lands where you put it** — under the pointer when you drop it, in the
 middle of the view when it comes from the picker or the clipboard. Drop several

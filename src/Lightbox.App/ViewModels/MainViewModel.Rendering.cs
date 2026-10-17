@@ -244,6 +244,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(ReferenceCellLabel));
         OnPropertyChanged(nameof(ReferenceSummary));
         RemoveReferenceCommand.NotifyCanExecuteChanged();
+        NotifyReferenceLink();
     }
 
     /// <summary>"Run — 12 frames, 240×160" for the panel's subtitle.</summary>
