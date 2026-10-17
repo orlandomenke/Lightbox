@@ -10,12 +10,19 @@
     Its own file because MainWindow.axaml is at its size ratchet.
   -->
   <StackPanel Spacing="{StaticResource Space4}">
-    <TextBlock Text="{Binding ReferenceLinkLine}" FontSize="{StaticResource TypeHint}" TextWrapping="Wrap" />
+    <!-- A note, dimmed like the summary above it — until it says the source
+         has gone or has unsaved edits, which the artist should read before
+         pressing Refresh now. Tinted, not filled: DESIGN.md's notice. -->
+    <TextBlock Text="{Binding ReferenceLinkLine}" FontSize="{StaticResource TypeHint}" TextWrapping="Wrap"
+               Opacity="0.6" IsVisible="{Binding !ReferenceLinkNeedsAttention}" />
+    <Border Classes="notice warning" IsVisible="{Binding ReferenceLinkNeedsAttention}">
+      <TextBlock Text="{Binding ReferenceLinkLine}" FontSize="{StaticResource TypeHint}" TextWrapping="Wrap" />
+    </Border>
     <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
-      <Button Content="Refresh now" Classes="tertiary"
+      <Button Content="Refresh now" Classes="text"
               Command="{Binding RefreshReferenceSourceCommand}"
               ToolTip.Tip="Flatten the linked document again from its last save" />
-      <Button Content="Open source" Classes="tertiary"
+      <Button Content="Open source" Classes="text"
               Command="{Binding OpenReferenceSourceCommand}"
               ToolTip.Tip="Open the linked document — its tab, if it is already open" />
     </StackPanel>

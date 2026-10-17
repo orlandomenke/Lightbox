@@ -226,4 +226,109 @@ public sealed class DocumentReferenceLinkTests : IDisposable
         Assert.Same(runTab, vm.ActiveTab);
         Assert.Equal(tabs, vm.Tabs.Count);
     }
+
+    // ---- the panel hears about it (adversarial review) --------------------------
+
+    private static List<string> Raised(MainViewModel vm)
+    {
+        var names = new List<string>();
+        vm.PropertyChanged += (_, e) => names.Add(e.PropertyName ?? "");
+        return names;
+    }
+
+    [AvaloniaFact]
+    public async Task ChoosingAnotherReferenceTellsThePanelAndTheButtons()
+    {
+        // A value read straight off the view model passes whether or not the
+        // panel was told; only the notification moves a bound button.
+        var (vm, _, runRef, _) = ProjectWithRun();
+        await vm.ReferenceProjectDocumentAsync(runRef);
+        vm.Doc.Scene.References!.Insert(0, new ReferenceStrip
+        {
+            Name = "sheet", Cells = [new ReferenceCell { Width = 4, Height = 4 }],
+        });
+        vm.ActiveReferenceIndex = 1;
+        Assert.True(vm.ActiveReferenceIsDocument);
+        var names = Raised(vm);
+        var refresh = 0;
+        var open = 0;
+        vm.RefreshReferenceSourceCommand.CanExecuteChanged += (_, _) => refresh++;
+        vm.OpenReferenceSourceCommand.CanExecuteChanged += (_, _) => open++;
+
+        vm.ActiveReferenceIndex = 0;
+
+        Assert.Contains(nameof(MainViewModel.ReferenceLinkLine), names);
+        Assert.Contains(nameof(MainViewModel.ActiveReferenceIsDocument), names);
+        Assert.Contains(nameof(MainViewModel.ReferenceLinkNeedsAttention), names);
+        Assert.True(refresh > 0 && open > 0, $"CanExecuteChanged: refresh {refresh}, open {open}");
+        Assert.False(vm.RefreshReferenceSourceCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
+    public async Task StartingAFlattenTellsThePanel()
+    {
+        var (vm, _, runRef, runPath) = ProjectWithRun();
+        await vm.ReferenceProjectDocumentAsync(runRef);
+        File.SetLastWriteTimeUtc(runPath, DateTime.UtcNow.AddMinutes(1));
+        var names = Raised(vm);
+
+        var refresh = vm.RefreshDocumentReferencesAsync();
+
+        // Before the flatten finishes: the panel must already know it started.
+        Assert.Contains(nameof(MainViewModel.ReferenceLinkLine), names);
+        await refresh;
+    }
+
+    [AvaloniaFact]
+    public async Task TheSourceGainingUnsavedEditsTellsThePanel_WhileThisDocumentIsActive()
+    {
+        // Save All, a split view, an agent through MCP: the source's tab can
+        // change while the jump is the one on screen.
+        var (vm, _, runRef, runPath) = ProjectWithRun();
+        var jump = vm.ActiveTab!;
+        await vm.OpenDocumentFileAsync(runPath);
+        var runTab = vm.ActiveTab!;
+        Assert.False(runTab.IsDirty, "the run opens clean");
+        vm.ActiveTab = jump;
+        await vm.ReferenceProjectDocumentAsync(runRef);
+        Assert.DoesNotContain("unsaved", vm.ReferenceLinkLine);
+        var names = Raised(vm);
+
+        runTab.Editor.Perform(doc => doc.Scene.FrameCount = 9);
+        runTab.RefreshDirty();
+
+        Assert.Contains(nameof(MainViewModel.ReferenceLinkLine), names);
+        Assert.Contains("unsaved", vm.ReferenceLinkLine);
+        Assert.True(vm.ReferenceLinkNeedsAttention);
+    }
+
+    [AvaloniaFact]
+    public async Task AMissingSourceNeedsAttention_AnOrdinaryOneDoesNot()
+    {
+        var (vm, _, runRef, runPath) = ProjectWithRun();
+        await vm.ReferenceProjectDocumentAsync(runRef);
+        Assert.False(vm.ReferenceLinkNeedsAttention);
+
+        File.Delete(runPath);
+        await vm.RefreshDocumentReferencesAsync();
+
+        Assert.True(vm.ReferenceLinkNeedsAttention);
+    }
+
+    [AvaloniaFact]
+    public async Task ADocumentKnownOnlyByItsProjectRowCannotReferenceItself()
+    {
+        // A project tab may carry its row and no file path; "is this me" has to
+        // ask both, the way finding a source's tab already does.
+        var (vm, project, _, _) = ProjectWithRun();
+        var jumpRef = new DocumentRef { Name = "jump", Path = "maincharacter/jump2.lightbox.json" };
+        DocJson.Save(vm.Doc, project.PathOf(jumpRef));
+        vm.ActiveTab!.FilePath = null;
+        vm.ActiveTab.Source = jumpRef;
+
+        var said = await vm.ReferenceProjectDocumentAsync(jumpRef);
+
+        Assert.Contains("itself", said);
+        Assert.Null(vm.Doc.Scene.References);
+    }
 }

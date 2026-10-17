@@ -30,8 +30,9 @@ public partial class MainViewModel
             return (null, $"“{Path.GetFileName(path)}” is on a network share — copy it to this machine to draw against it.");
         }
         var full = Path.GetFullPath(path);
-        if (SaveTargetTab?.FilePath is { Length: > 0 } own
-            && string.Equals(Path.GetFullPath(own), full, StringComparison.OrdinalIgnoreCase))
+        // "Is this me" asks the file path and the project row both — a project
+        // tab may carry its row and no path, and TabFor already asks both.
+        if (SaveTargetTab is { } current && IsTabFor(current, full))
         {
             return (null, "A document cannot reference itself — open the one you want to draw against it from.");
         }
@@ -153,12 +154,12 @@ public partial class MainViewModel
         {
             // Nothing to flatten is still news when a source has gone: the
             // link line says so.
-            OnPropertyChanged(nameof(ReferenceLinkLine));
+            NotifyReferenceLink();
             return 0;
         }
 
         foreach (var (strip, _) in stale) _flatteningDocuments.Add(strip.Id);
-        OnPropertyChanged(nameof(ReferenceLinkLine));
+        NotifyReferenceLink();
         List<FlattenedDocument?> flats;
         try
         {
@@ -167,7 +168,7 @@ public partial class MainViewModel
         finally
         {
             foreach (var (strip, _) in stale) _flatteningDocuments.Remove(strip.Id);
-            OnPropertyChanged(nameof(ReferenceLinkLine));
+            NotifyReferenceLink();
         }
 
         var changed = 0;
@@ -394,10 +395,57 @@ public partial class MainViewModel
     private DocumentTab? TabFor(string path)
     {
         var full = Path.GetFullPath(path);
-        var project = ProjectDocker.Project;
-        return Tabs.FirstOrDefault(t =>
-            (t.FilePath is { Length: > 0 } file && SamePath(file, full))
-            || (project is not null && t.Source is { } source && SamePath(project.PathOf(source), full)));
+        return Tabs.FirstOrDefault(t => IsTabFor(t, full));
+    }
+
+    private bool IsTabFor(DocumentTab tab, string full) =>
+        (tab.FilePath is { Length: > 0 } file && SamePath(file, full))
+        || (ProjectDocker.Project is { } project && tab.Source is { } source && SamePath(project.PathOf(source), full));
+
+    /// <summary>
+    /// Whether the link line is saying something the artist should act on —
+    /// the source has gone, or has edits the reference cannot see — so the
+    /// panel can show it as a warning rather than a dimmed note.
+    /// </summary>
+    public bool ReferenceLinkNeedsAttention
+    {
+        get
+        {
+            if (ActiveReference is not { IsDocument: true } strip || _flatteningDocuments.Contains(strip.Id)) return false;
+            return ResolveReferencePath(strip.Document!.Path) is not { } source
+                || !File.Exists(source)
+                || HasUnsavedChanges(source);
+        }
+    }
+
+    /// <summary>Tell the panel the link line, its warning and its buttons may have changed.</summary>
+    private void NotifyReferenceLink()
+    {
+        OnPropertyChanged(nameof(ReferenceLinkLine));
+        OnPropertyChanged(nameof(ReferenceLinkNeedsAttention));
+        OnPropertyChanged(nameof(ActiveReferenceIsDocument));
+        RefreshReferenceSourceCommand.NotifyCanExecuteChanged();
+        OpenReferenceSourceCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Hear about every tab's unsaved state, so the link line notices the
+    /// source gaining or losing edits while this document is the one on screen
+    /// — Save All, a split view, an agent through MCP. A tab raises IsDirty once
+    /// per edit or save, never per pointer event, so this costs nothing.
+    /// </summary>
+    private void WatchTabsForReferenceLinks()
+    {
+        Tabs.CollectionChanged += (_, e) =>
+        {
+            foreach (var tab in e.NewItems?.OfType<DocumentTab>() ?? []) tab.PropertyChanged += OnTabChangedForReferenceLink;
+            foreach (var tab in e.OldItems?.OfType<DocumentTab>() ?? []) tab.PropertyChanged -= OnTabChangedForReferenceLink;
+        };
+    }
+
+    private void OnTabChangedForReferenceLink(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DocumentTab.IsDirty) && ActiveReferenceIsDocument) NotifyReferenceLink();
     }
 
     /// <summary>Whether the file at <paramref name="path"/> is open with edits not yet saved.</summary>

@@ -243,11 +243,8 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(ReferenceCellDy));
         OnPropertyChanged(nameof(ReferenceCellLabel));
         OnPropertyChanged(nameof(ReferenceSummary));
-        OnPropertyChanged(nameof(ReferenceLinkLine));
-        OnPropertyChanged(nameof(ActiveReferenceIsDocument));
         RemoveReferenceCommand.NotifyCanExecuteChanged();
-        RefreshReferenceSourceCommand.NotifyCanExecuteChanged();
-        OpenReferenceSourceCommand.NotifyCanExecuteChanged();
+        NotifyReferenceLink();
     }
 
     /// <summary>"Run — 12 frames, 240×160" for the panel's subtitle.</summary>
