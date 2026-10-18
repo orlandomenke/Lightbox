@@ -276,7 +276,7 @@ public partial class MainViewModel
                 // Absent, not empty — the same step RemoveReference takes.
                 if (doc.Scene.References is { Count: 0 }) doc.Scene.References = null;
             });
-            Lightbox.Raster.ReferenceStripRegistry.Forget(taped.Id);
+            Lightbox.Raster.ReferenceStripRegistry.Forget(scene, taped.Id, _cache.DisposeExternal);
             _flattenedViews.Remove(taped.Id);
             AfterReferenceChange();
             return null;
@@ -306,7 +306,7 @@ public partial class MainViewModel
             index = doc.Scene.References.Count;
             doc.Scene.References.Add(strip);
         });
-        Lightbox.Raster.ReferenceStripRegistry.Register([(strip.Id, strip.Png)]);
+        Lightbox.Raster.ReferenceStripRegistry.Register(scene, [(strip.Id, strip.Png)]);
         ActiveReferenceIndex = index;
         AfterReferenceChange();
         return strip;
@@ -360,7 +360,7 @@ public partial class MainViewModel
                 doc.Scene.References?.Remove(projected);
                 if (doc.Scene.References is { Count: 0 }) doc.Scene.References = null;
             });
-            Lightbox.Raster.ReferenceStripRegistry.Forget(projected.Id);
+            Lightbox.Raster.ReferenceStripRegistry.Forget(scene, projected.Id, _cache.DisposeExternal);
             AfterReferenceChange();
             return null;
         }
@@ -395,7 +395,7 @@ public partial class MainViewModel
             index = doc.Scene.References.Count;
             doc.Scene.References.Add(strip);
         });
-        Lightbox.Raster.ReferenceStripRegistry.Register([(strip.Id, strip.Png)]);
+        Lightbox.Raster.ReferenceStripRegistry.Register(scene, [(strip.Id, strip.Png)]);
         ActiveReferenceIndex = index;
         AfterReferenceChange();
         return strip;
@@ -555,6 +555,17 @@ public partial class MainViewModel
                 LinkedStripFlattens++;
                 var png = RenderReferenceViewPng(view);
                 if (png == strip.Png) continue;
+                // Decoded before the record moves, so a sheet that will not
+                // decode leaves record and canvas agreeing on the last picture.
+                SkiaSharp.SKBitmap sheet;
+                try
+                {
+                    sheet = Lightbox.Raster.PngCodec.Decode(png);
+                }
+                catch
+                {
+                    continue;
+                }
                 strip.Png = png;
                 strip.SheetWidth = view.Width;
                 strip.SheetHeight = view.Height;
@@ -563,7 +574,9 @@ public partial class MainViewModel
                     strip.Cells[0].Width = view.Width;
                     strip.Cells[0].Height = view.Height;
                 }
-                Lightbox.Raster.ReferenceStripRegistry.Register([(strip.Id, strip.Png)]);
+                // Replace, not Register: Register skips an id it already holds,
+                // and the canvas and export draw from the registry (B491).
+                Lightbox.Raster.ReferenceStripRegistry.Replace(doc.Scene, strip.Id, sheet, _cache.DisposeExternal);
                 changed = true;
             }
             if (changed)

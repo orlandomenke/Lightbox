@@ -362,6 +362,15 @@ jobs:
       # `check` also reports an entry that a merge parent had and this tree does
       # not — the failure the duplicate check structurally cannot see, because
       # taking one side of the conflict leaves a perfectly consistent file.
+      # A merge conflict resolved by committing the file as it stood. perf/README.md
+      # carried `<<<<<<< HEAD` on main until 2026-10-18 and nothing was red, because
+      # nothing reads prose. Only the opening and closing markers are matched:
+      # a bare `=======` is a legitimate Markdown heading underline.
+      - name: No committed file contains merge-conflict markers
+        run: |
+          if git grep -nIE '^(<<<<<<< |>>>>>>> )' -- . ; then
+            echo "::error::unresolved merge-conflict markers (listed above)"; exit 1
+          fi
       - name: The bug ledger is consistent and its ids are unique
         run: python3 scripts/bugs.py check
       # The questions are one file each (Q92) and the ledger gate reads their ids

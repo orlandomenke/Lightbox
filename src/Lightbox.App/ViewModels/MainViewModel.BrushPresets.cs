@@ -352,7 +352,7 @@ public partial class MainViewModel
         doc.Scene.TransparentBackground = settings.TransparentBackground;
 
         var tab = Tabs[0];
-        tab.Editor = new DocumentEditor(doc) { MaxUndo = tab.Editor.MaxUndo };
+        ReplaceEditor(tab, new DocumentEditor(doc) { MaxUndo = tab.Editor.MaxUndo });
         tab.Title = settings.Name;
         tab.State.LayerIndex = FirstPaintableLayer(doc);
         // B67. A different document in the same tab, so the framing the blank
