@@ -317,6 +317,26 @@ public class PlanGateTests(ITestOutputHelper output)
         Assert.Equal(0, code);
     }
 
+    /// <summary>
+    /// B494: every leg <c>testplan.py run</c> launches fits a Windows command line,
+    /// and its filter reaches the runner unchanged.
+    /// </summary>
+    /// <remarks>
+    /// The App complement's filter passed 32 KB and leg 6 died with
+    /// Win32Exception 206 before a test ran — on Windows only, so CI never saw it.
+    /// The selftest measures the real commands; this pins that it still does,
+    /// because a check deleted from the selftest leaves it passing.
+    /// </remarks>
+    [Fact]
+    public void EveryLegsCommandsFitAWindowsCommandLine()
+    {
+        var (code, said) = Plan("selftest");
+        output.WriteLine(said.TrimEnd());
+        Assert.Equal(0, code);
+        Assert.Contains("ok   every leg's commands fit a Windows command line", said);
+        Assert.Contains("ok   every leg's filter reaches the runner unchanged", said);
+    }
+
     [Fact]
     public void EveryRepoPathTheTestsReadIsAccountedFor()
     {

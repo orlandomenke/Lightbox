@@ -79,6 +79,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -948,6 +949,55 @@ def below_normal() -> dict:
 # minutes, which is the whole test run: ten of them held ~3 GB through it.
 BUILD_FLAGS = ["-nodeReuse:false"]
 
+# CreateProcess refuses a command line longer than this, counted in UTF-16
+# units including the program name (B494). Linux allows about sixty times as
+# much, which is why CI never sees it.
+WINDOWS_COMMAND_LINE = 32767
+
+
+def test_command(csproj: str, configuration: str, test_filter: str, results: Path) -> list[str]:
+    """The `dotnet test` command for one leg, writing its filter beside its TRX.
+
+    The filter travels in a `.runsettings` file rather than `--filter`, because
+    `dotnet test` passes `--filter` on to vstest.console on a command line of its
+    own, and the App complement's is past the Windows limit by itself (B494).
+    `RunConfiguration/TestCaseFilter` is the same filter to VSTest — measured on
+    2026-10-18 to select the same tests as `--filter`, at 33,599 characters.
+    Every leg goes this way, short filter or long, so the path Windows depends
+    on is the one every local run exercises.
+    """
+    command = ["dotnet", "test", csproj, "-c", configuration, "--no-build", "--logger", "trx"]
+    if test_filter:
+        settings = ET.Element("RunSettings")
+        ET.SubElement(ET.SubElement(settings, "RunConfiguration"), "TestCaseFilter").text = test_filter
+        path = results / "leg.runsettings"
+        ET.ElementTree(settings).write(path, encoding="utf-8", xml_declaration=True)
+        command += ["--settings", str(path)]
+    return command + ["--results-directory", str(results)]
+
+
+def verify_command(configuration: str, project: str, test_filter: str, results: Path) -> list[str]:
+    """The `testcount.py verify` command that checks one leg ran its slice.
+
+    Its filter goes by file for the same reason as the leg's own (B494).
+    """
+    path = results / "leg.filter"
+    path.write_text(test_filter, encoding="utf-8")
+    return ["python3", "scripts/testcount.py", "verify", "-c", configuration,
+            "--project", project, "--filter-file", str(path), "--results", str(results)]
+
+
+def filter_in(command: list[str]) -> str:
+    """The filter a leg's command hands its runner, wherever it carries it."""
+    if "--filter" in command:
+        return command[command.index("--filter") + 1]
+    if "--settings" in command:
+        settings = ET.parse(command[command.index("--settings") + 1])
+        return settings.findtext("RunConfiguration/TestCaseFilter") or ""
+    if "--filter-file" in command:
+        return Path(command[command.index("--filter-file") + 1]).read_text(encoding="utf-8")
+    return ""
+
 
 def cmd_run(args) -> int:
     """Run the plan locally, legs in parallel."""
@@ -1001,14 +1051,6 @@ def cmd_run(args) -> int:
     failures: list[str] = []
 
     def launch(leg: dict, alone: bool = False) -> subprocess.Popen:
-        if leg["kind"] == "build":
-            command = ["dotnet", "build", leg["csproj"], "-c", args.configuration, *BUILD_FLAGS]
-        else:
-            command = ["dotnet", "test", leg["csproj"], "-c", args.configuration,
-                       "--no-build", "--logger", "trx"]
-            test_filter = shard_filters(projects[leg["project"]], leg["shards"])[leg["shard"] - 1]
-            if test_filter:
-                command += ["--filter", test_filter]
         # Somewhere already ignored, because a dev-loop tool that leaves eight
         # untracked files in `git status` is one people stop running. A test
         # leg's log goes beside its TRX under `tests/*/TestResults/`; a compile
@@ -1018,13 +1060,16 @@ def cmd_run(args) -> int:
         results = directory / ("obj" if leg["kind"] == "build" else "TestResults")
         results = results / f"leg-{leg['shard']}-of-{leg['shards']}"
         results.mkdir(parents=True, exist_ok=True)
-        if leg["kind"] != "build":
+        if leg["kind"] == "build":
+            command = ["dotnet", "build", leg["csproj"], "-c", args.configuration, *BUILD_FLAGS]
+        else:
             # A directory per leg, not one shared by all six. Sharing it makes
             # "the newest TRX" mean "whichever leg finished last", and the count
             # guard then checks one leg's slice against another leg's results.
             # CI has one runner per leg and never sees this; locally it turned
             # a green run into a false shortfall report.
-            command += ["--results-directory", str(results)]
+            test_filter = shard_filters(projects[leg["project"]], leg["shards"])[leg["shard"] - 1]
+            command = test_command(leg["csproj"], args.configuration, test_filter, results)
         log = results / "leg.log"
         return subprocess.Popen(command, cwd=ROOT, stdout=log.open("w"), stderr=subprocess.STDOUT,
                                 **({} if alone else below_normal()))
@@ -1073,9 +1118,7 @@ def cmd_run(args) -> int:
         results = (ROOT / projects[leg["project"]].directory / "TestResults"
                    / f"leg-{leg['shard']}-of-{leg['shards']}")
         check = subprocess.run(
-            ["python3", "scripts/testcount.py", "verify", "-c", args.configuration,
-             "--project", leg["project"], "--filter", test_filter,
-             "--results", str(results)],
+            verify_command(args.configuration, leg["project"], test_filter, results),
             cwd=ROOT, capture_output=True, text=True,
             encoding="utf-8", errors="replace")
         if check.returncode != 0:
@@ -1495,6 +1538,26 @@ def cmd_selftest(args) -> int:
           bool(PERFORMANCE_TRAIT.search(block)) and "Before" not in block)
     check("a compile leg has no filter to ask for",
           shard_filters(projects["Lightbox.Bench"], 1) == [""])
+
+    # -- every leg can be started on Windows (B494) ---------------------------
+    # The App complement's filter grew past 32 KB, and `dotnet test --filter`
+    # hands it on to vstest.console on a command line: leg 6 died with
+    # Win32Exception 206 before running a test, on every Windows run, while
+    # Linux CI stayed green. Measured on the commands `run` really launches.
+    with tempfile.TemporaryDirectory() as scratch:
+        longest, carried = 0, True
+        for name in sorted(tests):
+            count = SHARDS.get(name, 1)
+            for shard, test_filter in enumerate(shard_filters(projects[name], count), start=1):
+                results = Path(scratch) / name / f"leg-{shard}-of-{count}"
+                results.mkdir(parents=True)
+                for command in (test_command(projects[name].csproj, "Release", test_filter, results),
+                                verify_command("Release", name, test_filter, results)):
+                    longest = max(longest, len(subprocess.list2cmdline(command)))
+                    carried &= filter_in(command) == test_filter
+        check(f"every leg's commands fit a Windows command line (longest {longest} chars)",
+              longest < WINDOWS_COMMAND_LINE)
+        check("every leg's filter reaches the runner unchanged", carried)
 
     failed = [label for label, ok in checks if not ok]
     for label, ok in checks:
