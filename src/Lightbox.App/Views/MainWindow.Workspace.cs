@@ -152,15 +152,6 @@ public partial class MainWindow : IFollowsUiScale
     }
 
     /// <summary>
-    /// Rebuild every strip from the layout.
-    ///
-    /// Wholesale rather than incremental on purpose: reparenting seven controls
-    /// costs nothing next to a layout pass, and it means the window never has
-    /// to work out what changed — only what the layout now says. Docking bugs
-    /// that survive this are bugs in the model, which is tested without a
-    /// window at all.
-    /// </summary>
-    /// <summary>
     /// Put the canvas framing down on the tab being left, and pick up the one
     /// belonging to the tab being entered.
     /// </summary>
@@ -176,9 +167,48 @@ public partial class MainWindow : IFollowsUiScale
         else Canvas.ResetView();
     }
 
+    /// <summary>
+    /// The gates <see cref="IsPanelUsable"/> read, as the last dock rebuild saw
+    /// them. B493.
+    /// </summary>
+    private (bool HasProject, bool ShowTimeline) _dockGates;
+
+    /// <summary>
+    /// Rebuild the dock only if a gate in <see cref="IsPanelUsable"/> moved.
+    /// </summary>
+    /// <remarks>
+    /// <b>B493.</b> Every tab switch raises <c>ShowTimeline</c>, and between
+    /// two drawings it never changes — yet the rebuild took every docker out
+    /// of its strip and put it back, which threw away the whole window's
+    /// layout on each switch.
+    /// </remarks>
+    private void ApplyDockLayoutIfGatesMoved()
+    {
+        if ((_vm.HasProject, _vm.ShowTimeline) != _dockGates) ApplyDockLayout();
+    }
+
+    /// <summary>
+    /// Rebuild every strip from the layout.
+    ///
+    /// Wholesale rather than incremental on purpose: it means the window never
+    /// has to work out what changed — only what the layout now says. Docking
+    /// bugs that survive this are bugs in the model, which is tested without a
+    /// window at all.
+    ///
+    /// <b>Not free, though (B493):</b> a docker taken out of the tree loses its
+    /// layout, so a rebuild makes the next pass measure the whole window from
+    /// nothing — 200 ms and more with a deep layer stack. Call it when the
+    /// layout or a gate in <see cref="IsPanelUsable"/> changed. A layout change
+    /// always rebuilds; a gate notification goes through
+    /// <see cref="ApplyDockLayoutIfGatesMoved"/>, because a tab switch raises
+    /// one whether or not it moved.
+    /// </summary>
     private void ApplyDockLayout()
     {
         var layout = _vm.Workspace.Layout;
+        // Recorded at the end, so a rebuild that throws part way is tried
+        // again on the next notification rather than taken as done.
+        var gates = (_vm.HasProject, _vm.ShowTimeline);
 
         // Off for every panel, then on for the ones a strip shows: a docker
         // parked, floating or moved to the bottom must not keep a chevron, or
@@ -249,6 +279,7 @@ public partial class MainWindow : IFollowsUiScale
         }
 
         ApplyOverlayLayout();
+        _dockGates = gates;
     }
 
     // ---- workspace commands ----------------------------------------------------

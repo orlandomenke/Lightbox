@@ -656,6 +656,14 @@ the test needs relaxing.
     its blur ratio is the number the cache should visibly move); presets as
     project files (design step 5); and MCP `effects.*` operations, deferred
     with the payload questions G12's pair review owns.
+- [ ] **Layer rows survive a tab switch** `evidence: TabSwitchLayerRowTests`
+  - B492. Switching to a document with more layers builds every extra row of
+    the Layers docker from nothing — ~15 ms a row, 341–392 ms for a 31-layer
+    tab after an 11-layer one, where the docker hidden costs 62–116 ms. Keep or
+    recycle the row containers (a virtualising, recycling panel), and move
+    `AimLayerDrop` off walking every container, since an off-screen row would
+    have none. About a day with the drag tests. B493 took the dock rebuild out
+    of the same switch first.
 
 ### Editing
 

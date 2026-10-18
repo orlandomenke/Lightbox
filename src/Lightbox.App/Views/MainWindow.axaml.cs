@@ -308,13 +308,13 @@ public partial class MainWindow : Window
         // changing: a project appearing (the project panel is absent until
         // there is one) and a reference tab taking the focus (the timeline
         // means nothing on one). Both are answered the same way as everything
-        // else — rebuild from the layout.
+        // else — rebuild from the layout, when the answer moved (B493).
         _vm.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName is nameof(MainViewModel.HasProject)
                 or nameof(MainViewModel.ShowTimeline))
             {
-                ApplyDockLayout();
+                ApplyDockLayoutIfGatesMoved();
             }
             if (args.PropertyName is nameof(MainViewModel.ActiveTool)
                 or nameof(MainViewModel.ActiveSelectVariant))
