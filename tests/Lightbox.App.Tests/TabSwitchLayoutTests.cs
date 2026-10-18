@@ -39,7 +39,10 @@ public class TabSwitchLayoutTests : BrushStateIsolated
 
     private static (MainWindow Window, MainViewModel Vm, DocumentTab A, DocumentTab B) TwoDocuments()
     {
-        var window = new MainWindow { Width = 960, Height = 540 };
+        // Tall enough for the Layers docker to show all eight rows: the list
+        // virtualizes (B496), so at 540 it built one and there was nothing to
+        // compare across the switch.
+        var window = new MainWindow { Width = 960, Height = 1400 };
         window.Show();
         Pump();
         var vm = (MainViewModel)window.DataContext!;
