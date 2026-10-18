@@ -563,7 +563,9 @@ public partial class MainViewModel
                     strip.Cells[0].Width = view.Width;
                     strip.Cells[0].Height = view.Height;
                 }
-                Lightbox.Raster.ReferenceStripRegistry.Register([(strip.Id, strip.Png)]);
+                // Replace, not Register: Register skips an id it already holds,
+                // and the canvas and export draw from the registry (B487).
+                Lightbox.Raster.ReferenceStripRegistry.Replace(strip.Id, Lightbox.Raster.PngCodec.Decode(png));
                 changed = true;
             }
             if (changed)

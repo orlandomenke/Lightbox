@@ -95,6 +95,36 @@ public class SheetViewOnCanvasTests : BrushStateIsolated
         Assert.NotEqual(before, strip.Png);
     }
 
+    /// <summary>
+    /// B487. The canvas and the export draw from the registry, not from
+    /// <see cref="ReferenceStrip.Png"/>, so a re-flatten that only updates the
+    /// record leaves the first picture on screen until the document reopens.
+    /// </summary>
+    [AvaloniaFact]
+    public void EditingTheSheetChangesWhatTheCanvasDraws()
+    {
+        var (vm, view, _) = VmWithAnInkedView();
+        var strip = vm.ToggleViewOnCanvas(view)!;
+        var before = SheetPixels(strip.Id);
+
+        vm.BeginStroke(400, 300, 1);
+        vm.MoveStroke(600, 400, 1);
+        vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var after = SheetPixels(strip.Id);
+        var fromRecord = Lightbox.Raster.PngCodec.Decode(strip.Png);
+        Assert.NotEqual(before, after);
+        Assert.Equal(fromRecord.Bytes, after);
+    }
+
+    private static byte[] SheetPixels(string id)
+    {
+        var sheet = Lightbox.Raster.ReferenceStripRegistry.Resolve(id);
+        Assert.NotNull(sheet);
+        return sheet!.Bytes;
+    }
+
     [AvaloniaFact]
     public void AnUnrelatedEditDoesNotChurnTheStrip()
     {
