@@ -15,7 +15,7 @@ namespace Lightbox.Raster.Tests;
 /// <c>StrokeGroupRenderTests.OnlyAnEffectThatChangesOverTimeMakesADrawingDifferentAtEachCel</c>,
 /// whose second <c>Get</c> evicted its first while a neighbour had the budget
 /// set to a few frames — "a constant effect was keyed by cel", once in a full
-/// run, never alone (B487). A try/finally restore does not help: the damage is
+/// run, never alone (B488). A try/finally restore does not help: the damage is
 /// done while the small budget is set.
 /// </para>
 /// <para>
