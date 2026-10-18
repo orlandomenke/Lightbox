@@ -183,6 +183,30 @@ public sealed class ReferenceStrip
     public string? VideoPath { get; set; }
 
     /// <summary>
+    /// The Lightbox document this strip is a flattening of, or null — and null
+    /// writes no key, the usual rule.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A link and a copy, both</b> (Q284). <see cref="Png"/> still holds the
+    /// flattened frames, so a source that moves or is deleted leaves its last
+    /// frames standing rather than breaking — the rule that made every other
+    /// reference embedded. The link is what keeps it live: when the file is
+    /// newer than <see cref="DocumentSource.Stamp"/> the frames are flattened
+    /// again.
+    /// </para>
+    /// <para>
+    /// The source is only ever <em>read</em>. Referencing a document cannot
+    /// alter it, which is half of why this exists.
+    /// </para>
+    /// </remarks>
+    public DocumentSource? Document { get; set; }
+
+    /// <summary>A flattening of another document. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsDocument => Document?.Path is { Length: > 0 };
+
+    /// <summary>
     /// The footage itself, base64 of the original clip file, or null — the
     /// small-production path (Q57). Where <see cref="VideoPath"/> keeps a
     /// document light and <see cref="Png"/> keeps it merely self-contained,
@@ -485,4 +509,37 @@ public sealed class ReferenceStrip
         copy.SplitPoints = SplitPoints is null ? null : [.. SplitPoints];
         return copy;
     }
+}
+
+/// <summary>
+/// Where a <see cref="ReferenceStrip"/> flattened from another document came
+/// from, and how its column maps back onto that document's canvas.
+/// </summary>
+/// <remarks>
+/// The window and its scale are kept because the next flatten may draw a
+/// different window — the run grew an arm-swing wider — and the reference has
+/// to stay where the artist put it in source terms, not in sheet pixels.
+/// </remarks>
+public sealed class DocumentSource
+{
+    /// <summary>
+    /// Keys a newer build wrote that this one does not know, carried through
+    /// untouched (Q230).
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+
+    /// <summary>The document's path; relative paths resolve against this document's directory.</summary>
+    public string Path { get; set; } = "";
+
+    /// <summary>The source file's last-write time, UTC ticks, when the frames were flattened.</summary>
+    public long Stamp { get; set; }
+
+    /// <summary>The source-canvas pixel at the top-left of every window.</summary>
+    public int OriginX { get; set; }
+
+    public int OriginY { get; set; }
+
+    /// <summary>Sheet pixels per source pixel — 1 unless the column had to shrink.</summary>
+    public double Scale { get; set; } = 1;
 }
