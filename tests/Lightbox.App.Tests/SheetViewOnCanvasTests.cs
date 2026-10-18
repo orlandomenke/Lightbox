@@ -105,24 +105,82 @@ public class SheetViewOnCanvasTests : BrushStateIsolated
     {
         var (vm, view, _) = VmWithAnInkedView();
         var strip = vm.ToggleViewOnCanvas(view)!;
-        var before = SheetPixels(strip.Id);
+        var before = SheetPixels(AnimationTab(vm).Doc.Scene, strip.Id);
 
         vm.BeginStroke(400, 300, 1);
         vm.MoveStroke(600, 400, 1);
         vm.EndStroke();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        var after = SheetPixels(strip.Id);
+        var after = SheetPixels(AnimationTab(vm).Doc.Scene, strip.Id);
         var fromRecord = Lightbox.Raster.PngCodec.Decode(strip.Png);
         Assert.NotEqual(before, after);
         Assert.Equal(fromRecord.Bytes, after);
     }
 
-    private static byte[] SheetPixels(string id)
+    private static byte[] SheetPixels(Scene scene, string id)
     {
-        var sheet = Lightbox.Raster.ReferenceStripRegistry.Resolve(id);
+        var sheet = Lightbox.Raster.ReferenceStripRegistry.Resolve(scene, id);
         Assert.NotNull(sheet);
         return sheet!.Bytes;
+    }
+
+    private static DocumentTab AnimationTab(MainViewModel vm) =>
+        vm.Tabs.First(t => t.Kind == DocumentTabKind.Animation);
+
+    private static void InkTheOpenView(MainViewModel vm)
+    {
+        vm.BeginStroke(400, 300, 1);
+        vm.MoveStroke(600, 400, 1);
+        vm.EndStroke();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
+    /// B490. Close a document with an unsaved edit to a taped sheet and open
+    /// the file again: the canvas must draw what the file holds. The load path
+    /// skipped any id the registry still held, so the edit nobody saved stayed
+    /// on screen while the record said otherwise.
+    /// </summary>
+    [AvaloniaFact]
+    public void ReopeningAnUnsavedEditShowsTheSavedReference()
+    {
+        var (vm, view, _) = VmWithAnInkedView();
+        var strip = vm.ToggleViewOnCanvas(view)!;
+        var owner = AnimationTab(vm);
+        var onDisk = DocJson.Clone(owner.Doc);
+        var saved = Lightbox.Raster.PngCodec.Decode(onDisk.Scene.References![0].Png).Bytes;
+
+        InkTheOpenView(vm);
+        Assert.NotEqual(saved, SheetPixels(owner.Doc.Scene, strip.Id));
+        vm.CloseTab(owner);
+
+        vm.OpenDocumentTab(onDisk, "/projects/hero.lightbox.json");
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(saved, SheetPixels(vm.Doc.Scene, strip.Id));
+    }
+
+    /// <summary>
+    /// B490. A copy carries the original's strip ids. Editing the copy's sheet
+    /// must change what the copy draws and leave the original as it was.
+    /// </summary>
+    [AvaloniaFact]
+    public void ACopysTapedSheetDoesNotDrawOnTheOriginal()
+    {
+        var (vm, view, _) = VmWithAnInkedView();
+        var strip = vm.ToggleViewOnCanvas(view)!;
+        var original = AnimationTab(vm);
+        var before = SheetPixels(original.Doc.Scene, strip.Id);
+
+        vm.OpenDocumentTab(DocJson.Clone(original.Doc), null);
+        var copy = vm.ActiveTab!;
+        Assert.NotSame(original, copy);
+        vm.OpenReferenceView(copy.Doc.ReferenceSheets[0].Views[0]);
+        InkTheOpenView(vm);
+
+        Assert.NotEqual(before, SheetPixels(copy.Doc.Scene, strip.Id));
+        Assert.Equal(before, SheetPixels(original.Doc.Scene, strip.Id));
     }
 
     [AvaloniaFact]

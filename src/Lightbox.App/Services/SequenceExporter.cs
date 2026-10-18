@@ -148,7 +148,7 @@ public static class SequenceExporter
         {
             if (!strip.RendersInExport || !strip.Visible || strip.Opacity <= 0) continue;
             if (strip.CellAt(frameIndex) is not { } cell) continue;
-            if (ReferenceStripRegistry.Resolve(strip.Id) is not { } sheet) continue;
+            if (ReferenceStripRegistry.Resolve(scene, strip.Id) is not { } sheet) continue;
 
             var scale = (float)Math.Max(0.01, strip.Scale);
             var matrix = SKMatrix.CreateScaleTranslation(

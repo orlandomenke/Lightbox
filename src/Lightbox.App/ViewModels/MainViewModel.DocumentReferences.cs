@@ -85,7 +85,7 @@ public partial class MainViewModel
             if (strip.Slots.Count > doc.Scene.FrameCount) doc.Scene.FrameCount = strip.Slots.Count;
         });
 
-        ReferenceStripRegistry.Register([(strip.Id, strip.Png)]);
+        ReferenceStripRegistry.Register(Scene, [(strip.Id, strip.Png)]);
         ActiveReferenceIndex = index;
         AfterReferenceChange();
         return strip;
@@ -181,7 +181,7 @@ public partial class MainViewModel
                 // would hold a sheet for a strip nobody can see.
                 if (scene.References?.Contains(stale[i].Strip) != true) continue;
                 Reflatten(stale[i].Strip, flat);
-                ReferenceStripRegistry.Replace(stale[i].Strip.Id, flat.Sheet.Copy());
+                ReferenceStripRegistry.Replace(scene, stale[i].Strip.Id, flat.Sheet.Copy());
             }
             changed++;
         }

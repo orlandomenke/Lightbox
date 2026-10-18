@@ -96,7 +96,7 @@ public sealed class VideoReferenceImportTests : BrushStateIsolated
             // One second at 12 fps: a dozen frames, one cell each, on the sheet.
             Assert.Equal(12, strip.Cells.Count);
             Assert.True(vm.Doc.Scene.FrameCount >= 12, "the timeline grew to hold the footage");
-            Assert.NotNull(Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id));
+            Assert.NotNull(Lightbox.Raster.ReferenceStripRegistry.Resolve(vm.Doc.Scene, strip.Id));
         }
         finally
         {

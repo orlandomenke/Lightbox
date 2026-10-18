@@ -1681,7 +1681,7 @@ public partial class MainViewModel
         if (Scene.References is { Count: > 0 } strips)
         {
             Lightbox.Raster.ReferenceStripRegistry.Register(
-                strips.Select(s => (s.Id, s.Png)));
+                Scene, strips.Select(s => (s.Id, s.Png)));
             // Video references carry no PNG — their pixels come back off the
             // footage itself (Q56).
             foreach (var strip in strips.Where(s => s.VideoPath is not null || s.VideoData is not null))

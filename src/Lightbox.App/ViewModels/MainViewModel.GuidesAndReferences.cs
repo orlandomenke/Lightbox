@@ -1072,7 +1072,7 @@ public partial class MainViewModel
             }
         });
 
-        Lightbox.Raster.ReferenceStripRegistry.Register([(strip.Id, strip.Png)]);
+        Lightbox.Raster.ReferenceStripRegistry.Register(Scene, [(strip.Id, strip.Png)]);
         ActiveReferenceIndex = index;
         AfterReferenceChange();
         return strip;
@@ -1154,7 +1154,7 @@ public partial class MainViewModel
             }
         });
 
-        Lightbox.Raster.ReferenceStripRegistry.Register(strip.Id, result.Sheet);
+        Lightbox.Raster.ReferenceStripRegistry.Register(Scene, strip.Id, result.Sheet);
         ActiveReferenceIndex = index;
         AfterReferenceChange();
         return null;
@@ -1167,7 +1167,7 @@ public partial class MainViewModel
     /// </summary>
     private void RegisterVideoReference(ReferenceStrip strip)
     {
-        if (Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id) is not null) return;
+        if (Lightbox.Raster.ReferenceStripRegistry.Resolve(Scene, strip.Id) is not null) return;
         if (Services.VideoExporter.FindFfmpeg() is not { } ffmpeg) return;
 
         string resolved;
@@ -1203,7 +1203,7 @@ public partial class MainViewModel
         var extracted = Services.VideoReferenceImporter.Extract(ffmpeg, resolved, Math.Max(1, Scene.Fps), out _);
         if (extracted is { } result)
         {
-            Lightbox.Raster.ReferenceStripRegistry.Register(strip.Id, result.Sheet);
+            Lightbox.Raster.ReferenceStripRegistry.Register(Scene, strip.Id, result.Sheet);
         }
     }
 
@@ -1280,7 +1280,7 @@ public partial class MainViewModel
     public void ResliceReference(SliceOptions options)
     {
         if (ActiveReference is not { } strip) return;
-        if (Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id) is not { } sheet) return;
+        if (Lightbox.Raster.ReferenceStripRegistry.Resolve(Scene, strip.Id) is not { } sheet) return;
 
         var first = strip.Slots.FindIndex(s => s >= 0);
         _editor.Perform(doc =>
@@ -1304,7 +1304,7 @@ public partial class MainViewModel
             // goes back to writing no key at all.
             if (doc.Scene.References is { Count: 0 }) doc.Scene.References = null;
         });
-        Lightbox.Raster.ReferenceStripRegistry.Forget(id);
+        Lightbox.Raster.ReferenceStripRegistry.Forget(Scene, id);
         ActiveReferenceIndex = Math.Max(0, ActiveReferenceIndex - 1);
         AfterReferenceChange();
     }

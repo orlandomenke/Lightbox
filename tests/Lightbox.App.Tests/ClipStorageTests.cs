@@ -159,7 +159,7 @@ public sealed class ClipStorageTests : BrushStateIsolated
         };
         strip.Assign(0, 0);
         vm.Doc.Scene.References = [strip];
-        Lightbox.Raster.ReferenceStripRegistry.Register(strip.Id, sheet);
+        Lightbox.Raster.ReferenceStripRegistry.Register(vm.Doc.Scene, strip.Id, sheet);
 
         using var cache = new FrameBitmapCache();
 

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Lightbox.Core.Documents;
 using SkiaSharp;
 
 namespace Lightbox.Raster;
@@ -23,15 +24,18 @@ public static class ReferenceStripRegistry
 {
     private static readonly ConcurrentDictionary<string, SKBitmap> Sheets = new();
 
-    /// <summary>Decode any sheet not already held. Ids are globally unique.</summary>
-    public static void Register(IEnumerable<(string Id, string Png)> strips)
+    private static ConcurrentDictionary<string, SKBitmap> SheetsOf(Scene scene) => Sheets;
+
+    /// <summary>Decode any sheet not already held for this document.</summary>
+    public static void Register(Scene scene, IEnumerable<(string Id, string Png)> strips)
     {
+        var sheets = SheetsOf(scene);
         foreach (var (id, png) in strips)
         {
-            if (string.IsNullOrEmpty(png) || Sheets.ContainsKey(id)) continue;
+            if (string.IsNullOrEmpty(png) || sheets.ContainsKey(id)) continue;
             try
             {
-                Sheets[id] = PngCodec.Decode(png);
+                sheets[id] = PngCodec.Decode(png);
             }
             catch
             {
@@ -44,15 +48,15 @@ public static class ReferenceStripRegistry
     /// Hold an already-decoded sheet — the video-reference path (Q56), where
     /// the pixels come from footage rather than a stored PNG. Takes ownership.
     /// </summary>
-    public static void Register(string id, SKBitmap sheet)
+    public static void Register(Scene scene, string id, SKBitmap sheet)
     {
-        if (!Sheets.TryAdd(id, sheet))
+        if (!SheetsOf(scene).TryAdd(id, sheet))
         {
             sheet.Dispose();
         }
     }
 
-    public static SKBitmap? Resolve(string id) => Sheets.GetValueOrDefault(id);
+    public static SKBitmap? Resolve(Scene scene, string id) => SheetsOf(scene).GetValueOrDefault(id);
 
     /// <summary>
     /// Swap in new pixels for a sheet already held — a live reference whose
@@ -64,12 +68,23 @@ public static class ReferenceStripRegistry
     /// a draw is a native fault rather than an exception. It is left to the
     /// finaliser, which runs once nothing holds it.
     /// </remarks>
-    public static void Replace(string id, SKBitmap sheet) => Sheets[id] = sheet;
-
+    public static void Replace(Scene scene, string id, SKBitmap sheet, Action<SKBitmap>? retire = null) => SheetsOf(scene)[id] = sheet;
 
     /// <summary>Forget one sheet — a reference the artist removed.</summary>
-    public static void Forget(string id)
+    public static void Forget(Scene scene, string id, Action<SKBitmap>? retire = null)
     {
-        if (Sheets.TryRemove(id, out var sheet)) sheet.Dispose();
+        if (SheetsOf(scene).TryRemove(id, out var sheet)) sheet.Dispose();
+    }
+
+    /// <summary>Forget every sheet held for one document — a closed tab.</summary>
+    public static void ForgetScope(object owner, Action<SKBitmap>? retire = null)
+    {
+    }
+
+    public static IDisposable Reading() => new Lease();
+
+    private sealed class Lease : IDisposable
+    {
+        public void Dispose() { }
     }
 }

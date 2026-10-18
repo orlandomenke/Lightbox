@@ -209,7 +209,7 @@ public sealed class DocumentReferenceTests : IDisposable
         Assert.Equal("run.lightbox.json", strip.Document!.Path);
         Assert.Equal(File.GetLastWriteTimeUtc(path).Ticks, strip.Document!.Stamp);
         Assert.NotEmpty(strip.Png);
-        Assert.NotNull(Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id));
+        Assert.NotNull(Lightbox.Raster.ReferenceStripRegistry.Resolve(vm.Doc.Scene, strip.Id));
         Assert.False(strip.Pinned);
     }
 
@@ -501,10 +501,10 @@ public sealed class DocumentReferenceTests : IDisposable
         // removal below happens before its continuation can run.
         var refresh = vm.RefreshDocumentReferencesAsync();
         vm.Doc.Scene.References!.Remove(strip);
-        Lightbox.Raster.ReferenceStripRegistry.Forget(strip.Id);
+        Lightbox.Raster.ReferenceStripRegistry.Forget(vm.Doc.Scene, strip.Id);
 
         Assert.Equal(0, await refresh);
-        Assert.Null(Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id));
+        Assert.Null(Lightbox.Raster.ReferenceStripRegistry.Resolve(vm.Doc.Scene, strip.Id));
     }
 
     // ---- what is never followed or written (sensitivity review) ----------------
