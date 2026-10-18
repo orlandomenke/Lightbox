@@ -1304,7 +1304,7 @@ public partial class MainViewModel
             // goes back to writing no key at all.
             if (doc.Scene.References is { Count: 0 }) doc.Scene.References = null;
         });
-        Lightbox.Raster.ReferenceStripRegistry.Forget(Scene, id);
+        Lightbox.Raster.ReferenceStripRegistry.Forget(Scene, id, _cache.DisposeExternal);
         ActiveReferenceIndex = Math.Max(0, ActiveReferenceIndex - 1);
         AfterReferenceChange();
     }

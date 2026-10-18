@@ -276,7 +276,7 @@ public partial class MainViewModel
                 // Absent, not empty — the same step RemoveReference takes.
                 if (doc.Scene.References is { Count: 0 }) doc.Scene.References = null;
             });
-            Lightbox.Raster.ReferenceStripRegistry.Forget(scene, taped.Id);
+            Lightbox.Raster.ReferenceStripRegistry.Forget(scene, taped.Id, _cache.DisposeExternal);
             _flattenedViews.Remove(taped.Id);
             AfterReferenceChange();
             return null;
@@ -360,7 +360,7 @@ public partial class MainViewModel
                 doc.Scene.References?.Remove(projected);
                 if (doc.Scene.References is { Count: 0 }) doc.Scene.References = null;
             });
-            Lightbox.Raster.ReferenceStripRegistry.Forget(scene, projected.Id);
+            Lightbox.Raster.ReferenceStripRegistry.Forget(scene, projected.Id, _cache.DisposeExternal);
             AfterReferenceChange();
             return null;
         }
@@ -576,7 +576,7 @@ public partial class MainViewModel
                 }
                 // Replace, not Register: Register skips an id it already holds,
                 // and the canvas and export draw from the registry (B491).
-                Lightbox.Raster.ReferenceStripRegistry.Replace(doc.Scene, strip.Id, sheet);
+                Lightbox.Raster.ReferenceStripRegistry.Replace(doc.Scene, strip.Id, sheet, _cache.DisposeExternal);
                 changed = true;
             }
             if (changed)

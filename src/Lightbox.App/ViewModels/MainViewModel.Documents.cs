@@ -747,6 +747,13 @@ public partial class MainViewModel
         // Nothing renders those documents after this, whichever tab comes next.
         _cache.ForgetScope(tab.Editor);
         foreach (var orphan in orphans) _cache.ForgetScope(orphan.Editor);
+        // B490. Its reference sheets too: they were the only thing keeping a
+        // reopened file from decoding what is on disk, and they are decoded
+        // pixels, a sheet-sized bitmap each, that no other document can reach.
+        foreach (var closed in orphans.Prepend(tab))
+        {
+            Lightbox.Raster.ReferenceStripRegistry.ForgetScope(closed.Editor, _cache.DisposeExternal);
+        }
         // And the pictures each kept for a return that cannot happen.
         foreach (var closed in orphans.Prepend(tab)) ForgetPictures(closed.State);
         // B99. Closing a document that was never written takes its row with it.

@@ -66,6 +66,9 @@ public static class SequenceExporter
         // B392: an export whose layers outgrow the byte budget evicts layer 1
         // while fetching layer N of the same frame.
         using var hold = cache.HoldFetches();
+        // B490: production footage is drawn straight from the registry on this
+        // thread, which pins nothing — so nothing it can resolve is freed under it.
+        using var reading = ReferenceStripRegistry.Reading();
         var passes = new List<RenderPass>();
         var footageQueued = false;
         for (var layerIndex = 0; layerIndex < scene.Layers.Count; layerIndex++)
