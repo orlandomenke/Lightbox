@@ -1003,6 +1003,17 @@ public sealed partial class MainViewModel
             AiStatus = "That symbol is not in this project.";
             return null;
         }
+        // B487: a symbol inside itself, at any depth, is a loop with no picture.
+        // Refused here with a reason; the renderer draws nothing for one that
+        // arrives some other way, which would read as the placement vanishing.
+        if (ActiveTab is { Kind: DocumentTabKind.Symbol, Symbol: { } host }
+            && SymbolRegistry.Reaches(symbolId, host.Id))
+        {
+            AiStatus = symbolId == host.Id
+                ? $"{symbol.Name} can't be placed inside itself."
+                : $"{symbol.Name} already holds {host.Name}, so it can't go inside it.";
+            return null;
+        }
         if (PaintTargetOrKey() is not Frame target)
         {
             AiStatus = "Symbols can only be placed on a painted layer.";

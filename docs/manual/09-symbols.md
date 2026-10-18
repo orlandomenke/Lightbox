@@ -114,6 +114,11 @@ in the application. A head is one symbol, not four.
 - **A symbol needs strokes.** A drawing that is imported pixels with nothing
   drawn on it cannot become a symbol — you will be told there is nothing to
   make one from.
+- **A symbol can hold other symbols, but never itself.** A sword inside a
+  hand inside a knight is fine. Placing the knight inside his own sword is
+  refused with a reason, because a symbol that contains itself has no picture.
+  If a file arrives with such a loop already in it, the symbols in the loop
+  draw nothing rather than crashing the application.
 
 Four things a symbol layer deliberately cannot do, because none of them mean
 anything inside one: **follow a bone**, **run a simulation**, sit in a document's

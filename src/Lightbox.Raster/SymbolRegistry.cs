@@ -75,6 +75,71 @@ public static class SymbolRegistry
 
     public static Symbol? Resolve(string id) => Symbols.GetValueOrDefault(id);
 
+    /// <summary>
+    /// Whether the symbol <paramref name="fromId"/> is <paramref name="toId"/>,
+    /// or places it at any depth (B487).
+    /// </summary>
+    /// <remarks>
+    /// Asked before a placement is made inside a symbol, where a yes means the
+    /// placement would close a loop. A walk with a visited set rather than a
+    /// recursion, so a loop that already exists ends the walk instead of the
+    /// process.
+    /// </remarks>
+    public static bool Reaches(string fromId, string toId)
+    {
+        if (fromId == toId) return true;
+        var seen = new HashSet<string> { fromId };
+        var pending = new Stack<string>();
+        pending.Push(fromId);
+        while (pending.TryPop(out var id))
+        {
+            if (Resolve(id) is not { } symbol) continue;
+            foreach (var frame in DrawingsOf(symbol))
+            {
+                if (frame.Placements is not { } placements) continue;
+                foreach (var placement in placements)
+                {
+                    if (placement.SymbolId == toId) return true;
+                    if (seen.Add(placement.SymbolId)) pending.Push(placement.SymbolId);
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Whether a symbol places itself, directly or through others: one that
+    /// can never finish rendering (B487).
+    /// </summary>
+    public static bool HoldsItself(Symbol symbol)
+    {
+        foreach (var frame in DrawingsOf(symbol))
+        {
+            if (frame.Placements is not { } placements) continue;
+            foreach (var placement in placements)
+            {
+                if (Reaches(placement.SymbolId, symbol.Id)) return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Every drawing a symbol renders from, masks included: a mask is rendered
+    /// through the same rasterizer and stamps its placements too.
+    /// </summary>
+    private static IEnumerable<Frame> DrawingsOf(Symbol symbol)
+    {
+        foreach (var layer in symbol.Layers)
+        {
+            foreach (var cel in layer.Cels)
+            {
+                if (cel.Frame is { } frame) yield return frame;
+            }
+            if (layer.Mask is { } mask) yield return mask.Frame;
+        }
+    }
+
     /// <summary>Ids a render asked for and could not find, in no particular order.</summary>
     public static IReadOnlyCollection<string> Unresolved => Missing.Keys.ToList();
 
