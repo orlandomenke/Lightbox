@@ -96,6 +96,10 @@ public sealed class DocumentEditor
         {
             if (ReferenceEquals(field, value)) return;
             field = value;
+            // Whatever document this editor holds is this editor's document,
+            // so a copy opened in a second tab stops sharing the first's
+            // decoded resources the moment it gets an editor of its own (B490).
+            value.Scene.ResourceScope = this;
             DocReplaced?.Invoke(value);
         }
     }

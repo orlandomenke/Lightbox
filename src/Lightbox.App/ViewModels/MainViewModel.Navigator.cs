@@ -223,7 +223,7 @@ public partial class MainViewModel
                     hash.Add(cell.Dy);
                 }
                 hash.Add(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(
-                    Lightbox.Raster.ReferenceStripRegistry.Resolve(strip.Id)));
+                    Lightbox.Raster.ReferenceStripRegistry.Resolve(scene, strip.Id)));
             }
         }
         return hash.ToHashCode();

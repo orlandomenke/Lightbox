@@ -341,6 +341,22 @@ public sealed class Scene
     /// </remarks>
     public List<ReferenceStrip>? References { get; set; }
 
+    /// <summary>
+    /// Which open document this scene belongs to: the editor holding it, or
+    /// null for a scene no editor holds. Never serialized.
+    /// </summary>
+    /// <remarks>
+    /// Decoded reference sheets are kept per document under this object (B490).
+    /// Strip ids are not unique across documents — a copy, a template or the
+    /// same file opened twice all carry the same ones — and a reopened file is
+    /// a different document from the tab it replaced, unsaved edits and all.
+    /// A clone keeps it, which is what undo and a render snapshot want; an
+    /// editor taking a document overwrites it, which is what a copy opened as
+    /// its own tab wants.
+    /// </remarks>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public object? ResourceScope { get; set; }
+
     /// <summary>Whether any reference has been imported.</summary>
     /// <remarks>
     /// Ignored by the serializer. It is derived from <see cref="References"/>
