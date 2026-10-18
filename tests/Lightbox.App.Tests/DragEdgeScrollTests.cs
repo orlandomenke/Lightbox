@@ -117,6 +117,41 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
         return (window, vm);
     }
 
+    /// <summary>
+    /// Bring the X-sheet forward and let it lay out before anything is measured
+    /// against it (B498).
+    /// </summary>
+    /// <remarks>
+    /// One pump after <c>Activate</c> used to be all these tests gave it, and on
+    /// CI build #2159 both of them found no scroller under a drag at the sheet's
+    /// edge — once in about 110 runs, never reproduced here, 10 of 10 under load.
+    /// A layout pass that had not run yet is the one cause that fits and that a
+    /// test can rule out, so it is ruled out here.
+    /// </remarks>
+    private static ScrollViewer ShowTheSheet(MainWindow window, MainViewModel vm)
+    {
+        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Xsheet);
+        Pump();
+        window.UpdateLayout();
+        Pump();
+        return Scrolling(window.FindControl<ItemsControl>("XsheetLayerList")!);
+    }
+
+    /// <summary>
+    /// What a drag at <paramref name="at"/> lands on, and the sheet's size — the
+    /// message a failure here should have carried the first time (B498).
+    /// </summary>
+    private static string WhatIsUnder(MainWindow window, ScrollViewer sheet, Point at)
+    {
+        var hit = window.InputHitTest(at) as Visual;
+        var chain = hit is null
+            ? "nothing"
+            : string.Join(" < ", hit.GetVisualAncestors().Prepend(hit).Take(6).OfType<Control>()
+                .Select(c => c.GetType().Name + (string.IsNullOrEmpty(c.Name) ? "" : "#" + c.Name)));
+        return $"at {at} the window hit {chain}; the sheet is {sheet.Bounds.Width:0}x{sheet.Bounds.Height:0}, " +
+            $"viewport {sheet.Viewport.Height:0} of {sheet.Extent.Height:0}, visible {sheet.IsEffectivelyVisible}";
+    }
+
     /// <summary>The scroller above a control that really has more content than room.</summary>
     private static ScrollViewer Scrolling(Visual from) =>
         from.GetVisualAncestors().OfType<ScrollViewer>().First(s => s.Extent.Height > s.Viewport.Height + 1);
@@ -407,9 +442,7 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
         // The wiring itself, not the scroller called by hand: the events an
         // operating-system drag raises, bubbling to the window.
         var (window, vm) = Open();
-        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Xsheet);
-        Pump();
-        var sheet = Scrolling(window.FindControl<ItemsControl>("XsheetLayerList")!);
+        var sheet = ShowTheSheet(window, vm);
         var atEdge = new Point(sheet.Bounds.Width / 2, sheet.Bounds.Height - 5);
         var transfer = new DataTransfer();
         transfer.Add(DataTransferItem.Create(DataFormat.CreateInProcessFormat<string>("lightbox-test"), "x"));
@@ -421,7 +454,9 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
         }
 
         Raise(DragDrop.DragOverEvent);
-        Assert.True(window.EdgeScroll.IsScrolling, "a drag over the edge of a list did not reach the scroller");
+        Assert.True(window.EdgeScroll.IsScrolling,
+            "a drag over the edge of a list did not reach the scroller; "
+            + WhatIsUnder(window, sheet, sheet.TranslatePoint(atEdge, window)!.Value));
         Assert.Same(sheet, window.EdgeScroll.Target);
 
         Raise(DragDrop.DragLeaveEvent);
@@ -461,14 +496,12 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
         // The route operating-system drags take — swatches, cels, symbols,
         // project rows: no captured pointer, just "the drag is here".
         var (window, vm) = Open();
-        vm.Workspace.Activate(Lightbox.App.Docking.DockPanelId.Xsheet);
-        Pump();
-        var sheet = Scrolling(window.FindControl<ItemsControl>("XsheetLayerList")!);
+        var sheet = ShowTheSheet(window, vm);
         var edge = sheet.TranslatePoint(new Point(sheet.Bounds.Width / 2, sheet.Bounds.Height - 5), window)!.Value;
 
         window.EdgeScroll.TrackUnder(window, edge);
 
-        Assert.True(window.EdgeScroll.IsScrolling);
+        Assert.True(window.EdgeScroll.IsScrolling, WhatIsUnder(window, sheet, edge));
         Assert.Same(sheet, window.EdgeScroll.Target);
         WaitOutTheDwell(window, sheet);
         var before = sheet.Offset.Y;
