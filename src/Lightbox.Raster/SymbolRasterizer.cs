@@ -263,6 +263,13 @@ public static class SymbolRasterizer
     private static Rendered? Resolve(Symbol symbol, int index, SKImageInfo info, double scale)
     {
         if (scale <= 0) return null;
+        // B487: a symbol that holds itself has no picture, and asking for one
+        // recursed until the process died. Nothing, rather than as far as the
+        // loop goes: where a loop is cut depends on which symbol was asked for
+        // first, and the cache would keep whichever came first. Asked on every
+        // resolve, cache hits included, because a loop can be closed by an edit
+        // to a symbol whose own render is already cached.
+        if (SymbolRegistry.HoldsItself(symbol)) return null;
         var key = string.Create(
             CultureInfo.InvariantCulture,
             // The scale goes in unformatted on purpose. Rounding it here too

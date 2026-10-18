@@ -812,8 +812,9 @@ public sealed partial class MainViewModel
         // Memoised per symbol id. Seeded false before the walk so a symbol that
         // somehow holds itself ends the recursion instead of overflowing it.
         // Inside such a cycle the answer can depend on the order of the walk,
-        // and nothing here tries to do better: a cycle overflows the symbol
-        // renderer long before it reaches this method.
+        // and nothing here tries to do better: placing refuses a cycle, and one
+        // that arrives some other way draws nothing (B487), so there is no
+        // picture of it to keep current.
         var holds = new Dictionary<string, bool> { [edited.Id] = true };
         bool Holds(string symbolId)
         {
@@ -1001,6 +1002,17 @@ public sealed partial class MainViewModel
         if (SymbolRegistry.Resolve(symbolId) is not { } symbol)
         {
             AiStatus = "That symbol is not in this project.";
+            return null;
+        }
+        // B487: a symbol inside itself, at any depth, is a loop with no picture.
+        // Refused here with a reason; the renderer draws nothing for one that
+        // arrives some other way, which would read as the placement vanishing.
+        if (ActiveTab is { Kind: DocumentTabKind.Symbol, Symbol: { } host }
+            && SymbolRegistry.Reaches(symbolId, host.Id))
+        {
+            AiStatus = symbolId == host.Id
+                ? $"{symbol.Name} can't be placed inside itself."
+                : $"{symbol.Name} already holds {host.Name}, so it can't go inside it.";
             return null;
         }
         if (PaintTargetOrKey() is not Frame target)

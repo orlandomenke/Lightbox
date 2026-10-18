@@ -75,6 +75,87 @@ public static class SymbolRegistry
 
     public static Symbol? Resolve(string id) => Symbols.GetValueOrDefault(id);
 
+    /// <summary>
+    /// Whether the symbol <paramref name="fromId"/> is <paramref name="toId"/>,
+    /// or places it at any depth (B487).
+    /// </summary>
+    /// <remarks>
+    /// Asked before a placement is made inside a symbol, where a yes means the
+    /// placement would close a loop. A walk with a visited set rather than a
+    /// recursion, so a loop that already exists ends the walk instead of the
+    /// process.
+    /// </remarks>
+    public static bool Reaches(string fromId, string toId)
+    {
+        if (fromId == toId) return true;
+        var seen = new HashSet<string> { fromId };
+        var pending = new Stack<string>();
+        pending.Push(fromId);
+        while (pending.TryPop(out var id))
+        {
+            if (Resolve(id) is not { } symbol) continue;
+            foreach (var frame in DrawingsOf(symbol))
+            {
+                if (frame.Placements is not { } placements) continue;
+                for (var p = 0; p < placements.Count; p++)
+                {
+                    var placed = placements[p].SymbolId;
+                    if (placed == toId) return true;
+                    if (seen.Add(placed)) pending.Push(placed);
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Whether a symbol places itself, directly or through others: one that
+    /// can never finish rendering (B487).
+    /// </summary>
+    /// <remarks>
+    /// <b>Every drawing, not the one being drawn</b>: hidden layers, masks and
+    /// cels past the end all count. A loop on any of them blanks the whole
+    /// symbol, which is wider than a render strictly needs. That is on purpose.
+    /// It agrees with what placing refuses, and an answer that changed with the
+    /// frame would make a symbol flicker in and out along the timeline.
+    /// </remarks>
+    public static bool HoldsItself(Symbol symbol)
+    {
+        foreach (var frame in DrawingsOf(symbol))
+        {
+            if (frame.Placements is not { } placements) continue;
+            for (var p = 0; p < placements.Count; p++)
+            {
+                if (Reaches(placements[p].SymbolId, symbol.Id)) return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Every drawing a symbol renders from, masks included: a mask is rendered
+    /// through the same rasterizer and stamps its placements too.
+    /// </summary>
+    /// <remarks>
+    /// By index rather than by enumerator. A render off the UI thread walks
+    /// symbols other than the one it draws, and an enumerator over a list the
+    /// artist is editing throws rather than reading a moment late.
+    /// </remarks>
+    private static IEnumerable<Frame> DrawingsOf(Symbol symbol)
+    {
+        var layers = symbol.Layers;
+        for (var l = 0; l < layers.Count; l++)
+        {
+            var layer = layers[l];
+            var cels = layer.Cels;
+            for (var c = 0; c < cels.Count; c++)
+            {
+                if (cels[c].Frame is { } frame) yield return frame;
+            }
+            if (layer.Mask is { } mask) yield return mask.Frame;
+        }
+    }
+
     /// <summary>Ids a render asked for and could not find, in no particular order.</summary>
     public static IReadOnlyCollection<string> Unresolved => Missing.Keys.ToList();
 
