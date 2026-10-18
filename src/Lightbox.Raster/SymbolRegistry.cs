@@ -97,10 +97,11 @@ public static class SymbolRegistry
             foreach (var frame in DrawingsOf(symbol))
             {
                 if (frame.Placements is not { } placements) continue;
-                foreach (var placement in placements)
+                for (var p = 0; p < placements.Count; p++)
                 {
-                    if (placement.SymbolId == toId) return true;
-                    if (seen.Add(placement.SymbolId)) pending.Push(placement.SymbolId);
+                    var placed = placements[p].SymbolId;
+                    if (placed == toId) return true;
+                    if (seen.Add(placed)) pending.Push(placed);
                 }
             }
         }
@@ -111,14 +112,21 @@ public static class SymbolRegistry
     /// Whether a symbol places itself, directly or through others: one that
     /// can never finish rendering (B487).
     /// </summary>
+    /// <remarks>
+    /// <b>Every drawing, not the one being drawn</b>: hidden layers, masks and
+    /// cels past the end all count. A loop on any of them blanks the whole
+    /// symbol, which is wider than a render strictly needs. That is on purpose.
+    /// It agrees with what placing refuses, and an answer that changed with the
+    /// frame would make a symbol flicker in and out along the timeline.
+    /// </remarks>
     public static bool HoldsItself(Symbol symbol)
     {
         foreach (var frame in DrawingsOf(symbol))
         {
             if (frame.Placements is not { } placements) continue;
-            foreach (var placement in placements)
+            for (var p = 0; p < placements.Count; p++)
             {
-                if (Reaches(placement.SymbolId, symbol.Id)) return true;
+                if (Reaches(placements[p].SymbolId, symbol.Id)) return true;
             }
         }
         return false;
@@ -128,13 +136,21 @@ public static class SymbolRegistry
     /// Every drawing a symbol renders from, masks included: a mask is rendered
     /// through the same rasterizer and stamps its placements too.
     /// </summary>
+    /// <remarks>
+    /// By index rather than by enumerator. A render off the UI thread walks
+    /// symbols other than the one it draws, and an enumerator over a list the
+    /// artist is editing throws rather than reading a moment late.
+    /// </remarks>
     private static IEnumerable<Frame> DrawingsOf(Symbol symbol)
     {
-        foreach (var layer in symbol.Layers)
+        var layers = symbol.Layers;
+        for (var l = 0; l < layers.Count; l++)
         {
-            foreach (var cel in layer.Cels)
+            var layer = layers[l];
+            var cels = layer.Cels;
+            for (var c = 0; c < cels.Count; c++)
             {
-                if (cel.Frame is { } frame) yield return frame;
+                if (cels[c].Frame is { } frame) yield return frame;
             }
             if (layer.Mask is { } mask) yield return mask.Frame;
         }

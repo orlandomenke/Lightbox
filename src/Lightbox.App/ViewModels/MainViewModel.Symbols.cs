@@ -812,8 +812,9 @@ public sealed partial class MainViewModel
         // Memoised per symbol id. Seeded false before the walk so a symbol that
         // somehow holds itself ends the recursion instead of overflowing it.
         // Inside such a cycle the answer can depend on the order of the walk,
-        // and nothing here tries to do better: a cycle overflows the symbol
-        // renderer long before it reaches this method.
+        // and nothing here tries to do better: placing refuses a cycle, and one
+        // that arrives some other way draws nothing (B487), so there is no
+        // picture of it to keep current.
         var holds = new Dictionary<string, bool> { [edited.Id] = true };
         bool Holds(string symbolId)
         {

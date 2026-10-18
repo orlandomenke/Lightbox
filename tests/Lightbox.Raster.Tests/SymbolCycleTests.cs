@@ -106,6 +106,25 @@ public class SymbolCycleTests : IDisposable
     }
 
     [Fact]
+    public void ALoopClosedAfterTheFirstRenderStillDrawsNothing()
+    {
+        // The knight's render is cached under his own version. The loop is then
+        // closed by an edit to the sword, which leaves the knight's version
+        // alone, so a guard that only ran on a cache miss would go on serving
+        // the knight as he was before the loop.
+        var knight = Holding("Knight", 30);
+        var sword = Holding("Sword", 50);
+        Place(knight, sword.Id);
+        var open = Render(Drawing(knight.Id));
+        Assert.NotEqual(Render(Drawing()), open);
+
+        Place(sword, knight.Id);
+        sword.Version++;
+
+        Assert.Equal(Render(Drawing()), Render(Drawing(knight.Id)));
+    }
+
+    [Fact]
     public void ReachesFollowsPlacementsThroughEveryLevel()
     {
         var sword = Holding("Sword", 30);
