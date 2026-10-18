@@ -20,7 +20,7 @@ Usage:
         After `dotnet test ... --logger trx`. Reads the newest .trx per test
         project, runs `--list-tests` discovery against the same build, and
         exits 1 if any discovered test was never reported.
-    python3 scripts/testcount.py verify --project <name> [--filter <expr>]
+    python3 scripts/testcount.py verify --project <name> [--filter <expr> | --filter-file <path>]
         The same check for ONE assembly, and for one shard of it. Used by CI,
         where each leg of the matrix runs a slice of a suite and must prove it
         ran all of that slice.
@@ -354,12 +354,19 @@ def main() -> int:
     verify.add_argument("--project", help="check one test project rather than all of them")
     verify.add_argument("--filter", default="", dest="test_filter",
                         help="the VSTest filter this leg ran with, so its slice is what is expected")
+    verify.add_argument("--filter-file",
+                        help="the same, read from a file: the App complement's filter is too "
+                             "long for a Windows command line (B495)")
     verify.add_argument("--results",
                         help="the directory this leg's TRX was written to, when legs share a "
                              "machine and the project's TestResults holds more than one")
     sub.add_parser("selftest", help="feed the comparison synthetic shortfalls")
     args = parser.parse_args()
     if args.command == "verify":
+        if args.filter_file:
+            if args.test_filter:
+                sys.exit("--filter and --filter-file are one filter, given twice")
+            args.test_filter = Path(args.filter_file).read_text(encoding="utf-8").strip()
         return cmd_verify(args.configuration, args.project, args.test_filter, args.results)
     return cmd_selftest()
 
