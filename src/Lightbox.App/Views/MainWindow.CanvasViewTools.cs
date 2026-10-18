@@ -1013,7 +1013,9 @@ public partial class MainWindow
         Dispatcher.Post(() =>
         {
             var row = _vm.LayerPanelItems.OfType<ViewModels.LayerRow>().FirstOrDefault(r => r.IsActive);
-            if (row is not null && LayerList.ContainerFromItem(row) is { } container) container.BringIntoView();
+            // ScrollIntoView rather than the row's container: the list is
+            // virtualizing, so a row off screen has no container to ask.
+            if (row is not null) LayerList.ScrollIntoView(row);
         });
     }
 }

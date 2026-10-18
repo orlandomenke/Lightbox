@@ -100,6 +100,11 @@
     <Setter Property="Background" Value="{ReflectionBinding TintBrush}" />
     <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />
   </Style>
+  <!-- The Layers docker's list virtualizes (B496), and a VirtualizingStackPanel has
+       no Spacing: the gap the StackPanel put between rows is under each row instead. -->
+  <Style Selector="ItemsControl#LayerList > ContentPresenter">
+    <Setter Property="Margin" Value="{StaticResource RowGap}" />
+  </Style>
   <Style Selector="Border.groupRow">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="CornerRadius" Value="{StaticResource RadiusControl}" />

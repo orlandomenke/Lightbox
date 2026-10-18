@@ -77,6 +77,8 @@
   <!-- Before and after a control in a row. -->
   <Thickness x:Key="GapBefore">4,0,0,0</Thickness>
   <Thickness x:Key="GapAfter">0,0,4,0</Thickness>
+  <!-- Space2 below an item, for a list whose panel has no Spacing (a VirtualizingStackPanel). -->
+  <Thickness x:Key="RowGap">0,0,0,2</Thickness>
   <!-- Above a section, a sub-section and a following line. -->
   <Thickness x:Key="SectionGap">0,8,0,0</Thickness>
   <Thickness x:Key="SubsectionGap">0,6,0,0</Thickness>

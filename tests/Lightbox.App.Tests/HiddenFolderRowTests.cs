@@ -138,6 +138,11 @@ public class HiddenFolderRowTests : BrushStateIsolated
 
             (Border Row, ToggleButton Eye) Drawn(object item)
             {
+                // The list virtualizes, so a row off screen has no container
+                // until it is scrolled to.
+                list.ScrollIntoView(item);
+                Dispatcher.UIThread.RunJobs();
+                window.UpdateLayout();
                 var container = list.ContainerFromItem(item)!;
                 var row = container.GetVisualDescendants().OfType<Border>()
                     .First(b => b.Classes.Contains("layerRow") || b.Classes.Contains("groupRow"));
