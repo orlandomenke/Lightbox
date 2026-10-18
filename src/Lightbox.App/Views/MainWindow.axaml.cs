@@ -301,14 +301,11 @@ public partial class MainWindow : Window
         // changing: a project appearing (the project panel is absent until
         // there is one) and a reference tab taking the focus (the timeline
         // means nothing on one). Both are answered the same way as everything
-        // else — rebuild from the layout. Only when the answer moved (B489):
-        // every tab switch raises ShowTimeline, and a rebuild for nothing
-        // re-created every layer row and docker tab in the window.
+        // else — rebuild from the layout, when the answer moved (B489, _dockedFor).
         _vm.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName is (nameof(MainViewModel.HasProject)
-                    or nameof(MainViewModel.ShowTimeline))
-                && DockedFor() != _dockedFor)
+            if (args.PropertyName is nameof(MainViewModel.HasProject)
+                or nameof(MainViewModel.ShowTimeline) && DockedFor() != _dockedFor)
             {
                 ApplyDockLayout();
             }
