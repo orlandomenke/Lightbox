@@ -176,9 +176,28 @@ public partial class MainWindow : IFollowsUiScale
         else Canvas.ResetView();
     }
 
+    /// <summary>
+    /// What the document says about which panels it can use, as
+    /// <see cref="IsPanelUsable"/> reads it.
+    /// </summary>
+    private (bool Project, bool Timeline) DockedFor() => (_vm.HasProject, _vm.ShowTimeline);
+
+    /// <summary>
+    /// The <see cref="DockedFor"/> answer the dock was last built for.
+    /// </summary>
+    /// <remarks>
+    /// <b>B489.</b> A rebuild detaches and reattaches every docker, which
+    /// throws away the Layers docker's row containers and every tab strip.
+    /// The view model raises <c>ShowTimeline</c> on every tab switch, so
+    /// without this a switch to a 31-layer document re-created 1,457 visuals
+    /// for a layout that had not changed.
+    /// </remarks>
+    private (bool Project, bool Timeline) _dockedFor;
+
     private void ApplyDockLayout()
     {
         var layout = _vm.Workspace.Layout;
+        _dockedFor = DockedFor();
 
         // Off for every panel, then on for the ones a strip shows: a docker
         // parked, floating or moved to the bottom must not keep a chevron, or
