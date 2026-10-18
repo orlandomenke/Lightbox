@@ -142,6 +142,25 @@ public static class SequenceExporter
     /// the deliverable exactly as it shows on the canvas, same matrix, same
     /// window, same opacity.
     /// </summary>
+    /// <summary>
+    /// The strip's sheet, decoding it from the record if this document holds
+    /// none — a project document exported after its tab closed, or one never
+    /// opened this session (B490's sensitivity review).
+    /// </summary>
+    /// <remarks>
+    /// Kept per document, scoped like everything else, so the decode is once per
+    /// export rather than once per frame. Footage stored as video carries no
+    /// PNG and is not recovered here: extracting it needs FFmpeg, and that is
+    /// B494.
+    /// </remarks>
+    private static SKBitmap? SheetFor(Scene scene, ReferenceStrip strip)
+    {
+        if (ReferenceStripRegistry.Resolve(scene, strip.Id) is { } held) return held;
+        if (string.IsNullOrEmpty(strip.Png)) return null;
+        ReferenceStripRegistry.Register(scene, [(strip.Id, strip.Png)]);
+        return ReferenceStripRegistry.Resolve(scene, strip.Id);
+    }
+
     private static List<RenderPass> ProductionPasses(Scene scene, int frameIndex)
     {
         var passes = new List<RenderPass>();
@@ -151,7 +170,7 @@ public static class SequenceExporter
         {
             if (!strip.RendersInExport || !strip.Visible || strip.Opacity <= 0) continue;
             if (strip.CellAt(frameIndex) is not { } cell) continue;
-            if (ReferenceStripRegistry.Resolve(scene, strip.Id) is not { } sheet) continue;
+            if (SheetFor(scene, strip) is not { } sheet) continue;
 
             var scale = (float)Math.Max(0.01, strip.Scale);
             var matrix = SKMatrix.CreateScaleTranslation(

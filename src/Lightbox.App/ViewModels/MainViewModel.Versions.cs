@@ -115,7 +115,7 @@ public partial class MainViewModel
                 AiStatus = $"“{tab.Title}” could not be reloaded ({e.Message}).";
                 return;
             }
-            tab.Editor = new DocumentEditor(doc) { MaxUndo = tab.Editor.MaxUndo };
+            ReplaceEditor(tab, new DocumentEditor(doc) { MaxUndo = tab.Editor.MaxUndo });
             tab.State.LayerIndex = FirstPaintableLayer(doc);
             // A different record in the same slot — the framing and playhead
             // of the replaced one are not this one's (B67's reasoning).

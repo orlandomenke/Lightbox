@@ -732,6 +732,22 @@ public partial class MainViewModel
     /// <summary>One autosave tick, now. Test seam: the timer is a minute.</summary>
     internal void FlushAutosaveForTests() => _autosave.Flush();
 
+    /// <summary>
+    /// Give a tab a different document in place — a replace, a version restore,
+    /// File ▸ New over the blank tab. The editor going away is a closed document
+    /// as far as its reference sheets are concerned (B490): nothing can resolve
+    /// them again, and registering the new one's is the attach's job.
+    /// </summary>
+    private void ReplaceEditor(DocumentTab tab, DocumentEditor editor)
+    {
+        var replaced = tab.Editor;
+        tab.Editor = editor;
+        if (!ReferenceEquals(replaced, editor))
+        {
+            Lightbox.Raster.ReferenceStripRegistry.ForgetScope(replaced, _cache.DisposeExternal);
+        }
+    }
+
     /// <summary>Close a tab. The view confirms unsaved changes before calling this.</summary>
     public void CloseTab(DocumentTab tab)
     {
@@ -1931,7 +1947,7 @@ public partial class MainViewModel
 
         _switchingTabs = true;
         var tab = ActiveTab ?? Tabs[0];
-        tab.Editor = new DocumentEditor(doc);
+        ReplaceEditor(tab, new DocumentEditor(doc));
         AttachEditor(tab.Editor);
         // B136's other door: index 0 is the locked paper on any document that
         // has one, and a replace is how tests and the MCP surface open files.
