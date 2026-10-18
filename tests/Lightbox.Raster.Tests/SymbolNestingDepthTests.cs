@@ -105,4 +105,59 @@ public class SymbolNestingDepthTests : IDisposable
 
         Assert.Equal(Render(), Render(hostile.Id));
     }
+
+    [Fact]
+    public void TheOnePassWalkAgreesWithTheObviousOneOnRandomGraphs()
+    {
+        // Draws, HoldsItself and NestingDepth come from one Tarjan pass. This
+        // checks them, node by node, against the answers anybody would write
+        // first: a loop is a placement that leads back, and depth is the
+        // longest chain through symbols that are not on one. Seeded, so a
+        // failure names a graph that can be rebuilt.
+        for (var seed = 0; seed < 300; seed++)
+        {
+            SymbolRegistry.Clear();
+            var random = new Random(seed);
+            var n = random.Next(1, 9);
+            var symbols = Enumerable.Range(0, n)
+                .Select(i => new Symbol { Name = $"S{i}" })
+                .ToList();
+            var edges = new List<int>[n];
+            for (var i = 0; i < n; i++)
+            {
+                edges[i] = [];
+                for (var j = 0; j < n; j++)
+                {
+                    if (random.NextDouble() < 0.25) edges[i].Add(j);
+                }
+                symbols[i].Layers = Symbol.Flat(symbols[i].Name, [new Frame
+                {
+                    Strokes = [Bar(30)],
+                    Placements = [.. edges[i].Select(j => new SymbolPlacement { SymbolId = symbols[j].Id })],
+                }]);
+                SymbolRegistry.Register(symbols[i]);
+            }
+
+            bool Reach(int from, int to)
+            {
+                var seen = new HashSet<int> { from };
+                var pending = new Stack<int>([from]);
+                while (pending.TryPop(out var at))
+                {
+                    if (at == to) return true;
+                    foreach (var next in edges[at]) if (seen.Add(next)) pending.Push(next);
+                }
+                return false;
+            }
+            bool OnLoop(int x) => edges[x].Any(c => Reach(c, x));
+            int Depth(int x) => edges[x].Where(c => !OnLoop(c)).Select(c => 1 + Depth(c)).DefaultIfEmpty(0).Max();
+
+            for (var x = 0; x < n; x++)
+            {
+                Assert.True(OnLoop(x) == SymbolRegistry.HoldsItself(symbols[x]), $"seed {seed}, S{x}: loop");
+                if (OnLoop(x)) continue;
+                Assert.True(Depth(x) == SymbolRegistry.NestingDepth(symbols[x]), $"seed {seed}, S{x}: depth");
+            }
+        }
+    }
 }

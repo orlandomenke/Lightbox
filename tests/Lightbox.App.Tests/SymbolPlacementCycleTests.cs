@@ -136,4 +136,73 @@ public class SymbolPlacementCycleTests : IDisposable
         Assert.DoesNotContain("not placed anywhere", said);
         Assert.Contains("“Knight”", said);
     }
+
+    /// <summary>A chain <paramref name="levels"/> deep under a fresh leaf; returns the top.</summary>
+    /// <remarks>
+    /// Added to the project top first, the order a file's author can choose,
+    /// so a walk that visits the project's symbols in order meets the head of
+    /// the chain before anything beneath it is known.
+    /// </remarks>
+    private static Symbol Chain(Project project, int levels)
+    {
+        var chain = new List<Symbol>();
+        var inner = new Symbol { Name = "Leaf", Fps = 12 };
+        inner.Layers = Symbol.Flat("Leaf", [new Frame { Strokes = [Bar(30)] }]);
+        chain.Add(inner);
+        for (var i = 0; i < levels; i++)
+        {
+            var outer = new Symbol { Name = $"Level {i + 1}", Fps = 12 };
+            outer.Layers = Symbol.Flat(outer.Name, [new Frame
+            {
+                Placements = [new SymbolPlacement { SymbolId = inner.Id }],
+            }]);
+            chain.Add(outer);
+            inner = outer;
+        }
+        for (var i = chain.Count - 1; i >= 0; i--) project.Symbols[chain[i].Id] = chain[i];
+        return inner;
+    }
+
+    [AvaloniaFact]
+    public void AnEditBesideAChainThousandsDeepDoesNotTakeTheProcessWithIt()
+    {
+        // Q289 made a long chain loadable, and B486's repaint walk recursed
+        // through it on every edit in a symbol tab, even an edit to a symbol
+        // the chain never touches.
+        var vm = WithKnight(out var sword, out _);
+        Chain(vm.ProjectDocker.Project!, 5000);
+        vm.RefreshProjectResources();
+        vm.OpenSymbol(sword);
+        var version = sword.Version;
+
+        vm.AppendExternalStrokes(vm.ActiveLayerForIpc.Id, 0, [Bar(60)]);
+
+        Assert.True(sword.Version > version);
+    }
+
+    [AvaloniaFact]
+    public void PlacingIntoAHostThatIsItselfHeldCountsWhatHoldsIt()
+    {
+        // The host is one level down inside the gate. A chain that fits under
+        // the host alone carries the gate past the limit, and the gate would
+        // then draw nothing.
+        var vm = WithKnight(out _, out _);
+        var project = vm.ProjectDocker.Project!;
+        var top = Chain(project, SymbolRegistry.MaxNesting - 1);
+        var host = new Symbol { Name = "Host", Fps = 12 };
+        host.Layers = Symbol.Flat("Host", [new Frame { Strokes = [Bar(80)] }]);
+        var gate = new Symbol { Name = "Gate", Fps = 12 };
+        gate.Layers = Symbol.Flat("Gate", [new Frame
+        {
+            Placements = [new SymbolPlacement { SymbolId = host.Id }],
+        }]);
+        project.Symbols[host.Id] = host;
+        project.Symbols[gate.Id] = gate;
+        vm.RefreshProjectResources();
+        vm.OpenSymbol(host);
+
+        Assert.Null(vm.PlaceSymbol(top.Id, 40, 40));
+        Assert.Equal(0, PlacementsIn(host));
+        Assert.Contains("Gate", vm.AiStatus);
+    }
 }
