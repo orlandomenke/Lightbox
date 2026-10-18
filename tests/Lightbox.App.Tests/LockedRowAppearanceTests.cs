@@ -89,7 +89,8 @@ public class LockedRowAppearanceTests : BrushStateIsolated
     [InlineData("Studio grey")]
     public void ALockedRowHasNoOutline_AShutPadlock_AndAQuietName(string theme)
     {
-        var window = new Views.MainWindow();
+        // Tall enough for every row to be built: the list virtualizes (B496).
+        var window = new Views.MainWindow { Width = 1400, Height = 1400 };
         window.Show();
         Dispatcher.UIThread.RunJobs();
         var vm = (MainViewModel)window.DataContext!;

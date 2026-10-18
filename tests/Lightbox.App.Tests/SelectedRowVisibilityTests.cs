@@ -48,7 +48,9 @@ public sealed class SelectedRowVisibilityTests : BrushStateIsolated
     [InlineData("Studio grey")]
     public void ASelectedRowIsDrawnAboveHoverAndBelowActive_WithABar(string theme)
     {
-        var window = new MainWindow();
+        // Tall enough for the Layers docker to show every row: the list
+        // virtualizes (B496), and a row off screen is not drawn to inspect.
+        var window = new MainWindow { Width = 1400, Height = 1400 };
         window.Show();
         Dispatcher.UIThread.RunJobs();
         var vm = (MainViewModel)window.DataContext!;
@@ -90,7 +92,9 @@ public sealed class SelectedRowVisibilityTests : BrushStateIsolated
     [InlineData("Studio grey")]
     public void APickedFolderIsDrawnLikeASelectedLayer(string theme)
     {
-        var window = new MainWindow();
+        // Tall enough for the Layers docker to show every row: the list
+        // virtualizes (B496), and a row off screen is not drawn to inspect.
+        var window = new MainWindow { Width = 1400, Height = 1400 };
         window.Show();
         Dispatcher.UIThread.RunJobs();
         var vm = (MainViewModel)window.DataContext!;

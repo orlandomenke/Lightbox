@@ -47,9 +47,9 @@ public class IconPlacementTests(ITestOutputHelper output) : BrushStateIsolated
         for (var i = 0; i < 6; i++) Avalonia.Threading.Dispatcher.UIThread.RunJobs();
     }
 
-    private static (MainWindow Window, MainViewModel Vm) Open(int layers)
+    private static (MainWindow Window, MainViewModel Vm) Open(int layers, double height = 1080)
     {
-        var window = new MainWindow { Width = 1920, Height = 1080 };
+        var window = new MainWindow { Width = 1920, Height = height };
         window.Show();
         Pump();
         var vm = (MainViewModel)window.DataContext!;
@@ -89,7 +89,9 @@ public class IconPlacementTests(ITestOutputHelper output) : BrushStateIsolated
     [AvaloniaFact]
     public void EveryIconSitsOnWholePixelsInsideItsButtonAndCentred()
     {
-        var (window, _) = Open(layers: 11);
+        // Tall enough for all eleven rows to be built: the Layers docker
+        // virtualizes (B496), and the floor below counts their icons.
+        var (window, _) = Open(layers: 11, height: 2400);
         IReadOnlyList<IconPlacement> icons;
         try
         {
@@ -269,7 +271,9 @@ public class IconPlacementTests(ITestOutputHelper output) : BrushStateIsolated
     {
         (int Realized, int Visible) Count(int layers)
         {
-            var (window, _) = Open(layers);
+            // Tall enough to build all 21 rows: the Layers docker virtualizes
+            // (B496), and this counts what each row realizes.
+            var (window, _) = Open(layers, height: 2400);
             try
             {
                 return IconCensus.CountPaths(window);

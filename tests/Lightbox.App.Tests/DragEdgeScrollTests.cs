@@ -491,4 +491,80 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
         Assert.False(window.EdgeScroll.IsScrolling);
         Assert.Null(window.EdgeScroll.Target);
     }
+
+    // ---- the list virtualizes (B496): rows off screen have no controls -------
+
+    [AvaloniaFact]
+    public void AReleasePastTheLastRowStillMovesTheLayer()
+    {
+        // Every row used to have a container, so wherever the pointer was let go
+        // there was a row under it. Off screen there now is not, and a drop
+        // aimed only at built rows found nothing and was silently cancelled.
+        var (window, vm) = Open();
+        var list = window.FindControl<ItemsControl>("LayerList")!;
+        var scroller = Scrolling(list);
+        var carried = (LayerRow)vm.LayerPanelItems[1];
+        var layer = carried.Layer;
+        var before = vm.Doc.Scene.Layers.IndexOf(layer);
+        var below = scroller.TranslatePoint(new Point(scroller.Bounds.Width / 2, scroller.Bounds.Height + 40), window)!.Value;
+
+        PickUpAndHoldAt(window, list, below);
+        window.MouseUp(below, MouseButton.Left);
+        Pump();
+
+        Assert.NotEqual(before, vm.Doc.Scene.Layers.IndexOf(layer));
+    }
+
+    [AvaloniaFact]
+    public void ScrollingToARowOffScreenBringsItIntoView()
+    {
+        // What picking a layer on the canvas does for its row. The list is not
+        // its own scroller — the docker's is — so asking the list has to move
+        // that one, or the row is built somewhere nobody can see.
+        var (window, vm) = Open();
+        var list = window.FindControl<ItemsControl>("LayerList")!;
+        var scroller = Scrolling(list);
+        var last = vm.LayerPanelItems.Count - 1;
+        Assert.Null(list.ContainerFromIndex(last));
+
+        list.ScrollIntoView(last);
+        Pump();
+        window.UpdateLayout();
+
+        var row = list.ContainerFromIndex(last);
+        Assert.NotNull(row);
+        Assert.True(scroller.Offset.Y > 0, "the docker did not scroll");
+        var top = row!.TranslatePoint(default, scroller)!.Value.Y;
+        Assert.True(top >= -1 && top + row.Bounds.Height <= scroller.Viewport.Height + 1,
+            $"the row is at {top:0} in a viewport {scroller.Viewport.Height:0} high");
+    }
+
+    [AvaloniaFact]
+    public void ARenameScrolledOutOfViewIsFinished()
+    {
+        // A row being renamed can now lose its controls to a scroll, and losing
+        // them does not always raise LostFocus — which was the only thing that
+        // committed the name and closed the box. Left open, the name was never
+        // kept and the row came back still in edit mode.
+        var (window, vm) = Open();
+        var list = window.FindControl<ItemsControl>("LayerList")!;
+        var scroller = Scrolling(list);
+        var row = (LayerRow)vm.LayerPanelItems[1];
+        var container = (Control)list.ContainerFromIndex(1)!;
+        var box = container.GetVisualDescendants().OfType<TextBox>().First(t => t.DataContext == row);
+        row.IsRenaming = true;
+        Pump();
+        box.Focus();
+        box.Text = "Renamed";
+        Pump();
+
+        scroller.Offset = new Vector(0, scroller.Extent.Height);
+        Pump();
+        window.UpdateLayout();
+        Pump();
+        Assert.Null(list.ContainerFromIndex(1));
+
+        Assert.False(row.IsRenaming, "the row is still in edit mode with nothing on screen to finish it");
+        Assert.Equal("Renamed", row.Name);
+    }
 }
