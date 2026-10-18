@@ -43,16 +43,17 @@ public class TabSwitchLayoutTests : BrushStateIsolated
         window.Show();
         Pump();
         var vm = (MainViewModel)window.DataContext!;
-        DocumentTab Open()
+        DocumentTab Open(string prefix)
         {
             vm.OpenDocumentTab(DocumentFactory.CreateDoc(96, 96, paperColor: Scene.DefaultBackgroundColor), null);
             while (vm.Doc.Scene.Layers.Count < Layers) vm.AddPaintedLayerCommand.Execute(null);
+            for (var i = 0; i < Layers; i++) vm.Doc.Scene.Layers[i].Name = $"{prefix}{i}";
             Pump();
             window.UpdateLayout();
             return vm.ActiveTab!;
         }
-        var a = Open();
-        var b = Open();
+        var a = Open("Alpha");
+        var b = Open("Bravo");
         return (window, vm, a, b);
     }
 
@@ -85,6 +86,11 @@ public class TabSwitchLayoutTests : BrushStateIsolated
         // model by position, so nothing the list shows is new. Before the fix
         // all of them were: {Layers} of {Layers}.
         Assert.True(rebuilt == 0, $"switching tabs rebuilt {rebuilt} of {after.Count} layer rows");
+        // Kept is only right if the kept rows now say the arriving document:
+        // the names on screen are the second document's, not the first's.
+        var shown = list.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).ToHashSet();
+        Assert.Contains("Bravo3", shown);
+        Assert.DoesNotContain("Alpha3", shown);
     }
 
     [AvaloniaFact]

@@ -306,8 +306,8 @@ public partial class MainWindow : Window
         // re-created every layer row and docker tab in the window.
         _vm.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName is nameof(MainViewModel.HasProject)
-                    or nameof(MainViewModel.ShowTimeline)
+            if (args.PropertyName is (nameof(MainViewModel.HasProject)
+                    or nameof(MainViewModel.ShowTimeline))
                 && DockedFor() != _dockedFor)
             {
                 ApplyDockLayout();
