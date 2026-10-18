@@ -190,14 +190,15 @@ public partial class MainWindow : IFollowsUiScale
     /// throws away the Layers docker's row containers and every tab strip.
     /// The view model raises <c>ShowTimeline</c> on every tab switch, so
     /// without this a switch to a 31-layer document re-created 1,457 visuals
-    /// for a layout that had not changed.
+    /// for a layout that had not changed. It also no longer activates every
+    /// floating panel's window on each switch, which took the focus away from
+    /// the main window.
     /// </remarks>
     private (bool Project, bool Timeline) _dockedFor;
 
     private void ApplyDockLayout()
     {
         var layout = _vm.Workspace.Layout;
-        _dockedFor = DockedFor();
 
         // Off for every panel, then on for the ones a strip shows: a docker
         // parked, floating or moved to the bottom must not keep a chevron, or
@@ -268,6 +269,9 @@ public partial class MainWindow : IFollowsUiScale
         }
 
         ApplyOverlayLayout();
+        // Last, so a rebuild that throws part way is tried again by the next
+        // notification instead of being remembered as done.
+        _dockedFor = DockedFor();
     }
 
     // ---- workspace commands ----------------------------------------------------
