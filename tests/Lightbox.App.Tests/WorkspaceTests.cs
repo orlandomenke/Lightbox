@@ -373,7 +373,10 @@ public sealed class WorkspaceTests : BrushStateIsolated
                 // row of one table. What stays is what an artist does while
                 // drawing, plus the one entry that points at where the rest
                 // went; ProjectWindowTests guards the moved surface.
-                ["Open", "Open with default app…", "Show in file manager", "Copy path",
+                ["Open", "Open with default app…",
+                 // Q284. Draw the open document against this one.
+                 "Reference in current document",
+                 "Show in file manager", "Copy path",
                  "Duplicate",
                  // Q143's two override gestures. The first one's header is
                  // dynamic — "Give “Winter Armour” its own “Walk”" — and with

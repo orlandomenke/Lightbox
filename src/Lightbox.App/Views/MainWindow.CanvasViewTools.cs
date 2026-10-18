@@ -465,6 +465,14 @@ public partial class MainWindow
                 OnOpenReferenceBoard(this, e);
                 e.Handled = true;
                 break;
+            case "reference.refreshSource":
+                _vm.RefreshReferenceSourceCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case "reference.openSource":
+                _vm.OpenReferenceSourceCommand.Execute(null);
+                e.Handled = true;
+                break;
             case "effects.window":
                 OnOpenEffects(this, e);
                 e.Handled = true;

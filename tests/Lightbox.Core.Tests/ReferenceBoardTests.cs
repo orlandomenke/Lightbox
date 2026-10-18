@@ -349,6 +349,8 @@ public class ReferenceBoardTests
         Assert.DoesNotContain("\"png\"", json);
         Assert.DoesNotContain("\"path\"", json);
         Assert.DoesNotContain("\"origin\"", json);
+        Assert.DoesNotContain("\"documentStamp\"", json);
+        Assert.DoesNotContain("\"isDocument\"", json);
     }
 
     // ---- whose wall is it (B361) -------------------------------------------------

@@ -40,13 +40,14 @@ public partial class MainWindow
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("Images and video")
+                new FilePickerFileType("Images, video and Lightbox documents")
                 {
                     Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp",
-                                "*.mp4", "*.mov", "*.avi", "*.mkv", "*.webm"],
+                                "*.mp4", "*.mov", "*.avi", "*.mkv", "*.webm", "*.lightbox.json"],
                 },
                 new FilePickerFileType("Images") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"] },
                 new FilePickerFileType("Video") { Patterns = ["*.mp4", "*.mov", "*.avi", "*.mkv", "*.webm"] },
+                new FilePickerFileType("Lightbox documents") { Patterns = ["*.lightbox.json"] },
             ],
         });
         if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path) return;
@@ -67,6 +68,16 @@ public partial class MainWindow
     /// </summary>
     private async Task ImportReferenceFile(string path)
     {
+        // Another document (Q284–Q286): its frames flattened and laid under
+        // this one, read and never written, refreshed when it is saved.
+        if (path.EndsWith(".lightbox.json", StringComparison.OrdinalIgnoreCase))
+        {
+            _vm.AiStatus = $"Flattening “{Path.GetFileName(path)}”…";
+            var (strip, refused) = await _vm.ImportDocumentReferenceAsync(path);
+            _vm.AiStatus = refused ?? $"Drawing against “{strip!.Name}” — {strip.Cells.Count} frames, kept current as it is saved.";
+            if (strip is not null) _vm.ReferenceDockerVisible = true;
+            return;
+        }
         // Footage goes its own way (Q56/Q57): frames extracted at the
         // scene's fps, and the artist chooses what the document keeps.
         var ext = Path.GetExtension(path).ToLowerInvariant();

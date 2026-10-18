@@ -121,6 +121,9 @@ public partial class MainViewModel
             NotifySelection();
         }
         RecallDocumentBrush();
+        // The tab being left may be the run this one references, saved a
+        // moment ago (Q284).
+        RefreshDocumentReferences();
         _switchingTabs = false;
         // After the switch, so a handler asking the view model anything sees the
         // arriving document rather than a half-swapped one. The canvas framing
@@ -1685,6 +1688,8 @@ public partial class MainViewModel
             {
                 RegisterVideoReference(strip);
             }
+            // A referenced document saved since this one was (Q284).
+            RefreshDocumentReferences();
         }
     }
 
