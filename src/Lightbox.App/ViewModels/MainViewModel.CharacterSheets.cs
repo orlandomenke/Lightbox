@@ -575,7 +575,7 @@ public partial class MainViewModel
                     strip.Cells[0].Height = view.Height;
                 }
                 // Replace, not Register: Register skips an id it already holds,
-                // and the canvas and export draw from the registry (B487).
+                // and the canvas and export draw from the registry (B491).
                 Lightbox.Raster.ReferenceStripRegistry.Replace(strip.Id, sheet);
                 changed = true;
             }

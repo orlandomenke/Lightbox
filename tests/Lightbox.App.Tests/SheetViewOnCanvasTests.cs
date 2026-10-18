@@ -96,7 +96,7 @@ public class SheetViewOnCanvasTests : BrushStateIsolated
     }
 
     /// <summary>
-    /// B487. The canvas and the export draw from the registry, not from
+    /// B491. The canvas and the export draw from the registry, not from
     /// <see cref="ReferenceStrip.Png"/>, so a re-flatten that only updates the
     /// record leaves the first picture on screen until the document reopens.
     /// </summary>
