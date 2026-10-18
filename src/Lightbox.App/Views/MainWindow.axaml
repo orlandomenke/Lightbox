@@ -2869,10 +2869,11 @@
                    a folder header files into the folder. The drag runs on a pointer
                    captured by the list (MainWindow.Workspace.cs), not OS drag-and-drop. -->
               <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <!-- Virtualizing: only rows on screen are built (B496). -->
                 <ItemsControl x:Name="LayerList" ItemsSource="{Binding LayerPanelItems}" Margin="4">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                      <StackPanel Orientation="Vertical" Spacing="{StaticResource Space2}" />
+                      <VirtualizingStackPanel Orientation="Vertical" />
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.DataTemplates>
