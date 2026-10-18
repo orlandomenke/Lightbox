@@ -54,6 +54,19 @@ public static class ReferenceStripRegistry
 
     public static SKBitmap? Resolve(string id) => Sheets.GetValueOrDefault(id);
 
+    /// <summary>
+    /// Swap in new pixels for a sheet already held — a live reference whose
+    /// source changed (Q284). Takes ownership.
+    /// </summary>
+    /// <remarks>
+    /// The sheet replaced is <b>not</b> disposed here: a composite on another
+    /// thread may be drawing from it at this moment, and disposing pixels under
+    /// a draw is a native fault rather than an exception. It is left to the
+    /// finaliser, which runs once nothing holds it.
+    /// </remarks>
+    public static void Replace(string id, SKBitmap sheet) => Sheets[id] = sheet;
+
+
     /// <summary>Forget one sheet — a reference the artist removed.</summary>
     public static void Forget(string id)
     {

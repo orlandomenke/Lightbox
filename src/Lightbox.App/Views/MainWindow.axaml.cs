@@ -29,6 +29,10 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = _vm;
+        // Coming back to the window is when a referenced document may have
+        // been saved elsewhere (Q284); the stamp check makes this a file-time
+        // read per document reference, nothing more.
+        Activated += (_, _) => _vm.RefreshDocumentReferences();
         HandPlaybackTheScreen();
         Canvas.SetSelectionManager(_vm.Selection);
         Canvas.SetLinePicker(_vm.PickStrokeAt);
@@ -289,6 +293,9 @@ public partial class MainWindow : Window
         Canvas.AddHandler(DragDrop.DropEvent, OnCanvasColorDrop);
         Canvas.AddHandler(DragDrop.DragOverEvent, OnCanvasSymbolDragOver);
         Canvas.AddHandler(DragDrop.DropEvent, OnCanvasSymbolDrop);
+        // A project row dropped on the canvas: reference that animation here.
+        Canvas.AddHandler(DragDrop.DragOverEvent, OnCanvasProjectRowDragOver);
+        Canvas.AddHandler(DragDrop.DropEvent, OnCanvasProjectRowDrop);
         // Files from outside land anywhere on the window and become
         // references. Registered on the window so no panel has to opt in, and
         // checked by format so the in-process drags above are untouched.

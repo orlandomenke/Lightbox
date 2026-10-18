@@ -130,6 +130,22 @@ public sealed class BoardTile
     /// <summary>Where an imported image came from, kept so the artist can tell.</summary>
     public string? Origin { get; set; }
 
+    /// <summary>
+    /// For a tile flattened from another Lightbox document — whose path is
+    /// <see cref="Origin"/> — the source's last-write time in UTC ticks when the
+    /// picture was made. Null on every other tile, and null writes no key.
+    /// </summary>
+    /// <remarks>
+    /// What makes such a tile live (Q284): a source newer than this is
+    /// flattened again into the same picture. Origin is otherwise only for the
+    /// artist; on a document tile it is also what the refresh reads.
+    /// </remarks>
+    public long? DocumentStamp { get; set; }
+
+    /// <summary>A tile flattened from another document. Derived; never serialized.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsDocument => DocumentStamp is not null && Origin is { Length: > 0 };
+
     public double X { get; set; }
 
     public double Y { get; set; }
