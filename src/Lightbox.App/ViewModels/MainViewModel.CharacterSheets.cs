@@ -555,6 +555,17 @@ public partial class MainViewModel
                 LinkedStripFlattens++;
                 var png = RenderReferenceViewPng(view);
                 if (png == strip.Png) continue;
+                // Decoded before the record moves, so a sheet that will not
+                // decode leaves record and canvas agreeing on the last picture.
+                SkiaSharp.SKBitmap sheet;
+                try
+                {
+                    sheet = Lightbox.Raster.PngCodec.Decode(png);
+                }
+                catch
+                {
+                    continue;
+                }
                 strip.Png = png;
                 strip.SheetWidth = view.Width;
                 strip.SheetHeight = view.Height;
@@ -565,7 +576,7 @@ public partial class MainViewModel
                 }
                 // Replace, not Register: Register skips an id it already holds,
                 // and the canvas and export draw from the registry (B487).
-                Lightbox.Raster.ReferenceStripRegistry.Replace(strip.Id, Lightbox.Raster.PngCodec.Decode(png));
+                Lightbox.Raster.ReferenceStripRegistry.Replace(strip.Id, sheet);
                 changed = true;
             }
             if (changed)
