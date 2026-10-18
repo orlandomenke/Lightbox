@@ -950,7 +950,7 @@ def below_normal() -> dict:
 BUILD_FLAGS = ["-nodeReuse:false"]
 
 # CreateProcess refuses a command line longer than this, counted in UTF-16
-# units including the program name (B494). Linux allows about sixty times as
+# units including the program name (B495). Linux allows about sixty times as
 # much, which is why CI never sees it.
 WINDOWS_COMMAND_LINE = 32767
 
@@ -960,7 +960,7 @@ def test_command(csproj: str, configuration: str, test_filter: str, results: Pat
 
     The filter travels in a `.runsettings` file rather than `--filter`, because
     `dotnet test` passes `--filter` on to vstest.console on a command line of its
-    own, and the App complement's is past the Windows limit by itself (B494).
+    own, and the App complement's is past the Windows limit by itself (B495).
     `RunConfiguration/TestCaseFilter` is the same filter to VSTest — measured on
     2026-10-18 to select the same tests as `--filter`, at 33,599 characters.
     Every leg goes this way, short filter or long, so the path Windows depends
@@ -979,7 +979,7 @@ def test_command(csproj: str, configuration: str, test_filter: str, results: Pat
 def verify_command(configuration: str, project: str, test_filter: str, results: Path) -> list[str]:
     """The `testcount.py verify` command that checks one leg ran its slice.
 
-    Its filter goes by file for the same reason as the leg's own (B494).
+    Its filter goes by file for the same reason as the leg's own (B495).
     """
     path = results / "leg.filter"
     path.write_text(test_filter, encoding="utf-8")
@@ -1539,7 +1539,7 @@ def cmd_selftest(args) -> int:
     check("a compile leg has no filter to ask for",
           shard_filters(projects["Lightbox.Bench"], 1) == [""])
 
-    # -- every leg can be started on Windows (B494) ---------------------------
+    # -- every leg can be started on Windows (B495) ---------------------------
     # The App complement's filter grew past 32 KB, and `dotnet test --filter`
     # hands it on to vstest.console on a command line: leg 6 died with
     # Win32Exception 206 before running a test, on every Windows run, while

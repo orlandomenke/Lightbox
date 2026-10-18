@@ -356,7 +356,7 @@ def main() -> int:
                         help="the VSTest filter this leg ran with, so its slice is what is expected")
     verify.add_argument("--filter-file",
                         help="the same, read from a file: the App complement's filter is too "
-                             "long for a Windows command line (B494)")
+                             "long for a Windows command line (B495)")
     verify.add_argument("--results",
                         help="the directory this leg's TRX was written to, when legs share a "
                              "machine and the project's TestResults holds more than one")

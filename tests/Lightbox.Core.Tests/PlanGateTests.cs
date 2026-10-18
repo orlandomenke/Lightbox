@@ -318,7 +318,7 @@ public class PlanGateTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// B494: every leg <c>testplan.py run</c> launches fits a Windows command line,
+    /// B495: every leg <c>testplan.py run</c> launches fits a Windows command line,
     /// and its filter reaches the runner unchanged.
     /// </summary>
     /// <remarks>
