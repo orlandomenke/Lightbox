@@ -181,10 +181,20 @@ public static class SymbolRegistry
     /// into a host this deep makes the top of the stack this + 1 + d deep, and
     /// the top is what stops drawing.
     /// </remarks>
-    public static int HeldDepth(string symbolId)
+    public static int HeldDepth(string symbolId) => HeldDepth(symbolId, out _);
+
+    /// <inheritdoc cref="HeldDepth(string)"/>
+    /// <param name="symbolId">The symbol to measure from.</param>
+    /// <param name="top">
+    /// A holder at the far end of the longest chain upward, the one that stops
+    /// drawing first, or <paramref name="symbolId"/> when nothing holds it.
+    /// From the same walk, so naming it costs nothing extra.
+    /// </param>
+    public static int HeldDepth(string symbolId, out string top)
     {
         var holders = ReverseMap();
         var level = new HashSet<string> { symbolId };
+        top = symbolId;
         for (var depth = 0; depth <= MaxNesting; depth++)
         {
             var next = new HashSet<string>();
@@ -199,6 +209,7 @@ public static class SymbolRegistry
             }
             if (next.Count == 0) return depth;
             level = next;
+            top = next.First();
         }
         return MaxNesting + 1;
     }

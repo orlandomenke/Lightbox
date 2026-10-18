@@ -1022,16 +1022,16 @@ public sealed partial class MainViewModel
         // Q289: bounded too. The top of whatever holds the host is what would
         // stop drawing, so the drop counts the host's holders as well as the
         // symbol being dropped, and names the one that would go past it.
+        // A symbol on a loop draws nothing, so it deepens nothing and is let
+        // through: refusing it would be a reason with nothing behind it.
         if (ActiveTab is { Kind: DocumentTabKind.Symbol, Symbol: { } deepHost }
-            && SymbolRegistry.HeldDepth(deepHost.Id) + 1 + SymbolRegistry.NestingDepth(symbol)
+            && !SymbolRegistry.HoldsItself(symbol)
+            && SymbolRegistry.HeldDepth(deepHost.Id, out var topId) + 1 + SymbolRegistry.NestingDepth(symbol)
                 > SymbolRegistry.MaxNesting)
         {
-            var top = SymbolRegistry.HoldersOf(deepHost.Id)
-                .Select(SymbolRegistry.Resolve)
-                .OfType<Symbol>()
-                .FirstOrDefault(s => SymbolRegistry.HoldersOf(s.Id).Count == 0);
+            var top = SymbolRegistry.Resolve(topId)?.Name ?? deepHost.Name;
             AiStatus = $"{symbol.Name} nests too deep to go inside {deepHost.Name}: "
-                + $"{top?.Name ?? deepHost.Name} would be more than {SymbolRegistry.MaxNesting} levels deep.";
+                + $"{top} would be more than {SymbolRegistry.MaxNesting} levels deep.";
             return null;
         }
         if (PaintTargetOrKey() is not Frame target)

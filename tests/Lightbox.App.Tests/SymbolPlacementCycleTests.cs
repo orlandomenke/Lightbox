@@ -205,4 +205,35 @@ public class SymbolPlacementCycleTests : IDisposable
         Assert.Equal(0, PlacementsIn(host));
         Assert.Contains("Gate", vm.AiStatus);
     }
+
+    [AvaloniaFact]
+    public void ASymbolOnALoopIsNotRefusedForDepthItDoesNotAdd()
+    {
+        // It draws nothing, so it deepens nothing. A refusal that blamed the
+        // limit would be a reason with nothing behind it.
+        var vm = WithKnight(out _, out _);
+        var project = vm.ProjectDocker.Project!;
+        var host = new Symbol { Name = "Host", Fps = 12 };
+        host.Layers = Symbol.Flat("Host", [new Frame { Strokes = [Bar(80)] }]);
+        project.Symbols[host.Id] = host;
+        var below = host;
+        for (var i = 0; i < SymbolRegistry.MaxNesting; i++)
+        {
+            var holder = new Symbol { Name = $"Holder {i + 1}", Fps = 12 };
+            holder.Layers = Symbol.Flat(holder.Name, [new Frame
+            {
+                Placements = [new SymbolPlacement { SymbolId = below.Id }],
+            }]);
+            project.Symbols[holder.Id] = holder;
+            below = holder;
+        }
+        var mirror = new Symbol { Name = "Mirror", Fps = 12 };
+        mirror.Layers = Symbol.Flat("Mirror", [new Frame { Strokes = [Bar(30)] }]);
+        mirror.AllFrames.First().Placements = [new SymbolPlacement { SymbolId = mirror.Id }];
+        project.Symbols[mirror.Id] = mirror;
+        vm.RefreshProjectResources();
+        vm.OpenSymbol(host);
+
+        Assert.NotNull(vm.PlaceSymbol(mirror.Id, 40, 40));
+    }
 }
