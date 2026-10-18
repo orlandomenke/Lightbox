@@ -18,3 +18,5 @@ manual's *What a symbol can hold*.
 
 **Not a preference:** whichever way it went, the two halves had to agree. Allowed
 in a session and stripped on reload is data loss that looks like a feature.
+
+**Done in B497**: load keeps nesting, depth is capped at 16, a flatten carries nested symbols, and usage reports the symbols that hold one.

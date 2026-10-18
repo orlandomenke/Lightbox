@@ -593,12 +593,21 @@ public sealed partial class MainViewModel
     {
         var usage = UsageOf(symbol);
         if (usage.IsUnused) return $"“{symbol.Name}” is not placed anywhere.";
-        var docs = usage.Documents.Count;
         var places = usage.Total == 1 ? "1 placement" : $"{usage.Total} placements";
-        var where = docs == 1
-            ? $"“{usage.Documents[0].Document.Name}”"
-            : $"{docs} documents";
-        return $"“{symbol.Name}”: {places} in {where}.";
+        // Documents first, then the symbols holding it (Q289), so a sword only
+        // the knight holds is never described as placed nowhere.
+        var where = new List<string>();
+        var docs = usage.Documents.Count;
+        if (docs > 0)
+        {
+            where.Add(docs == 1 ? $"“{usage.Documents[0].Document.Name}”" : $"{docs} documents");
+        }
+        var held = usage.HeldBy.Count;
+        if (held > 0)
+        {
+            where.Add(held == 1 ? $"the symbol “{usage.HeldBy[0].Name}”" : $"{held} other symbols");
+        }
+        return $"“{symbol.Name}”: {places} in {string.Join(" and ", where)}.";
     }
 
     /// <summary>
@@ -1013,6 +1022,17 @@ public sealed partial class MainViewModel
             AiStatus = symbolId == host.Id
                 ? $"{symbol.Name} can't be placed inside itself."
                 : $"{symbol.Name} already holds {host.Name}, so it can't go inside it.";
+            return null;
+        }
+        // Q289: bounded too. A host this would carry past the limit is refused
+        // here rather than left to draw nothing. A symbol that already holds the
+        // host can still be carried past it; that one draws nothing, as one
+        // arriving in a file would.
+        if (ActiveTab is { Kind: DocumentTabKind.Symbol }
+            && SymbolRegistry.NestingDepth(symbol) + 1 > SymbolRegistry.MaxNesting)
+        {
+            AiStatus = $"{symbol.Name} nests too deep to go inside another symbol "
+                + $"(more than {SymbolRegistry.MaxNesting} levels).";
             return null;
         }
         if (PaintTargetOrKey() is not Frame target)

@@ -89,6 +89,28 @@ public sealed class SymbolGraphTests : IDisposable
     }
 
     [Fact]
+    public void ASymbolHeldByAnotherIsNotUnused()
+    {
+        // Q289: a symbol can hold others, so "placed in no document" is no
+        // longer "used nowhere". Deleting a sword the knight holds would blank
+        // every knight, and the delete prompt has to say so.
+        var project = Knight(out _, out _, out var sword);
+        var knight = Sword("Knight");
+        knight.AllFrames.First().Placements =
+            [new SymbolPlacement { SymbolId = sword.Id }, new SymbolPlacement { SymbolId = sword.Id, X = 40 }];
+        project.Symbols[knight.Id] = knight;
+
+        var usage = SymbolGraph.Usage(project, FromCache);
+
+        Assert.False(usage[sword.Id].IsUnused);
+        var holder = Assert.Single(usage[sword.Id].HeldBy);
+        Assert.Equal(knight.Id, holder.SymbolId);
+        Assert.Equal(2, holder.Placements);
+        Assert.Equal(2, usage[sword.Id].Total);
+        Assert.True(usage[knight.Id].IsUnused);
+    }
+
+    [Fact]
     public void ASymbolNothingPlacesSaysSoRatherThanGoingMissing()
     {
         // "Used nowhere" is the answer that makes a delete safe, and it is not

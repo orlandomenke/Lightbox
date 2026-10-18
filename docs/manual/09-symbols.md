@@ -119,6 +119,10 @@ in the application. A head is one symbol, not four.
   refused with a reason, because a symbol that contains itself has no picture.
   If a file arrives with such a loop already in it, the symbols in the loop
   draw nothing rather than crashing the application.
+- **Nesting is kept when the project is saved and reopened, up to sixteen
+  levels deep.** Placing a symbol that would make another nest deeper than
+  that is refused. A file that arrives with a deeper chain draws nothing past
+  the limit.
 
 Four things a symbol layer deliberately cannot do, because none of them mean
 anything inside one: **follow a bone**, **run a simulation**, sit in a document's
@@ -265,7 +269,7 @@ hundred placements to old copies of it.
 ## Deleting, and exporting
 
 **Usage** counts where the selected symbol is placed — how many placements, in
-how many documents — across the whole project. It is a button rather than
+how many documents, and which other symbols hold it — across the whole project. It is a button rather than
 something the panel keeps up to date, because answering it means reading every
 animation in the project, and a character with forty of them should open by
 reading one file rather than forty.
@@ -276,6 +280,5 @@ that quietly edited forty animations is not one anybody could risk. Press
 **Usage** first if you want to know before rather than after.
 
 **Export document…** writes a standalone file that carries the symbols it uses,
-so an exported animation renders identically somewhere else.
-
-*Symbols cannot contain other symbols.*
+including the symbols inside those, so an exported animation renders
+identically somewhere else.

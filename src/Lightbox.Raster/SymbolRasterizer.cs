@@ -270,6 +270,9 @@ public static class SymbolRasterizer
         // resolve, cache hits included, because a loop can be closed by an edit
         // to a symbol whose own render is already cached.
         if (SymbolRegistry.HoldsItself(symbol)) return null;
+        // Q289: and one nested past the limit, for the same reason and in the
+        // same way: the depth is the symbol's, not the render's.
+        if (SymbolRegistry.NestsTooDeep(symbol)) return null;
         var key = string.Create(
             CultureInfo.InvariantCulture,
             // The scale goes in unformatted on purpose. Rounding it here too

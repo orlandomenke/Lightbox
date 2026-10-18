@@ -8,13 +8,19 @@ namespace Lightbox.Core.Projects;
 /// <param name="Placements">How many placements of the symbol it holds, across every frame and layer.</param>
 public sealed record SymbolUse(DocumentRef Document, string? Owner, int Placements);
 
+/// <summary>One symbol that holds another, and how many times (Q289).</summary>
+public sealed record SymbolHolder(string SymbolId, string Name, int Placements);
+
 /// <summary>Everywhere in a project one symbol is placed.</summary>
 public sealed record SymbolUsage(string SymbolId, IReadOnlyList<SymbolUse> Documents)
 {
-    public int Total => Documents.Sum(d => d.Placements);
+    /// <summary>The symbols that hold this one directly. Empty for most.</summary>
+    public IReadOnlyList<SymbolHolder> HeldBy { get; init; } = [];
 
-    /// <summary>Nothing in the project places this. Safe to delete.</summary>
-    public bool IsUnused => Documents.Count == 0;
+    public int Total => Documents.Sum(d => d.Placements) + HeldBy.Sum(h => h.Placements);
+
+    /// <summary>Nothing in the project places or holds this. Safe to delete.</summary>
+    public bool IsUnused => Documents.Count == 0 && HeldBy.Count == 0;
 }
 
 /// <summary>
@@ -38,9 +44,11 @@ public sealed record SymbolUsage(string SymbolId, IReadOnlyList<SymbolUse> Docum
 /// told how many there are first, and until now nothing could count them.
 /// </para>
 /// <para>
-/// Scope: symbol → document. Symbol → symbol edges do not exist, because
-/// symbols cannot contain other symbols — the loader refuses the nesting.
-/// When that changes this is where the second kind of edge belongs.
+/// Two kinds of edge: symbol → document, and symbol → the symbols that hold
+/// it (Q289). The second is direct only. The knight holds the hand, the hand
+/// holds the sword, and the sword reports the hand, which is the one to open
+/// to change it. It costs nothing to collect, since the project's symbols are
+/// already in memory.
 /// </para>
 /// </remarks>
 public static class SymbolGraph
@@ -79,19 +87,21 @@ public static class SymbolGraph
             }
         }
 
+        var holders = HoldersIn(project);
+
         var result = new Dictionary<string, SymbolUsage>();
         // Every symbol in the project gets an entry, including the ones nothing
         // places. "Used nowhere" is the answer that makes a delete safe, and it
         // is not the same answer as "not in this dictionary".
         foreach (var symbolId in project.Symbols.Keys)
         {
-            result[symbolId] = Build(symbolId, counts, refs, project);
+            result[symbolId] = Build(symbolId, counts, refs, project, holders);
         }
         // And any symbol placed but no longer in the project — a placement left
         // behind by a delete. Reporting those is how they get found.
         foreach (var symbolId in counts.Keys)
         {
-            if (!result.ContainsKey(symbolId)) result[symbolId] = Build(symbolId, counts, refs, project);
+            if (!result.ContainsKey(symbolId)) result[symbolId] = Build(symbolId, counts, refs, project, holders);
         }
         return result;
     }
@@ -110,9 +120,11 @@ public static class SymbolGraph
         string symbolId,
         Dictionary<string, Dictionary<string, int>> counts,
         Dictionary<string, DocumentRef> refs,
-        Project project)
+        Project project,
+        Dictionary<string, List<SymbolHolder>> holders)
     {
-        if (!counts.TryGetValue(symbolId, out var perDoc)) return new SymbolUsage(symbolId, []);
+        var heldBy = holders.TryGetValue(symbolId, out var list) ? list : [];
+        if (!counts.TryGetValue(symbolId, out var perDoc)) return new SymbolUsage(symbolId, []) { HeldBy = heldBy };
         var uses = perDoc
             .Where(kv => refs.ContainsKey(kv.Key))
             // The folder is the owner now (B114). It used to be the character,
@@ -125,7 +137,44 @@ public static class SymbolGraph
             .OrderByDescending(u => u.Placements)
             .ThenBy(u => u.Document.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        return new SymbolUsage(symbolId, uses);
+        return new SymbolUsage(symbolId, uses) { HeldBy = heldBy };
+    }
+
+    /// <summary>placed symbol id → the project symbols holding it directly.</summary>
+    private static Dictionary<string, List<SymbolHolder>> HoldersIn(Project project)
+    {
+        var holders = new Dictionary<string, List<SymbolHolder>>();
+        foreach (var holder in project.Symbols.Values)
+        {
+            var counts = new Dictionary<string, int>();
+            var seen = new HashSet<string>();
+            // Masks too: a mask is rendered through the same pass and can place.
+            var drawings = holder.Layers
+                .SelectMany(l => l.Cels.Select(c => c.Frame).Append(l.Mask?.Frame))
+                .OfType<Frame>();
+            foreach (var frame in drawings)
+            {
+                // A held cel names the same drawing again; count it once.
+                if (!seen.Add(frame.Id)) continue;
+                if (frame.Placements is not { Count: > 0 } placements) continue;
+                foreach (var placement in placements)
+                {
+                    counts[placement.SymbolId] = counts.GetValueOrDefault(placement.SymbolId) + 1;
+                }
+            }
+            foreach (var (placed, n) in counts)
+            {
+                if (!holders.TryGetValue(placed, out var list)) holders[placed] = list = [];
+                list.Add(new SymbolHolder(holder.Id, holder.Name, n));
+            }
+        }
+        foreach (var list in holders.Values)
+        {
+            list.Sort((a, b) => b.Placements != a.Placements
+                ? b.Placements.CompareTo(a.Placements)
+                : StringComparer.OrdinalIgnoreCase.Compare(a.Name, b.Name));
+        }
+        return holders;
     }
 
     /// <summary>symbolId → placement count, over every frame of every layer.</summary>

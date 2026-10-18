@@ -109,6 +109,65 @@ public static class SymbolRegistry
     }
 
     /// <summary>
+    /// How deep symbols may nest and still draw (Q289): a symbol holding one
+    /// that holds one, sixteen times over.
+    /// </summary>
+    /// <remarks>
+    /// Generous for an artist, whose deepest real case is a prop in a hand on
+    /// a character in a crowd, and small for a stack. With loops refused
+    /// (B487) every nesting is finite, but a file can hold a chain thousands
+    /// long, and each level costs the render several frames of recursion.
+    /// </remarks>
+    public const int MaxNesting = 16;
+
+    /// <summary>
+    /// The longest chain of placements under a symbol: 0 for one that places
+    /// nothing. Counting stops at <see cref="MaxNesting"/> + 1, which means
+    /// too deep to draw.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A fact about the symbol, not about the render in progress.</b>
+    /// Counting as the render descends would cut a symbol differently
+    /// depending on where it was first drawn from, and the cache would keep
+    /// whichever came first.
+    /// </para>
+    /// <para>
+    /// Level by level rather than recursively, so a chain far past the limit
+    /// costs the limit's worth of levels and no stack. A symbol that holds
+    /// itself adds nothing, because it draws nothing.
+    /// </para>
+    /// </remarks>
+    public static int NestingDepth(Symbol symbol)
+    {
+        var level = new List<Symbol> { symbol };
+        for (var depth = 0; depth <= MaxNesting; depth++)
+        {
+            var seen = new HashSet<string>();
+            var next = new List<Symbol>();
+            foreach (var holder in level)
+            {
+                foreach (var frame in DrawingsOf(holder))
+                {
+                    if (frame.Placements is not { } placements) continue;
+                    for (var p = 0; p < placements.Count; p++)
+                    {
+                        var placed = placements[p].SymbolId;
+                        if (!seen.Add(placed)) continue;
+                        if (Resolve(placed) is { } inner && !HoldsItself(inner)) next.Add(inner);
+                    }
+                }
+            }
+            if (next.Count == 0) return depth;
+            level = next;
+        }
+        return MaxNesting + 1;
+    }
+
+    /// <summary>Whether a symbol nests too deep to draw (Q289).</summary>
+    public static bool NestsTooDeep(Symbol symbol) => NestingDepth(symbol) > MaxNesting;
+
+    /// <summary>
     /// Whether a symbol places itself, directly or through others: one that
     /// can never finish rendering (B487).
     /// </summary>

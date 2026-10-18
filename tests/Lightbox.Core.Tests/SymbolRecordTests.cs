@@ -185,25 +185,88 @@ public class SymbolRecordTests
     }
 
     [Fact]
-    public void ANestedPlacementIsRefusedOnLoadRatherThanHalfSupported()
+    public void ANestedPlacementSurvivesAReload()
     {
-        // Nesting needs a cycle check and a depth limit that have to be right
-        // before anything renders. Dropping the placement is a smaller lie
-        // than rendering an unbounded recursion.
+        // Q289. Loading used to drop every placement inside a project symbol,
+        // waiting for a cycle check that B487 supplied. The application let an
+        // artist nest all along, so the drop was work disappearing on reopen.
         var root = TempDir();
         try
         {
             var project = ProjectIo.Create("Knight", root);
             var sword = Sword();
-            sword.AllFrames.First().Placements =
-                [new SymbolPlacement { SymbolId = "sym_itself" }];
+            var knight = Sword();
+            knight.Name = "Knight";
+            knight.AllFrames.First().Placements =
+                [new SymbolPlacement { SymbolId = sword.Id, X = 30, Y = 5 }];
             project.Symbols[sword.Id] = sword;
+            project.Symbols[knight.Id] = knight;
             ProjectIo.Save(project);
 
             var back = ProjectIo.Load(root);
 
-            var read = Assert.Single(back!.Symbols).Value;
-            Assert.Null(read.AllFrames.First().Placements);
+            var placement = Assert.Single(back!.Symbols[knight.Id].AllFrames.First().Placements!);
+            Assert.Equal(sword.Id, placement.SymbolId);
+            Assert.Equal(30, placement.X);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void AProjectWhoseSymbolsHoldEachOtherStillLoads()
+    {
+        // The loop is kept as written. Placing refuses one and the renderer
+        // draws nothing for one (B487), so loading is not where it is judged.
+        var root = TempDir();
+        try
+        {
+            var project = ProjectIo.Create("Knight", root);
+            var a = Sword();
+            var b = Sword();
+            a.AllFrames.First().Placements = [new SymbolPlacement { SymbolId = b.Id }];
+            b.AllFrames.First().Placements = [new SymbolPlacement { SymbolId = a.Id }];
+            project.Symbols[a.Id] = a;
+            project.Symbols[b.Id] = b;
+            ProjectIo.Save(project);
+
+            var back = ProjectIo.Load(root);
+
+            Assert.Equal(2, back!.Symbols.Count);
+            Assert.NotNull(back.Symbols[a.Id].AllFrames.First().Placements);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void AFlattenCarriesTheSymbolsInsideTheSymbolsItPlaces()
+    {
+        // The document places the knight; the knight holds the sword. An export
+        // that carried only the knight would arrive without his sword.
+        var root = TempDir();
+        try
+        {
+            var project = ProjectIo.Create("Knight", root);
+            var sword = Sword();
+            var hand = Sword();
+            hand.AllFrames.First().Placements = [new SymbolPlacement { SymbolId = sword.Id }];
+            var knight = Sword();
+            knight.AllFrames.First().Placements = [new SymbolPlacement { SymbolId = hand.Id }];
+            foreach (var s in new[] { sword, hand, knight }) project.Symbols[s.Id] = s;
+            var (doc, frame) = DocWithACel();
+            frame.Placements = [new SymbolPlacement { SymbolId = knight.Id }];
+
+            var flat = ProjectIo.Flatten(doc, project);
+
+            Assert.NotNull(flat.Symbols);
+            Assert.True(flat.Symbols!.ContainsKey(knight.Id));
+            Assert.True(flat.Symbols.ContainsKey(hand.Id));
+            Assert.True(flat.Symbols.ContainsKey(sword.Id));
         }
         finally
         {

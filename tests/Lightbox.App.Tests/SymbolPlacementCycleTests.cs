@@ -91,4 +91,49 @@ public class SymbolPlacementCycleTests : IDisposable
         Assert.NotNull(vm.PlaceSymbol(sword.Id, 40, 40));
         Assert.Equal(2, PlacementsIn(knight));
     }
+
+    [AvaloniaFact]
+    public void PlacingASymbolThatWouldNestPastTheLimitIsRefused()
+    {
+        // Q289: nesting is bounded. A host that would end up deeper than the
+        // renderer draws is refused at the drop, with the reason, rather than
+        // left to vanish.
+        var vm = WithKnight(out _, out _);
+        var project = vm.ProjectDocker.Project!;
+        var inner = new Symbol { Name = "Leaf", Fps = 12 };
+        inner.Layers = Symbol.Flat("Leaf", [new Frame { Strokes = [Bar(30)] }]);
+        project.Symbols[inner.Id] = inner;
+        for (var i = 0; i < SymbolRegistry.MaxNesting; i++)
+        {
+            var outer = new Symbol { Name = $"Level {i + 1}", Fps = 12 };
+            outer.Layers = Symbol.Flat(outer.Name, [new Frame
+            {
+                Placements = [new SymbolPlacement { SymbolId = inner.Id }],
+            }]);
+            project.Symbols[outer.Id] = outer;
+            inner = outer;
+        }
+        var host = new Symbol { Name = "Host", Fps = 12 };
+        host.Layers = Symbol.Flat("Host", [new Frame { Strokes = [Bar(80)] }]);
+        project.Symbols[host.Id] = host;
+        vm.RefreshProjectResources();
+        vm.OpenSymbol(host);
+
+        Assert.Null(vm.PlaceSymbol(inner.Id, 40, 40));
+        Assert.Equal(0, PlacementsIn(host));
+        Assert.Contains("deep", vm.AiStatus);
+    }
+
+    [AvaloniaFact]
+    public void ASwordOnlyTheKnightHoldsIsDescribedAsHeldByHim()
+    {
+        // Q289: what the delete prompt says. "Not placed anywhere" for a sword
+        // the knight holds would be a delete that blanks every knight.
+        var vm = WithKnight(out var sword, out _);
+
+        var said = vm.DescribeUsage(sword);
+
+        Assert.DoesNotContain("not placed anywhere", said);
+        Assert.Contains("“Knight”", said);
+    }
 }

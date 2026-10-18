@@ -1175,9 +1175,9 @@ to refresh a panel. It is what makes deleting a symbol a decision: placements
 are still left alone on purpose, because a delete that quietly edited forty
 animations is worse than one that leaves marks that stop drawing and say so,
 but that is only defensible now the artist is told how many there are. Scope is
-symbol → document; symbol → symbol edges do not exist while nesting is refused,
-and the note saying the graph "needs nesting first" was true only of the half
-nobody was asking for.
+symbol → document, and since Q289 kept nesting, symbol → the symbols that hold
+it directly (`SymbolUsage.HeldBy`), so a sword only the knight holds is never
+reported as unused.
 
 **Designed 2026-08-28, not yet built: a symbol owns a layer stack (Q171).**
 `docs/DESIGN-symbol-layers.md` settles it in seven steps — the record
