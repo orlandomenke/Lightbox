@@ -1436,11 +1436,17 @@ public sealed partial class CanvasControl : Control
         return (dx * cos - dy * sin, dx * sin + dy * cos);
     }
 
-    private void TxDragTo(double x, double y, bool uniform, bool fromCentre = false)
+    /// <param name="shift">
+    /// Shift: proportions on a corner scale, one axis on a move (B499) — the
+    /// same thing it means on the brush and the Move tool.
+    /// </param>
+    private void TxDragTo(double x, double y, bool shift, bool fromCentre = false)
     {
         switch (_txDrag)
         {
             case TxDrag.Move:
+                // From the press, never per event, for AxisLocked's reason.
+                if (shift) (x, y) = AxisLocked(_txDragStart, x, y);
                 if (_txPerspective)
                 {
                     // Quad mode: shift every corner from its press-time position.
@@ -1493,7 +1499,7 @@ public sealed partial class CanvasControl : Control
 
                 var q0 = TxLocalAtStart();
                 var q = TxLocalAtStartFrame(x, y);
-                if (_txDrag == TxDrag.ScaleCorner && uniform)
+                if (_txDrag == TxDrag.ScaleCorner && shift)
                 {
                     var d0x = q0.X - a.X;
                     var d0y = q0.Y - a.Y;

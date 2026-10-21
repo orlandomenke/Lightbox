@@ -1023,7 +1023,10 @@ corner stays put; drag an edge and the opposite edge does — which is what ever
 other tool does, and what your hand expects when it pulls one side of a box.
 Hold **Alt** to scale from the pivot instead, growing all sides at once, and you
 can press or release Alt in the middle of the drag. **Shift** keeps the
-proportions, as ever, and combines with Alt. The drawing
+proportions, as ever, and combines with Alt. Dragging inside the box moves it,
+and there **Shift holds the move to one axis** — whichever you have dragged
+furthest along — the same as on the Move tool and the brush; let go of Shift
+mid-drag and the box follows the pointer again. The drawing
 moves *with* the gizmo — you see the result while you drag, not after you
 commit. **The marching ants step aside while the gizmo is up**, and come back
 around the drawing in its new position when you apply — the gizmo boxes the ink
