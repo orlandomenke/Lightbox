@@ -593,12 +593,21 @@ public sealed partial class MainViewModel
     {
         var usage = UsageOf(symbol);
         if (usage.IsUnused) return $"“{symbol.Name}” is not placed anywhere.";
-        var docs = usage.Documents.Count;
         var places = usage.Total == 1 ? "1 placement" : $"{usage.Total} placements";
-        var where = docs == 1
-            ? $"“{usage.Documents[0].Document.Name}”"
-            : $"{docs} documents";
-        return $"“{symbol.Name}”: {places} in {where}.";
+        // Documents first, then the symbols holding it (Q289), so a sword only
+        // the knight holds is never described as placed nowhere.
+        var where = new List<string>();
+        var docs = usage.Documents.Count;
+        if (docs > 0)
+        {
+            where.Add(docs == 1 ? $"“{usage.Documents[0].Document.Name}”" : $"{docs} documents");
+        }
+        var held = usage.HeldBy.Count;
+        if (held > 0)
+        {
+            where.Add(held == 1 ? $"the symbol “{usage.HeldBy[0].Name}”" : $"{held} other symbols");
+        }
+        return $"“{symbol.Name}”: {places} in {string.Join(" and ", where)}.";
     }
 
     /// <summary>
@@ -809,44 +818,39 @@ public sealed partial class MainViewModel
     /// </remarks>
     private void RepaintPlacementsOf(Symbol edited)
     {
-        // Memoised per symbol id. Seeded false before the walk so a symbol that
-        // somehow holds itself ends the recursion instead of overflowing it.
-        // Inside such a cycle the answer can depend on the order of the walk,
-        // and nothing here tries to do better: placing refuses a cycle, and one
-        // that arrives some other way draws nothing (B487), so there is no
-        // picture of it to keep current.
-        var holds = new Dictionary<string, bool> { [edited.Id] = true };
-        bool Holds(string symbolId)
+        // Everything whose picture is the edited one's, by a walk upward over
+        // the registry rather than a recursion downward from every drawing.
+        // Q289 made a chain thousands deep loadable, and a recursion through it
+        // ran on every edit in a symbol tab, even one the chain never touched.
+        var holders = SymbolRegistry.HoldersOf(edited.Id);
+        bool Shows(Frame frame)
         {
-            if (holds.TryGetValue(symbolId, out var known)) return known;
-            holds[symbolId] = false;
-            return holds[symbolId] =
-                SymbolRegistry.Resolve(symbolId) is { } symbol && symbol.AllFrames.Any(Shows);
+            if (frame.Placements is not { } list) return false;
+            foreach (var placement in list)
+            {
+                if (placement.SymbolId == edited.Id || holders.Contains(placement.SymbolId)) return true;
+            }
+            return false;
         }
-        bool Shows(Frame frame) =>
-            frame.Placements is { } list && list.Any(p => Holds(p.SymbolId));
 
         var seen = new HashSet<Frame>(ReferenceEqualityComparer.Instance);
         foreach (var layer in Tabs.SelectMany(t => t.Doc.Scene.Layers))
         {
-            foreach (var cel in layer.Cels)
+            // Masks too: a mask renders through the same pass and can place.
+            var drawings = layer.Cels.Select(c => c.Frame).Append(layer.Mask?.Frame);
+            foreach (var drawing in drawings)
             {
                 // A held cel names the frame it holds: once is enough.
-                if (cel.Frame is not { } frame || !seen.Add(frame)) continue;
+                if (drawing is not { } frame || !seen.Add(frame)) continue;
                 if (!Shows(frame)) continue;
                 InvalidateFrameRender(frame.Id);
                 _dirtyThumbIds.Add(frame.Id);
             }
         }
 
-        // Symbols no open drawing places still cache a render of the old one.
-        if (ProjectDocker.Project is { } project)
+        foreach (var id in holders)
         {
-            foreach (var id in project.Symbols.Keys) Holds(id);
-        }
-        foreach (var (id, holdsIt) in holds)
-        {
-            if (holdsIt && id != edited.Id && SymbolRegistry.Resolve(id) is { } outer) outer.Version++;
+            if (SymbolRegistry.Resolve(id) is { } outer) outer.Version++;
         }
     }
 
@@ -1013,6 +1017,21 @@ public sealed partial class MainViewModel
             AiStatus = symbolId == host.Id
                 ? $"{symbol.Name} can't be placed inside itself."
                 : $"{symbol.Name} already holds {host.Name}, so it can't go inside it.";
+            return null;
+        }
+        // Q289: bounded too. The top of whatever holds the host is what would
+        // stop drawing, so the drop counts the host's holders as well as the
+        // symbol being dropped, and names the one that would go past it.
+        // A symbol on a loop draws nothing, so it deepens nothing and is let
+        // through: refusing it would be a reason with nothing behind it.
+        if (ActiveTab is { Kind: DocumentTabKind.Symbol, Symbol: { } deepHost }
+            && !SymbolRegistry.HoldsItself(symbol)
+            && SymbolRegistry.HeldDepth(deepHost.Id, out var topId) + 1 + SymbolRegistry.NestingDepth(symbol)
+                > SymbolRegistry.MaxNesting)
+        {
+            var top = SymbolRegistry.Resolve(topId)?.Name ?? deepHost.Name;
+            AiStatus = $"{symbol.Name} nests too deep to go inside {deepHost.Name}: "
+                + $"{top} would be more than {SymbolRegistry.MaxNesting} levels deep.";
             return null;
         }
         if (PaintTargetOrKey() is not Frame target)

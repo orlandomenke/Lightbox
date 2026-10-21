@@ -109,6 +109,132 @@ public static class SymbolRegistry
     }
 
     /// <summary>
+    /// How deep symbols may nest and still draw (Q289): a symbol holding one
+    /// that holds one, sixteen times over.
+    /// </summary>
+    /// <remarks>
+    /// Generous for an artist, whose deepest real case is a prop in a hand on
+    /// a character in a crowd, and small for a stack. With loops refused
+    /// (B487) every nesting is finite, but a file can hold a chain thousands
+    /// long, and each level costs the render several frames of recursion.
+    /// </remarks>
+    public const int MaxNesting = 16;
+
+    /// <summary>
+    /// The longest chain of placements under a symbol: 0 for one that places
+    /// nothing. Counting stops at <see cref="MaxNesting"/> + 1, which means
+    /// too deep to draw.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A fact about the symbol, not about the render in progress.</b>
+    /// Counting as the render descends would cut a symbol differently
+    /// depending on where it was first drawn from, and the cache would keep
+    /// whichever came first.
+    /// </para>
+    /// <para>
+    /// Worked out with the loop check in one pass (<see cref="Draws"/>), with
+    /// no recursion, so a chain far past the limit costs a walk of its length
+    /// and no stack. A symbol that holds itself adds nothing, because it draws
+    /// nothing.
+    /// </para>
+    /// </remarks>
+    public static int NestingDepth(Symbol symbol) => Math.Min(Shape(symbol).Depth, MaxNesting + 1);
+
+    /// <summary>Whether a symbol nests too deep to draw (Q289).</summary>
+    public static bool NestsTooDeep(Symbol symbol) => NestingDepth(symbol) > MaxNesting;
+
+    /// <summary>
+    /// Every registered symbol that holds <paramref name="symbolId"/>, at any
+    /// depth: the ones whose picture changes when it does (Q289).
+    /// </summary>
+    /// <remarks>
+    /// Walked upward from a reverse map built here, iteratively. Asked once per
+    /// edit, never per render, so building the map each time costs one pass
+    /// over the registered placements.
+    /// </remarks>
+    public static HashSet<string> HoldersOf(string symbolId)
+    {
+        var holders = ReverseMap();
+        var found = new HashSet<string>();
+        var pending = new Stack<string>();
+        pending.Push(symbolId);
+        while (pending.TryPop(out var id))
+        {
+            if (!holders.TryGetValue(id, out var direct)) continue;
+            foreach (var holder in direct)
+            {
+                if (found.Add(holder)) pending.Push(holder);
+            }
+        }
+        found.Remove(symbolId);
+        return found;
+    }
+
+    /// <summary>
+    /// How far down <paramref name="symbolId"/> sits inside the symbols that
+    /// hold it: 0 when nothing holds it. Counting stops at
+    /// <see cref="MaxNesting"/> + 1 (Q289).
+    /// </summary>
+    /// <remarks>
+    /// The other half of what a drop has to ask. Placing a symbol of depth d
+    /// into a host this deep makes the top of the stack this + 1 + d deep, and
+    /// the top is what stops drawing.
+    /// </remarks>
+    public static int HeldDepth(string symbolId) => HeldDepth(symbolId, out _);
+
+    /// <inheritdoc cref="HeldDepth(string)"/>
+    /// <param name="symbolId">The symbol to measure from.</param>
+    /// <param name="top">
+    /// A holder at the far end of the longest chain upward, the one that stops
+    /// drawing first, or <paramref name="symbolId"/> when nothing holds it.
+    /// From the same walk, so naming it costs nothing extra.
+    /// </param>
+    public static int HeldDepth(string symbolId, out string top)
+    {
+        var holders = ReverseMap();
+        var level = new HashSet<string> { symbolId };
+        top = symbolId;
+        for (var depth = 0; depth <= MaxNesting; depth++)
+        {
+            var next = new HashSet<string>();
+            foreach (var id in level)
+            {
+                if (!holders.TryGetValue(id, out var direct)) continue;
+                foreach (var holder in direct)
+                {
+                    // A holder in a loop draws nothing, so it holds nothing up.
+                    if (Resolve(holder) is { } symbol && !HoldsItself(symbol)) next.Add(holder);
+                }
+            }
+            if (next.Count == 0) return depth;
+            level = next;
+            top = next.First();
+        }
+        return MaxNesting + 1;
+    }
+
+    /// <summary>placed symbol id → the registered symbols placing it directly.</summary>
+    private static Dictionary<string, HashSet<string>> ReverseMap()
+    {
+        var map = new Dictionary<string, HashSet<string>>();
+        foreach (var (id, symbol) in Symbols)
+        {
+            foreach (var frame in DrawingsOf(symbol))
+            {
+                if (frame.Placements is not { } placements) continue;
+                for (var p = 0; p < placements.Count; p++)
+                {
+                    var placed = placements[p].SymbolId;
+                    if (!map.TryGetValue(placed, out var set)) map[placed] = set = [];
+                    set.Add(id);
+                }
+            }
+        }
+        return map;
+    }
+
+    /// <summary>
     /// Whether a symbol places itself, directly or through others: one that
     /// can never finish rendering (B487).
     /// </summary>
@@ -119,17 +245,133 @@ public static class SymbolRegistry
     /// It agrees with what placing refuses, and an answer that changed with the
     /// frame would make a symbol flicker in and out along the timeline.
     /// </remarks>
-    public static bool HoldsItself(Symbol symbol)
+    public static bool HoldsItself(Symbol symbol) => Shape(symbol).Loops;
+
+    /// <summary>
+    /// Whether a symbol draws at all: it holds no loop of itself and nests no
+    /// deeper than <see cref="MaxNesting"/>. One walk for both (Q289).
+    /// </summary>
+    public static bool Draws(Symbol symbol)
     {
-        foreach (var frame in DrawingsOf(symbol))
+        var (loops, depth) = Shape(symbol);
+        return !loops && depth <= MaxNesting;
+    }
+
+    /// <summary>
+    /// Both structural answers about a symbol in one pass: whether it lies on a
+    /// loop of placements, and the longest chain of drawable placements under it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Tarjan's strongly connected components, iteratively</b>, over what
+    /// the symbol reaches. Linear in the symbols and placements reached, with
+    /// no recursion, so a chain loaded from a file thousands deep costs a walk
+    /// of its length and no stack. The first version asked each question with
+    /// its own walk and re-walked the reach for every symbol it met, which
+    /// leak-hunter put at about 90,000 visits per stamp on such a file.
+    /// </para>
+    /// <para>
+    /// Components come out children first, so each one's depth is known
+    /// before any component that places it. A component that is a loop draws
+    /// nothing, so it adds no depth to whatever places it, which is the rule
+    /// the render follows.
+    /// </para>
+    /// <para>
+    /// Not cached. The answer depends on every symbol reached, whose drawings
+    /// are edited in place, and no version covers all of them. A cache keyed
+    /// on anything less would serve a stale answer, which is how B487 began.
+    /// </para>
+    /// </remarks>
+    private static (bool Loops, int Depth) Shape(Symbol symbol)
+    {
+        var index = new Dictionary<string, int>();
+        var low = new Dictionary<string, int>();
+        var onStack = new HashSet<string>();
+        var stack = new Stack<string>();
+        var children = new Dictionary<string, List<string>>();
+        var depth = new Dictionary<string, int>();
+        var loops = new HashSet<string>();
+        var next = 0;
+
+        List<string> ChildrenOf(string id)
         {
-            if (frame.Placements is not { } placements) continue;
-            for (var p = 0; p < placements.Count; p++)
+            if (children.TryGetValue(id, out var known)) return known;
+            var list = new List<string>();
+            var at = id == symbol.Id ? symbol : Resolve(id);
+            if (at is not null)
             {
-                if (Reaches(placements[p].SymbolId, symbol.Id)) return true;
+                var seen = new HashSet<string>();
+                foreach (var frame in DrawingsOf(at))
+                {
+                    if (frame.Placements is not { } placements) continue;
+                    for (var p = 0; p < placements.Count; p++)
+                    {
+                        var placed = placements[p].SymbolId;
+                        if ((placed == symbol.Id || Resolve(placed) is not null) && seen.Add(placed)) list.Add(placed);
+                    }
+                }
+            }
+            return children[id] = list;
+        }
+
+        // Each frame of the walk: a symbol, and how many of its children are done.
+        var walk = new Stack<(string Id, int Child)>();
+        void Visit(string id)
+        {
+            index[id] = low[id] = next++;
+            stack.Push(id);
+            onStack.Add(id);
+            walk.Push((id, 0));
+        }
+
+        Visit(symbol.Id);
+        while (walk.TryPop(out var top))
+        {
+            var (id, child) = top;
+            var kids = ChildrenOf(id);
+            if (child < kids.Count)
+            {
+                walk.Push((id, child + 1));
+                var kid = kids[child];
+                if (!index.ContainsKey(kid)) Visit(kid);
+                else if (onStack.Contains(kid)) low[id] = Math.Min(low[id], index[kid]);
+                continue;
+            }
+
+            // All children done: fold this one's low link into its parent's.
+            if (walk.TryPeek(out var parent)) low[parent.Id] = Math.Min(low[parent.Id], low[id]);
+            if (low[id] != index[id]) continue;
+
+            // The root of a component: pop it, and settle its depth.
+            var members = new List<string>();
+            string member;
+            do
+            {
+                member = stack.Pop();
+                onStack.Remove(member);
+                members.Add(member);
+            }
+            while (member != id);
+
+            var isLoop = members.Count > 1 || ChildrenOf(id).Contains(id);
+            foreach (var m in members)
+            {
+                if (isLoop)
+                {
+                    loops.Add(m);
+                    depth[m] = 0;
+                    continue;
+                }
+                var deepest = 0;
+                foreach (var kid in ChildrenOf(m))
+                {
+                    if (!loops.Contains(kid) && depth.TryGetValue(kid, out var d)) deepest = Math.Max(deepest, d + 1);
+                }
+                depth[m] = deepest;
             }
         }
-        return false;
+
+        return (loops.Contains(symbol.Id), depth.GetValueOrDefault(symbol.Id));
     }
 
     /// <summary>

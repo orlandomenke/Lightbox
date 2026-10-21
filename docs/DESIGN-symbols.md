@@ -92,11 +92,18 @@ today. The camera's rule, for the fifth time.
 
 ### Two things that are deliberately not in there
 
-**No nesting.** A symbol cannot contain a placement of another symbol, in the
-first cut. Nesting brings a cycle check, a depth limit and a dependency graph
-that has to be correct before anything renders, and none of that earns its
-keep until somebody asks for a hand inside an arm inside a character. The type
-allows it later; the loader refuses it now, loudly.
+**Nesting, bounded (Q289, superseding the first cut).** The first cut refused
+nesting at the loader and waited for a cycle check, a depth limit and a
+dependency graph. The application let an artist nest anyway, so the refusal
+was work vanishing on reopen. All three now exist:
+- **Cycle check (B487).** Placing refuses a loop, and the renderer draws
+  nothing for a symbol that holds itself.
+- **Depth limit.** `SymbolRegistry.MaxNesting` is sixteen. It is measured on
+  the symbol's structure rather than during a render, so a symbol's answer
+  never depends on where it was first drawn from.
+- **Dependency graph.** `SymbolUsage.HeldBy` adds symbol → symbol edges.
+
+The loader keeps what it reads.
 
 **No per-placement stroke edits.** A placement can be moved, scaled, rotated,
 recoloured and time-offset. It cannot have one of its strokes nudged, because

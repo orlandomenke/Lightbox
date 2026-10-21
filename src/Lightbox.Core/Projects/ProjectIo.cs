@@ -300,16 +300,12 @@ public static class ProjectIo
         if (!File.Exists(symbols)) return;
         var loaded = JsonSerializer.Deserialize<Dictionary<string, Symbol>>(
             File.ReadAllText(symbols), DocJson.Options);
-        foreach (var (id, symbol) in loaded ?? [])
-        {
-            // Nesting is refused rather than half-supported. A symbol holding a
-            // placement needs a cycle check, a depth limit and a dependency
-            // graph that all have to be right before anything renders, and
-            // dropping the placement is a smaller lie than rendering an
-            // unbounded recursion.
-            foreach (var frame in symbol.AllFrames) frame.Placements = null;
-            project.Symbols[id] = symbol;
-        }
+        // Placements inside a symbol are kept as written (Q289). This used to
+        // drop them, waiting for a cycle check and a depth limit; both now live
+        // where a symbol is placed and where it renders (B487, SymbolRegistry),
+        // which is where a loop or a chain too deep can reach from any file,
+        // not only from this one.
+        foreach (var (id, symbol) in loaded ?? []) project.Symbols[id] = symbol;
     }
 
     /// <summary>
@@ -803,30 +799,50 @@ public static class ProjectIo
     /// </remarks>
     private static List<Symbol> InlineSymbols(Doc copy, List<Frame> frames, Project project)
     {
-        var placed = frames
+        // The symbols inside the placed ones travel too (Q289): an exported
+        // knight that arrived without his sword would render as someone else.
+        // A visited set rather than a recursion, so a loop in the project ends
+        // the walk rather than the export.
+        var pending = new Stack<string>(PlacedIn(frames));
+        if (pending.Count == 0) return [];
+
+        var seen = new HashSet<string>();
+        var inlined = new List<Symbol>();
+        while (pending.TryPop(out var id))
+        {
+            if (!seen.Add(id)) continue;
+            Symbol symbol;
+            // Already the document's own: a flatten of a flatten must not
+            // replace what travelled with the file the first time.
+            if (copy.Symbols?.TryGetValue(id, out var own) == true)
+            {
+                symbol = own;
+            }
+            else if (project.Symbols.TryGetValue(id, out var shared))
+            {
+                symbol = shared;
+                copy.Symbols ??= [];
+                copy.Symbols[id] = symbol;
+            }
+            else
+            {
+                continue;
+            }
+            inlined.Add(symbol);
+            foreach (var inner in PlacedIn(DrawingsOf(symbol))) pending.Push(inner);
+        }
+        return inlined;
+
+        static IEnumerable<string> PlacedIn(IEnumerable<Frame> drawings) => drawings
             .Where(f => f.HasPlacements)
             .SelectMany(f => f.Placements!)
             .Select(p => p.SymbolId)
-            .Where(id => id.Length > 0)
-            .ToHashSet();
-        if (placed.Count == 0) return [];
+            .Where(id => id.Length > 0);
 
-        var inlined = new List<Symbol>();
-        foreach (var id in placed)
-        {
-            // Already the document's own: a flatten of a flatten must not
-            // replace what travelled with the file the first time.
-            if (copy.Symbols?.ContainsKey(id) == true)
-            {
-                inlined.Add(copy.Symbols[id]);
-                continue;
-            }
-            if (!project.Symbols.TryGetValue(id, out var symbol)) continue;
-            copy.Symbols ??= [];
-            copy.Symbols[id] = symbol;
-            inlined.Add(symbol);
-        }
-        return inlined;
+        // Masks too: a mask is rendered through the same pass and can place.
+        static IEnumerable<Frame> DrawingsOf(Symbol symbol) => symbol.Layers
+            .SelectMany(l => l.Cels.Select(c => c.Frame).Append(l.Mask?.Frame))
+            .OfType<Frame>();
     }
 
     private static IEnumerable<Stroke> StrokesOf(Frame frame) => frame.Strokes;
