@@ -103,6 +103,59 @@ public class DockZoneTests
         Assert.Equal(0, drop!.Value.Index);
     }
 
+    /// <summary>
+    /// A layout of two slots on the right — Layers in front of a Layers|Color
+    /// group, then Palette alone — and the slots the window would report for
+    /// it. Color is behind, so it has no slot of its own (MainWindow skips
+    /// panels that are not showing).
+    /// </summary>
+    private static (DockLayout Layout, PanelSlot[] Slots) GroupThenSingle()
+    {
+        var layout = new DockLayout();
+        layout.Dock(DockPanelId.Layers, DockSide.Right, 0);
+        layout.Dock(DockPanelId.Palette, DockSide.Right, 1);
+        layout.JoinGroup(DockPanelId.Color, DockPanelId.Layers);
+        layout.Activate(DockPanelId.Layers);
+        var group = new PanelSlot(DockPanelId.Layers, DockSide.Right, 0, new(900, 0, 300, 400), 22,
+            [new PanelTab(DockPanelId.Layers, new DockRect(900, 4, 60, 18)),
+             new PanelTab(DockPanelId.Color, new DockRect(960, 4, 60, 18))]);
+        var single = new PanelSlot(DockPanelId.Palette, DockSide.Right, 1, new(900, 400, 300, 400), 22,
+            [new PanelTab(DockPanelId.Palette, new DockRect(900, 404, 60, 18))]);
+        return (layout, [group, single]);
+    }
+
+    [Fact]
+    public void ATabPulledFromItsGroupLandsWhereItWasDroppedNotOneSlotEarly()
+    {
+        // The index correction for "taking it out shifts everything after it
+        // up by one" only holds when taking it out closes its slot. A front
+        // tab leaves its group behind, the slot stays, and nothing shifts.
+        var (layout, slots) = GroupThenSingle();
+
+        var drop = DockZones.Resolve(1050, 790, Content, slots, DockPanelId.Layers, layout);
+        layout.Dock(DockPanelId.Layers, drop!.Value.Side, drop.Value.Index);
+
+        var right = layout.SlotsIn(DockSide.Right);
+        Assert.Equal(3, right.Count);
+        Assert.Equal([DockPanelId.Layers], right[2]);   // below Palette, where it was dropped
+    }
+
+    [Fact]
+    public void AWholeGroupDroppedBelowItsNeighbourStillLandsBelowIt()
+    {
+        // The other half of the same rule: a carried group does take its slot
+        // with it, so here the correction is right and must stay.
+        var (layout, slots) = GroupThenSingle();
+
+        var drop = DockZones.Resolve(1050, 790, Content, slots, DockPanelId.Layers, layout, wholeGroup: true);
+        layout.DockGroup(DockPanelId.Layers, drop!.Value.Side, drop.Value.Index);
+
+        var right = layout.SlotsIn(DockSide.Right);
+        Assert.Equal(2, right.Count);
+        Assert.Equal([DockPanelId.Palette], right[0]);
+        Assert.Contains(DockPanelId.Color, right[1]);
+    }
+
     [Fact]
     public void DraggingTheOnlyPanelOfAStripOverItselfOffersNothing()
     {
