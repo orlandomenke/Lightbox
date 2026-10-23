@@ -217,9 +217,12 @@ public static class DockZones
         var index = slot.Order + (after ? 1 : 0);
         // Dropping a panel back where it already is: taking it out shifts
         // everything after it up by one, so the index has to come with it or
-        // the panel walks one place forward on every no-op drag.
+        // the panel walks one place forward on every no-op drag. Only when
+        // taking it out closes its slot, though: a tab pulled from the front of
+        // a group leaves the group where it was, and nothing after it moves.
         var draggedSlot = slots.FirstOrDefault(s => s.Id == dragged);
-        if (draggedSlot.Side == slot.Side && draggedSlot.Order < index) index--;
+        var closes = wholeGroup || draggedSlot.Strip.Count < 2;
+        if (closes && draggedSlot.Side == slot.Side && draggedSlot.Order < index) index--;
 
         // The preview is a band at the boundary, as deep as the dragged panel
         // wants, so the neighbour visibly makes room rather than the highlight

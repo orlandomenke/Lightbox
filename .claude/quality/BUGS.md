@@ -871,6 +871,9 @@ which is a weak test and still far better than none.
 
 ### ui
 
+- [ ] **B501** `P3` `ui` A front tab pulled from its group and dropped at a neighbour's far edge lands one slot early `evidence: ATabPulledFromItsGroupLandsWhereItWasDroppedNotOneSlotEarly`
+  - Found 2026-10-23 by an adversary review of the B500 fix (`fix/ui/left-dock-targets`). `DockZones.Beside` takes one off the insert index when the dragged panel already has a slot earlier on the same side, because lifting it out closes that slot and everything after it moves up. That is only true when the panel was alone in its slot. `DockLayout.Dock` lifts a front tab out of a multi-tab group and the group stays, so nothing moves up and the panel lands one slot before where the preview showed it. Only a front tab hits this: tabs behind are not in the slot list at all.
+  - Fixed with its test: the correction applies only when the slot will close — a whole-group drag, or a strip of fewer than two tabs.
 - [ ] **B254** `P2` `ui` Hover flyouts ignore the pen and collapse as soon as they open on a Huion tablet `evidence: manual`
   - Reported 2026-08-17, same machine and same pen as **B126**: hover-opened flyouts are "not responsive to the pen and often times collapse as soon as they open". Mouse: fine.
   - **Almost certainly B126 seen from a second place, and that is the useful thing about it.** B126's working hypothesis is that something in the hover path alternates state — the cursor flips between the canvas's `None` and the default arrow. The same two candidate mechanisms would produce *this* symptom too: enter/leave churn would light-dismiss a fresh popup, and a second (driver-emulated mouse) device alternating with the pen stream would put pointer events *outside* the flyout the instant it opens. A cause that explains both symptoms and the mouse being clean on the same machine is a much narrower target than either bug alone — which is exactly the test B126's first wrong cause failed.
