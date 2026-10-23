@@ -384,6 +384,60 @@ public sealed class WorkspaceTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void AFolderTwistyIsOneIndentStepWideSoADocumentSitsUnderItsFolder()
+    {
+        // The twisty wore Classes="text", whose MinWidth of 70 and row height
+        // outrank its own Width="12" — so every folder row carried a 70 px
+        // bordered button, and a document's glyph sat 56 px left of its
+        // folder's. ProjectRow.Indent steps 14 per level and puts a document one
+        // step in from its folder: that step is the twisty's room.
+        var root = Path.Combine(Path.GetTempPath(), $"lightbox-twisty-{Guid.NewGuid():N}.lbproj");
+        try
+        {
+            var (w, vm) = Open();
+            vm.NewProject(root, "Knight");
+            WithKnight(vm);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            var list = w.FindControl<ListBox>("ProjectRows")!;
+            int folderIndex = vm.ProjectDocker.Rows.ToList().FindIndex(r => r.IsFolder);
+            int documentIndex = vm.ProjectDocker.Rows.ToList().FindIndex(r => r.Animation is not null);
+            Assert.True(folderIndex >= 0 && documentIndex > folderIndex);
+
+            DockPanel RowPanel(int index)
+            {
+                // The list virtualizes; a row below the docker's fold has no
+                // container until it is scrolled to.
+                list.ScrollIntoView(index);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                return Assert.IsAssignableFrom<Control>(list.ContainerFromIndex(index))
+                    .GetVisualDescendants().OfType<DockPanel>()
+                    .First(p => p.ContextFlyout is MenuFlyout);
+            }
+            double GlyphLeft(DockPanel row)
+            {
+                var glyph = row.Children.OfType<TextBlock>().First(t => t.Text == ((ProjectRow)row.DataContext!).Glyph);
+                return glyph.Bounds.X;
+            }
+
+            var folderRow = RowPanel(folderIndex);
+            var twisty = folderRow.Children.OfType<Button>().Single();
+            Assert.True(twisty.Bounds.Width <= 14,
+                $"the twisty should be one indent step (14) wide, was {twisty.Bounds.Width}");
+            Assert.True(twisty.Bounds.Height <= folderRow.Bounds.Height,
+                $"the twisty should fit the row ({folderRow.Bounds.Height}), was {twisty.Bounds.Height}");
+
+            double folderGlyph = GlyphLeft(folderRow), documentGlyph = GlyphLeft(RowPanel(documentIndex));
+            Assert.True(Math.Abs(folderGlyph - documentGlyph) <= 1,
+                $"a document's glyph should sit under its folder's: folder {folderGlyph}, document {documentGlyph}");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [AvaloniaFact]
     public void TheProjectRowMenuActuallyDoesSomethingWhenClicked()
     {
         // The failure this guards is silent. A flyout's items live in a popup

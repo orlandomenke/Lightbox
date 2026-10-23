@@ -55,6 +55,11 @@
        the pill's ends so the ring never hangs over them. -->
   <x:Double x:Key="SizeEffectThumb">16</x:Double>
   <Thickness x:Key="EffectTrackInset">3,0</Thickness>
+  <!-- The project docker's folder twisty: one ProjectRow.Indent step wide,
+       so a document's glyph sits under its folder's, and short enough to
+       leave the row its own height. -->
+  <x:Double x:Key="SizeTwisty">14</x:Double>
+  <x:Double x:Key="SizeTwistyHeight">16</x:Double>
 
   <!-- ===== Docker content (step 2, area 1: the dockers) ===== -->
   <!-- A setting row in a docker: label · slider · value. One label width
