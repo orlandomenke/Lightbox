@@ -118,15 +118,27 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
     }
 
     /// <summary>
-    /// Bring the X-sheet forward and let it lay out before anything is measured
-    /// against it (B498).
+    /// Bring the X-sheet forward and wait until the window can see it under a
+    /// pointer, before anything is measured against it (B498).
     /// </summary>
     /// <remarks>
-    /// One pump after <c>Activate</c> used to be all these tests gave it, and on
-    /// CI build #2159 both of them found no scroller under a drag at the sheet's
-    /// edge — once in about 110 runs, never reproduced here, 10 of 10 under load.
-    /// A layout pass that had not run yet is the one cause that fits and that a
-    /// test can rule out, so it is ruled out here.
+    /// <para>
+    /// <b>Laid out is not the same as hit-testable.</b> The first fix waited for
+    /// layout, and release run #142 failed anyway with the sheet laid out at
+    /// 1039x167 and visible: the hit at its edge went straight through to the
+    /// window template's background panel. Reproduced here by hit-testing after
+    /// <c>UpdateLayout</c> and before any dispatcher pump: the same point, the
+    /// same panel, the same message. The window catches up on a queued
+    /// dispatcher job, and one pump only runs it if it has been queued by then,
+    /// which on a busy runner it sometimes has not.
+    /// </para>
+    /// <para>
+    /// So the condition is waited for rather than a number of pumps guessed: a
+    /// render tick and a pump until a press at the sheet's middle lands inside
+    /// it, bounded so a sheet that never arrives fails here, saying so, rather
+    /// than as a scroller that was not found. The middle and not the edge, so
+    /// the edge stays something the tests themselves find out about.
+    /// </para>
     /// </remarks>
     private static ScrollViewer ShowTheSheet(MainWindow window, MainViewModel vm)
     {
@@ -134,7 +146,22 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
         Pump();
         window.UpdateLayout();
         Pump();
-        return Scrolling(window.FindControl<ItemsControl>("XsheetLayerList")!);
+        var sheet = Scrolling(window.FindControl<ItemsControl>("XsheetLayerList")!);
+        var middle = sheet.TranslatePoint(new Point(sheet.Bounds.Width / 2, sheet.Bounds.Height / 2), window)!.Value;
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            if (window.InputHitTest(middle) is Visual hit && (hit == sheet || sheet.IsVisualAncestorOf(hit)))
+            {
+                return sheet;
+            }
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Pump();
+            Thread.Sleep(10);
+            Pump();
+        }
+        throw new InvalidOperationException(
+            "the X-sheet never became hit-testable, so no drag over it means anything; "
+            + WhatIsUnder(window, sheet, middle));
     }
 
     /// <summary>
@@ -511,6 +538,27 @@ public class DragEdgeScrollTests(Xunit.ITestOutputHelper output) : BrushStateIso
         window.EdgeScroll.Stop();
         Assert.False(window.EdgeScroll.IsScrolling);
         Assert.False(window.EdgeScroll.Tick());
+    }
+
+    /// <summary>
+    /// The precondition both X-sheet drags stand on, asserted on its own: once
+    /// shown, a pointer at the sheet's bottom edge is over the sheet (B498).
+    /// </summary>
+    /// <remarks>
+    /// If this fails the sheet was never under the pointer and the scroller is
+    /// not implicated; if this passes and a drag test fails, it is.
+    /// </remarks>
+    [AvaloniaFact]
+    public void OnceShownTheSheetIsUnderAPointerAtItsEdge()
+    {
+        var (window, vm) = Open();
+        var sheet = ShowTheSheet(window, vm);
+        var edge = sheet.TranslatePoint(new Point(sheet.Bounds.Width / 2, sheet.Bounds.Height - 5), window)!.Value;
+
+        var hit = window.InputHitTest(edge) as Visual;
+
+        Assert.True(hit is not null && (hit == sheet || sheet.IsVisualAncestorOf(hit)),
+            WhatIsUnder(window, sheet, edge));
     }
 
     [AvaloniaFact]

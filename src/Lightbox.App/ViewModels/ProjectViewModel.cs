@@ -275,6 +275,11 @@ public sealed partial class ProjectRow : ObservableObject
     /// two-level tree needs and cannot express a folder inside a folder. Depth
     /// now drives it, and a document inside a folder sits one level in from the
     /// folder itself, which is why the +1.
+    /// <para>
+    /// The step is the folder twisty's width, <c>SizeTwisty</c> in
+    /// Tokens.axaml: that is what puts a document's glyph under its folder's.
+    /// Change one, change both.
+    /// </para>
     /// </remarks>
     public double Indent =>
         Folder is null ? 0 : (Depth + (IsFolder ? 0 : 1)) * 14;
