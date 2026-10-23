@@ -2717,9 +2717,14 @@
                              rather than a click on the glyph, because collapsing
                              and selecting are different intentions and one
                              gesture cannot mean both. Empty and hit-test-invisible
-                             on every other row, so nothing shifts sideways. -->
-                        <Button DockPanel.Dock="Left" Classes="text"
-                                Width="12" Padding="0"
+                             on every other row, so nothing shifts sideways.
+                             Ghost, not text: Button.text's MinWidth of 70 and
+                             row height outrank Width, and made this a 70 px
+                             bordered box. Button.twisty is one ProjectRow.Indent
+                             step wide, the room a document is indented to sit
+                             under its folder's glyph. -->
+                        <Button DockPanel.Dock="Left" Classes="ghost twisty"
+                                Padding="0"
                                 IsVisible="{Binding IsFolder}"
                                 VerticalAlignment="Center" Opacity="0.7"
                                 Command="{Binding $parent[Window].DataContext.ProjectDocker.ToggleCollapsedCommand}"

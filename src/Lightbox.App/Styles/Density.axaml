@@ -179,6 +179,15 @@
     <Setter Property="Height" Value="{StaticResource SizeRow}" />
   </Style>
 
+  <!-- A tree's expand/collapse chevron. Min sizes as well as sizes, because
+       the base Button's MinHeight outranks Height. Pair with ghost. -->
+  <Style Selector="Button.twisty">
+    <Setter Property="Width" Value="{StaticResource SizeTwisty}" />
+    <Setter Property="MinWidth" Value="{StaticResource SizeTwisty}" />
+    <Setter Property="Height" Value="{StaticResource SizeTwistyHeight}" />
+    <Setter Property="MinHeight" Value="{StaticResource SizeTwistyHeight}" />
+  </Style>
+
   <!--
     Icon buttons: square, tight, and all the same. Opt in with Classes="icon".
 
