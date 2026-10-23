@@ -317,7 +317,10 @@ public class DockerGroupDragTests(ITestOutputHelper output) : BrushStateIsolated
             .First(d => d.PanelId == DockPanelId.Navigator);
         var at = GripPoint(docker, window);
         var root = window.FindControl<Grid>("RootGrid")!;
-        var leftEdge = new Point(12, root.Bounds.Height / 2).Transform(root.TransformToVisual(window)!.Value);
+        // Just beside the tool rail rather than on it: since Q291 the rail is
+        // not a drop target, and the left edge band starts where it ends.
+        var leftEdge = new Point(window.LeftDropEdge() + 12, root.Bounds.Height / 2)
+            .Transform(root.TransformToVisual(window)!.Value);
         output.WriteLine($"press {at}, release {leftEdge}");
 
         window.MouseDown(at, MouseButton.Left);

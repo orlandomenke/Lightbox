@@ -337,6 +337,53 @@ public sealed class WorkspaceTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
+    public void AnEmptyLeftSidebarOpensBesideTheToolRailNotOverIt()
+    {
+        // Q291. The edge band was measured from RootGrid's left edge, which is
+        // the tool rail — so with nothing docked on the left, the only place a
+        // drop opened the sidebar was over the tools, and the canvas beside
+        // them did nothing. The right edge never had this: its band sits where
+        // its sidebar is.
+        var (w, vm) = Open();
+        Assert.Empty(vm.Workspace.Layout.PanelsIn(DockSide.Left));
+        var root = w.FindControl<Grid>("RootGrid")!;
+        var rail = w.FindControl<Border>("Toolbar")!;
+        var railRight = new Avalonia.Point(rail.Bounds.Width, 0)
+            .Transform(Avalonia.VisualExtensions.TransformToVisual(rail, root)!.Value).X;
+
+        var edge = w.LeftDropEdge();
+        // The rail's splitter sits between the rail and the strip, hence the slack.
+        Assert.True(edge >= railRight && edge - railRight <= 8,
+            $"the left sidebar should open from the tool rail's edge ({railRight:0}), opened from {edge:0}");
+
+        var midY = root.Bounds.Height / 2;
+        var beside = w.ResolveDropAt(edge + 20, midY, DockPanelId.Palette);
+        Assert.Equal(DockSide.Left, beside!.Value.Side);
+        Assert.True(beside.Value.OpensArea);
+        Assert.Equal(edge, beside.Value.Preview.X);
+
+        Assert.Null(w.ResolveDropAt(railRight / 2, midY, DockPanelId.Palette));
+    }
+
+    [AvaloniaFact]
+    public void TheTopStripStaysFullWidthAboveTheToolRail()
+    {
+        // Q291's first cut narrowed the whole drop rectangle to start at the
+        // rail, which took the top edge above the rail away and drew the top
+        // strip's preview a rail's width short. The top strip spans the window;
+        // only the LEFT edge moved.
+        var (w, vm) = Open();
+        var root = w.FindControl<Grid>("RootGrid")!;
+        var rail = w.FindControl<Border>("Toolbar")!;
+        var railRight = new Avalonia.Point(rail.Bounds.Width, 0)
+            .Transform(Avalonia.VisualExtensions.TransformToVisual(rail, root)!.Value).X;
+        var top = w.ResolveDropAt(railRight / 2, 4, DockPanelId.Palette);
+        Assert.Equal(DockSide.Top, top!.Value.Side);
+        Assert.Equal(0, top.Value.Preview.X);
+        Assert.Equal(root.Bounds.Width, top.Value.Preview.Width);
+    }
+
+    [AvaloniaFact]
     public void TheProjectRowMenuActuallyDoesSomethingWhenClicked()
     {
         // The failure this guards is silent. A flyout's items live in a popup
