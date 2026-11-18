@@ -57,6 +57,9 @@ public partial class OverlayColourRatchetTests(ITestOutputHelper output)
         ["LayerStackBake.cs"] = 2,
         ["CanvasControl.Theme.cs"] = 2,
         ["OutboundImage.cs"] = 1,
+        // A diagram for a model, on white whatever the theme: paper, ink, a
+        // white halo for labels, a faint underlay and the divider.
+        ["MatchPiecesPicture.cs"] = 5,
         ["AttachmentOverlay.cs"] = 1,
     };
 

@@ -91,12 +91,24 @@ inbetweens with it. Lines you have not matched are paired the usual way, so you
 only need to match the ones it got wrong.
 
 **Solid objects and bending lines.** A long line drawn in pieces — the front of
-a leg — bends from its shape in one key to its shape in the next. A part made of
-many small lines — a shoe, a cuff, a waistband — is treated as **one solid
-object** instead: the whole thing moves, turns and scales between the keys, and
-each inbetween shows the shoe you drew in the nearer key, put in place, rather
-than lines bending towards each other into a tangle. Lightbox decides which a
-match is from its lines; right-click a matched line to say otherwise.
+a leg, however many pieces a trace cut it into — bends from its shape in one key
+to its shape in the next. A part made of many small lines crowded together — a
+shoe, a cuff, a waistband — is treated as **one solid object** instead: the
+whole thing moves, turns and scales between the keys, and each inbetween shows
+the shoe you drew in the nearer key, put in place, rather than lines bending
+towards each other into a tangle. Lightbox decides which a match is from how
+much line it has for the space it covers; right-click a matched line to say
+otherwise.
+
+A **sketchy double line** — two passes over the same edge — bends pass by pass,
+and the passes meet on the other key's line when that key has only one.
+
+A **solid object one key mostly hides** — the shoe whole in one key, only its
+heel showing under a coat in the next — is not shrunk to those few marks. It
+stays whole and goes where the line it hangs from goes, turning with it, and
+fades over the last quarter of the way while the other key's marks fade in.
+Whatever you drew in front of it on a higher layer covers it, as it does in the
+key.
 
 **Your own inbetweens are left alone.** A match redraws only the inbetweens
 Lightbox drew and nobody has changed since. One you drew yourself, touched up,
@@ -568,6 +580,52 @@ scale it looked at the frame at.
 Character sheet views are never capped: `render_reference_view` gives the view
 exactly as you drew it, because there the reference art is the thing being asked
 for rather than a look at it.
+
+### Asking an agent which line is which
+
+Matching lines by hand (see **Match lines** above) is the slow part of a traced
+or busy drawing. An agent can make a first pass for you, and you correct it in
+the Match lines mode the way you would correct your own clicks.
+
+| Tool | What it does |
+| --- | --- |
+| `render_match_pieces` | A picture of the two keys of a gap side by side, every line cut into the same pieces the Match lines mode shows and numbered — A1, A2… on the left, B1, B2… on the right. Both panels share one crop, the other key is drawn faintly underneath, and lines already matched share a colour. The text beside it lists each piece's box and length and the gap's existing matches. |
+| `set_line_matches` | The agent's answer, by number: `{"a":["A3"],"b":["B5","B6"]}` per match, optionally `"solid": true` or `false`. Saved as one undo step, and the gap's inbetweens are redrawn from the matches, exactly as your clicks would. The reply names the pieces it left out. |
+
+The agent never writes a coordinate. It names numbers it can see on the
+picture, and the engine draws the frames from your own lines — which is the
+part the earlier AI inbetweener could not do well.
+
+**What it refuses, and why.**
+
+- **A key that changed since the picture.** The numbers only mean something
+  against the drawing the agent looked at, so `render_match_pieces` hands it a
+  token and `set_line_matches` refuses a stale one.
+- **Your lines.** A piece that is in a match you made cannot be named; the
+  agent works around your matches, and they are never replaced.
+- **A name that is not a piece of that key, or a piece in two matches.**
+- **An empty answer.** It is far more likely to be an agent that came up with
+  nothing than a request to clear your matches; clearing is done in the Match
+  lines mode.
+- **A hidden or locked layer**, as for your own matching.
+
+A piece the agent leaves out of every match fades, as it does when you leave it
+unmatched.
+
+**The agent's matches are suggestions until you accept them.** In the Match lines
+mode they are drawn at half strength in their match colour. The agent's next
+answer replaces its own suggestions on that gap, and nothing else.
+
+- **Click a line of a suggested match** to accept that match as it is; it turns
+  full strength. Click again to edit it as you would your own.
+- **Changing a suggested match** — adding or taking out a line, or right-clicking
+  it to switch solid — makes it yours too.
+- **Animation ▸ Accept suggested matches** accepts every suggestion between the
+  keys under the playhead at once. It has no shortcut by default; give it one in
+  Configure.
+
+Each is one undo step. A match you accepted is stored exactly like one you
+clicked yourself, so accepting leaves nothing behind in the file.
 
 ### Timing, not just drawing
 

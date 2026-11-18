@@ -393,6 +393,7 @@ public sealed class ShortcutMap
             // left with Esc, and a redraw replaces drawings.
             new("timeline.matchLines", "Match lines between keys", "Timeline", null),
             new("timeline.redrawInbetweens", "Redraw inbetweens", "Timeline", null),
+            new("timeline.acceptSuggestedMatches", "Accept suggested matches", "Timeline", null),
             // Pinning (Q227). No default gestures: which rows the sheet shows
             // is set up once per scene, not reached for mid-stroke, and a key
             // spent here is a key the drawing verbs cannot have.
