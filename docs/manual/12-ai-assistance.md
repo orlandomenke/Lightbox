@@ -91,12 +91,24 @@ inbetweens with it. Lines you have not matched are paired the usual way, so you
 only need to match the ones it got wrong.
 
 **Solid objects and bending lines.** A long line drawn in pieces — the front of
-a leg — bends from its shape in one key to its shape in the next. A part made of
-many small lines — a shoe, a cuff, a waistband — is treated as **one solid
-object** instead: the whole thing moves, turns and scales between the keys, and
-each inbetween shows the shoe you drew in the nearer key, put in place, rather
-than lines bending towards each other into a tangle. Lightbox decides which a
-match is from its lines; right-click a matched line to say otherwise.
+a leg, however many pieces a trace cut it into — bends from its shape in one key
+to its shape in the next. A part made of many small lines crowded together — a
+shoe, a cuff, a waistband — is treated as **one solid object** instead: the
+whole thing moves, turns and scales between the keys, and each inbetween shows
+the shoe you drew in the nearer key, put in place, rather than lines bending
+towards each other into a tangle. Lightbox decides which a match is from how
+much line it has for the space it covers; right-click a matched line to say
+otherwise.
+
+A **sketchy double line** — two passes over the same edge — bends pass by pass,
+and the passes meet on the other key's line when that key has only one.
+
+A **solid object one key mostly hides** — the shoe whole in one key, only its
+heel showing under a coat in the next — is not shrunk to those few marks. It
+stays whole and goes where the line it hangs from goes, turning with it, and
+fades over the last quarter of the way while the other key's marks fade in.
+Whatever you drew in front of it on a higher layer covers it, as it does in the
+key.
 
 **Your own inbetweens are left alone.** A match redraws only the inbetweens
 Lightbox drew and nobody has changed since. One you drew yourself, touched up,

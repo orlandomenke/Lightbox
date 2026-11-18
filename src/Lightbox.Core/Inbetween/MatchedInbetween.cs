@@ -109,6 +109,10 @@ public static class MatchedInbetween
         var claimedB = new HashSet<int>();
         var drawn = new List<Stroke>();
         var matched = new List<(List<Stroke> A, List<Stroke> B)>();
+        // The bending lines' point-for-point correspondence, which a part that
+        // goes out of sight is carried by; and those parts, drawn once it is known.
+        var carriers = new List<(List<StrokePoint> A, List<StrokePoint> B)>();
+        var hidden = new List<(List<Stroke> A, List<Stroke> B)>();
 
         foreach (var part in parts)
         {
@@ -118,11 +122,28 @@ public static class MatchedInbetween
             {
                 matched.Add((pa, pb));
                 var cluster = IsCluster(pa, pb);
-                drawn.AddRange((part.Solid ?? cluster) ? Solid(pa, pb, et) : cluster ? Together(pa, pb, et) : Tween(pa, pb, et));
+                var solid = part.Solid ?? cluster;
+                if (solid && MostlyHidden(pa, pb))
+                {
+                    hidden.Add((pa, pb));
+                }
+                else if (solid) drawn.AddRange(Solid(pa, pb, et));
+                else if (cluster) drawn.AddRange(Together(pa, pb, et));
+                else
+                {
+                    foreach (var (sa, sb) in Paired(Strands(pa), Strands(pb)))
+                    {
+                        var (lines, ra, rb) = Tween(sa, sb, et);
+                        carriers.Add((ra, rb));
+                        drawn.AddRange(lines);
+                    }
+                }
             }
             else if (pa.Count > 0) drawn.AddRange(Fade(pa, Math.Max(0, 1 - et * 2)));
             else if (pb.Count > 0) drawn.AddRange(Fade(pb, Math.Max(0, et * 2 - 1)));
         }
+
+        foreach (var (pa, pb) in hidden) drawn.AddRange(Carried(pa, pb, et, carriers) ?? Solid(pa, pb, et));
 
         var restA = a.Where((_, i) => !claimedA.Contains(i)).ToList();
         var restB = b.Where((_, i) => !claimedB.Contains(i)).ToList();
@@ -257,7 +278,76 @@ public static class MatchedInbetween
     /// <summary>A side of a part strung into one path: its points, and which piece each point came from.</summary>
     private sealed record Chain(List<StrokePoint> Points, List<int> PieceOf, List<Stroke> Pieces, double Length);
 
-    private static List<Stroke> Tween(List<Stroke> a, List<Stroke> b, double et)
+    /// <summary>
+    /// Whether one key draws a solid part with under a third of the line the
+    /// other does — a shoe whole in one key and three heel marks below a coat
+    /// in the next. Drawing the nearer key's lines then shrinks it to those
+    /// marks halfway (the art-director, G12, on the traced run).
+    /// </summary>
+    private static bool MostlyHidden(List<Stroke> a, List<Stroke> b)
+    {
+        var (la, lb) = (Ink(a), Ink(b));
+        return Math.Min(la, lb) * 3 < Math.Max(la, lb);
+    }
+
+    private static double Ink(IEnumerable<Stroke> strokes) => strokes.Sum(s => GeometryOps.PathLength(s.Points));
+
+    /// <summary>
+    /// A solid part one key mostly hides, drawn whole from the key that shows
+    /// it and carried by the bending line it is nearest — a shoe goes where its
+    /// shin goes, turning as the shin turns at that end, rather than shrinking
+    /// to the other key's few marks. It stays whole for three quarters of the
+    /// way and fades over the last quarter, where the other key's marks fade
+    /// in; whatever the artist drew in front of it on another layer covers it,
+    /// as it covers it in that key. Null when no bending line is matched to
+    /// carry it, and the part is drawn as any solid part is.
+    /// </summary>
+    private static IEnumerable<Stroke>? Carried(
+        List<Stroke> a, List<Stroke> b, double et, List<(List<StrokePoint> A, List<StrokePoint> B)> carriers)
+    {
+        if (carriers.Count == 0) return null;
+        var fromA = Ink(a) >= Ink(b);
+        var (whole, marks) = fromA ? (a, b) : (b, a);
+        var s = fromA ? et : 1 - et;
+        var centre = Frame(whole).Centre;
+
+        // The carrier point nearest the part, in the key that shows it.
+        var (here, there, k) = carriers
+            .Select(c => fromA ? (Here: c.A, There: c.B) : (Here: c.B, There: c.A))
+            .Select(c => (c.Here, c.There, K: Enumerable.Range(0, c.Here.Count).MinBy(i => GeometryOps.Dist(c.Here[i], centre))))
+            .MinBy(c => GeometryOps.Dist(c.Here[c.K], centre));
+        var now = Arc.Lerp(here, there, s)[k];
+        double Heading(List<StrokePoint> line)
+        {
+            var (i, j) = (Math.Max(0, k - 3), Math.Min(line.Count - 1, k + 3));
+            return Math.Atan2(line[j].Y - line[i].Y, line[j].X - line[i].X);
+        }
+        var turn = Math.IEEERemainder(Heading(there) - Heading(here), 2 * Math.PI) * s;
+        var (cos, sin) = (Math.Cos(turn), Math.Sin(turn));
+        var anchor = here[k];
+        var fade = s <= 0.75 ? 1 : Math.Max(0, (1 - s) / 0.25);
+
+        var drawn = new List<Stroke>();
+        foreach (var line in whole)
+        {
+            var op = line.Brush.Opacity * fade;
+            if (op <= Inbetweener.FadeThreshold) continue;
+            var piece = line.Clone();
+            piece.Points = [.. line.Points.Select(p =>
+            {
+                var (x, y) = (p.X - anchor.X, p.Y - anchor.Y);
+                return p with { X = now.X + x * cos - y * sin, Y = now.Y + x * sin + y * cos };
+            })];
+            piece.Path = null;
+            piece.Brush.Opacity = op;
+            drawn.Add(piece);
+        }
+        drawn.AddRange(Fade(marks, fromA ? Math.Max(0, et * 2 - 1) : Math.Max(0, 1 - et * 2)));
+        return drawn;
+    }
+
+    /// <summary>The part's lines tweened, with the two sides' resampled points as they were made to correspond.</summary>
+    private static (List<Stroke> Lines, List<StrokePoint> A, List<StrokePoint> B) Tween(List<Stroke> a, List<Stroke> b, double et)
     {
         var ca = Strung(a);
         var cb = Strung(b);
@@ -302,7 +392,7 @@ public static class MatchedInbetween
             }
             start = i;
         }
-        return cut;
+        return (cut, ra, rb);
     }
 
     /// <summary>
@@ -325,7 +415,74 @@ public static class MatchedInbetween
     public static bool SolidByDefault(IReadOnlyList<Stroke> a, IReadOnlyList<Stroke> b) => Clustered([.. a], [.. b]);
 
     private static bool Clustered(List<Stroke> a, List<Stroke> b) =>
-        a.Count >= 4 || b.Count >= 4 || Jumps(Strung(a)) > 0.25 || Jumps(Strung(b)) > 0.25;
+        Many(a) || Many(b) || Jumps(Strung(a)) > 0.25 || Jumps(Strung(b)) > 0.25;
+
+    /// <summary>
+    /// Lines that crowd their own space — more than 1.8 times as much line as
+    /// the part's span — as a shoe, a cuff or a sketchy double line does. One
+    /// line in pieces has about as much line as span, however many pieces it
+    /// is in.
+    /// </summary>
+    /// <remarks>
+    /// Counting pieces was the rule before (four or more), and it misfired both
+    /// ways on the legs of the AI test file. A traced leg's underside, cut into
+    /// six pieces at its junctions, was moved rigidly as an object and stuck
+    /// straight out across the other leg (the art-director, G12). A sketch's
+    /// thigh drawn as two lines side by side was strung down one and back up
+    /// the other and tweened into a knot. A closed outline of two or three
+    /// pieces — a circle — has a lot of line for its box and still bends, as it
+    /// always has.
+    /// </remarks>
+    private static bool Many(List<Stroke> side) =>
+        side.Count >= 2
+        && Ink(side) > 1.8 * 2 * Frame(side).Spread
+        && Strands(side).Count == 1
+        && !(side.Count < 4 && Closed(Strung(side)));
+
+    /// <summary>
+    /// A side drawn as two or more passes over one line — a sketch's double
+    /// line — split into its passes, each with the short marks nearest it; any
+    /// other side is one strand. Strung end to end, the passes run down one and
+    /// back up the other, and that tweens into a knot.
+    /// </summary>
+    /// <remarks>
+    /// A pass is a line at least 0.6 of the side's span. Passes are most of
+    /// the side's line (70% or more), and the side has at most 2.6 times as
+    /// much line as span — which a shoe does not: its two long edges are a
+    /// third of its line and the rest is laces, sole and heel.
+    /// </remarks>
+    private static List<List<Stroke>> Strands(List<Stroke> side)
+    {
+        if (side.Count < 2) return [side];
+        var span = 2 * Frame(side).Spread;
+        var passes = side.Where(s => GeometryOps.PathLength(s.Points) >= 0.6 * span).ToList();
+        if (passes.Count < 2 || Ink(passes) < 0.7 * Ink(side) || Ink(side) > 2.6 * span) return [side];
+        var strands = passes.Select(p => new List<Stroke> { p }).ToList();
+        foreach (var mark in side.Where(s => !passes.Contains(s) && s.Points.Count > 0))
+        {
+            var at = GeometryOps.Centroid(mark.Points);
+            strands.MinBy(st => st[0].Points.Min(q => GeometryOps.Dist(q, at)))!.Add(mark);
+        }
+        return strands;
+    }
+
+    /// <summary>
+    /// The two sides' strands paired: each strand of the side with more goes
+    /// with the nearest strand of the other, so two passes in key A both
+    /// become key B's single line, and meet there.
+    /// </summary>
+    private static IEnumerable<(List<Stroke> A, List<Stroke> B)> Paired(List<List<Stroke>> a, List<List<Stroke>> b)
+    {
+        static StrokePoint Mid(List<Stroke> st) => Frame(st).Centre;
+        if (a.Count >= b.Count)
+        {
+            foreach (var sa in a) yield return (sa, b.MinBy(sb => GeometryOps.Dist(Mid(sa), Mid(sb)))!);
+        }
+        else
+        {
+            foreach (var sb in b) yield return (a.MinBy(sa => GeometryOps.Dist(Mid(sa), Mid(sb)))!, sb);
+        }
+    }
 
     /// <summary>How much of a chain is the jumps between its pieces, as a share of its length.</summary>
     private static double Jumps(Chain chain)
