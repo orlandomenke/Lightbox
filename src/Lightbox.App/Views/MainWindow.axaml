@@ -515,6 +515,7 @@
           <MenuItem Header="Inbetween" Click="OnMenuMarkAsInbetween" />
         </MenuItem>
         <MenuItem Header="_Match lines between keys" ToggleType="CheckBox" IsChecked="{Binding LineMatchMode}" ToolTip.Tip="Click a line of the first key, then the lines it becomes in the second; the inbetweens follow" />
+        <MenuItem Header="Accept su_ggested matches" Command="{Binding AcceptSuggestedMatchesCommand}" ToolTip.Tip="Make the matches an agent suggested between the keys under the playhead your own, so its next answer leaves them alone" />
         <MenuItem Header="_Redraw inbetweens" Command="{Binding RedrawInbetweensCommand}" ToolTip.Tip="Redraw this run's inbetweens from its keys and matches. Replaces touched-up ones; Undo restores them" />
         <MenuItem Header="Insert empt_y cell" Click="OnMenuInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n — the playhead's cel, or the selection" />
         <MenuItem Header="Insert blank key_frame" Click="OnMenuInsertBlankKeyframe" ToolTip.Tip="Empty cels become keyframes with nothing drawn on them (I over the X-sheet) — the playhead's cel, or the selection" />

@@ -14,7 +14,7 @@ namespace Lightbox.App.Services;
 /// trusted), <see cref="MainViewModel"/> operations for mutation (undoable).
 /// Must be called on the UI thread — <see cref="IpcServer"/> marshals.
 /// </summary>
-public sealed class IpcDocumentApi(MainViewModel vm)
+public sealed partial class IpcDocumentApi(MainViewModel vm)
 {
     /// <summary>
     /// The view model, held weakly — B281. The server's accept loop parks a
@@ -72,6 +72,8 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 "move_to_folder" => MoveToFolder(request),
                 "group_layers" => GroupLayers(request),
                 "set_folder_shape" => SetFolderShape(request),
+                "render_match_pieces" => RenderMatchPieces(request),
+                "set_line_matches" => SetLineMatches(request),
                 _ => Lab?.Invoke(request) ?? IpcProtocol.Response.Fail($"Unknown op \"{request.Op}\"."),
             };
         }

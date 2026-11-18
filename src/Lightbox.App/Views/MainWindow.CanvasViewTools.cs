@@ -674,6 +674,9 @@ public partial class MainWindow
             case "timeline.redrawInbetweens":
                 _vm.RedrawInbetweensCommand.Execute(null);
                 break;
+            case "timeline.acceptSuggestedMatches":
+                _vm.AcceptSuggestedMatchesCommand.Execute(null);
+                break;
             case "docker.splitGroup":
                 _vm.SplitGroupCommand.Execute(null);
                 break;
