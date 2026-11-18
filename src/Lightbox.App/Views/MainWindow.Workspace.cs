@@ -971,8 +971,29 @@ public partial class MainWindow : IFollowsUiScale
     {
         if (_dragging is not { } panel) return null;
         if (PointerOverRoot(e) is not { } at) return null;
-        return DockZones.Resolve(
-            at.X, at.Y, RectOf(RootGrid), CurrentSlots(), panel.PanelId, _vm.Workspace.Layout, _draggingGroup);
+        return ResolveDropAt(at.X, at.Y, panel.PanelId, _draggingGroup);
+    }
+
+    /// <summary>What a drop of <paramref name="dragged"/> at a RootGrid point would do.</summary>
+    internal DropTarget? ResolveDropAt(double x, double y, DockPanelId dragged, bool wholeGroup = false) =>
+        DockZones.Resolve(
+            x, y, RectOf(RootGrid), CurrentSlots(), dragged, _vm.Workspace.Layout, wholeGroup, LeftDropEdge());
+
+    /// <summary>Where the left sidebar opens from, in RootGrid coordinates.</summary>
+    /// <remarks>
+    /// <b>Q291.</b> The tool rail's right edge (rail plus its splitter), not
+    /// RootGrid's left edge. The edge bands were measured from RootGrid, whose
+    /// left edge is the rail, so an empty left sidebar could only be opened by
+    /// dropping on the tools. Only the left edge moves: the top and bottom
+    /// strips span the window, rail included. Measured from the rail's columns
+    /// rather than from LeftHost, because an empty left host is collapsed and
+    /// has no position worth reading.
+    /// </remarks>
+    internal double LeftDropEdge()
+    {
+        if (WorkArea.TransformToVisual(RootGrid) is not { } toRoot) return 0;
+        var rail = WorkArea.ColumnDefinitions[0].ActualWidth + WorkArea.ColumnDefinitions[1].ActualWidth;
+        return Math.Clamp(new Point(rail, 0).Transform(toRoot).X, 0, RootGrid.Bounds.Width);
     }
 
     /// <summary>
