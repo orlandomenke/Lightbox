@@ -124,11 +124,23 @@ timeline is not offered on other headers, since it never leaves the bottom, and
 a floating panel's menu has only Dock back and Close, because a window of its
 own holds one panel.
 
-**Panels share a slot by being dragged onto each other's headers.** Drop a panel
-on another panel's header and the two become tabs in one slot; drop it on the
-body, or on an edge, and it gets a slot of its own as before. Dragging the last
-tab out of a group leaves the remaining panel an ordinary panel again — a group
-is nothing more than the panels currently sharing a slot.
+**Where a dragged panel lands depends on where on the other panel you let go.**
+The header and most of the body make the two panels tabs in one slot. In a
+sidebar, the **bottom quarter** of a panel splits the sidebar: the dragged panel
+gets a slot of its own below it. In the top and bottom strips — the timeline's
+row — only a thin band at a panel's right-hand edge splits, so the frames stay
+something you can aim at. A split always goes below (or to the right of) the
+panel you drop on. The highlight shows which one you are about to get — the
+whole panel for a tab, a band at the edge for a split. Dragging the last tab out
+of a group leaves the remaining panel an ordinary panel again — a group is
+nothing more than the panels currently sharing a slot.
+
+**An empty side opens from its edge.** Drag a panel to the edge of the window
+and the sidebar it would open is highlighted. On the left, the edge is where the
+tool rail ends, not the rail itself, so drop on the canvas just beside the tools.
+Both sidebars work the same way: each holds a stack of up to four slots. On a
+side that already has four, the bottom quarter tabs into the panel under the
+pointer instead, and the highlight says so.
 
 **Tabs rearrange by dragging along the header.** Pick a tab up and slide it past
 its neighbours: a bright **caret** marks the gap it will drop into, and letting

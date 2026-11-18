@@ -79,6 +79,80 @@ public class DockZoneTests
     }
 
     [Fact]
+    public void AnUndockedPanelInsertsOnTheLeftWhereThePreviewSays()
+    {
+        // B500. The "moving within its own strip" correction looked the
+        // dragged panel's slot up with FirstOrDefault, and a floating panel has
+        // none — so it read default(PanelSlot), whose Side is Left. Every
+        // left-side insert after the first was taken one place high.
+        // The same drops on the right are the control: they were always right.
+        var lTop = new PanelSlot(DockPanelId.Layers, DockSide.Left, 0, new(0, 0, 300, 400));
+        var lBot = new PanelSlot(DockPanelId.Color, DockSide.Left, 1, new(0, 400, 300, 400));
+
+        Assert.Equal(0, At(150, 5, DockPanelId.Palette, lTop, lBot)!.Value.Index);
+        Assert.Equal(1, At(150, 410, DockPanelId.Palette, lTop, lBot)!.Value.Index);
+        Assert.Equal(2, At(150, 790, DockPanelId.Palette, lTop, lBot)!.Value.Index);
+        Assert.Equal(
+            At(1000, 410, DockPanelId.Palette, Top, Bot)!.Value.Index,
+            At(150, 410, DockPanelId.Palette, lTop, lBot)!.Value.Index);
+    }
+
+    [Fact]
+    public void TheBottomQuarterOfADockerSplitsIt()
+    {
+        // Q290. The 18 px sliver was the only way to split a sidebar, and a
+        // lone docker has one of them — its top band is under the header. The
+        // trailing quarter now inserts; the rest of the body still joins.
+        var lone = new PanelSlot(DockPanelId.Layers, DockSide.Left, 0, new(0, 0, 300, 400));
+
+        var split = At(150, 320, DockPanelId.Palette, lone);
+        Assert.Equal(DockSide.Left, split!.Value.Side);
+        Assert.Equal(1, split.Value.Index);
+        Assert.Null(split.Value.IntoGroupOf);
+
+        var join = At(150, 280, DockPanelId.Palette, lone);
+        Assert.Equal(DockPanelId.Layers, join!.Value.IntoGroupOf);
+    }
+
+    [Fact]
+    public void AHorizontalStripKeepsTheSliver()
+    {
+        // Q290 is the side strips' rule. The bottom strip is the timeline,
+        // whose right-hand quarter is frames an artist aims at; nobody asked
+        // for a split there, so only its last 18 px inserts.
+        var wide = new PanelSlot(DockPanelId.Layers, DockSide.Bottom, 0, new(0, 600, 800, 200));
+
+        Assert.Equal(DockPanelId.Layers, At(650, 700, DockPanelId.Palette, wide)!.Value.IntoGroupOf);
+        var sliver = At(790, 700, DockPanelId.Palette, wide);
+        Assert.Null(sliver!.Value.IntoGroupOf);
+        Assert.Equal(1, sliver.Value.Index);
+    }
+
+    [Fact]
+    public void AFullSideJoinsThePanelUnderThePointerInsteadOfPreviewingASplit()
+    {
+        // DockLayout refuses a fifth slot and tabs the panel in instead, so a
+        // split band on a full side previewed something that never happened —
+        // and the quarter made it easy to hit. The edge now offers the join
+        // the drop will actually be, on the panel the pointer is over.
+        PanelSlot Slot(DockPanelId id, int order) =>
+            new(id, DockSide.Left, order, new(0, order * 200, 300, 200));
+        var full = new[]
+        {
+            Slot(DockPanelId.Layers, 0), Slot(DockPanelId.Color, 1),
+            Slot(DockPanelId.Navigator, 2), Slot(DockPanelId.History, 3),
+        };
+
+        var drop = At(150, 380, DockPanelId.Palette, full);
+        Assert.Equal(DockPanelId.Color, drop!.Value.IntoGroupOf);
+        Assert.Equal(full[1].Bounds, drop.Value.Preview);
+
+        // A panel already on the side is only moving within it: still a split.
+        var move = At(150, 380, DockPanelId.Layers, full);
+        Assert.Null(move!.Value.IntoGroupOf);
+    }
+
+    [Fact]
     public void ThePreviewIsABandAtTheBoundarySoTheNeighbourVisiblyMakesRoom()
     {
         // A highlight floating over the panel does not tell you what you are
@@ -174,8 +248,10 @@ public class DockZoneTests
         {
             new(DockPanelId.Layers, DockSide.Right, 0, new DockRect(700, 0, 300, 400), 22),
         };
+        // Q290 narrowed "the body" to its leading three-quarters — the
+        // trailing quarter splits — so this aims at the middle of it.
 
-        var drop = DockZones.Resolve(820, 300, content, slots, DockPanelId.Palette, DockLayout.Default());
+        var drop = DockZones.Resolve(820, 200, content, slots, DockPanelId.Palette, DockLayout.Default());
 
         Assert.NotNull(drop);
         Assert.Equal(DockPanelId.Layers, drop!.Value.IntoGroupOf);
@@ -360,7 +436,7 @@ public class DockZoneTests
         // A gesture that never went near the strip cannot mean a place in it,
         // and last is the only honest reading.
         var drop = DockZones.Resolve(
-            820, 300, Big, [Tabbed(DockPanelId.Layers)], DockPanelId.Gradient, DockLayout.Default());
+            820, 200, Big, [Tabbed(DockPanelId.Layers)], DockPanelId.Gradient, DockLayout.Default());
 
         Assert.Equal(DockPanelId.Layers, drop!.Value.IntoGroupOf);
         Assert.Null(drop.Value.TabIndex);

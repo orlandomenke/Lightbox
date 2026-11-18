@@ -119,8 +119,13 @@ public static class DockZones
         IReadOnlyList<PanelSlot> slots,
         DockPanelId dragged,
         DockLayout layout,
-        bool wholeGroup = false)
+        bool wholeGroup = false,
+        double? leftEdge = null)
     {
+        // leftEdge: where the left sidebar opens from, when that is not the
+        // content's own left edge (Q291) — the tool rail sits between them.
+        // Only the left band and the left preview move; the top and bottom
+        // strips still span the content, rail included.
         // wholeGroup: the carried thing is the slot <paramref name="dragged"/>
         // fronts, not the one panel (Q278). Its own header then means nothing —
         // a tab over its own header is a rearrangement, a group over its own
@@ -142,7 +147,8 @@ public static class DockZones
         }
 
         // Not over a panel: the edges of the free space are the offer.
-        var side = NearestEdge(x, y, content);
+        var left = leftEdge ?? content.X;
+        var side = NearestEdge(x, y, content, left);
         if (side is null) return null;
 
         var existing = CountIn(slots, side.Value);
@@ -150,12 +156,12 @@ public static class DockZones
         {
             // The strip is there but the pointer missed its panels (the gap
             // under a short stack). Append.
-            return new DropTarget(side.Value, existing, StripPreview(side.Value, content, dragged))
+            return new DropTarget(side.Value, existing, StripPreview(side.Value, content, dragged, left))
             {
                 OpensArea = false,
             };
         }
-        return new DropTarget(side.Value, 0, StripPreview(side.Value, content, dragged))
+        return new DropTarget(side.Value, 0, StripPreview(side.Value, content, dragged, left))
         {
             OpensArea = true,
         };
@@ -172,12 +178,31 @@ public static class DockZones
     }
 
     /// <summary>
-    /// How deep the insert bands at a panel's first and last edge run. Slim on
+    /// How deep the insert band at a panel's leading edge runs. Slim on
     /// purpose: the owner's call is that a panel's body is ONE target — join
-    /// its tabs — with the half-panel insert targets gone. The bands remain
+    /// its tabs — with the half-panel insert targets gone. The band remains
     /// only so a stack can still be reordered and a tab group still split.
     /// </summary>
     public const double InsertBand = 18;
+
+    /// <summary>
+    /// The share of a side-strip panel, at its bottom edge, that inserts below
+    /// it rather than joining it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Q290.</b> Was the same 18 px as the leading band, which made the
+    /// trailing edge the only way to split a sidebar — the leading band sits
+    /// under the header, which claims it for joining — and a lone docker had
+    /// one 18 px target to split it by. The owner's report was that the left
+    /// side "did not have the logic" the right had; the right only had more
+    /// dockers, and so more slivers.
+    /// <para>
+    /// Side strips only. A top or bottom strip keeps the sliver: the bottom
+    /// strip is the timeline, whose right-hand quarter is frames an artist
+    /// aims at, and nobody asked for a split there.
+    /// </para>
+    /// </remarks>
+    public const double SplitShare = 0.25;
 
     /// <summary>
     /// Join the panel under the pointer, or slip in at one of its edges.
@@ -208,7 +233,18 @@ public static class DockZones
             if (wholeGroup && slot.Id == dragged) return null;
             return JoinAtTab(slot, x, dragged);
         }
-        if (along >= band && along <= span - band)
+        var trailing = vertical ? span * SplitShare : band;
+        if (along >= band && along < span - trailing)
+        {
+            return Join(slot, dragged);
+        }
+
+        // A full side takes no new slot: DockLayout tabs the panel in instead.
+        // Previewing a split there would show one outcome and deliver another,
+        // so the edge offers what will actually happen — joining this panel.
+        // A panel already on this side is moving within it, which adds nothing.
+        if (CountIn(slots, slot.Side) >= DockLayout.MaxSlotsPerSide
+            && !slots.Any(s => s.Id == dragged && s.Side == slot.Side))
         {
             return Join(slot, dragged);
         }
@@ -218,8 +254,10 @@ public static class DockZones
         // Dropping a panel back where it already is: taking it out shifts
         // everything after it up by one, so the index has to come with it or
         // the panel walks one place forward on every no-op drag.
-        var draggedSlot = slots.FirstOrDefault(s => s.Id == dragged);
-        if (draggedSlot.Side == slot.Side && draggedSlot.Order < index) index--;
+        // B500: only when the dragged panel HAS a slot. A floating one has
+        // none, and FirstOrDefault handed back default(PanelSlot) — Side Left,
+        // Order 0 — so every left-side insert after the first landed one high.
+        if (slots.Any(s => s.Id == dragged && s.Side == slot.Side && s.Order < index)) index--;
 
         // The preview is a band at the boundary, as deep as the dragged panel
         // wants, so the neighbour visibly makes room rather than the highlight
@@ -371,12 +409,12 @@ public static class DockZones
     }
 
     /// <summary>The whole strip, at the width or height the panel would open at.</summary>
-    private static DockRect StripPreview(DockSide side, DockRect content, DockPanelId dragged)
+    private static DockRect StripPreview(DockSide side, DockRect content, DockPanelId dragged, double left)
     {
         var info = DockPanels.Of(dragged);
         return side switch
         {
-            DockSide.Left => new DockRect(content.X, content.Y, Across(info), content.Height),
+            DockSide.Left => new DockRect(left, content.Y, Across(info), content.Height),
             DockSide.Right => new DockRect(content.Right - Across(info), content.Y, Across(info), content.Height),
             DockSide.Top => new DockRect(content.X, content.Y, content.Width, info.DefaultExtent),
             _ => new DockRect(content.X, content.Bottom - info.DefaultExtent, content.Width, info.DefaultExtent),
@@ -388,9 +426,10 @@ public static class DockZones
         static double Across(DockPanelInfo info) => info.MaxExtent ?? 300;
     }
 
-    private static DockSide? NearestEdge(double x, double y, DockRect content)
+    private static DockSide? NearestEdge(double x, double y, DockRect content, double leftEdge)
     {
-        var left = x - content.X;
+        // Short of the left edge — over the tool rail — is not the left band.
+        var left = x < leftEdge ? double.PositiveInfinity : x - leftEdge;
         var right = content.Right - x;
         var top = y - content.Y;
         var bottom = content.Bottom - y;
