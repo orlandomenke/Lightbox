@@ -257,7 +257,11 @@ public static class DockZones
         // B500: only when the dragged panel HAS a slot. A floating one has
         // none, and FirstOrDefault handed back default(PanelSlot) — Side Left,
         // Order 0 — so every left-side insert after the first landed one high.
-        if (slots.Any(s => s.Id == dragged && s.Side == slot.Side && s.Order < index)) index--;
+        // B501: and only when taking it out closes its slot. A tab pulled from
+        // the front of a group leaves the group where it was, and nothing after
+        // it moves.
+        if (slots.Any(s => s.Id == dragged && s.Side == slot.Side && s.Order < index
+                           && (wholeGroup || s.Strip.Count < 2))) index--;
 
         // The preview is a band at the boundary, as deep as the dragged panel
         // wants, so the neighbour visibly makes room rather than the highlight
