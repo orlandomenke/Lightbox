@@ -491,6 +491,6 @@ public partial class MainViewModel
         var charted = rungs is not null && rungs.Count == targets.Count;
         var times = charted ? rungs! : [.. targets.Select(i => (i - aIndex) / span)];
         var drawn = Inbetweener.InbetweenRun(stops, times, charted ? Easing.Linear : TweenEasing);
-        return [.. targets.Select((cel, k) => (cel, NewFrameFor(layer, drawn[k], FrameRole.Inbetween)))];
+        return [.. targets.Select((cel, k) => (cel, NewFrameFor(layer, CleanedIfAsked(drawn[k], times[k], stops), FrameRole.Inbetween)))];
     }
 }

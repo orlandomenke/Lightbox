@@ -658,6 +658,7 @@ public partial class MainWindow
                 _vm.CancelPolygon();
                 _vm.CancelGradient();
                 _vm.LineMatchMode = false;   // Q271: Esc finishes matching
+                if (_vm.IsCleanupPending) _vm.CancelCleanupCommand.Execute(null);   // Q292: Esc cancels a cleanup preview
                 return; // leave Escape unhandled so open flyouts still close
             case "docker.deleteLayer":
                 _vm.DeleteActiveLayerCommand.Execute(null);
@@ -673,6 +674,21 @@ public partial class MainWindow
                 break;
             case "timeline.redrawInbetweens":
                 _vm.RedrawInbetweensCommand.Execute(null);
+                break;
+            case "timeline.cleanLines":
+                _vm.CleanLinesCommand.Execute(null);
+                break;
+            case "timeline.cleanLinesTowardKeys":
+                _vm.CleanLinesTowardKeysCommand.Execute(null);
+                break;
+            case "timeline.applyCleanup":
+                _vm.ApplyCleanupCommand.Execute(null);
+                break;
+            case "timeline.cancelCleanup":
+                _vm.CancelCleanupCommand.Execute(null);
+                break;
+            case "timeline.cleanNewInbetweens":
+                _vm.CleanNewInbetweens = !_vm.CleanNewInbetweens;
                 break;
             case "docker.splitGroup":
                 _vm.SplitGroupCommand.Execute(null);
