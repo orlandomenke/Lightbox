@@ -571,6 +571,15 @@
         </StackPanel>
 
         <StackPanel Spacing="{StaticResource Space6}">
+          <TextBlock Text="Generated inbetweens" FontWeight="SemiBold" />
+          <CheckBox x:Name="CleanNewInbetweensBox" Content="Clean each inbetween toward its keys as it is made"
+                    IsCheckedChanged="OnCleanNewInbetweensChanged"
+                    ToolTip.Tip="＋ Inbetween and Redraw inbetweens tidy what they draw: kinks where pieces meet, ends that miss, faint orphan marks" />
+          <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeDense}" Opacity="0.7"
+                     Text="Off by default. It reaches only the drawings the inbetweener has just made, never a key or a breakdown, and the cleaned drawing is written in the same undo step as the insert. No line moves further than it is wide." />
+        </StackPanel>
+
+        <StackPanel Spacing="{StaticResource Space6}">
           <TextBlock Text="The rig during playback" FontWeight="SemiBold" />
           <CheckBox x:Name="AnimateRigBox" Content="Show the bones while the animation plays"
                     IsCheckedChanged="OnAnimateRigChanged"

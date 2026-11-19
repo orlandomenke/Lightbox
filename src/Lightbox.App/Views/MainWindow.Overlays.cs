@@ -53,6 +53,17 @@ public partial class MainWindow
         // Q271: Match lines is pushed the same way, and its presses go straight
         // to the view model, with a reach of a few screen pixels in document units.
         _vm.LineMatchChanged += overlay => Canvas.LineMatch = overlay;
+        // Q292: a cleanup preview is pushed the same way, and follows the
+        // playhead so a preview of several drawings shows the one on screen.
+        _vm.CleanupChanged += overlay => Canvas.Cleanup = overlay;
+        _vm.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is nameof(MainViewModel.CurrentFrameIndex) or nameof(MainViewModel.ActiveLayerIndex)
+                && _vm.IsCleanupPending)
+            {
+                _vm.RefreshCleanupView();
+            }
+        };
         _vm.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName is nameof(MainViewModel.LineMatchMode)) Canvas.LineMatchMode = _vm.LineMatchMode;

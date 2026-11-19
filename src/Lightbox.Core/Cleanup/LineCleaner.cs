@@ -235,7 +235,7 @@ public static class LineCleaner
     /// A plain drawn line whose points can move without breaking anything that
     /// is stored beside them.
     /// </summary>
-    internal static bool Cleanable(Stroke s) =>
+    public static bool Cleanable(Stroke s) =>
         s.Tool == ToolKind.Brush
         && s.Group is null && s.Path is null
         && s.Weights is null && s.RestPoints is null

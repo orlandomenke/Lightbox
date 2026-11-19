@@ -674,6 +674,18 @@ public partial class MainWindow
             case "timeline.redrawInbetweens":
                 _vm.RedrawInbetweensCommand.Execute(null);
                 break;
+            case "timeline.cleanLines":
+                _vm.CleanLinesCommand.Execute(null);
+                break;
+            case "timeline.cleanLinesTowardKeys":
+                _vm.CleanLinesTowardKeysCommand.Execute(null);
+                break;
+            case "timeline.applyCleanup":
+                _vm.ApplyCleanupCommand.Execute(null);
+                break;
+            case "timeline.cancelCleanup":
+                _vm.CancelCleanupCommand.Execute(null);
+                break;
             case "docker.splitGroup":
                 _vm.SplitGroupCommand.Execute(null);
                 break;

@@ -1898,7 +1898,7 @@ public partial class MainViewModel
                 gap.AIndex,
                 Frames: (IReadOnlyList<Frame?>)Inbetweener
                     .InbetweenRun(stops, gap.Times, easing)
-                    .Select(strokes => (Frame?)NewFrameFor(layer, strokes, FrameRole.Inbetween))
+                    .Select((strokes, k) => (Frame?)NewFrameFor(layer, CleanedIfAsked(strokes, gap.Times[k], stops), FrameRole.Inbetween))
                     .ToList()))
             .Where(gap => gap.Frames.Count > 0)
             .ToList();

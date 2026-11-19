@@ -492,6 +492,20 @@ public sealed class AppSettings
     /// </remarks>
     public bool MarkOffSheetKeys { get; set; }
 
+    /// <summary>
+    /// Whether generated inbetweens are cleaned toward the keys either side as
+    /// they are made (Q294).
+    /// </summary>
+    /// <remarks>
+    /// <b>Off, and that is the owner's rule rather than a default.</b> Nothing
+    /// tidies a drawing nobody asked to have tidied; an artist who wants every
+    /// generated inbetween cleaned says so once, here or on the timeline bar.
+    /// It reaches only drawings the inbetweener has just made, never a key or a
+    /// breakdown, and the cleaned drawing is the one written — in the same undo
+    /// step as the insert.
+    /// </remarks>
+    public bool CleanNewInbetweens { get; set; }
+
     /// <summary>How the X-sheet shows a cel's drawing: its number, a dot, or a picture (Q282).</summary>
     /// <remarks>
     /// Written by name, so the file says what it means and a reordered enum
