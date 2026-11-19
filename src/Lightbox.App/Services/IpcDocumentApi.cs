@@ -666,7 +666,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         {
             p.FrameIndex,
             LayerId = layer.Id,
-            Sheet = SheetToken(target.Before),
+            Sheet = SheetToken(target),
             Lines = target.Sheet.Lines.Count,
             Listing = target.Sheet.Listing(),
             PngBase64 = Rendering.LineReviewPicture.Png(target.Sheet),
@@ -689,7 +689,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
             return IpcProtocol.Response.Fail("The artist has a cleanup preview open — it is theirs to apply or cancel first.");
         var (target, why) = Vm.ReviewTargetAt(layer, p.FrameIndex);
         if (target is null) return IpcProtocol.Response.Fail(why!);
-        if (p.Sheet != SheetToken(target.Before))
+        if (p.Sheet != SheetToken(target))
             return IpcProtocol.Response.Fail("The drawing changed since its sheet was read — call render_line_review again; line numbers may have moved.");
         if (p.Fixes is not { } fixesJson)
             return IpcProtocol.Response.Fail("fixes is required: {\"fixes\":[...]} as render_line_review describes.");
@@ -715,11 +715,30 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         });
     }
 
-    /// <summary>A short name for one exact drawing: its strokes' ids and point counts, hashed.</summary>
-    private static string SheetToken(IReadOnlyList<Stroke> strokes)
+    /// <summary>
+    /// A short name for exactly what a sheet numbered: every numbered line of
+    /// the inbetween and of both keys, by id, tool, width and every point
+    /// (adversary review: ids and counts alone let a moved line through).
+    /// </summary>
+    private static string SheetToken(MainViewModel.ReviewTarget target)
     {
-        var text = string.Join("|", strokes.Select(s => $"{s.Id}:{s.Points.Count}"));
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)))[..16];
+        var text = new System.Text.StringBuilder();
+        foreach (var (tag, lines) in new[] { ("L", target.Sheet.Lines), ("A", target.Sheet.KeyA), ("B", target.Sheet.KeyB) })
+        {
+            foreach (var s in lines)
+            {
+                text.Append(tag).Append(s.Id).Append(':').Append(s.Tool).Append(':')
+                    .Append(s.Brush.Size.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+                foreach (var pt in s.Points)
+                {
+                    text.Append(';').Append(BitConverter.DoubleToInt64Bits(pt.X)).Append(',')
+                        .Append(BitConverter.DoubleToInt64Bits(pt.Y)).Append(',')
+                        .Append(BitConverter.DoubleToInt64Bits(pt.Pressure));
+                }
+                text.Append('|');
+            }
+        }
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text.ToString())))[..16];
     }
 
     private sealed class CleanRef

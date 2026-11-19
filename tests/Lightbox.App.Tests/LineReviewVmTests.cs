@@ -24,6 +24,11 @@ public sealed class LineReviewVmTests : BrushStateIsolated
     {
         public LineReviewRequest? Last { get; private set; }
         public int Calls { get; private set; }
+        public bool Images { get; init; } = true;
+        public TaskCompletionSource? Gate { get; init; }
+        public TaskCompletionSource Called { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool TakesImages => Images;
 
         public Task<AiResult<List<InbetweenFrameResult>>> GenerateInbetweensAsync(InbetweenRequest request, CancellationToken ct) =>
             Task.FromResult(AiResult<List<InbetweenFrameResult>>.Error("unscripted", false));
@@ -31,11 +36,13 @@ public sealed class LineReviewVmTests : BrushStateIsolated
         public Task<AiResult<SubjectTaxonomy>> ReadSubjectAsync(SubjectRequest request, CancellationToken ct) =>
             Task.FromResult(AiResult<SubjectTaxonomy>.Error("unscripted", false));
 
-        public Task<AiResult<List<ReviewFix>>> ReviewLinesAsync(LineReviewRequest request, CancellationToken ct)
+        public async Task<AiResult<List<ReviewFix>>> ReviewLinesAsync(LineReviewRequest request, CancellationToken ct)
         {
             Last = request;
             Calls++;
-            return Task.FromResult(AiResult<List<ReviewFix>>.Success([.. fixes]));
+            Called.TrySetResult();
+            if (Gate is { } gate) await gate.Task;
+            return AiResult<List<ReviewFix>>.Success([.. fixes]);
         }
     }
 
@@ -132,7 +139,7 @@ public sealed class LineReviewVmTests : BrushStateIsolated
         await vm.ReviewLinesWithAiCommand.ExecuteAsync(null);
 
         Assert.False(vm.IsCleanupPending);
-        Assert.Contains("needs a provider", vm.AiStatus);
+        Assert.Contains("Choose an AI provider", vm.AiStatus);
     }
 
     [AvaloniaFact]
@@ -158,7 +165,7 @@ public sealed class LineReviewVmTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
-    public void WhenAskedANewInbetweenIsReviewedAndTheFindingsWaitAsAPreview()
+    public async Task WhenAskedANewInbetweenIsReviewedAndTheFindingsWaitAsAPreview()
     {
         var reviewer = new Reviewer(new ReviewFix(ReviewFixKind.Join, 1, false, 2, true, ["A1"], "The pieces should meet."));
         var vm = new MainViewModel(reviewer) { SmoothStrokes = false, ReviewNewInbetweensWithAi = true };
@@ -172,6 +179,7 @@ public sealed class LineReviewVmTests : BrushStateIsolated
         var keyStrokes = vm.PaintLayer().Cels[0].Frame!.Strokes.Select(s => s.Points.ToList()).ToList();
 
         vm.InsertInbetweensCommand.Execute(null);
+        await vm.ReviewAfterInsert;
 
         Assert.Equal(1, reviewer.Calls);
         Assert.True(vm.IsCleanupPending);
@@ -234,6 +242,70 @@ public sealed class LineReviewVmTests : BrushStateIsolated
 
         Assert.False(resp.Ok);
         Assert.Contains("for inbetweens", resp.Error);
+    }
+
+    [AvaloniaFact]
+    public async Task AProviderThatTakesNoPictureGetsNoneAndTheKeysNeighboursInstead()
+    {
+        var reviewer = new Reviewer { Images = false };
+        var vm = KneeInbetween(reviewer);
+
+        await vm.ReviewLinesWithAiCommand.ExecuteAsync(null);
+
+        Assert.Null(reviewer.Last!.Picture);
+        Assert.NotNull(reviewer.Last.TextOnlyListing);
+        Assert.True(reviewer.Last.TextOnlyListing!.Length > reviewer.Last.Listing.Length);
+    }
+
+    [AvaloniaFact]
+    public async Task TheOptInNeverReplacesAPreviewOpenedWhileItWasAsking()
+    {
+        // Every reviewer found it: the artist opens a cleanup while the
+        // automatic review is out, and the review must not take its place.
+        var gate = new TaskCompletionSource();
+        var reviewer = new Reviewer(new ReviewFix(ReviewFixKind.Join, 1, false, 2, true, ["A1"], "meet")) { Gate = gate };
+        var vm = new MainViewModel(reviewer) { SmoothStrokes = false, ReviewNewInbetweensWithAi = true };
+        Draw(vm, 90, 0, 90, 100);
+        Draw(vm, 90, 110, 90, 300);
+        vm.AddFrameCommand.Execute(null);
+        Draw(vm, 110, 0, 110, 100);
+        Draw(vm, 110, 110, 110, 300);
+        vm.CurrentFrameIndex = 0;
+        vm.TweenCount = 1;
+        vm.InsertInbetweensCommand.Execute(null);
+        await reviewer.Called.Task;
+        Assert.Equal(1, reviewer.Calls);
+
+        // The artist's own preview, opened while the review is still out.
+        var keyB = vm.PaintLayer().Cels.Select(c => c.Frame).OfType<Frame>().Last();
+        keyB.Strokes[0].Points = [.. keyB.Strokes[0].Points.Select((p, i) => p with { X = p.X + 1.5 * Math.Sin(i / 2.0) })];
+        vm.CurrentFrameIndex = vm.PaintLayer().Cels.FindLastIndex(c => c.Frame is not null);
+        vm.CleanupStrength = CleanupStrength.Medium;
+        Assert.True(vm.PreviewCleanup(guided: false) > 0, vm.AiStatus);
+        var mine = vm.CleanupSummary;
+
+        gate.SetResult();
+        await vm.ReviewAfterInsert;
+
+        Assert.True(vm.IsCleanupPendingFromArtist);
+        Assert.Equal(mine, vm.CleanupSummary);
+        Assert.DoesNotContain("AI review", vm.CleanupSummary);
+    }
+
+    [AvaloniaFact]
+    public void ALineMovedAfterTheSheetWasReadMakesTheSheetOutOfDate()
+    {
+        var vm = KneeInbetween(artist: null);
+        var api = new IpcDocumentApi(vm);
+        var token = api.Handle(Req("render_line_review", new { frameIndex = 1 })).Payload!.Value.GetProperty("sheet").GetString();
+        var shin = vm.PaintLayer().Cels[1].Frame!.Strokes[1];
+        shin.Points = [.. shin.Points.Select(p => p with { X = p.X + 20 })];   // same id, same count
+        var fixes = JsonSerializer.SerializeToElement(new[] { new { kind = "trim", line = 1, end = "end", other = (int?)2, otherEnd = "end", cites = new[] { "A1" }, reason = "x" } });
+
+        var resp = api.Handle(Req("fix_lines", new { frameIndex = 1, sheet = token, fixes }));
+
+        Assert.False(resp.Ok);
+        Assert.Contains("changed since its sheet was read", resp.Error);
     }
 
     [AvaloniaFact]

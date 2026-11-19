@@ -86,15 +86,30 @@ public sealed class ReviewSheet
     }
 
     /// <summary>
-    /// The listing: every line of each drawing with its length and ends, and
-    /// for the inbetween, what lies near each end.
+    /// Whether the drawings are past the size a review is bounded to — the
+    /// cleaner's own limits, over all three (perf review: an unbounded listing
+    /// took 56 s on a dense drawing and ran to ~85k tokens).
     /// </summary>
-    public string Listing()
+    public bool TooLarge =>
+        KeyA.Count + Lines.Count + KeyB.Count > LineCleaner.MaxLines
+        || KeyA.Concat(Lines).Concat(KeyB).Sum(s => (long)s.Points.Count) > LineCleaner.MaxPoints;
+
+    /// <summary>
+    /// The listing: every line of each drawing with its length and ends, and
+    /// what lies near each end of the inbetween's lines — and of the keys' when
+    /// <paramref name="keyNeighbours"/>, for a reviewer with no picture to
+    /// compare by (Q298). With a picture the keys' neighbours are two thirds of
+    /// the tokens and say what the picture already shows.
+    /// </summary>
+    public string Listing(bool keyNeighbours = true)
     {
         var text = new StringBuilder();
         void Drawing(string title, string prefix, IReadOnlyList<Stroke> lines, bool neighbours)
         {
             text.Append(title).Append('\n');
+            var coarse = neighbours ? lines.Select(l => Coarse(l.Points)).ToList() : null;
+            var boxes = coarse?.Select(c => GeometryOps.BoundsOf(c)).ToList();
+            var pairs = new Dictionary<(int, int), (double Alongside, bool Crosses)>();
             for (var i = 0; i < lines.Count; i++)
             {
                 var s = lines[i];
@@ -102,10 +117,10 @@ public sealed class ReviewSheet
                 var b = s.Points[^1];
                 text.Append(CultureInfo.InvariantCulture,
                     $"  {prefix}{i + 1}: {GeometryOps.PathLength(s.Points):0} px long, from ({a.X:0},{a.Y:0}) to ({b.X:0},{b.Y:0}), {s.Brush.Size:0.#} px wide\n");
-                if (!neighbours) continue;
+                if (coarse is null) continue;
                 foreach (var atStart in new[] { true, false })
                 {
-                    var near = NearEnd(lines, i, atStart);
+                    var near = NearEnd(lines, coarse, boxes!, pairs, i, atStart);
                     if (near.Count == 0) continue;
                     text.Append(CultureInfo.InvariantCulture, $"    {(atStart ? "start" : "end")}: ")
                         .Append(string.Join("; ", near.Select(n =>
@@ -115,12 +130,8 @@ public sealed class ReviewSheet
                 }
             }
         }
-        // The keys carry the same neighbour lines as the inbetween, so a
-        // reviewer that cannot see can still compare: two lines running
-        // alongside each other in both keys is style; in the inbetween alone,
-        // a mistake (Q298).
-        Drawing("Key A (drawn by the artist):", "A", KeyA, true);
-        Drawing("Key B (drawn by the artist):", "B", KeyB, true);
+        Drawing("Key A (drawn by the artist):", "A", KeyA, keyNeighbours);
+        Drawing("Key B (drawn by the artist):", "B", KeyB, keyNeighbours);
         Drawing("The inbetween under review:", "L", Lines, true);
         return text.ToString();
     }
@@ -128,23 +139,50 @@ public sealed class ReviewSheet
     /// <summary>How far, in pixels, around an end other lines are reported.</summary>
     private const double Reach = 40;
 
-    private static List<(int Line, double Distance, double Alongside, bool Crosses)> NearEnd(IReadOnlyList<Stroke> lines, int line, bool atStart)
+    /// <summary>The most points a line is measured with for the listing.</summary>
+    private const int CoarsePoints = 24;
+
+    /// <summary>A line resampled evenly to at most <see cref="CoarsePoints"/> points — the listing describes, it does not edit.</summary>
+    internal static List<StrokePoint> Coarse(IReadOnlyList<StrokePoint> points)
     {
-        var Lines = lines;
-        var s = Lines[line];
-        var end = atStart ? s.Points[0] : s.Points[^1];
-        var found = new List<(int, double, double, bool)>();
-        for (var j = 0; j < Lines.Count; j++)
+        if (points.Count <= CoarsePoints) return [.. points];
+        return GeometryOps.Resample(points, CoarsePoints);
+    }
+
+    /// <summary>
+    /// The nearest lines to one end, closest first, at most four — chosen by
+    /// distance alone, cheaply, and only those four measured for how far they
+    /// run alongside and whether they cross.
+    /// </summary>
+    private static List<(int Line, double Distance, double Alongside, bool Crosses)> NearEnd(
+        IReadOnlyList<Stroke> lines, List<List<StrokePoint>> coarse, List<GeometryOps.BBox> boxes,
+        Dictionary<(int, int), (double Alongside, bool Crosses)> pairs, int line, bool atStart)
+    {
+        var mine = coarse[line];
+        var end = atStart ? lines[line].Points[0] : lines[line].Points[^1];
+        var nearest = new List<(int Line, double D)>();
+        for (var j = 0; j < lines.Count; j++)
         {
             if (j == line) continue;
-            var o = Lines[j].Points;
-            var d = double.MaxValue;
+            var o = coarse[j];
+            var box = boxes[j];
+            if (end.X < box.MinX - Reach || end.X > box.MaxX + Reach || end.Y < box.MinY - Reach || end.Y > box.MaxY + Reach) continue;
+            var d = o.Count == 1 ? GeometryOps.Dist(end, o[0]) : double.MaxValue;
             for (var k = 1; k < o.Count; k++) d = Math.Min(d, GeometryOps.DistToSegment(end, o[k - 1], o[k]));
-            if (o.Count == 1) d = GeometryOps.Dist(end, o[0]);
-            if (!(d <= Reach)) continue;
-            found.Add((j, d, Alongside(s.Points, o, Math.Max(3 * s.Brush.Size, 10)), Crosses(s.Points, o)));
+            if (d <= Reach) nearest.Add((j, d));
         }
-        return [.. found.OrderBy(f => f.Item2).ThenBy(f => f.Item1).Take(4)];
+        var within = Math.Max(3 * lines[line].Brush.Size, 10);
+        (double, bool) Measured(int other)
+        {
+            if (!pairs.TryGetValue((line, other), out var m))
+            {
+                m = (Alongside(mine, coarse[other], within), Crosses(mine, coarse[other]));
+                pairs[(line, other)] = m;
+            }
+            return m;
+        }
+        return [.. nearest.OrderBy(n => n.D).ThenBy(n => n.Line).Take(4)
+            .Select(n => { var (along, crosses) = Measured(n.Line); return (n.Line, n.D, along, crosses); })];
     }
 
     /// <summary>How much of a line, in pixels, lies within <paramref name="within"/> of another.</summary>
@@ -211,11 +249,26 @@ public static class LineReview
     /// <summary>The longest mark a fix may remove: this many line widths, or <see cref="MinMark"/> px.</summary>
     public const double MarkWidths = 8, MinMark = 40;
 
+    /// <summary>A join must not turn back on either end's own direction by more than this.</summary>
+    private const double MaxJoinTurnDeg = 90;
+
+    /// <summary>How far from a mark a key's short mark has to be for the mark to be the keys' style or motion.</summary>
+    private const double MarkReach = 60;
+
     /// <summary>Make the fixes that can be made, in the order given; report the rest.</summary>
+    /// <remarks>
+    /// Every bound is measured against the line <b>as drawn</b>, not as an
+    /// earlier fix left it (adversary review): three trims on one line could
+    /// otherwise take 85% of it, and a trim followed by a removal take a whole
+    /// line. Each end joins at most once, so an end cannot walk across its
+    /// neighbours one join at a time.
+    /// </remarks>
     public static ReviewOutcome Apply(IReadOnlyList<Stroke> record, ReviewSheet sheet, IReadOnlyList<ReviewFix> fixes)
     {
         var points = new Dictionary<string, List<StrokePoint>>();
         var removed = new HashSet<string>();
+        var taken = new Dictionary<string, double>();
+        var joinedEnds = new HashSet<(string, bool)>();
         var made = new List<ReviewFix>();
         var refused = new List<RefusedFix>();
         var changes = new List<CleanupChange>();
@@ -225,12 +278,13 @@ public static class LineReview
 
         foreach (var fix in fixes)
         {
-            string? Refuse(string why)
-            {
-                refused.Add(new RefusedFix(fix, why));
-                return null;
-            }
+            void Refuse(string why) => refused.Add(new RefusedFix(fix, why));
 
+            if (fix.Line < 1 && fix.Reason.StartsWith("unreadable", StringComparison.Ordinal))
+            {
+                Refuse(fix.Reason);
+                continue;
+            }
             if (fix.Cites is not { Count: > 0 } || fix.Cites.Any(c => !sheet.Names(c)))
             {
                 Refuse("It cites no key line, or one that is not on the sheet; the keys decide what is a mistake (Q298).");
@@ -247,6 +301,7 @@ public static class LineReview
                 Refuse($"A {fix.Kind.ToString().ToLowerInvariant()} needs another line, and L{fix.Other} is not one.");
                 continue;
             }
+            var drawnLength = GeometryOps.PathLength(line.Points);
 
             switch (fix.Kind)
             {
@@ -254,29 +309,35 @@ public static class LineReview
                 {
                     var pts = Current(line);
                     var oriented = fix.AtStart ? Enumerable.Reverse(pts).ToList() : pts;
-                    if (TrimTo(oriented, Current(other!)) is not { } cut)
+                    if (TrimTo(oriented, Current(other!)) is not { } cutLine)
                     {
                         Refuse($"L{fix.Line}'s {(fix.AtStart ? "start" : "end")} does not come near L{fix.Other}.");
                         break;
                     }
-                    var length = GeometryOps.PathLength(oriented);
-                    var taken = length - GeometryOps.PathLength(cut);
-                    if (taken > MaxTrim * length || cut.Count < 2)
+                    var cutAway = GeometryOps.PathLength(oriented) - GeometryOps.PathLength(cutLine);
+                    if (cutAway < 0.5) { Refuse($"L{fix.Line} already ends at L{fix.Other}."); break; }
+                    var total = taken.GetValueOrDefault(line.Id) + cutAway;
+                    if (total > MaxTrim * drawnLength || cutLine.Count < 2)
                     {
-                        Refuse($"That would cut away {taken:0} of L{fix.Line}'s {length:0} px — more than half the line.");
+                        Refuse($"That would cut away {total:0} of L{fix.Line}'s {drawnLength:0} px in all — more than half the line.");
                         break;
                     }
-                    if (taken < 0.5) { Refuse($"L{fix.Line} already ends at L{fix.Other}."); break; }
-                    cut = Taper(cut, oriented[^1].Pressure, taken);
-                    points[line.Id] = fix.AtStart ? Enumerable.Reverse(cut).ToList() : cut;
-                    changes.Add(new CleanupChange(line.Id, CleanupKind.Trimmed, taken));
+                    cutLine = Taper(cutLine, oriented, cutAway);
+                    taken[line.Id] = total;
+                    points[line.Id] = fix.AtStart ? Enumerable.Reverse(cutLine).ToList() : cutLine;
+                    changes.Add(new CleanupChange(line.Id, CleanupKind.Trimmed, cutAway));
                     made.Add(fix);
                     break;
                 }
                 case ReviewFixKind.Join:
                 {
+                    if (joinedEnds.Contains((line.Id, fix.AtStart)) || joinedEnds.Contains((other!.Id, fix.OtherAtStart)))
+                    {
+                        Refuse("An end joins once; that end has already been joined.");
+                        break;
+                    }
                     var a = Current(line);
-                    var b = Current(other!);
+                    var b = Current(other);
                     var ea = fix.AtStart ? a[0] : a[^1];
                     var eb = fix.OtherAtStart ? b[0] : b[^1];
                     var gap = GeometryOps.Dist(ea, eb);
@@ -287,8 +348,18 @@ public static class LineReview
                     }
                     if (gap < 0.5) { Refuse("The ends already meet."); break; }
                     var mid = GeometryOps.LerpPoint(ea, eb, 0.5);
+                    // Two ends that have already run past each other would close
+                    // into a hairpin pointing past the joint: the spur from each
+                    // end must carry on roughly the way the end was going.
+                    if (TurnsBack(a, fix.AtStart, mid) || TurnsBack(b, fix.OtherAtStart, mid))
+                    {
+                        Refuse("Joining these ends would fold a line back on itself — trim the line that runs past the joint first.");
+                        break;
+                    }
                     points[line.Id] = Extended(a, fix.AtStart, mid);
-                    points[other!.Id] = Extended(b, fix.OtherAtStart, mid);
+                    points[other.Id] = Extended(b, fix.OtherAtStart, mid);
+                    joinedEnds.Add((line.Id, fix.AtStart));
+                    joinedEnds.Add((other.Id, fix.OtherAtStart));
                     changes.Add(new CleanupChange(line.Id, CleanupKind.Joined, gap / 2));
                     changes.Add(new CleanupChange(other.Id, CleanupKind.Joined, gap / 2));
                     made.Add(fix);
@@ -296,11 +367,15 @@ public static class LineReview
                 }
                 case ReviewFixKind.Remove:
                 {
-                    var length = GeometryOps.PathLength(Current(line));
                     var longest = Math.Max(MarkWidths * line.Brush.Size, MinMark);
-                    if (length > longest)
+                    if (drawnLength > longest)
                     {
-                        Refuse($"L{fix.Line} is {length:0} px long — a line, not a mark; only marks up to {longest:0} px are removed.");
+                        Refuse($"L{fix.Line} is {drawnLength:0} px long — a line, not a mark; only marks up to {longest:0} px are removed.");
+                        break;
+                    }
+                    if (KeyMarkNear(sheet, line, longest) is { } keyMark)
+                    {
+                        Refuse($"{keyMark} is a mark like it nearby — it is the keys' own mark, moving, and stays.");
                         break;
                     }
                     removed.Add(line.Id);
@@ -321,6 +396,47 @@ public static class LineReview
             output.Add(copy);
         }
         return new ReviewOutcome(new CleanupResult(output, changes), made, refused);
+    }
+
+    /// <summary>Whether a spur from a line's end to <paramref name="to"/> doubles back on the way the end was going.</summary>
+    private static bool TurnsBack(List<StrokePoint> pts, bool atStart, StrokePoint to)
+    {
+        var oriented = atStart ? Enumerable.Reverse(pts).ToList() : pts;
+        var end = oriented[^1];
+        var walked = 0.0;
+        var back = oriented[0];
+        for (var i = oriented.Count - 1; i > 0; i--)
+        {
+            walked += GeometryOps.Dist(oriented[i], oriented[i - 1]);
+            back = oriented[i - 1];
+            if (walked >= 6) break;
+        }
+        var ux = end.X - back.X; var uy = end.Y - back.Y;
+        var vx = to.X - end.X; var vy = to.Y - end.Y;
+        var lu = Math.Sqrt(ux * ux + uy * uy); var lv = Math.Sqrt(vx * vx + vy * vy);
+        if (lu < 1e-9 || lv < 1e-9) return false;
+        var cos = (ux * vx + uy * vy) / (lu * lv);
+        return Math.Acos(Math.Clamp(cos, -1, 1)) * 180 / Math.PI > MaxJoinTurnDeg;
+    }
+
+    /// <summary>A key's short mark near this one, named ("A8"), or null.</summary>
+    private static string? KeyMarkNear(ReviewSheet sheet, Stroke mark, double longest)
+    {
+        foreach (var (prefix, lines) in new[] { ("A", sheet.KeyA), ("B", sheet.KeyB) })
+        {
+            for (var i = 0; i < lines.Count; i++)
+            {
+                if (GeometryOps.PathLength(lines[i].Points) > 2 * longest) continue;
+                var coarse = ReviewSheet.Coarse(lines[i].Points);
+                foreach (var p in ReviewSheet.Coarse(mark.Points))
+                {
+                    var d = coarse.Count == 1 ? GeometryOps.Dist(p, coarse[0]) : double.MaxValue;
+                    for (var k = 1; k < coarse.Count; k++) d = Math.Min(d, GeometryOps.DistToSegment(p, coarse[k - 1], coarse[k]));
+                    if (d <= MarkReach) return $"{prefix}{i + 1}";
+                }
+            }
+        }
+        return null;
     }
 
     /// <summary>
@@ -387,9 +503,21 @@ public static class LineReview
         return t is >= 0 and <= 1 && u is >= 0 and <= 1 ? t : null;
     }
 
-    /// <summary>The drawn end's lift-off, moved onto the new end over the length that was cut.</summary>
-    private static List<StrokePoint> Taper(List<StrokePoint> cut, double endPressure, double over)
+    /// <summary>
+    /// The drawn end's lift-off moved onto the new end, over the length the
+    /// drawn taper had — not over the length cut away (art-director: a 70 px
+    /// trim would otherwise thin the line for 70 px into the joint, where the
+    /// weight belongs).
+    /// </summary>
+    private static List<StrokePoint> Taper(List<StrokePoint> cut, List<StrokePoint> drawn, double cutAway)
     {
+        var endPressure = drawn[^1].Pressure;
+        var peak = drawn.Max(p => p.Pressure);
+        // The drawn taper: from the end back to where the pressure first
+        // reaches 90% of the line's peak.
+        var taper = 0.0;
+        for (var i = drawn.Count - 1; i > 0 && drawn[i].Pressure < 0.9 * peak; i--) taper += GeometryOps.Dist(drawn[i], drawn[i - 1]);
+        var over = Math.Max(Math.Min(taper, GeometryOps.PathLength(cut) / 2), 0.5);
         cut[^1] = cut[^1] with { Pressure = endPressure };
         var walked = 0.0;
         for (var q = cut.Count - 2; q >= 0; q--)

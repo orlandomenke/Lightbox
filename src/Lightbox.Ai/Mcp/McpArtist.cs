@@ -53,6 +53,8 @@ public sealed class McpArtist(IMcpChannel channel, string toolName) : IAiArtist,
     }
 
     /// <summary>An MCP provider takes no picture here; it reviews from the listing.</summary>
+    public bool TakesImages => false;
+
     public async Task<AiResult<List<Core.Cleanup.ReviewFix>>> ReviewLinesAsync(
         LineReviewRequest request, CancellationToken ct)
     {

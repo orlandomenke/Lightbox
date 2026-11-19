@@ -10,7 +10,13 @@ namespace Lightbox.Ai;
 /// </summary>
 /// <param name="Listing">The sheet's listing (<see cref="ReviewSheet.Listing"/>): every line, its ends and what lies near them.</param>
 /// <param name="Picture">A PNG, base64: the two keys and the inbetween side by side, every line labelled. Null for a text-only review.</param>
-public sealed record LineReviewRequest(string Listing, string? Picture);
+/// <param name="TextOnlyListing">
+/// The listing with the keys' neighbour lines too, for a provider that takes
+/// no picture; null to use <paramref name="Listing"/>. Two listings because
+/// with a picture the keys' neighbours are two thirds of the tokens and say
+/// what the picture shows (ai-engineer review).
+/// </param>
+public sealed record LineReviewRequest(string Listing, string? Picture, string? TextOnlyListing = null);
 
 /// <summary>
 /// The line review's prompt, schema and parser — one place for all five
@@ -43,20 +49,27 @@ public static class LineReviewing
         "neither key has. Anything both keys share is the artist's style and is NOT a mistake, however odd it " +
         "looks — doubled sketch passes, overshooting corners, a broken line. The subject's other outer lines " +
         "(how its other joints meet) can support a judgement, never make it on their own. When in doubt, leave " +
-        "it: an unnecessary fix is worse than a missed one.\n\n" +
+        "it: an unnecessary fix is worse than a missed one.\n" +
+        "If EITHER key has the feature, even in another amount or shape, it is style or motion: leave it. " +
+        "Compare by which line it is — the thigh's back, the shin's front — not by where it sits, because the " +
+        "pose has moved between the keys. A short mark that corresponds to any short mark in either key (a hook, " +
+        "a tick, a crease) is never removed. When two lines run past each other at a joint, trim the one whose " +
+        "end runs past where the keys put the joint, so the joint stays where the keys have it.\n\n" +
         "You may only ask for three things, by line number:\n" +
         "- trim: cut the given end of line L back to where it meets line `other`;\n" +
         "- join: carry the given end of line L and the given end of line `other` onto one point (ends at most 40 px apart);\n" +
         "- remove: take out a short mark L (no `other`).\n" +
+        "For trim and remove, set `otherEnd` to \"end\"; it is only read for a join. " +
         "Every fix must cite in `cites` the key lines you compared it with, as \"A3\" or \"B5\" — a fix that cites " +
-        "none is refused. Give a one-sentence `reason` an artist will read. Return no fixes when you find no " +
-        "mistake. Never invent coordinates, lines or numbers that are not on the sheet.";
+        "none is refused. Give a one-sentence `reason` an artist will read, in drawing terms and without line " +
+        "numbers (\"the knee's front runs on past the shin; both keys meet them at one point\"). Return no fixes " +
+        "when you find no mistake. Never invent coordinates, lines or numbers that are not on the sheet.";
 
     public static string User(LineReviewRequest request) =>
         (request.Picture is null
             ? "There is no picture: judge from the listing alone.\n\n"
-            : "The picture shows key A on the left, the inbetween in the middle and key B on the right, every line labelled.\n\n")
-        + request.Listing;
+            : "The picture shows key A on the left, the inbetween in the middle and key B on the right, every line labelled; a dot marks each line's start.\n\n")
+        + (request.Picture is null ? request.TextOnlyListing ?? request.Listing : request.Listing);
 
     public static readonly string Schema = """
         {
@@ -104,20 +117,30 @@ public static class LineReviewing
         {
             var dto = JsonSerializer.Deserialize<AnswerDto>(call.Value!) ?? throw new JsonException("null payload");
             var fixes = new List<ReviewFix>();
-            foreach (var f in dto.Fixes.Take(MaxFixes))
+            var given = (dto.Fixes ?? []).ToList();
+            foreach (var f in given.Take(MaxFixes))
             {
-                if (f.Kind?.Trim().ToLowerInvariant() is not ("trim" or "join" or "remove") || f.Line < 1) continue;
-                var kind = f.Kind.Trim().ToLowerInvariant() switch
+                // A fix that cannot be read is reported, not dropped: dropping
+                // every fix would tell the artist "no mistakes" (ai-engineer).
+                if (f is null) { fixes.Add(Unreadable("an empty fix")); continue; }
+                var kind = f.Kind?.Trim().ToLowerInvariant() switch
                 {
                     "trim" => ReviewFixKind.Trim,
                     "join" => ReviewFixKind.Join,
-                    _ => ReviewFixKind.Remove,
+                    "remove" => ReviewFixKind.Remove,
+                    _ => (ReviewFixKind?)null,
                 };
+                if (kind is null) { fixes.Add(Unreadable($"the verb \"{Clip(f.Kind ?? "", 12)}\"")); continue; }
+                if (f.Line < 1) { fixes.Add(Unreadable($"line {f.Line}")); continue; }
+                if (End(f.End) is not { } atStart) { fixes.Add(Unreadable($"the end \"{Clip(f.End ?? "", 12)}\" of L{f.Line}")); continue; }
+                var otherAtStart = End(f.OtherEnd);
+                if (kind == ReviewFixKind.Join && otherAtStart is null) { fixes.Add(Unreadable($"the other end \"{Clip(f.OtherEnd ?? "", 12)}\"")); continue; }
                 fixes.Add(new ReviewFix(
-                    kind, f.Line, f.End == "start", f.Other, f.OtherEnd == "start",
+                    kind.Value, f.Line, atStart, f.Other, otherAtStart ?? false,
                     [.. (f.Cites ?? []).Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => Clip(c.Trim(), 8))],
                     Clip(f.Reason?.Trim() ?? "", 240)));
             }
+            if (given.Count > MaxFixes) fixes.Add(Unreadable($"{given.Count - MaxFixes} fixes past the limit of {MaxFixes}"));
             return AiResult<List<ReviewFix>>.Success(fixes);
         }
         catch (JsonException e)
@@ -128,9 +151,21 @@ public static class LineReviewing
 
     private static string Clip(string s, int max) => s.Length <= max ? s : s[..max];
 
+    /// <summary>"start" or "end", in any case; anything else is not an end.</summary>
+    private static bool? End(string? end) => end?.Trim().ToLowerInvariant() switch
+    {
+        "start" => true,
+        "end" => false,
+        _ => null,
+    };
+
+    /// <summary>A placeholder the engine refuses with its own words, so the reader learns what was not understood.</summary>
+    private static ReviewFix Unreadable(string what) =>
+        new(ReviewFixKind.Remove, 0, false, null, false, [], $"unreadable: {what} — use trim, join or remove, a line number from the sheet, and \"start\" or \"end\".");
+
     private sealed class AnswerDto
     {
-        [JsonPropertyName("fixes")] public List<FixDto> Fixes { get; set; } = [];
+        [JsonPropertyName("fixes")] public List<FixDto?>? Fixes { get; set; } = [];
     }
 
     private sealed class FixDto

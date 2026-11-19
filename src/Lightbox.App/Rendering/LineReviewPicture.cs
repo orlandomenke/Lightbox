@@ -29,6 +29,9 @@ public static class LineReviewPicture
     /// <summary>The longest edge the whole picture is sent at, in pixels.</summary>
     public const int LongEdge = 1536;
 
+    /// <summary>The most pixels the picture is sent at: what providers take without scaling it down.</summary>
+    public const double MaxPixels = 1_150_000;
+
     private const int Margin = 24, Gap = 16, Head = 22;
 
     /// <summary>The picture, as base64 PNG.</summary>
@@ -44,8 +47,13 @@ public static class LineReviewPicture
         var h = Math.Max(1, (int)Math.Ceiling(box.MaxY - box.MinY) + 2 * Margin);
         var scale = Math.Min(1.0, (LongEdge - 2 * Gap) / (3.0 * w));
         scale = Math.Min(scale, (LongEdge - Head) / (double)h);
-        var pw = (int)Math.Ceiling(w * scale);
-        var ph = (int)Math.Ceiling(h * scale);
+        // The area as well as the edge: a tall subject at 1536 wide is over
+        // what a provider takes unscaled, and its downscale shrinks the labels
+        // past reading (ai-engineer).
+        var area = (3.0 * w * scale + 2 * Gap) * (h * scale + Head);
+        if (area > MaxPixels) scale *= Math.Sqrt(MaxPixels / area);
+        var pw = (int)Math.Floor(w * scale);
+        var ph = (int)Math.Floor(h * scale);
 
         using var sheetBitmap = new SKBitmap(3 * pw + 2 * Gap, ph + Head);
         using var canvas = new SKCanvas(sheetBitmap);
@@ -69,9 +77,15 @@ public static class LineReviewPicture
             var placed = new List<SKRect>();
             for (var n = 0; n < panels[i].Lines.Count; n++)
             {
-                var at = AlongThird(panels[i].Lines[n].Points);
-                var lx = x + (float)((at.X - left) * scale) + 3;
-                var ly = Head + (float)((at.Y - top) * scale) - 3;
+                var line = panels[i].Lines[n].Points;
+                // A dot at each line's start, because every fix names an end.
+                var start = line[0];
+                canvas.DrawCircle(x + (float)((start.X - left) * scale), Head + (float)((start.Y - top) * scale), 2.5f, label);
+                var at = AlongThird(line);
+                var ax = x + (float)((at.X - left) * scale);
+                var ay = Head + (float)((at.Y - top) * scale);
+                var lx = ax + 3;
+                var ly = ay - 3;
                 var text = panels[i].Prefix + (n + 1);
                 var width = font.MeasureText(text);
                 // Two passes of a doubled line put their labels on top of each
@@ -82,6 +96,8 @@ public static class LineReviewPicture
                     tag.Offset(width + 4, 0);
                 }
                 placed.Add(tag);
+                // A label that stepped aside says which line it is with a leader.
+                if (tag.Left > lx + 1) canvas.DrawLine(ax, ay, tag.Left, tag.MidY, label);
                 canvas.DrawRect(tag, halo);
                 canvas.DrawText(text, tag.Left + 1, tag.Bottom - 2, font, label);
             }

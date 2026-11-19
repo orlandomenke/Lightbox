@@ -130,6 +130,9 @@ public interface IAiArtist
     /// A default rather than an obligation, because a scripted test artist or
     /// the free engine has nothing to say about a drawing.
     /// </remarks>
+    /// <summary>Whether this provider looks at the review's picture; when it does not, none is drawn or sent.</summary>
+    bool TakesImages => true;
+
     Task<AiResult<List<Lightbox.Core.Cleanup.ReviewFix>>> ReviewLinesAsync(
         LineReviewRequest request, CancellationToken ct) =>
         Task.FromResult(AiResult<List<Lightbox.Core.Cleanup.ReviewFix>>.Error(

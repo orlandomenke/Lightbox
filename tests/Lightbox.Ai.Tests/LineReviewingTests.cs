@@ -31,7 +31,28 @@ public class LineReviewingTests
     }
 
     [Fact]
-    public void AnUnknownVerbOrALineNumberBelowOneIsDropped()
+    public void AnEndIsReadInAnyCase()
+    {
+        var result = Parse(new { fixes = new[] { new { kind = "Trim", line = 2, end = "Start", other = (int?)1, otherEnd = "END", cites = new[] { "A1" }, reason = "" } } });
+
+        var fix = Assert.Single(result.Value!);
+        Assert.Equal(ReviewFixKind.Trim, fix.Kind);
+        Assert.True(fix.AtStart);
+    }
+
+    [Theory]
+    [InlineData("{\"fixes\":null}")]
+    [InlineData("{\"fixes\":[null]}")]
+    public void AnEmptyOrNullAnswerIsReadWithoutThrowing(string json)
+    {
+        var result = LineReviewing.Parse(AiResult<string>.Success(json), "The model");
+
+        Assert.Equal(AiOutcome.Success, result.Outcome);
+        Assert.All(result.Value!, f => Assert.StartsWith("unreadable", f.Reason));
+    }
+
+    [Fact]
+    public void AnUnknownVerbOrALineNumberBelowOneIsReportedNotDropped()
     {
         var result = Parse(new
         {
@@ -43,7 +64,17 @@ public class LineReviewingTests
             },
         });
 
-        Assert.Equal(3, Assert.Single(result.Value!).Line);
+        Assert.Equal(3, result.Value!.Count);
+        Assert.Equal(2, result.Value.Count(f => f.Reason.StartsWith("unreadable", StringComparison.Ordinal)));
+        Assert.Contains(result.Value, f => f.Line == 3);
+    }
+
+    [Fact]
+    public void AnEndThatIsNeitherStartNorEndIsNotGuessed()
+    {
+        var result = Parse(new { fixes = new[] { new { kind = "trim", line = 2, end = "top", other = (int?)1, otherEnd = "end", cites = new[] { "A1" }, reason = "" } } });
+
+        Assert.Contains("the end \"top\"", Assert.Single(result.Value!).Reason);
     }
 
     [Fact]
@@ -54,8 +85,9 @@ public class LineReviewingTests
 
         var result = Parse(new { fixes = many });
 
-        Assert.Equal(LineReviewing.MaxFixes, result.Value!.Count);
-        Assert.All(result.Value, f => Assert.True(f.Reason.Length <= 240 && f.Cites.All(c => c.Length <= 8)));
+        Assert.Equal(LineReviewing.MaxFixes + 1, result.Value!.Count);
+        Assert.Contains("past the limit", result.Value[^1].Reason);
+        Assert.All(result.Value.Take(LineReviewing.MaxFixes), f => Assert.True(f.Reason.Length <= 240 && f.Cites.All(c => c.Length <= 8)));
     }
 
     [Fact]

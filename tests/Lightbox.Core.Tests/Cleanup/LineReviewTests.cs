@@ -117,7 +117,7 @@ public class LineReviewTests
         var outcome = LineReview.Apply([upper, near, far], sheet,
         [
             new ReviewFix(ReviewFixKind.Join, 1, false, 2, true, ["A1"], "gap"),
-            new ReviewFix(ReviewFixKind.Join, 3, true, 1, false, ["A1"], "too far"),
+            new ReviewFix(ReviewFixKind.Join, 3, true, 1, true, ["A1"], "too far"),
         ]);
 
         Assert.Single(outcome.Made);
@@ -144,6 +144,155 @@ public class LineReviewTests
         Assert.DoesNotContain(outcome.Result.Strokes, s => s.Id == tick.Id);
         Assert.Contains(outcome.Result.Strokes, s => s.Id == line.Id);
         Assert.Contains("a line, not a mark", Assert.Single(outcome.Refused).Why);
+    }
+
+    [Fact]
+    public void SeveralTrimsOnOneLineAreBoundedTogetherByTheLineAsDrawn()
+    {
+        // Adversary: three crossings, three trims, each under half alone and
+        // together 85% of the line.
+        var line = Line(0, 50, 100, 50);
+        Stroke[] crossings = [Line(55, 0, 55, 100), Line(30, 0, 30, 100), Line(15, 0, 15, 100)];
+        Stroke[] keys = [Line(0, 150, 100, 150)];
+        Stroke[] drawing = [line, .. crossings];
+
+        var outcome = LineReview.Apply(drawing, ReviewSheet.For(drawing, keys, keys),
+            [Trim(1, false, 2, "A1"), Trim(1, false, 3, "A1"), Trim(1, false, 4, "A1")]);
+
+        Assert.Single(outcome.Made);
+        Assert.Equal(2, outcome.Refused.Count);
+        Assert.Contains(outcome.Refused, r => r.Why.Contains("in all"));
+        Assert.True(GeometryOps.PathLength(outcome.Result.Strokes[0].Points) >= 50 - 1e-6);
+    }
+
+    [Fact]
+    public void ATrimThenARemoveCannotTakeAWholeLine()
+    {
+        var line = Line(0, 50, 70, 50, size: 2);
+        var post = Line(36, 0, 36, 100);
+        Stroke[] keys = [Line(0, 150, 100, 150)];
+
+        var outcome = LineReview.Apply([line, post], ReviewSheet.For([line, post], keys, keys),
+        [
+            Trim(1, false, 2, "A1"),
+            new ReviewFix(ReviewFixKind.Remove, 1, false, null, false, ["A1"], "now short"),
+        ]);
+
+        Assert.Contains(outcome.Result.Strokes, s => s.Id == line.Id);
+        Assert.Contains("a line, not a mark", Assert.Single(outcome.Refused).Why);
+    }
+
+    [Fact]
+    public void AJoinThatWouldFoldBackIntoAHairpinIsRefused()
+    {
+        // Two ends that already ran past each other side by side: joining
+        // them turns both lines back past the joint.
+        var down = Line(100, 0, 100, 130);
+        var up = Line(104, 300, 104, 100);
+        Stroke[] keys = [Line(90, 0, 90, 300)];
+
+        var outcome = LineReview.Apply([down, up], ReviewSheet.For([down, up], keys, keys),
+            [new ReviewFix(ReviewFixKind.Join, 1, false, 2, false, ["A1"], "meet")]);
+
+        Assert.Contains("fold a line back", Assert.Single(outcome.Refused).Why);
+        Assert.False(outcome.Result.Changed);
+    }
+
+    [Fact]
+    public void AnEndJoinsOnce()
+    {
+        var a = Line(100, 0, 100, 100);
+        var b = Line(100, 110, 100, 300);
+        var c = Line(100, 112, 160, 112);
+        Stroke[] keys = [Line(90, 0, 90, 300)];
+
+        var outcome = LineReview.Apply([a, b, c], ReviewSheet.For([a, b, c], keys, keys),
+        [
+            new ReviewFix(ReviewFixKind.Join, 1, false, 2, true, ["A1"], "meet"),
+            new ReviewFix(ReviewFixKind.Join, 1, false, 3, true, ["A1"], "and meet again"),
+        ]);
+
+        Assert.Single(outcome.Made);
+        Assert.Contains("joins once", Assert.Single(outcome.Refused).Why);
+    }
+
+    [Fact]
+    public void ATrimmedLineKeepsTheLengthOfItsDrawnTaperNotTheLengthCut()
+    {
+        // The knee, its end tapering over the last 10 px; 30 px are cut.
+        var knee = Line(100, 0, 100, 130);
+        knee.Points = [.. knee.Points.Select(p => p with { Pressure = p.Y >= 120 ? 0.2 + 0.6 * (130 - p.Y) / 10 : 0.8 })];
+        var (_, a, b) = Knee();
+        Stroke[] drawing = [knee, Line(104, 100, 104, 300)];
+
+        var trimmed = LineReview.Apply(drawing, ReviewSheet.For(drawing, a, b), [Trim(1, false, 2, "A1")]).Result.Strokes[0];
+
+        Assert.Equal(0.2, trimmed.Points[^1].Pressure, 6);
+        var full = trimmed.Points.Where(p => p.Y < 100 - 15).ToList();
+        Assert.All(full, p => Assert.Equal(0.8, p.Pressure, 6));   // 15 px back, the weight is untouched
+    }
+
+    [Fact]
+    public void AMarkLikeOneAKeyHasNearbyIsNeverRemoved()
+    {
+        // The heel hook: the inbetween's version differs in shape, and a key
+        // has its own a few pixels away — the keys' mark, moving.
+        var line = Line(0, 0, 0, 300);
+        var hook = Line(40, 280, 52, 290);
+        Stroke[] keyA = [Line(0, 0, 0, 300), Line(30, 285, 40, 295)];
+        Stroke[] keyB = [Line(10, 0, 10, 300)];
+
+        var outcome = LineReview.Apply([line, hook], ReviewSheet.For([line, hook], keyA, keyB),
+            [new ReviewFix(ReviewFixKind.Remove, 2, false, null, false, ["B1"], "leftover")]);
+
+        Assert.Contains(outcome.Result.Strokes, s => s.Id == hook.Id);
+        Assert.Contains("A2", Assert.Single(outcome.Refused).Why);
+    }
+
+    [Fact]
+    public void WithAPictureTheKeysAreListedWithoutTheirNeighbours()
+    {
+        var (inbetween, a, b) = Knee();
+        var sheet = ReviewSheet.For(inbetween, a, b);
+
+        var withPicture = sheet.Listing(keyNeighbours: false);
+        var textOnly = sheet.Listing(keyNeighbours: true);
+
+        Assert.True(withPicture.Length < textOnly.Length);
+        Assert.DoesNotContain("A2 0 px away", withPicture);
+        Assert.Contains("L2", withPicture);
+    }
+
+    [Fact]
+    public void DrawingsPastTheCleanersSizeAreTooLargeToReview()
+    {
+        var many = Enumerable.Range(0, LineCleaner.MaxLines).Select(i => Line(0, i, 10, i)).ToArray();
+
+        Assert.True(ReviewSheet.For(many, [Line(0, 0, 1, 1)], [Line(0, 0, 1, 1)]).TooLarge);
+    }
+
+    [Fact]
+    [Trait("Category", "Performance")]
+    public void TheListingOfADenseSheetIsBoundedWork()
+    {
+        // Perf review: 300 lines x 100 points crowded into one figure took
+        // 7.6 s when every nearby pair was measured in full.
+        Stroke[] Dense(int seed) => [.. Enumerable.Range(0, 300).Select(i =>
+            new Stroke
+            {
+                Brush = new BrushSettings { Size = 3 },
+                Points = [.. Enumerable.Range(0, 100).Select(k =>
+                    new StrokePoint(100 + (i * 7 % 500) + k * 1.2, 100 + (i * 11 % 500) + 3 * Math.Sin((k + seed + i) / 4.0), 0.7))],
+            })];
+        var sheet = ReviewSheet.For(Dense(0), Dense(5), Dense(9));
+        sheet.Listing();
+
+        var start = System.Diagnostics.Stopwatch.GetTimestamp();
+        var listing = sheet.Listing(keyNeighbours: true);
+        var ms = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+
+        Assert.True(ms < 1500, $"the listing took {ms:F0} ms");
+        Assert.True(listing.Length < 400_000, $"the listing is {listing.Length} characters");
     }
 
     [Fact]

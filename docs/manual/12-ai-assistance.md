@@ -196,33 +196,46 @@ keys meet them at one point. Within the drawing that is just two lines near
 each other — doubled sketch passes look the same — so the cleaner cannot call
 it wrong. An AI can, by comparing with your keys.
 
-**Review with AI…** (under Clean ▾) sends the inbetween under the playhead and
-the key or breakdown on either side to your AI provider. It needs AI on and a
-provider chosen; without one it says so and sends nothing.
+**Review lines with AI…** (under Clean ▾) sends the inbetween under the
+playhead and the key or breakdown on either side to your AI provider: a
+picture of the three with every line labelled, and a list of where each line's
+ends are and what runs near them. Nothing else goes — no file, layer or brush
+names. With AI off the section is not shown; with AI on and no provider chosen
+it says where to choose one.
 
 **Your keys decide what is a mistake.** Something in the inbetween counts as a
-mistake only when neither key has it at the matching place. Anything both keys
-share — doubled passes, overshooting corners, a line you leave broken — is
-your style, and is left alone. Each fix the AI names has to say which of your
-key lines it compared against, and a fix that does not is not made.
+mistake only when neither key has it at the matching place. If either key has
+it — even in another amount or shape, because the pose is moving — it is your
+style or the motion, and is left alone: doubled passes, overshooting corners, a
+line you leave broken, a hook that changes shape. Each fix the AI names has to
+say which of your key lines it compared against; a fix that names none is not
+made. (Lightbox checks that the lines it names exist, not that the AI compared
+them well — that judgement is the AI's, which is why everything is a preview.)
 
 **The AI names; Lightbox draws.** The AI can only ask for three things, by
 line: trim an end back to where it meets another line, join two ends that
 should meet, or remove a short leftover mark. Lightbox makes the edit itself,
-within limits of its own: a trim never takes more than half a line, a join
-closes at most 40 px, and only a short mark is ever removed. These can go
+within limits of its own, counted against the line as you drew it however
+many fixes name it: trims never take more than half a line in all, a join
+closes at most 40 px and never folds a line back on itself, each end joins
+once, and only a short mark is removed — never one a key has its own version
+of nearby. A trimmed line keeps the taper its end was drawn with. These can go
 further than the cleaner's one-line-width limit, because each one comes with
 the AI's reason.
 
 What comes back is a **preview**, like any cleanup: the changed lines over your
-drawing, the AI's reasons in the bar, and **Apply** or **Cancel**. Nothing is
-written until you apply it. A key or breakdown is never sent to be fixed.
+drawing, the AI's reasons in the bar (in drawing terms — "the knee's front runs
+on past the shin"), and **Apply** or **Cancel**. Nothing is written until you
+apply it, and the undo step is named *AI line review*. A key or breakdown is
+never sent to be fixed.
 
 **Reviewing new inbetweens as they are made.** Tick **Review new inbetweens
 with AI** (under Clean ▾, or in *Configure ▸ Timeline*) and each inbetween ＋
 Inbetween makes is sent for review straight away; the findings wait as a
 preview. It is off until you turn it on, and each review is one request to
-your provider.
+your provider. If you open a cleanup of your own while it is asking, yours
+stays and the review's findings are not shown — run *Review lines with AI…*
+when you are ready.
 
 ## AI inbetweens
 
@@ -705,8 +718,11 @@ replacing it.
 **An agent can review lines too**, without an AI provider in Lightbox:
 `render_line_review` gives it the numbered picture and listing of an
 inbetween beside its keys, and `fix_lines` takes the fixes it names, by those
-numbers, each citing your key lines. They arrive as the same preview, and are
-refused if the drawing changed after the agent read it.
+numbers, each citing your key lines. They arrive as the same preview — unless
+the agent passes `apply: true`, which writes them as one undo step named for an
+agent's AI line review, the way `clean_lines` can on an inbetween. They are
+refused if any line of the inbetween or its keys changed after the agent read
+the sheet, and while you have a preview open.
 
 **An agent can organise layers into folders too**, with the same folders the
 docker shows (`get_scene` lists them, topmost first, and says which folder each

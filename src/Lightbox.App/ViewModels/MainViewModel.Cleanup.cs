@@ -89,7 +89,7 @@ public partial class MainViewModel
     private sealed record PendingCleanup(
         object Editor, string LayerId,
         IReadOnlyList<(string FrameId, List<Stroke> Before, List<Stroke> After)> Drawings,
-        bool ByAgent);
+        bool ByAgent, string? Label = null);
 
     private PendingCleanup? _pendingCleanup;
 
@@ -187,9 +187,9 @@ public partial class MainViewModel
     /// <param name="because">A sentence on why, said after what would change; the review's reasons go here.</param>
     private void InstallPendingCleanup(
         Layer layer, List<(string, List<Stroke>, List<Stroke>)> drawings, List<CleanupChange> changes, bool byAgent,
-        string because = "")
+        string because = "", string? label = null)
     {
-        _pendingCleanup = new PendingCleanup(_editor, layer.Id, drawings, byAgent);
+        _pendingCleanup = new PendingCleanup(_editor, layer.Id, drawings, byAgent, label);
         LastCleanupChanges = changes;
         CleanupSummary = Describe(changes, drawings.Count, preview: true) + because + " Apply, or Cancel to leave the drawing as it is.";
         _appliedSummary = Describe(changes, drawings.Count, preview: false);
@@ -237,7 +237,7 @@ public partial class MainViewModel
                 }
             },
             affectedFrameId: drawings.Count == 1 ? drawings[0].FrameId : null,
-            label: drawings.Count == 1 ? "Clean lines" : $"Clean lines on {drawings.Count} drawings");
+            label: (pending.Label ?? "Clean lines") + (drawings.Count == 1 ? "" : $" on {drawings.Count} drawings") + (pending.ByAgent ? " (agent)" : ""));
 
         foreach (var (frameId, _, _) in drawings) AfterStrokeEdit(frameId);
         var said = _appliedSummary;

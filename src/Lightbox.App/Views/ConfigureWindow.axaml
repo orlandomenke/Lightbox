@@ -572,7 +572,7 @@
 
         <StackPanel Spacing="{StaticResource Space6}">
           <TextBlock Text="Generated inbetweens" FontWeight="SemiBold" />
-          <CheckBox x:Name="ReviewNewInbetweensBox" Content="Send each new inbetween for an AI line review"
+          <CheckBox x:Name="ReviewNewInbetweensBox" Content="Review new inbetweens with AI"
                     IsCheckedChanged="OnReviewNewInbetweensChanged"
                     ToolTip.Tip="Needs AI on and a provider. What comes back waits as a preview; keys and breakdowns are never sent to be fixed" />
           <CheckBox x:Name="CleanNewInbetweensBox" Content="Clean each inbetween toward its keys as it is made"

@@ -58,6 +58,8 @@ public sealed class OllamaArtist : IAiArtist
     }
 
     /// <summary>A local model takes no picture here; it reviews from the listing, which says what the picture shows.</summary>
+    public bool TakesImages => false;
+
     public async Task<AiResult<List<Core.Cleanup.ReviewFix>>> ReviewLinesAsync(
         LineReviewRequest request, CancellationToken ct)
     {
