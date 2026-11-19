@@ -139,12 +139,13 @@ public sealed class ReviewSheet
         // carries on from another, do they meet, leave a gap, or run past each
         // other side by side? The first live grade missed the knee because
         // "runs alongside" did not say "past the joint" (2026-11-19).
-        text.Append("\nJoints — where one line carries on from another (doubled passes ending together are left out):\n");
+        text.Append("\nJoints — where one line carries on from another, roughly straight on (doubled passes ending together, and joints bent sharper than 60°, are left out):\n");
         foreach (var (title, prefix, lines) in new[] { ("Key A", "A", KeyA), ("Key B", "B", KeyB), ("Inbetween", "L", Lines) })
         {
-            var joints = Joints(lines, prefix);
+            var (joints, more) = Joints(lines, prefix);
             text.Append("  ").Append(title).Append(": ").Append(joints.Count == 0 ? "none\n" : "\n");
             foreach (var j in joints) text.Append("    ").Append(j).Append('\n');
+            if (more > 0) text.Append(CultureInfo.InvariantCulture, $"    … and {more} more not listed\n");
         }
         return text.ToString();
     }
@@ -156,10 +157,10 @@ public sealed class ReviewSheet
     /// Every place in one drawing where a line's end and another's end face
     /// each other — one carrying on from the other — and how they meet.
     /// </summary>
-    private static List<string> Joints(IReadOnlyList<Stroke> lines, string prefix)
+    private static (List<string> Joints, int More) Joints(IReadOnlyList<Stroke> lines, string prefix)
     {
         var coarse = lines.Select(l => Coarse(l.Points)).ToList();
-        var found = new List<(double Order, string Text)>();
+        var found = new List<(int Rank, int I, int J, string Text)>();
         // Only ends within reach of each other can make a joint: ends are filed
         // by cell and each compared with those in its own and the next cells.
         var ends = new Dictionary<(long, long), List<(int Line, bool AtStart)>>();
@@ -208,25 +209,45 @@ public sealed class ReviewSheet
                 // whether an overlap reads as one line or as two (the owner's
                 // key A overlaps its knee 32 px, on top of itself; the
                 // inbetween overlaps as far, a few pixels apart).
-                var apartMost = Math.Max(Separation(a, pastA, b), Separation(b, pastB, a));
-                var width = Math.Max(lines[i].Brush.Size, lines[j].Brush.Size);
+                // On the drawn points, not the coarse copies, and the 75th
+                // percentile rather than the widest point: a curve's coarse
+                // chord or a flick of the tip would otherwise call one line two
+                // (ai-engineer, G12 delta review).
+                var fullA = Oriented([.. lines[i].Points], iStart);
+                var fullB = Oriented([.. lines[j].Points], jStart);
+                var apartMost = Math.Max(Separation(fullA, pastA, fullB), Separation(fullB, pastB, fullA));
+                var width = Math.Max(Math.Max(lines[i].Brush.Size, lines[j].Brush.Size), 3);
                 var na = $"{prefix}{i + 1} {(iStart ? "start" : "end")}";
                 var nb = $"{prefix}{j + 1} {(jStart ? "start" : "end")}";
                 string how;
+                int rank;
                 if (pastA > 3 && pastB > 3)
+                {
                     how = FormattableString.Invariant(
                             $"overlap: {prefix}{i + 1} goes {pastA:0} px past where {prefix}{j + 1} begins and {prefix}{j + 1} {pastB:0} px past where {prefix}{i + 1} ends, ")
                         + (apartMost <= width
-                            ? FormattableString.Invariant($"lying on top of each other (at most {apartMost:0} px apart, lines {width:0.#} px wide) — reads as one line")
-                            : FormattableString.Invariant($"side by side up to {apartMost:0} px apart (lines {width:0.#} px wide) — reads as two lines"));
+                            ? FormattableString.Invariant($"lying on top of each other (mostly within {apartMost:0} px, lines {width:0.#} px wide) — reads as one line")
+                            : FormattableString.Invariant($"side by side, mostly {apartMost:0} px apart (lines {width:0.#} px wide) — reads as two lines"));
+                    rank = apartMost <= width ? 1 : 0;
+                }
                 else if (apart <= Math.Max(lines[i].Brush.Size, lines[j].Brush.Size) + 1)
+                {
                     how = string.Create(CultureInfo.InvariantCulture, $"meet ({apart:0} px apart)");
+                    rank = 3;
+                }
                 else
+                {
                     how = string.Create(CultureInfo.InvariantCulture, $"stop short of each other, a gap of {apart:0} px");
-                found.Add((i * 4 + j, $"{na} / {nb}: {how}"));
+                    rank = 2;
+                }
+                found.Add((rank, i, j, $"{na} / {nb}: {how}"));
             }
         }
-        return [.. found.OrderBy(f => f.Order).Select(f => f.Text).Take(MaxJoints)];
+        // Two-line overlaps first, then one-line overlaps, gaps and meetings,
+        // each in line order — so the joints most likely to matter are never
+        // the ones cut off, and the cut is said (ai-engineer).
+        var ordered = found.OrderBy(f => f.Rank).ThenBy(f => f.I).ThenBy(f => f.J).Select(f => f.Text).ToList();
+        return ([.. ordered.Take(MaxJoints)], Math.Max(0, ordered.Count - MaxJoints));
     }
 
     private static List<StrokePoint> Oriented(List<StrokePoint> pts, bool atStart) =>
@@ -266,18 +287,24 @@ public sealed class ReviewSheet
         return past;
     }
 
-    /// <summary>The widest gap between the last <paramref name="over"/> px of a line and another line.</summary>
+    /// <summary>
+    /// How far the last <paramref name="over"/> px of a line mostly lie from
+    /// another line: the 75th percentile of the distances, so neither one
+    /// wobble nor a tip flicking away decides it.
+    /// </summary>
     private static double Separation(List<StrokePoint> line, double over, List<StrokePoint> other)
     {
-        var most = 0.0;
+        var distances = new List<double>();
         var walked = 0.0;
-        for (var i = line.Count - 1; i >= 0; i--)
+        for (var i = line.Count - 1; i >= 0 && distances.Count < 2048; i--)
         {
             if (i < line.Count - 1) walked += GeometryOps.Dist(line[i], line[i + 1]);
             if (walked > over) break;
-            most = Math.Max(most, DistTo(line[i], other));
+            distances.Add(DistTo(line[i], other));
         }
-        return most;
+        if (distances.Count == 0) return 0;
+        distances.Sort();
+        return distances[(int)Math.Min(distances.Count - 1, 0.75 * distances.Count)];
     }
 
     private static double DistTo(StrokePoint p, List<StrokePoint> line)
@@ -503,6 +530,15 @@ public static class LineReview
                 {
                     var pts = Current(line);
                     var oriented = fix.AtStart ? Enumerable.Reverse(pts).ToList() : pts;
+                    // One of two passes drawn together is the artist's doubling,
+                    // which stays doubled (Q293) — however a reviewer reads the
+                    // joint it runs into (the third live grade cut both tips of
+                    // a doubled thigh line where a key draws it side by side).
+                    if (DoubledWith(sheet, line, other!) is { } partner)
+                    {
+                        Refuse($"L{fix.Line} is one of two passes drawn together (with {partner}); doubled passes stay as the artist drew them.");
+                        break;
+                    }
                     if (TrimTo(oriented, Current(other!)) is not var (cutLine, along))
                     {
                         Refuse($"L{fix.Line}'s {(fix.AtStart ? "start" : "end")} does not come near L{fix.Other}.");
@@ -630,6 +666,26 @@ public static class LineReview
         return Math.Acos(Math.Clamp(cos, -1, 1)) * 180 / Math.PI > MaxJoinTurnDeg;
     }
 
+    /// <summary>
+    /// The other pass of a doubled line — a line, not the one being trimmed
+    /// to, that runs alongside this one for most of its length — named ("L6"),
+    /// or null.
+    /// </summary>
+    private static string? DoubledWith(ReviewSheet sheet, Stroke line, Stroke trimmingTo)
+    {
+        var mine = ReviewSheet.Coarse(line.Points);
+        var length = GeometryOps.PathLength(mine);
+        if (!(length > 0)) return null;
+        var within = Math.Max(3 * line.Brush.Size, 10);
+        for (var j = 0; j < sheet.Lines.Count; j++)
+        {
+            var o = sheet.Lines[j];
+            if (o.Id == line.Id || o.Id == trimmingTo.Id) continue;
+            if (ReviewSheet.Alongside(mine, ReviewSheet.Coarse(o.Points), within) >= 0.6 * length) return $"L{j + 1}";
+        }
+        return null;
+    }
+
     /// <summary>A key's short mark near this one, named ("A8"), or null.</summary>
     private static string? KeyMarkNear(ReviewSheet sheet, Stroke mark, double longest)
     {
@@ -671,7 +727,7 @@ public static class LineReview
                     cut.Add(GeometryOps.LerpPoint(line[i - 1], line[i], hit));
                     // A shallow crossing is two lines running together, not one
                     // line ending against another.
-                    return (cut, CrossingDeg(line[i - 1], line[i], other[k - 1], other[k]) < AlongDeg);
+                    return (cut, CrossingDeg(Chord(line, i - 1, i), Chord(other, k - 1, k)) < AlongDeg);
                 }
             }
             walked += GeometryOps.Dist(line[i - 1], line[i]);
@@ -702,8 +758,31 @@ public static class LineReview
     /// <summary>How much of a piece cut along another line that line must still draw.</summary>
     private const double MinCovered = 0.75;
 
-    private static double CrossingDeg(StrokePoint a, StrokePoint b, StrokePoint c, StrokePoint d)
+    /// <summary>
+    /// The line's direction around segment a–b, over about ten pixels each way:
+    /// on a sketchy line one segment's angle is noise, and a perpendicular
+    /// overshoot read through it could come out as running along (ai-engineer).
+    /// </summary>
+    private static (StrokePoint From, StrokePoint To) Chord(List<StrokePoint> line, int a, int b)
     {
+        int Walk(int from, int step)
+        {
+            var walked = 0.0;
+            var at = from;
+            while (at + step >= 0 && at + step < line.Count && walked < 10)
+            {
+                walked += GeometryOps.Dist(line[at], line[at + step]);
+                at += step;
+            }
+            return at;
+        }
+        return (line[Walk(a, -1)], line[Walk(b, +1)]);
+    }
+
+    private static double CrossingDeg((StrokePoint From, StrokePoint To) one, (StrokePoint From, StrokePoint To) two)
+    {
+        var (a, b) = one;
+        var (c, d) = two;
         var u = Math.Atan2(b.Y - a.Y, b.X - a.X);
         var v = Math.Atan2(d.Y - c.Y, d.X - c.X);
         var diff = Math.Abs(u - v) % Math.PI;

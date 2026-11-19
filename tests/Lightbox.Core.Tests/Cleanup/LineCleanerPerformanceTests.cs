@@ -60,10 +60,28 @@ public class LineCleanerPerformanceTests(ITestOutputHelper output)
 
         // Loose, as the suite's budgets are, and in a Debug build: the quadratic
         // version this guards against took 1.5 s plain and 6 s guided in Release.
-        // Core runs as one leg beside every other, so these only catch the
-        // order of magnitude; the scaling test below catches the shape.
-        Assert.True(plain < 4000, $"plain clean took {plain:F0} ms");
-        Assert.True(guided < 10000, $"guided clean took {guided:F0} ms");
+        // Release budgets — CI runs Release — under the 1.5 s and 6 s the
+        // quadratic version took there; a Debug run gets four times as long.
+        // The doubling tests below catch the shape on any machine.
+        Assert.True(plain < 1400 * BuildFactor, $"plain clean took {plain:F0} ms");
+        Assert.True(guided < 5000 * BuildFactor, $"guided clean took {guided:F0} ms");
+    }
+
+#if DEBUG
+    private const double BuildFactor = 4;
+#else
+    private const double BuildFactor = 1;
+#endif
+
+    [Fact]
+    [Trait("Category", "Performance")]
+    public void TwiceTheLinesCleansTowardKeysInAboutTwiceTheTime()
+    {
+        var a = Fastest(() => LineCleaner.CleanGuided(Dense(300, 100, 0), [Dense(300, 100, 7), Dense(300, 100, 13)]));
+        var b = Fastest(() => LineCleaner.CleanGuided(Dense(600, 100, 0), [Dense(600, 100, 7), Dense(600, 100, 13)]));
+        output.WriteLine($"guided: 300 lines {a:F0} ms, 600 lines {b:F0} ms, ratio {b / a:F2}");
+
+        Assert.True(b < 3 * a + 50, $"600 lines cost {b / a:F2}x what 300 did");
     }
 
     [Fact]

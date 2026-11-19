@@ -291,10 +291,9 @@ public class LineReviewTests
         var listing = sheet.Listing(keyNeighbours: true);
         var ms = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
 
-        // Debug, loose: the version the perf review measured took 7.6 s in Release.
-        // Loose on purpose: Core runs as one leg, beside every other leg, and
-        // the version this guards against took 7.6 s in Release (~4x in Debug).
-        Assert.True(ms < 10000, $"the listing took {ms:F0} ms");
+        // A Release budget — CI runs Release — just under the 7.6 s the
+        // unbounded listing took there; a Debug run gets four times as long.
+        Assert.True(ms < 6000 * BuildFactor, $"the listing took {ms:F0} ms");
         Assert.True(listing.Length < 400_000, $"the listing is {listing.Length} characters");
     }
 
@@ -327,6 +326,82 @@ public class LineReviewTests
         var outcome = LineReview.Apply([knee, pass], ReviewSheet.For([knee, pass], keys, keys), [Trim(1, atStart: true, other: 2, "A1")]);
 
         Assert.Contains("stops short", Assert.Single(outcome.Refused).Why);
+        Assert.False(outcome.Result.Changed);
+    }
+
+#if DEBUG
+    private const double BuildFactor = 4;
+#else
+    private const double BuildFactor = 1;
+#endif
+
+    [Fact]
+    [Trait("Category", "Performance")]
+    public void TwiceTheLinesListsInAboutTwiceTheTimeNotFour()
+    {
+        // The shape of the cost, which no machine's load changes: twice the
+        // lines over twice the paper, at the same density. (Crowding more
+        // lines into one place costs more per end by nature — more neighbours
+        // to weigh — and the absolute budget above covers that.)
+        static Stroke[] Spread(int n, int seed) => [.. Enumerable.Range(0, n).Select(i =>
+            new Stroke
+            {
+                Brush = new BrushSettings { Size = 3 },
+                Points = [.. Enumerable.Range(0, 100).Select(k =>
+                    new StrokePoint(50 + (i * 37 % (6 * n)) + k * 1.2, 50 + (i * 53 % 1000) + 3 * Math.Sin((k + seed + i) / 4.0), 0.7))],
+            })];
+        double Time(int n)
+        {
+            var sheet = ReviewSheet.For(Spread(n, 0), Spread(n, 5), Spread(n, 9));
+            sheet.Listing();
+            var best = double.MaxValue;
+            for (var r = 0; r < 3; r++)
+            {
+                var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+                sheet.Listing(keyNeighbours: true);
+                best = Math.Min(best, System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds);
+            }
+            return best;
+        }
+
+        var small = Time(150);
+        var large = Time(300);
+
+        Assert.True(large < 3 * small + 20, $"150 lines {small:F0} ms, 300 lines {large:F0} ms");
+    }
+
+    [Fact]
+    public void APerpendicularOvershootIsStillTrimmedOnASketchyLine()
+    {
+        // The crossing is judged over a chord: a 90° post past a short bar,
+        // drawn with a wobble, is an overshoot, not two lines running together.
+        var bar = Line(0, 100, 60, 100);
+        var post = Line(30, 40, 30, 110);
+        post.Points = [.. post.Points.Select((p, i) => p with { X = p.X + 0.8 * Math.Sin(i * 1.7) })];
+        Stroke[] keys = [Line(0, 200, 60, 200)];
+
+        var outcome = LineReview.Apply([bar, post], ReviewSheet.For([bar, post], keys, keys), [Trim(2, atStart: false, other: 1, "A1")]);
+
+        Assert.Empty(outcome.Refused);
+        Assert.InRange(outcome.Result.Strokes[1].Points[^1].Y, 99, 101);
+    }
+
+    [Fact]
+    public void OneOfTwoPassesDrawnTogetherIsNeverTrimmed()
+    {
+        // The third live grade: both passes of a doubled thigh line cut back
+        // where they run into the knee, a joint a key draws side by side.
+        var pass1 = Line(100, 0, 100, 130);
+        var pass2 = Line(103, 0, 103, 128);
+        var knee = Line(101, 100, 101, 300);
+        Stroke[] keys = [Line(90, 0, 90, 300)];
+        Stroke[] drawing = [pass1, pass2, knee];
+
+        var outcome = LineReview.Apply(drawing, ReviewSheet.For(drawing, keys, keys),
+            [Trim(1, false, 3, "A1"), Trim(2, false, 3, "A1")]);
+
+        Assert.Equal(2, outcome.Refused.Count);
+        Assert.All(outcome.Refused, r => Assert.Contains("two passes drawn together", r.Why));
         Assert.False(outcome.Result.Changed);
     }
 

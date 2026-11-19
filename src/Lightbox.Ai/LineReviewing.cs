@@ -59,9 +59,10 @@ public static class LineReviewing
         "whether they meet, leave a gap, or overlap — and when they overlap, whether they lie on top of each " +
         "other (reading as one line, a common sketching habit) or side by side (reading as two lines). It is the " +
         "most direct evidence: find the inbetween joint that corresponds to a joint in the keys (the same pair of " +
-        "lines of the body) and compare. An overlap that reads as one line is style when a key does the same. An " +
-        "overlap that reads as two lines where the keys' joint reads as one line is a mistake: trim the line whose " +
-        "end runs past the joint, back to the other line.\n\n" +
+        "lines of the body) and compare. First: if EITHER key has that joint side by side too (reading as two " +
+        "lines), the inbetween's is style — leave it. Likewise an overlap that reads as one line is style when a key " +
+        "does the same. Only an overlap that reads as two lines where BOTH keys' joint meets or reads as one line is " +
+        "a mistake: trim the line whose end runs past the joint, back to the other line.\n\n" +
         "You may only ask for three things, by line number:\n" +
         "- trim: cut the given end of line L back to where it meets line `other`;\n" +
         "- join: carry the given end of line L and the given end of line `other` onto one point (ends at most 40 px apart);\n" +
@@ -69,7 +70,8 @@ public static class LineReviewing
         "For trim and remove, set `otherEnd` to \"end\"; it is only read for a join. " +
         "Every fix must cite in `cites` the key lines you compared it with, as \"A3\" or \"B5\" — a fix that cites " +
         "none is refused. Give a one-sentence `reason` an artist will read, in drawing terms and without line " +
-        "numbers (\"the knee's front runs on past the shin; both keys meet them at one point\"). Return no fixes " +
+        "numbers, naming the part of the body as you can see it in the keys' drawing — the joint you compared, not a " +
+        "guess at another (\"the knee's front runs on past the shin; both keys meet them at one point\"). Return no fixes " +
         "when you find no mistake. Never invent coordinates, lines or numbers that are not on the sheet.";
 
     public static string User(LineReviewRequest request) =>
