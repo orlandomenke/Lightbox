@@ -110,6 +110,7 @@ public sealed class ReviewSheet
             var coarse = neighbours ? lines.Select(l => Coarse(l.Points)).ToList() : null;
             var boxes = coarse?.Select(c => GeometryOps.BoundsOf(c)).ToList();
             var pairs = new Dictionary<(int, int), (double Alongside, bool Crosses)>();
+            var grid = coarse is null ? null : Grid(coarse);
             for (var i = 0; i < lines.Count; i++)
             {
                 var s = lines[i];
@@ -120,7 +121,7 @@ public sealed class ReviewSheet
                 if (coarse is null) continue;
                 foreach (var atStart in new[] { true, false })
                 {
-                    var near = NearEnd(lines, coarse, boxes!, pairs, i, atStart);
+                    var near = NearEnd(lines, coarse, boxes!, pairs, grid!, i, atStart);
                     if (near.Count == 0) continue;
                     text.Append(CultureInfo.InvariantCulture, $"    {(atStart ? "start" : "end")}: ")
                         .Append(string.Join("; ", near.Select(n =>
@@ -156,12 +157,21 @@ public sealed class ReviewSheet
     /// </summary>
     private static List<(int Line, double Distance, double Alongside, bool Crosses)> NearEnd(
         IReadOnlyList<Stroke> lines, List<List<StrokePoint>> coarse, List<GeometryOps.BBox> boxes,
-        Dictionary<(int, int), (double Alongside, bool Crosses)> pairs, int line, bool atStart)
+        Dictionary<(int, int), (double Alongside, bool Crosses)> pairs,
+        Dictionary<(long, long), List<int>> grid, int line, bool atStart)
     {
         var mine = coarse[line];
         var end = atStart ? lines[line].Points[0] : lines[line].Points[^1];
         var nearest = new List<(int Line, double D)>();
-        for (var j = 0; j < lines.Count; j++)
+        // Only the lines with a point in the cells around the end, each once.
+        var candidates = new SortedSet<int>();
+        var (cx, cy) = (Cell(end.X), Cell(end.Y));
+        for (var x = cx - 1; x <= cx + 1; x++)
+        for (var y = cy - 1; y <= cy + 1; y++)
+        {
+            if (grid.TryGetValue((x, y), out var cell)) candidates.UnionWith(cell);
+        }
+        foreach (var j in candidates)
         {
             if (j == line) continue;
             var o = coarse[j];
@@ -184,6 +194,40 @@ public sealed class ReviewSheet
         return [.. nearest.OrderBy(n => n.D).ThenBy(n => n.Line).Take(4)
             .Select(n => { var (along, crosses) = Measured(n.Line); return (n.Line, n.D, along, crosses); })];
     }
+
+    /// <summary>
+    /// Every line filed by the <see cref="Reach"/>-sized cells its sample points
+    /// fall in, and the cells between them — a line passes through every cell
+    /// it crosses, so an end finds it from its own and the eight around it.
+    /// </summary>
+    private static Dictionary<(long, long), List<int>> Grid(List<List<StrokePoint>> coarse)
+    {
+        var grid = new Dictionary<(long, long), List<int>>();
+        for (var j = 0; j < coarse.Count; j++)
+        {
+            var filed = new HashSet<(long, long)>();
+            var pts = coarse[j];
+            for (var k = 0; k < pts.Count; k++)
+            {
+                // Samples further apart than a cell would skip one; walk between them.
+                var a = k == 0 ? pts[0] : pts[k - 1];
+                var b = pts[k];
+                var steps = Math.Clamp((int)Math.Ceiling(GeometryOps.Dist(a, b) / Reach), 1, 64);
+                for (var q = 0; q <= steps; q++)
+                {
+                    var at = GeometryOps.LerpPoint(a, b, (double)q / steps);
+                    if (!double.IsFinite(at.X) || !double.IsFinite(at.Y)) continue;
+                    var key = (Cell(at.X), Cell(at.Y));
+                    if (!filed.Add(key)) continue;
+                    if (!grid.TryGetValue(key, out var list)) grid[key] = list = [];
+                    list.Add(j);
+                }
+            }
+        }
+        return grid;
+    }
+
+    private static long Cell(double v) => (long)Math.Floor(v / Reach);
 
     /// <summary>How much of a line, in pixels, lies within <paramref name="within"/> of another.</summary>
     internal static double Alongside(IReadOnlyList<StrokePoint> line, IReadOnlyList<StrokePoint> other, double within)

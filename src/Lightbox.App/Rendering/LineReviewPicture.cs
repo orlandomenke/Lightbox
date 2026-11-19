@@ -34,6 +34,12 @@ public static class LineReviewPicture
 
     private const int Margin = 24, Gap = 16, Head = 22;
 
+    /// <summary>
+    /// Paper, ink, the keys' label colour and the inbetween's: a picture for a
+    /// model, not canvas chrome, so its colours are its own — named once here.
+    /// </summary>
+    private static readonly (SKColor Paper, SKColor Ink, SKColor Key, SKColor Inbetween) Colours = (SKColors.White, SKColors.Black, new SKColor(30, 90, 200), new SKColor(200, 40, 20));
+
     /// <summary>The picture, as base64 PNG.</summary>
     public static string Png(ReviewSheet sheet)
     {
@@ -57,14 +63,14 @@ public static class LineReviewPicture
 
         using var sheetBitmap = new SKBitmap(3 * pw + 2 * Gap, ph + Head);
         using var canvas = new SKCanvas(sheetBitmap);
-        canvas.Clear(SKColors.White);
+        canvas.Clear(Colours.Paper);
         using var font = new SKFont(SKTypeface.Default, 13);
-        using var title = new SKPaint { Color = SKColors.Black, IsAntialias = true };
+        using var title = new SKPaint { Color = Colours.Ink, IsAntialias = true };
         (string Title, string Prefix, IReadOnlyList<Stroke> Lines, SKColor Ink)[] panels =
         [
-            ("Key A (artist)", "A", sheet.KeyA, new SKColor(30, 90, 200)),
-            ("Inbetween under review", "L", sheet.Lines, new SKColor(200, 40, 20)),
-            ("Key B (artist)", "B", sheet.KeyB, new SKColor(30, 90, 200)),
+            ("Key A (artist)", "A", sheet.KeyA, Colours.Key),
+            ("Inbetween under review", "L", sheet.Lines, Colours.Inbetween),
+            ("Key B (artist)", "B", sheet.KeyB, Colours.Key),
         ];
         for (var i = 0; i < panels.Length; i++)
         {
@@ -73,7 +79,7 @@ public static class LineReviewPicture
             using var bitmap = FrameRasterizer.Rasterize(panels[i].Lines, w, h, scale, new SKPointI(left, top));
             canvas.DrawBitmap(bitmap, x, Head);
             using var label = new SKPaint { Color = panels[i].Ink, IsAntialias = true };
-            using var halo = new SKPaint { Color = SKColors.White.WithAlpha(220), IsAntialias = true };
+            using var halo = new SKPaint { Color = Colours.Paper.WithAlpha(220), IsAntialias = true };
             var placed = new List<SKRect>();
             for (var n = 0; n < panels[i].Lines.Count; n++)
             {
