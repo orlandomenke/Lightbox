@@ -1,3 +1,4 @@
+using Avalonia.LogicalTree;
 using Avalonia.Headless.XUnit;
 using Lightbox.App.ViewModels;
 using Lightbox.Core.Cleanup;
@@ -213,6 +214,24 @@ public sealed class LineCleanupVmTests : BrushStateIsolated
 
         var json = DocJson.Serialize(vm.Doc);
         Assert.DoesNotContain("clean", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [AvaloniaFact]
+    public void TheBarLoadsAndShowsApplyOnlyWhileAPreviewWaits()
+    {
+        var vm = OneShakyLine();
+        var bar = new Lightbox.App.Views.CleanupBar { DataContext = vm };
+        var window = new Avalonia.Controls.Window { Content = bar };
+        window.Show();
+        var strip = bar.GetLogicalDescendants().OfType<Avalonia.Controls.StackPanel>()
+            .Single(p => p.Children.OfType<Avalonia.Controls.Button>().Any(b => (string?)b.Content == "Apply"));
+
+        Assert.False(strip.IsVisible);
+        vm.PreviewCleanup(guided: false);
+        Assert.True(strip.IsVisible);
+        vm.CancelCleanupCommand.Execute(null);
+        Assert.False(strip.IsVisible);
+        window.Close();
     }
 
     [AvaloniaFact]

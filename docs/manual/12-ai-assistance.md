@@ -180,7 +180,7 @@ they are, and so is a drawing too big to clean promptly (it says so). As with an
 where the line moved (the grain belongs to the canvas).
 
 **Cleaning new inbetweens as they are made.** Tick **Clean new inbetweens**
-(under Clean ▾, in the Animation menu, or in *Configure ▸ Timeline*) and ＋
+(under Clean ▾, or in *Configure ▸ Timeline*) and ＋
 Inbetween and Redraw inbetweens clean each drawing they make toward the keys
 either side, in the same undo step as the insert. It is off until you turn it
 on, and it never touches a key or a breakdown.

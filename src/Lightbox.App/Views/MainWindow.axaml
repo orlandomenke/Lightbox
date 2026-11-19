@@ -518,7 +518,6 @@
         <MenuItem Header="_Redraw inbetweens" Command="{Binding RedrawInbetweensCommand}" ToolTip.Tip="Redraw this run's inbetweens from its keys and matches. Replaces touched-up ones; Undo restores them" />
         <MenuItem Header="C_lean lines…" Command="{Binding CleanLinesCommand}" ToolTip.Tip="Preview a tidy of this drawing (or the picked cels): wobble and kinks smoothed, ends met, specks removed. Nothing changes until you apply it" />
         <MenuItem Header="Clean lines toward _keys…" Command="{Binding CleanLinesTowardKeysCommand}" ToolTip.Tip="Preview a tidy of this drawing toward the key or breakdown either side: as smooth as they are, its lines meeting the way theirs meet. For generated inbetweens" />
-        <MenuItem Header="Clean _new inbetweens" ToggleType="CheckBox" IsChecked="{Binding CleanNewInbetweens}" ToolTip.Tip="Clean each inbetween toward its keys as ＋ Inbetween or Redraw makes it, in the same undo step. Keys and breakdowns are never touched" />
         <MenuItem Header="Insert empt_y cell" Click="OnMenuInsertBlankFrame" ToolTip.Tip="A hold of the drawing before goes in at the cel and the rest of the row moves along; select n cels to insert n — the playhead's cel, or the selection" />
         <MenuItem Header="Insert blank key_frame" Click="OnMenuInsertBlankKeyframe" ToolTip.Tip="Empty cels become keyframes with nothing drawn on them (I over the X-sheet) — the playhead's cel, or the selection" />
         <Separator />
@@ -4178,30 +4177,6 @@
               <ComboBox ItemsSource="{Binding EasingChoices}" SelectedItem="{Binding TweenEasing}" Width="110" />
               <Button Content="＋ Inbetween" Command="{Binding InsertInbetweensCommand}" ToolTip.Tip="Insert interpolated frames between this key and the next" />
               <ToggleButton Content="Match lines" IsChecked="{Binding LineMatchMode}" ToolTip.Tip="Click a line of this key, then its lines in the next. Esc to finish" />
-              <!-- Q292-Q295: the line cleaner. One button on the bar, the
-                   verbs and the opt-in behind it; Apply and Cancel appear
-                   only while a preview is waiting. -->
-              <Button Content="Clean ▾" ToolTip.Tip="Tidy this drawing's lines — previewed first, nothing changes until you apply">
-                <Button.Flyout>
-                  <Flyout Placement="Top">
-                    <StackPanel Width="260" Spacing="{StaticResource Space8}">
-                      <TextBlock Text="Clean lines" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
-                      <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6"
-                                 Text="Smooths wobble and kinks, trims overshoots, closes small gaps and removes specks. Smoothing moves no line further than it is wide; lines are never merged or added." />
-                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
-                        <ComboBox ItemsSource="{Binding CleanupStrengths}" SelectedItem="{Binding CleanupStrength}" Width="96"
-                                  ToolTip.Tip="How hard the cleaner smooths a drawing on its own" />
-                        <Button Content="Clean lines…" Command="{Binding CleanLinesCommand}"
-                                ToolTip.Tip="The drawing under the playhead, or the cels picked on this layer" />
-                      </StackPanel>
-                      <Button Content="Clean lines toward keys…" Command="{Binding CleanLinesTowardKeysCommand}"
-                              ToolTip.Tip="Clean toward the key or breakdown either side: as smooth as they are, lines meeting the way theirs meet" />
-                      <CheckBox Content="Clean new inbetweens" IsChecked="{Binding CleanNewInbetweens}"
-                                ToolTip.Tip="Clean each inbetween toward its keys as it is made, in the same undo step. Keys and breakdowns are never touched" />
-                    </StackPanel>
-                  </Flyout>
-                </Button.Flyout>
-              </Button>
 
               <!-- Timing presets. The picker and Apply are on the bar because
                    re-timing a range is something an animator does over and
@@ -4269,13 +4244,7 @@
                   <Path Classes="icon" Data="{StaticResource IconTrash}" />
                 </Button>
               </StackPanel>
-              <!-- Last on the bar, so appearing pushes nothing the artist was aiming at. -->
-              <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" IsVisible="{Binding IsCleanupPending}">
-                <TextBlock Text="{Binding CleanupSummary}" VerticalAlignment="Center" MaxWidth="360" TextTrimming="CharacterEllipsis"
-                           ToolTip.Tip="{Binding CleanupSummary}" />
-                <Button Content="Apply" Command="{Binding ApplyCleanupCommand}" Classes="primary" ToolTip.Tip="Write the cleanup — one undo step" />
-                <Button Content="Cancel" Command="{Binding CancelCleanupCommand}" Classes="tertiary" ToolTip.Tip="Leave the drawing exactly as it is (Esc)" />
-              </StackPanel>
+              <views:CleanupBar />
             </StackPanel>
           </Border>
         </controls:Docker.BottomBar>

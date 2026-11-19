@@ -3897,8 +3897,7 @@ public sealed partial class CanvasControl : Control
         SKColor fillPreviewColor = default,
         TrailOverlay? trail = null, Core.Timeline.MotionArcOverlay? motionArc = null,
         SKRect? cropFrame = null, Core.Documents.SymmetryAxis? symmetry = null, bool tiled = false,
-        ViewModels.LineMatchOverlay? lineMatch = null,
-        ViewModels.CleanupOverlay? cleanup = null) : ICustomDrawOperation
+        ViewModels.LineMatchOverlay? lineMatch = null, ViewModels.CleanupOverlay? cleanup = null) : ICustomDrawOperation
     {
         public Rect Bounds { get; } = bounds;
 
@@ -4048,8 +4047,7 @@ public sealed partial class CanvasControl : Control
             ArmatureOverlayPainter.Paint(canvas, bones, view.Scale, bonesArePosed);
             // Under the ants: a committed selection outranks a would-be one.
             FillPreviewPainter.Draw(canvas, fillPreview, fillPreviewWand, fillPreviewColor, view.Scale);
-            LineMatchPainter.Paint(canvas, lineMatch, view.Scale);
-            CleanupPainter.Paint(canvas, cleanup, view.Scale);
+            LineMatchPainter.Paint(canvas, lineMatch, view.Scale); CleanupPainter.Paint(canvas, cleanup, view.Scale);
             DrawAnts(canvas);
             DrawLazyGizmo(canvas);
             DrawTransformGizmo(canvas);
