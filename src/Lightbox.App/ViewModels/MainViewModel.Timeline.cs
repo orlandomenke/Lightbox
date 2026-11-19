@@ -1906,6 +1906,8 @@ public partial class MainViewModel
 
         _editor.InsertRunInbetweens(layer.Id, filled);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
+        // Q299: the opt-in AI review, after the insert has landed as its own step.
+        _ = ReviewInsertedIfAskedAsync(layer.Id, [.. filled.SelectMany(g => g.Frames).OfType<Frame>().Select(f => f.Id)]);
     }
 
     /// <summary>

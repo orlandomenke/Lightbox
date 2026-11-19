@@ -506,6 +506,13 @@ public sealed class AppSettings
     /// </remarks>
     public bool CleanNewInbetweens { get; set; }
 
+    /// <summary>
+    /// Whether each inbetween ＋ Inbetween makes is sent for an AI line review
+    /// (Q299). Off by default; needs AI on and a provider; the findings wait as
+    /// a preview and nothing is written by itself.
+    /// </summary>
+    public bool ReviewNewInbetweensWithAi { get; set; }
+
     /// <summary>How the X-sheet shows a cel's drawing: its number, a dot, or a picture (Q282).</summary>
     /// <remarks>
     /// Written by name, so the file says what it means and a reordered enum

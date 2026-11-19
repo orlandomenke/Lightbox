@@ -176,14 +176,29 @@ public partial class MainViewModel
             return 0;
         }
 
+        InstallPendingCleanup(layer, drawings, changes, byAgent);
+        return drawings.Count;
+    }
+
+    /// <summary>
+    /// Put a proposal up for Apply or Cancel — the one way any cleanup, the
+    /// cleaner's or a review's, reaches the canvas.
+    /// </summary>
+    /// <param name="because">A sentence on why, said after what would change; the review's reasons go here.</param>
+    private void InstallPendingCleanup(
+        Layer layer, List<(string, List<Stroke>, List<Stroke>)> drawings, List<CleanupChange> changes, bool byAgent,
+        string because = "")
+    {
         _pendingCleanup = new PendingCleanup(_editor, layer.Id, drawings, byAgent);
         LastCleanupChanges = changes;
-        CleanupSummary = Describe(changes, drawings.Count, preview: true) + " Apply, or Cancel to leave the drawing as it is.";
+        CleanupSummary = Describe(changes, drawings.Count, preview: true) + because + " Apply, or Cancel to leave the drawing as it is.";
         _appliedSummary = Describe(changes, drawings.Count, preview: false);
         AiStatus = CleanupSummary;
+        _cleanupViewFrameId = null;
+        CleanupView = null;
         RefreshCleanupView();
         OnPropertyChanged(nameof(IsCleanupPending));
-        return drawings.Count;
+        OnPropertyChanged(nameof(IsCleanupPendingFromArtist));
     }
 
     [RelayCommand]
