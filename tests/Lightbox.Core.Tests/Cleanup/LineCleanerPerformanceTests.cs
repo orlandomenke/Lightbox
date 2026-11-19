@@ -21,7 +21,10 @@ public class LineCleanerPerformanceTests(ITestOutputHelper output)
         var drawing = new List<Stroke>(lines);
         for (var i = 0; i < lines; i++)
         {
-            var x0 = 20.0 + (i * 37 % 1700);
+            // More lines spread over more paper, at the same density: crowding
+            // more lines into one place costs more per end by nature, and
+            // the doubling tests are about the shape of the cost, not crowding.
+            var x0 = 20.0 + (i * 37 % Math.Max(1700, 6 * lines));
             var y0 = 20.0 + (i * 53 % 1000);
             drawing.Add(new Stroke
             {
