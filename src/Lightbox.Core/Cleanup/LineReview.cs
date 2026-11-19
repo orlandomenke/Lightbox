@@ -134,7 +134,157 @@ public sealed class ReviewSheet
         Drawing("Key A (drawn by the artist):", "A", KeyA, keyNeighbours);
         Drawing("Key B (drawn by the artist):", "B", KeyB, keyNeighbours);
         Drawing("The inbetween under review:", "L", Lines, true);
+
+        // The decisive comparison, written out for all three: where one line
+        // carries on from another, do they meet, leave a gap, or run past each
+        // other side by side? The first live grade missed the knee because
+        // "runs alongside" did not say "past the joint" (2026-11-19).
+        text.Append("\nJoints — where one line carries on from another (doubled passes ending together are left out):\n");
+        foreach (var (title, prefix, lines) in new[] { ("Key A", "A", KeyA), ("Key B", "B", KeyB), ("Inbetween", "L", Lines) })
+        {
+            var joints = Joints(lines, prefix);
+            text.Append("  ").Append(title).Append(": ").Append(joints.Count == 0 ? "none\n" : "\n");
+            foreach (var j in joints) text.Append("    ").Append(j).Append('\n');
+        }
         return text.ToString();
+    }
+
+    /// <summary>The most joints listed per drawing.</summary>
+    private const int MaxJoints = 40;
+
+    /// <summary>
+    /// Every place in one drawing where a line's end and another's end face
+    /// each other — one carrying on from the other — and how they meet.
+    /// </summary>
+    private static List<string> Joints(IReadOnlyList<Stroke> lines, string prefix)
+    {
+        var coarse = lines.Select(l => Coarse(l.Points)).ToList();
+        var found = new List<(double Order, string Text)>();
+        // Only ends within reach of each other can make a joint: ends are filed
+        // by cell and each compared with those in its own and the next cells.
+        var ends = new Dictionary<(long, long), List<(int Line, bool AtStart)>>();
+        for (var i = 0; i < lines.Count; i++)
+        {
+            foreach (var atStart in new[] { true, false })
+            {
+                var e = atStart ? coarse[i][0] : coarse[i][^1];
+                if (!double.IsFinite(e.X) || !double.IsFinite(e.Y)) continue;
+                var key = (Cell(e.X), Cell(e.Y));
+                if (!ends.TryGetValue(key, out var list)) ends[key] = list = [];
+                list.Add((i, atStart));
+            }
+        }
+        var pairs = new SortedSet<(int I, bool IStart, int J, bool JStart)>();
+        foreach (var ((cx, cy), here) in ends)
+        {
+            for (var x = cx - 1; x <= cx + 1; x++)
+            for (var y = cy - 1; y <= cy + 1; y++)
+            {
+                if (!ends.TryGetValue((x, y), out var there)) continue;
+                foreach (var (i, iStart) in here)
+                foreach (var (j, jStart) in there)
+                {
+                    if (i < j) pairs.Add((i, iStart, j, jStart));
+                }
+            }
+        }
+        foreach (var (i, iStart, j, jStart) in pairs)
+        {
+            {
+                var a = Oriented(coarse[i], iStart);
+                var b = Oriented(coarse[j], jStart);
+                var ea = a[^1];
+                var eb = b[^1];
+                var apart = GeometryOps.Dist(ea, eb);
+                if (!(apart <= Reach)) continue;
+                // Carrying on: the two ends point at each other. Two passes
+                // ending side by side point the same way, and are style.
+                var (ax, ay) = Outward(a);
+                var (bx, by) = Outward(b);
+                if (ax * bx + ay * by > -0.5) continue;
+                var pastA = Past(a, eb);
+                var pastB = Past(b, ea);
+                // How far apart the two lie along their overlap — what decides
+                // whether an overlap reads as one line or as two (the owner's
+                // key A overlaps its knee 32 px, on top of itself; the
+                // inbetween overlaps as far, a few pixels apart).
+                var apartMost = Math.Max(Separation(a, pastA, b), Separation(b, pastB, a));
+                var width = Math.Max(lines[i].Brush.Size, lines[j].Brush.Size);
+                var na = $"{prefix}{i + 1} {(iStart ? "start" : "end")}";
+                var nb = $"{prefix}{j + 1} {(jStart ? "start" : "end")}";
+                string how;
+                if (pastA > 3 && pastB > 3)
+                    how = FormattableString.Invariant(
+                            $"overlap: {prefix}{i + 1} goes {pastA:0} px past where {prefix}{j + 1} begins and {prefix}{j + 1} {pastB:0} px past where {prefix}{i + 1} ends, ")
+                        + (apartMost <= width
+                            ? FormattableString.Invariant($"lying on top of each other (at most {apartMost:0} px apart, lines {width:0.#} px wide) — reads as one line")
+                            : FormattableString.Invariant($"side by side up to {apartMost:0} px apart (lines {width:0.#} px wide) — reads as two lines"));
+                else if (apart <= Math.Max(lines[i].Brush.Size, lines[j].Brush.Size) + 1)
+                    how = string.Create(CultureInfo.InvariantCulture, $"meet ({apart:0} px apart)");
+                else
+                    how = string.Create(CultureInfo.InvariantCulture, $"stop short of each other, a gap of {apart:0} px");
+                found.Add((i * 4 + j, $"{na} / {nb}: {how}"));
+            }
+        }
+        return [.. found.OrderBy(f => f.Order).Select(f => f.Text).Take(MaxJoints)];
+    }
+
+    private static List<StrokePoint> Oriented(List<StrokePoint> pts, bool atStart) =>
+        atStart ? Enumerable.Reverse(pts).ToList() : pts;
+
+    /// <summary>The unit direction a line leaves by at its last point.</summary>
+    private static (double X, double Y) Outward(List<StrokePoint> pts)
+    {
+        var end = pts[^1];
+        var back = pts[0];
+        var walked = 0.0;
+        for (var i = pts.Count - 1; i > 0; i--)
+        {
+            walked += GeometryOps.Dist(pts[i], pts[i - 1]);
+            back = pts[i - 1];
+            if (walked >= 10) break;
+        }
+        var len = GeometryOps.Dist(back, end);
+        return len < 1e-9 ? (0, 0) : ((end.X - back.X) / len, (end.Y - back.Y) / len);
+    }
+
+    /// <summary>How far a line runs on past the point of it nearest <paramref name="other"/>'s end: its overlap at the joint.</summary>
+    private static double Past(List<StrokePoint> line, StrokePoint otherEnd)
+    {
+        var best = (Index: 0, T: 0.0, D: double.MaxValue);
+        for (var i = 1; i < line.Count; i++)
+        {
+            var dx = line[i].X - line[i - 1].X; var dy = line[i].Y - line[i - 1].Y;
+            var len2 = dx * dx + dy * dy;
+            var t = len2 == 0 ? 0 : Math.Clamp(((otherEnd.X - line[i - 1].X) * dx + (otherEnd.Y - line[i - 1].Y) * dy) / len2, 0, 1);
+            var d = GeometryOps.Dist(otherEnd, GeometryOps.LerpPoint(line[i - 1], line[i], t));
+            if (d < best.D) best = (i, t, d);
+        }
+        if (line.Count < 2) return 0;
+        var past = GeometryOps.Dist(GeometryOps.LerpPoint(line[best.Index - 1], line[best.Index], best.T), line[best.Index]);
+        for (var i = best.Index + 1; i < line.Count; i++) past += GeometryOps.Dist(line[i - 1], line[i]);
+        return past;
+    }
+
+    /// <summary>The widest gap between the last <paramref name="over"/> px of a line and another line.</summary>
+    private static double Separation(List<StrokePoint> line, double over, List<StrokePoint> other)
+    {
+        var most = 0.0;
+        var walked = 0.0;
+        for (var i = line.Count - 1; i >= 0; i--)
+        {
+            if (i < line.Count - 1) walked += GeometryOps.Dist(line[i], line[i + 1]);
+            if (walked > over) break;
+            most = Math.Max(most, DistTo(line[i], other));
+        }
+        return most;
+    }
+
+    private static double DistTo(StrokePoint p, List<StrokePoint> line)
+    {
+        var d = line.Count == 1 ? GeometryOps.Dist(p, line[0]) : double.MaxValue;
+        for (var k = 1; k < line.Count; k++) d = Math.Min(d, GeometryOps.DistToSegment(p, line[k - 1], line[k]));
+        return d;
     }
 
     /// <summary>How far, in pixels, around an end other lines are reported.</summary>
@@ -353,10 +503,27 @@ public static class LineReview
                 {
                     var pts = Current(line);
                     var oriented = fix.AtStart ? Enumerable.Reverse(pts).ToList() : pts;
-                    if (TrimTo(oriented, Current(other!)) is not { } cutLine)
+                    if (TrimTo(oriented, Current(other!)) is not var (cutLine, along))
                     {
                         Refuse($"L{fix.Line}'s {(fix.AtStart ? "start" : "end")} does not come near L{fix.Other}.");
                         break;
+                    }
+                    // Cut along another line, the piece taken away must be one
+                    // that line still draws — the overlap at a joint. Where the
+                    // other line stops short, as a tapering second pass does,
+                    // the cut would leave part of the form drawn by nothing
+                    // (the first live grade cut 45 px off a knee that way).
+                    if (along)
+                    {
+                        var piece = CutAway(oriented, cutLine);
+                        var pieceLength = GeometryOps.PathLength(piece);
+                        var covered = ReviewSheet.Alongside(piece, Current(other!), Math.Max(3 * line.Brush.Size, 10));
+                        if (pieceLength > 0.5 && covered < MinCovered * pieceLength)
+                        {
+                            Refuse($"L{fix.Other} stops short of where L{fix.Line} would be cut, so the cut would leave part of the line drawn by nothing — "
+                                   + $"trim L{fix.Other} instead, or leave it.");
+                            break;
+                        }
                     }
                     var cutAway = GeometryOps.PathLength(oriented) - GeometryOps.PathLength(cutLine);
                     if (cutAway < 0.5) { Refuse($"L{fix.Line} already ends at L{fix.Other}."); break; }
@@ -489,7 +656,7 @@ public static class LineReview
     /// at the point nearest the other line's nearer end. Null when the line's
     /// end half never comes within reach of the other.
     /// </summary>
-    private static List<StrokePoint>? TrimTo(List<StrokePoint> line, List<StrokePoint> other)
+    private static (List<StrokePoint> Cut, bool Along)? TrimTo(List<StrokePoint> line, List<StrokePoint> other)
     {
         var length = GeometryOps.PathLength(line);
         // A crossing in the end half, nearest the end.
@@ -502,7 +669,9 @@ public static class LineReview
                 {
                     var cut = line.GetRange(0, i);
                     cut.Add(GeometryOps.LerpPoint(line[i - 1], line[i], hit));
-                    return cut;
+                    // A shallow crossing is two lines running together, not one
+                    // line ending against another.
+                    return (cut, CrossingDeg(line[i - 1], line[i], other[k - 1], other[k]) < AlongDeg);
                 }
             }
             walked += GeometryOps.Dist(line[i - 1], line[i]);
@@ -524,7 +693,30 @@ public static class LineReview
         if (best.Index < 0 || !(best.D <= reach)) return null;
         var kept = line.GetRange(0, best.Index);
         kept.Add(GeometryOps.LerpPoint(line[best.Index - 1], line[best.Index], best.T));
-        return kept;
+        return (kept, true);
+    }
+
+    /// <summary>Crossings shallower than this are two lines running together.</summary>
+    private const double AlongDeg = 30;
+
+    /// <summary>How much of a piece cut along another line that line must still draw.</summary>
+    private const double MinCovered = 0.75;
+
+    private static double CrossingDeg(StrokePoint a, StrokePoint b, StrokePoint c, StrokePoint d)
+    {
+        var u = Math.Atan2(b.Y - a.Y, b.X - a.X);
+        var v = Math.Atan2(d.Y - c.Y, d.X - c.X);
+        var diff = Math.Abs(u - v) % Math.PI;
+        if (diff > Math.PI / 2) diff = Math.PI - diff;
+        return diff * 180 / Math.PI;
+    }
+
+    /// <summary>The piece of <paramref name="drawn"/> past <paramref name="kept"/>: what a trim takes away.</summary>
+    private static List<StrokePoint> CutAway(List<StrokePoint> drawn, List<StrokePoint> kept)
+    {
+        var piece = new List<StrokePoint> { kept[^1] };
+        piece.AddRange(drawn.Skip(kept.Count - 1));
+        return piece;
     }
 
     private static (double T, double D) Closest(StrokePoint p, StrokePoint a, StrokePoint b)

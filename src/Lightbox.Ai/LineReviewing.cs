@@ -54,7 +54,14 @@ public static class LineReviewing
         "Compare by which line it is — the thigh's back, the shin's front — not by where it sits, because the " +
         "pose has moved between the keys. A short mark that corresponds to any short mark in either key (a hook, " +
         "a tick, a crease) is never removed. When two lines run past each other at a joint, trim the one whose " +
-        "end runs past where the keys put the joint, so the joint stays where the keys have it.\n\n" +
+        "end runs past where the keys put the joint, so the joint stays where the keys have it.\n" +
+        "The listing ends with a JOINTS section for each drawing: where one line carries on from another, and " +
+        "whether they meet, leave a gap, or overlap — and when they overlap, whether they lie on top of each " +
+        "other (reading as one line, a common sketching habit) or side by side (reading as two lines). It is the " +
+        "most direct evidence: find the inbetween joint that corresponds to a joint in the keys (the same pair of " +
+        "lines of the body) and compare. An overlap that reads as one line is style when a key does the same. An " +
+        "overlap that reads as two lines where the keys' joint reads as one line is a mistake: trim the line whose " +
+        "end runs past the joint, back to the other line.\n\n" +
         "You may only ask for three things, by line number:\n" +
         "- trim: cut the given end of line L back to where it meets line `other`;\n" +
         "- join: carry the given end of line L and the given end of line `other` onto one point (ends at most 40 px apart);\n" +

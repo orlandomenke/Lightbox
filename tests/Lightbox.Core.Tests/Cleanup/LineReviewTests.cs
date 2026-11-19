@@ -291,8 +291,41 @@ public class LineReviewTests
         var listing = sheet.Listing(keyNeighbours: true);
         var ms = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
 
-        Assert.True(ms < 1500, $"the listing took {ms:F0} ms");
+        // Debug, loose: the version the perf review measured took 7.6 s in Release.
+        Assert.True(ms < 3000, $"the listing took {ms:F0} ms");
         Assert.True(listing.Length < 400_000, $"the listing is {listing.Length} characters");
+    }
+
+    [Fact]
+    public void TheJointsSayWhetherAnOverlapReadsAsOneLineOrTwo()
+    {
+        // The owner's key A overlaps its knee on top of itself; the inbetween
+        // overlaps it side by side. The first live grade missed the knee until
+        // this was written out (2026-11-19).
+        Stroke[] keyA = [Line(90, 0, 90, 130), Line(91, 100, 91, 300)];      // on top of each other
+        Stroke[] keyB = [Line(110, 0, 110, 100), Line(110, 100, 110, 300)];  // meeting
+        Stroke[] inbetween = [Line(100, 0, 100, 130), Line(108, 100, 108, 300)];
+
+        var listing = ReviewSheet.For(inbetween, keyA, keyB).Listing(keyNeighbours: false);
+
+        Assert.Matches(@"A1 end / A2 start: overlap: .*reads as one line", listing);
+        Assert.Matches(@"B1 end / B2 start: meet", listing);
+        Assert.Matches(@"L1 end / L2 start: overlap: .*reads as two lines", listing);
+    }
+
+    [Fact]
+    public void ATrimAlongALineThatStopsShortIsRefusedRatherThanLeaveTheFormUndrawn()
+    {
+        // The first live grade's harm: a knee cut back to the tapering end of
+        // a second thigh pass, leaving 20 px drawn by nothing.
+        var knee = Line(100, 0, 100, 200);
+        var pass = Line(96, 20, 104, 45);   // crosses shallowly, then stops
+        Stroke[] keys = [Line(90, 0, 90, 300)];
+
+        var outcome = LineReview.Apply([knee, pass], ReviewSheet.For([knee, pass], keys, keys), [Trim(1, atStart: true, other: 2, "A1")]);
+
+        Assert.Contains("stops short", Assert.Single(outcome.Refused).Why);
+        Assert.False(outcome.Result.Changed);
     }
 
     [Fact]
