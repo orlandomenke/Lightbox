@@ -678,7 +678,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
             "frame" => false,
             _ => (bool?)null,
         };
-        if (guided is null) return IpcProtocol.Response.Fail($"Unknown mode \"{p.Mode}\" — use keys or frame.");
+        if (guided is null) return IpcProtocol.Response.Fail($"Unknown mode \"{Clip(p.Mode)}\" — use keys or frame.");
         var strength = p.Strength?.Trim().ToLowerInvariant() switch
         {
             null or "" or "medium" => Lightbox.Core.Cleanup.CleanupStrength.Medium,
@@ -686,34 +686,68 @@ public sealed class IpcDocumentApi(MainViewModel vm)
             "strong" => Lightbox.Core.Cleanup.CleanupStrength.Strong,
             _ => (Lightbox.Core.Cleanup.CleanupStrength?)null,
         };
-        if (strength is null) return IpcProtocol.Response.Fail($"Unknown strength \"{p.Strength}\" — use light, medium or strong.");
+        if (strength is null) return IpcProtocol.Response.Fail($"Unknown strength \"{Clip(p.Strength)}\" — use light, medium or strong.");
+        if (!Vm.Doc.Scene.IsLayerVisible(layer) || !Vm.Doc.Scene.IsLayerEditable(layer))
+            return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" is hidden or locked and cannot be cleaned.");
+        if (Vm.IsCleanupPendingFromArtist)
+            return IpcProtocol.Response.Fail("The artist has a cleanup preview open — it is theirs to apply or cancel first.");
         if (ExposureSheet.ExposedFrame(layer, p.FrameIndex) is not { } frame)
             return IpcProtocol.Response.Fail($"No drawing at or before frame {p.FrameIndex} on layer \"{layer.Name}\".");
-        if (frame.Role != FrameRole.Inbetween && !p.IncludeKeys)
+        var role = frame.Role.ToString().ToLowerInvariant();
+        var own = frame.Role != FrameRole.Inbetween;
+        if (own && !p.IncludeKeys)
             return IpcProtocol.Response.Fail(
-                $"The drawing at frame {p.FrameIndex} is a {frame.Role.ToString().ToLowerInvariant()} — the artist's own. "
-                + "Pass includeKeys:true to clean it anyway.");
+                $"The drawing at frame {p.FrameIndex} is a {role} — the artist's own. "
+                + "Pass includeKeys:true to preview a cleanup of it for the artist.");
+        // A key or breakdown is the artist's: an agent may put a cleanup of
+        // one in front of them, never write it (Q292, Q294). Apply is theirs.
+        if (own && p.Apply)
+            return IpcProtocol.Response.Fail(
+                $"The drawing at frame {p.FrameIndex} is a {role}; a cleanup of it can only be previewed — "
+                + "the artist applies it. Call again without apply:true.");
 
-        var drawings = Vm.PreviewCleanup(layer, [p.FrameIndex], guided.Value, strength.Value);
+        var drawings = Vm.PreviewCleanup(layer, [p.FrameIndex], guided.Value, strength.Value, byAgent: true);
         var changes = drawings == 0 ? [] : Vm.LastCleanupChanges;
         var summary = drawings == 0 ? Vm.AiStatus : Vm.CleanupSummary;
         var applied = drawings > 0 && p.Apply && Vm.TryApplyCleanup();
+
+        // One entry per stroke, the kinds it had, and at most a page of them:
+        // a dense drawing touches every line, and the counts are what an
+        // agent decides on.
+        var perStroke = changes
+            .GroupBy(c => c.StrokeId)
+            .Select(g => new
+            {
+                StrokeId = g.Key,
+                Kinds = g.Select(c => c.Kind.ToString().ToLowerInvariant()).Distinct().ToList(),
+                Moved = Math.Round(g.Max(c => c.Moved), 2),
+            })
+            .ToList();
+        int Count(Lightbox.Core.Cleanup.CleanupKind kind) => changes.Where(c => c.Kind == kind).Select(c => c.StrokeId).Distinct().Count();
         return IpcProtocol.Response.Success(new
         {
             p.FrameIndex,
             LayerId = layer.Id,
+            Role = role,
             Mode = guided.Value ? "keys" : "frame",
             Applied = applied,
             Pending = Vm.IsCleanupPending,
             Summary = applied ? Vm.AiStatus : summary,
-            Changes = changes.Select(c => new
-            {
-                c.StrokeId,
-                Kind = c.Kind.ToString().ToLowerInvariant(),
-                Moved = Math.Round(c.Moved, 2),
-            }),
+            Smoothed = Count(Lightbox.Core.Cleanup.CleanupKind.Smoothed),
+            Trimmed = Count(Lightbox.Core.Cleanup.CleanupKind.Trimmed),
+            Joined = Count(Lightbox.Core.Cleanup.CleanupKind.Joined),
+            Removed = Count(Lightbox.Core.Cleanup.CleanupKind.Removed),
+            MaxMoved = Math.Round(changes.Where(c => c.Kind != Lightbox.Core.Cleanup.CleanupKind.Removed).Select(c => c.Moved).DefaultIfEmpty(0).Max(), 2),
+            Strokes = perStroke.Take(MaxListedStrokes),
+            Truncated = Math.Max(0, perStroke.Count - MaxListedStrokes),
         });
     }
+
+    /// <summary>The most strokes a <c>clean_lines</c> reply lists one by one; the counts cover the rest.</summary>
+    private const int MaxListedStrokes = 50;
+
+    /// <summary>An argument echoed in an error, cut short so a long one cannot flood the reply.</summary>
+    private static string Clip(string? text) => text is null ? "" : text.Length <= 24 ? text : text[..24] + "…";
 
     private sealed class KeyRef
     {

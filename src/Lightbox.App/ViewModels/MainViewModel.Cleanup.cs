@@ -39,8 +39,14 @@ public sealed record CleanupOverlay(IReadOnlyList<CleanupLine> Lines);
 public partial class MainViewModel
 {
     /// <summary>How hard Clean lines smooths. Toward keys measures its own.</summary>
+    /// <remarks>
+    /// <b>Light by default</b> (art-director review): on a drawing of the
+    /// artist's own the cleaner should take the least it can, and Medium
+    /// already irons out small deliberate shapes on a sketch. For this session
+    /// only, like the inbetween count and easing beside it on the bar.
+    /// </remarks>
     [ObservableProperty]
-    private CleanupStrength _cleanupStrength = CleanupStrength.Medium;
+    private CleanupStrength _cleanupStrength = CleanupStrength.Light;
 
     public IReadOnlyList<CleanupStrength> CleanupStrengths { get; } =
         [CleanupStrength.Light, CleanupStrength.Medium, CleanupStrength.Strong];
@@ -82,9 +88,19 @@ public partial class MainViewModel
     /// </summary>
     private sealed record PendingCleanup(
         object Editor, string LayerId,
-        IReadOnlyList<(string FrameId, List<Stroke> Before, List<Stroke> After)> Drawings);
+        IReadOnlyList<(string FrameId, List<Stroke> Before, List<Stroke> After)> Drawings,
+        bool ByAgent);
 
     private PendingCleanup? _pendingCleanup;
+
+    /// <summary>The drawing the current overlay was built for.</summary>
+    private string? _cleanupViewFrameId;
+
+    /// <summary>The pending cleanup described as done, for the status once it is.</summary>
+    private string _appliedSummary = "";
+
+    /// <summary>Whether the pending preview is one the artist asked for, which an agent must not replace.</summary>
+    public bool IsCleanupPendingFromArtist => _pendingCleanup is { ByAgent: false };
 
     /// <summary>What the most recent preview proposed, stroke by stroke, for the MCP surface's answer.</summary>
     public IReadOnlyList<CleanupChange> LastCleanupChanges { get; private set; } = [];
@@ -106,11 +122,17 @@ public partial class MainViewModel
         CancelCleanup();
         var layer = ActiveLayer;
         if (layer is null) return 0;
-        return PreviewCleanup(layer, CleanupTargets(layer), guided, CleanupStrength);
+        var targets = CleanupTargets(layer, guided, out var skipped);
+        if (targets.Count == 0)
+        {
+            AiStatus = $"This drawing is a {skipped} — your own. Pick its cel on the timeline to clean it toward its neighbours.";
+            return 0;
+        }
+        return PreviewCleanup(layer, targets, guided, CleanupStrength);
     }
 
     /// <summary>The same, for named drawings of a named layer — the MCP surface's way in.</summary>
-    public int PreviewCleanup(Layer layer, IReadOnlyList<int> indices, bool guided, CleanupStrength strength)
+    public int PreviewCleanup(Layer layer, IReadOnlyList<int> indices, bool guided, CleanupStrength strength, bool byAgent = false)
     {
         CancelCleanup();
         if (!CanEdit(layer, "clean its lines")) return 0;
@@ -119,6 +141,7 @@ public partial class MainViewModel
         var changes = new List<CleanupChange>();
         var seen = new HashSet<string>();
         var unguided = 0;
+        var tooLarge = 0;
         foreach (var index in indices)
         {
             if (ExposureSheet.ExposedFrame(layer, index) is not { } frame || !seen.Add(frame.Id)) continue;
@@ -137,6 +160,7 @@ public partial class MainViewModel
             {
                 result = LineCleaner.Clean(frame.Strokes, strength);
             }
+            if (result.TooLarge) tooLarge++;
             if (!result.Changed) continue;
             drawings.Add((frame.Id, [.. frame.Strokes.Select(s => s.Clone(newId: false))], [.. result.Strokes.Select(s => s.Clone(newId: false))]));
             changes.AddRange(result.Changes);
@@ -144,15 +168,18 @@ public partial class MainViewModel
 
         if (drawings.Count == 0)
         {
-            AiStatus = guided && unguided > 0
-                ? "There is no hand-drawn key or breakdown either side of this drawing to clean toward."
-                : "The lines are already clean — nothing to change.";
+            AiStatus = tooLarge > 0
+                ? $"This drawing has more lines than the cleaner works on at once (over {LineCleaner.MaxLines} lines or {LineCleaner.MaxPoints:N0} points) — nothing was changed."
+                : guided && unguided > 0
+                    ? "There is no hand-drawn key or breakdown either side of this drawing to clean toward."
+                    : "The lines are already clean — nothing to change.";
             return 0;
         }
 
-        _pendingCleanup = new PendingCleanup(_editor, layer.Id, drawings);
+        _pendingCleanup = new PendingCleanup(_editor, layer.Id, drawings, byAgent);
         LastCleanupChanges = changes;
-        CleanupSummary = Describe(changes, drawings.Count) + " Apply, or Cancel to leave the drawing as it is.";
+        CleanupSummary = Describe(changes, drawings.Count, preview: true) + " Apply, or Cancel to leave the drawing as it is.";
+        _appliedSummary = Describe(changes, drawings.Count, preview: false);
         AiStatus = CleanupSummary;
         RefreshCleanupView();
         OnPropertyChanged(nameof(IsCleanupPending));
@@ -198,9 +225,9 @@ public partial class MainViewModel
             label: drawings.Count == 1 ? "Clean lines" : $"Clean lines on {drawings.Count} drawings");
 
         foreach (var (frameId, _, _) in drawings) AfterStrokeEdit(frameId);
-        var said = CleanupSummary;
+        var said = _appliedSummary;
         ClearPendingCleanup();
-        AiStatus = "Cleaned. " + said.Replace(" Apply, or Cancel to leave the drawing as it is.", "") + " Ctrl+Z puts it back.";
+        AiStatus = said + " Undo puts it back.";
         return true;
     }
 
@@ -215,9 +242,12 @@ public partial class MainViewModel
     private void ClearPendingCleanup()
     {
         _pendingCleanup = null;
+        _cleanupViewFrameId = null;
+        CleanupView = null;
         CleanupSummary = "";
         RefreshCleanupView();
         OnPropertyChanged(nameof(IsCleanupPending));
+        OnPropertyChanged(nameof(IsCleanupPendingFromArtist));
     }
 
     /// <summary>
@@ -226,13 +256,21 @@ public partial class MainViewModel
     /// </summary>
     public void RefreshCleanupView()
     {
+        // Held drawings and playback move the playhead without changing which
+        // drawing is shown; the overlay, and the paths built from it, stay.
+        var shownId = _pendingCleanup is { } p0
+            && Scene.Layers.FirstOrDefault(l => l.Id == p0.LayerId) is { } l0
+            && ExposureSheet.ExposedFrame(l0, CurrentFrameIndex) is { } f0 ? f0.Id : null;
+        if (CleanupView is not null && shownId == _cleanupViewFrameId) return;
+        _cleanupViewFrameId = shownId;
         CleanupOverlay? view = null;
         if (_pendingCleanup is { } pending
             && Scene.Layers.FirstOrDefault(l => l.Id == pending.LayerId) is { } layer
             && ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is { } shown
             && pending.Drawings.FirstOrDefault(d => d.FrameId == shown.Id) is { FrameId: not null } drawing)
         {
-            var after = drawing.After.ToDictionary(s => s.Id);
+            var after = new Dictionary<string, Stroke>();
+            foreach (var s in drawing.After) after.TryAdd(s.Id, s);
             var lines = new List<CleanupLine>();
             foreach (var before in drawing.Before)
             {
@@ -251,16 +289,28 @@ public partial class MainViewModel
         CleanupChanged?.Invoke(view);
     }
 
-    /// <summary>The drawings a cleanup reaches: the cels picked on this layer, or the one under the playhead.</summary>
-    private List<int> CleanupTargets(Layer layer)
+    /// <summary>
+    /// The drawings a cleanup reaches: the cels picked on this layer, or the
+    /// one under the playhead. Toward keys, the one under the playhead is
+    /// skipped when it is a key or a breakdown (Q294) — those are cleaned
+    /// toward their neighbours only when the artist picks them.
+    /// </summary>
+    private List<int> CleanupTargets(Layer layer, bool guided, out string skipped)
     {
+        skipped = "";
         var layerIndex = Scene.Layers.IndexOf(layer);
         var picked = CelSelection
             .Where(c => c.Layer == layerIndex && ExposureSheet.FrameAtExactIndex(layer, c.Index) is not null)
             .Select(c => c.Index)
             .Order()
             .ToList();
-        return picked.Count > 0 ? picked : [CurrentFrameIndex];
+        if (picked.Count > 0) return picked;
+        if (guided && ExposureSheet.ExposedFrame(layer, CurrentFrameIndex) is { Role: not FrameRole.Inbetween } own)
+        {
+            skipped = own.Role == FrameRole.Breakdown ? "breakdown" : "key";
+            return [];
+        }
+        return [CurrentFrameIndex];
     }
 
     private static int FrameIndexOf(Layer layer, Frame frame)
@@ -272,37 +322,46 @@ public partial class MainViewModel
         return -1;
     }
 
-    /// <summary>Whether a drawing's strokes are still the ones a preview was made from.</summary>
+    /// <summary>
+    /// Whether a drawing is still the one a preview was made from — every
+    /// stroke whole, not only its points: a line recoloured, rebound to a bone
+    /// or given another brush after the preview would otherwise be silently
+    /// put back by Apply (adversary review).
+    /// </summary>
     private static bool Unchanged(Layer layer, string frameId, List<Stroke> before)
     {
         var frame = layer.Cels.Select(c => c.Frame).FirstOrDefault(f => f?.Id == frameId);
-        if (frame is null || frame.Strokes.Count != before.Count) return false;
-        for (var i = 0; i < before.Count; i++)
-        {
-            var now = frame.Strokes[i];
-            if (now.Id != before[i].Id || !now.Points.SequenceEqual(before[i].Points)) return false;
-        }
-        return true;
+        return frame is not null && CleanupFingerprint(frame.Strokes) == CleanupFingerprint(before);
     }
 
-    /// <summary>"Smoothed 6 lines, trimmed 2 ends, removed 1 speck on 2 drawings."</summary>
-    internal static string Describe(IReadOnlyList<CleanupChange> changes, int drawings)
+    private static string CleanupFingerprint(List<Stroke> strokes) =>
+        System.Text.Json.JsonSerializer.Serialize(strokes, Lightbox.Core.Serialization.DocJson.Compact);
+
+    /// <summary>
+    /// "Would smooth 6 lines, trim 2 overshoots …; nothing moves more than 2 px."
+    /// before the cleanup is written, and "Smoothed 6 lines …" after: a preview
+    /// in the past tense would contradict "nothing changes until you apply it".
+    /// Numbers in the invariant culture, because the same sentence is an MCP
+    /// reply an agent parses.
+    /// </summary>
+    internal static string Describe(IReadOnlyList<CleanupChange> changes, int drawings, bool preview)
     {
         var parts = new List<string>();
-        void Add(CleanupKind kind, string one, string many)
+        void Add(CleanupKind kind, string verb, string noun, string nouns)
         {
             var n = changes.Where(c => c.Kind == kind).Select(c => c.StrokeId).Distinct().Count();
-            if (n > 0) parts.Add($"{(n == 1 ? one : string.Format(many, n))}");
+            if (n > 0) parts.Add($"{verb} {n} {(n == 1 ? noun : nouns)}");
         }
-        Add(CleanupKind.Smoothed, "smoothed 1 line", "smoothed {0} lines");
-        Add(CleanupKind.Trimmed, "trimmed 1 overshoot", "trimmed {0} overshoots");
-        Add(CleanupKind.Joined, "closed 1 gap", "closed {0} gaps");
-        Add(CleanupKind.Removed, "removed 1 speck", "removed {0} specks");
+        Add(CleanupKind.Smoothed, preview ? "smooth" : "smoothed", "line", "lines");
+        Add(CleanupKind.Trimmed, preview ? "trim" : "trimmed", "overshoot", "overshoots");
+        Add(CleanupKind.Joined, preview ? "close" : "closed", "gap", "gaps");
+        Add(CleanupKind.Removed, preview ? "remove" : "removed", "speck", "specks");
         var moved = changes.Where(c => c.Kind != CleanupKind.Removed).Select(c => c.Moved).DefaultIfEmpty(0).Max();
-        var sentence = string.Join(", ", parts);
+        var sentence = (preview ? "Would " : "") + string.Join(", ", parts);
         sentence = char.ToUpperInvariant(sentence[0]) + sentence[1..];
         if (drawings > 1) sentence += $" on {drawings} drawings";
-        return $"{sentence}; nothing moved more than {moved:0.#} px.";
+        var px = moved.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        return preview ? $"{sentence}; nothing moves more than {px} px." : $"{sentence}; nothing moved more than {px} px.";
     }
 
     /// <summary>
@@ -317,6 +376,15 @@ public partial class MainViewModel
         var references = new List<IReadOnlyList<Stroke>>();
         if (before.Strokes is not null) references.Add(before.Strokes);
         if (after.Strokes is not null && !ReferenceEquals(after.Strokes, before.Strokes)) references.Add(after.Strokes);
-        return references.Count == 0 ? drawn : LineCleaner.CleanGuided(drawn, references).Strokes;
+        if (references.Count == 0) return drawn;
+        // One measurement of the two keys serves every inbetween of the gap.
+        if (_guideFor is not { } cached || !cached.Refs.SequenceEqual(references, ReferenceEqualityComparer.Instance))
+        {
+            _guideFor = (references, LineCleaner.Measure(references));
+        }
+        return _guideFor.Value.Guide is { } guide ? LineCleaner.CleanGuided(drawn, guide).Strokes : drawn;
     }
+
+    /// <summary>The last references measured for the opt-in, and what was measured; held by identity, never compared by content.</summary>
+    private (List<IReadOnlyList<Stroke>> Refs, LineCleaner.CleanupGuide? Guide)? _guideFor;
 }

@@ -52,7 +52,7 @@ public sealed class LineCleanupVmTests : BrushStateIsolated
         var line = Assert.Single(vm.CleanupView!.Lines);
         Assert.Equal(CleanupKind.Smoothed, line.Kind);
         Assert.NotEqual(before, line.Points);
-        Assert.Contains("Smoothed 1 line", vm.CleanupSummary);
+        Assert.StartsWith("Would smooth 1 line", vm.CleanupSummary);
     }
 
     [AvaloniaFact]
@@ -106,7 +106,21 @@ public sealed class LineCleanupVmTests : BrushStateIsolated
     }
 
     [AvaloniaFact]
-    public void CleaningTowardKeysWithNoKeysAroundSaysSoAndChangesNothing()
+    public void APreviewOfALineRecolouredSinceIsNotApplied()
+    {
+        // Only the colour changed — the points are what the preview was made
+        // from — and Apply would otherwise put the old colour back.
+        var vm = OneShakyLine();
+        vm.PreviewCleanup(guided: false);
+        vm.PaintLayer().Cels[0].Frame!.Strokes[0].Color = "#ff0000";
+
+        Assert.False(vm.TryApplyCleanup());
+
+        Assert.Equal("#ff0000", vm.PaintLayer().Cels[0].Frame!.Strokes[0].Color);
+    }
+
+    [AvaloniaFact]
+    public void CleaningTowardKeysOnAKeyUnderThePlayheadAsksForItToBePicked()
     {
         var vm = OneShakyLine();
         var before = PointsOf(vm);
@@ -115,7 +129,13 @@ public sealed class LineCleanupVmTests : BrushStateIsolated
 
         Assert.False(vm.IsCleanupPending);
         Assert.Equal(before, PointsOf(vm));
-        Assert.Contains("no hand-drawn key", vm.AiStatus);
+        Assert.Contains("Pick its cel", vm.AiStatus);
+    }
+
+    [AvaloniaFact]
+    public void ThePerFrameStrengthStartsAtLight()
+    {
+        Assert.Equal(CleanupStrength.Light, new MainViewModel().CleanupStrength);
     }
 
     /// <summary>Two keys a frame apart: a shaky line, and the same line moved down.</summary>
@@ -204,5 +224,6 @@ public sealed class LineCleanupVmTests : BrushStateIsolated
         Assert.Contains("timeline.cleanLinesTowardKeys", ids);
         Assert.Contains("timeline.applyCleanup", ids);
         Assert.Contains("timeline.cancelCleanup", ids);
+        Assert.Contains("timeline.cleanNewInbetweens", ids);
     }
 }

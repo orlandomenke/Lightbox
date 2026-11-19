@@ -235,21 +235,25 @@ public static class LightboxTools
     [McpServerTool(Name = "clean_lines"), Description(
         "Tidy the lines of the drawing exposed at a frame without redrawing it: " +
         "wobble and kinks smoothed, overshoots trimmed, small gaps closed where " +
-        "lines meet, specks and faint orphan marks removed. No point moves " +
-        "further than its line is wide; strokes are never merged or added. " +
+        "lines meet, specks and faint orphan marks removed. Smoothing and " +
+        "joins move no point further than its line is wide; a trim cuts only " +
+        "a short overshoot; strokes are never merged or added. " +
         "mode \"keys\" (default) cleans toward the key or breakdown either side " +
         "— use it on generated inbetweens; \"frame\" cleans the drawing on its " +
         "own at a strength. By default the cleanup is only previewed on the " +
         "artist's canvas, with Apply and Cancel, and the reply says what it " +
-        "would change; apply:true writes it as one undo step. Keys and " +
-        "breakdowns are refused unless includeKeys:true. Deterministic.")]
+        "would change (counts per kind, and up to 50 strokes one by one); " +
+        "apply:true writes it as one undo step. Keys and breakdowns are " +
+        "refused unless includeKeys:true, and even then only previewed — the " +
+        "artist applies those. Refused while the artist has a preview open. " +
+        "Deterministic.")]
     public static Task<string> CleanLines(
         [Description("Timeline frame index, 0-based")] int frameIndex,
         CancellationToken ct,
         [Description("keys (default) or frame")] string? mode = null,
         [Description("light, medium (default) or strong; frame mode only")] string? strength = null,
         [Description("Write the cleanup as one undo step instead of previewing it")] bool apply = false,
-        [Description("Allow cleaning a key or breakdown, which are the artist's own drawings")] bool includeKeys = false,
+        [Description("Allow previewing a cleanup of a key or breakdown, which are the artist's own drawings")] bool includeKeys = false,
         [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null) =>
         Text("clean_lines", new { frameIndex, layerId, mode, strength, apply, includeKeys }, ct);
 

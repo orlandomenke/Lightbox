@@ -4187,14 +4187,14 @@
                     <StackPanel Width="260" Spacing="{StaticResource Space8}">
                       <TextBlock Text="Clean lines" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
                       <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6"
-                                 Text="Smooths wobble and kinks, trims overshoots, closes small gaps and removes specks. No line moves further than it is wide; lines are never merged or added." />
+                                 Text="Smooths wobble and kinks, trims overshoots, closes small gaps and removes specks. Smoothing moves no line further than it is wide; lines are never merged or added." />
                       <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}">
                         <ComboBox ItemsSource="{Binding CleanupStrengths}" SelectedItem="{Binding CleanupStrength}" Width="96"
-                                  ToolTip.Tip="How hard Clean this drawing smooths" />
-                        <Button Content="Clean this drawing" Command="{Binding CleanLinesCommand}"
+                                  ToolTip.Tip="How hard the cleaner smooths a drawing on its own" />
+                        <Button Content="Clean lines…" Command="{Binding CleanLinesCommand}"
                                 ToolTip.Tip="The drawing under the playhead, or the cels picked on this layer" />
                       </StackPanel>
-                      <Button Content="Clean toward keys" Command="{Binding CleanLinesTowardKeysCommand}"
+                      <Button Content="Clean lines toward keys…" Command="{Binding CleanLinesTowardKeysCommand}"
                               ToolTip.Tip="Clean toward the key or breakdown either side: as smooth as they are, lines meeting the way theirs meet" />
                       <CheckBox Content="Clean new inbetweens" IsChecked="{Binding CleanNewInbetweens}"
                                 ToolTip.Tip="Clean each inbetween toward its keys as it is made, in the same undo step. Keys and breakdowns are never touched" />
@@ -4202,12 +4202,6 @@
                   </Flyout>
                 </Button.Flyout>
               </Button>
-              <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" IsVisible="{Binding IsCleanupPending}">
-                <TextBlock Text="{Binding CleanupSummary}" VerticalAlignment="Center" MaxWidth="360" TextTrimming="CharacterEllipsis"
-                           ToolTip.Tip="{Binding CleanupSummary}" />
-                <Button Content="Apply" Command="{Binding ApplyCleanupCommand}" Classes="accent" ToolTip.Tip="Write the cleanup — one undo step" />
-                <Button Content="Cancel" Command="{Binding CancelCleanupCommand}" ToolTip.Tip="Leave the drawing exactly as it is" />
-              </StackPanel>
 
               <!-- Timing presets. The picker and Apply are on the bar because
                    re-timing a range is something an animator does over and
@@ -4274,6 +4268,13 @@
                         ToolTip.Tip="Remove the camera and all its keys">
                   <Path Classes="icon" Data="{StaticResource IconTrash}" />
                 </Button>
+              </StackPanel>
+              <!-- Last on the bar, so appearing pushes nothing the artist was aiming at. -->
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space6}" IsVisible="{Binding IsCleanupPending}">
+                <TextBlock Text="{Binding CleanupSummary}" VerticalAlignment="Center" MaxWidth="360" TextTrimming="CharacterEllipsis"
+                           ToolTip.Tip="{Binding CleanupSummary}" />
+                <Button Content="Apply" Command="{Binding ApplyCleanupCommand}" Classes="primary" ToolTip.Tip="Write the cleanup — one undo step" />
+                <Button Content="Cancel" Command="{Binding CancelCleanupCommand}" Classes="tertiary" ToolTip.Tip="Leave the drawing exactly as it is (Esc)" />
               </StackPanel>
             </StackPanel>
           </Border>

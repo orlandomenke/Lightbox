@@ -29,14 +29,27 @@ public static class CleanupPainter
     /// <summary>Line widths on screen, in pixels.</summary>
     private const float Width = 1.5f, RemovedWidth = 2f;
 
-    /// <summary>Paths built once per overlay; the overlay is replaced, never changed.</summary>
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CleanupOverlay, List<(CleanupLine Line, SKPath Path)>> Paths = new();
+    /// <summary>
+    /// The paths of the overlay last painted. One overlay is on screen at a
+    /// time, so one is kept; when another arrives the old paths are disposed
+    /// here, on the thread that draws them, rather than left to finalizers
+    /// (leak review).
+    /// </summary>
+    private static CleanupOverlay? _builtFor;
+    private static List<(CleanupLine Line, SKPath Path)> _built = [];
 
-    internal static List<(CleanupLine Line, SKPath Path)> PathsFor(CleanupOverlay overlay) => Paths.GetValue(overlay, Build);
-
-    private static List<(CleanupLine, SKPath)> Build(CleanupOverlay overlay)
+    internal static List<(CleanupLine Line, SKPath Path)> PathsFor(CleanupOverlay overlay)
     {
-        var built = new List<(CleanupLine, SKPath)>(overlay.Lines.Count);
+        if (ReferenceEquals(overlay, _builtFor)) return _built;
+        foreach (var (_, path) in _built) path.Dispose();
+        _built = Build(overlay);
+        _builtFor = overlay;
+        return _built;
+    }
+
+    private static List<(CleanupLine Line, SKPath Path)> Build(CleanupOverlay overlay)
+    {
+        var built = new List<(CleanupLine Line, SKPath Path)>(overlay.Lines.Count);
         foreach (var line in overlay.Lines)
         {
             if (line.Points.Count == 0) continue;

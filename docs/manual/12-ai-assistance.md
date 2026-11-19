@@ -137,36 +137,46 @@ without redrawing anything, and it works on your own drawings too.
 
 **Clean ▾** on the timeline bar, or the Animation menu, has two ways in:
 
-- **Clean this drawing** (*Clean lines…*) tidies one drawing on its own:
+- **Clean lines…** tidies one drawing on its own:
   wobble and small kinks smoothed, overshoots trimmed, small gaps closed where
-  lines meet, specks removed. **Light**, **Medium** or **Strong** sets how hard
-  it smooths.
-- **Clean toward keys** (*Clean lines toward keys…*) tidies a drawing toward
+  lines meet, specks removed. **Light** (the default), **Medium** or
+  **Strong** sets how hard it smooths. It trims overshoots and closes gaps only
+  if your drawing's lines mostly meet cleanly — if you overshoot your junctions
+  as a style, it leaves them — and it leaves a light short mark alone.
+- **Clean lines toward keys…** tidies a drawing toward
   the key or breakdown on either side of it: it smooths only what the keys
   never do — a kink, a sideways jog — so the inbetween keeps the keys'
   character rather than coming out smoother than they are. It closes gaps and
-  trims overshoots only if your keys' lines meet cleanly (if you overshoot your
-  junctions as a style, it leaves them), keeps a corner where the keys bend,
-  and removes a faint short mark that neither key has nearby. This is the one
-  for generated inbetweens.
+  trims overshoots only if both keys' lines meet cleanly, keeps a corner where
+  the keys bend, joins the pieces a generated line is made of unless your keys
+  break a line near the same place, and removes a faint short mark, or a short
+  mark neither key has anywhere near (a mark carrying the same name as one in
+  a key is kept). This is the one for generated inbetweens.
 
 Both work on the cels you have picked on the active layer's timeline, or on the
-drawing under the playhead when none are picked.
+drawing under the playhead when none are picked — except that *Clean lines
+toward keys…* will not clean a key or breakdown under the playhead: pick its
+cel if that is what you mean.
 
 **Nothing changes until you apply it.** The cleanup is shown first: each line
 it would change is drawn in its new place, in the accent colour, over your
 drawing as it is; each mark it would remove is dashed in amber. The bar says
 what it found — how many lines smoothed, ends trimmed or joined, specks
 removed, and the furthest anything would move. **Apply** writes it as one undo
-step; **Cancel** leaves the drawing exactly as it was. If the drawing changes
+step; **Cancel** (or Esc) leaves the drawing exactly as it was. If the drawing changes
 while the preview is up, Apply refuses rather than writing a cleanup of
 something that is no longer there — run it again.
 
-**What it will never do.** No point moves further than its line is wide.
-Lines are never merged, split or added — a doubled sketch pass stays doubled.
+**What it will never do.** Smoothing moves no point further than its line is
+wide, and a gap is closed only across less than a line width; a trim cuts off
+only a short overshoot, and the line keeps its taper. Lines are never merged,
+split or added — a doubled sketch pass stays doubled, and on your own drawing
+two lines are smoothed as one only where their ink already touches. A dot is
+removed only where it sits on another line's ink, never one that is merely
+close (a pupil, a stitch).
 Pressure, brush and colour stay with the line. Erasers, fills, lines you shaped
 with the pen tool, lines bound to bones and merged groups are left exactly as
-they are. As with any edit that moves a line, a textured brush's grain shifts
+they are, and so is a drawing too big to clean promptly (it says so). As with any edit that moves a line, a textured brush's grain shifts
 where the line moved (the grain belongs to the canvas).
 
 **Cleaning new inbetweens as they are made.** Tick **Clean new inbetweens**
@@ -647,12 +657,14 @@ yours and unmarked — the timing changed, not the art.
 A locked or hidden layer refuses all four, and says which.
 
 **An agent can tidy lines as well**, with `clean_lines`: the same cleaner as
-*Clean lines toward keys* (the default) or *Clean this drawing* (`mode:
+*Clean lines toward keys…* (the default) or *Clean lines…* (`mode:
 "frame"`). By default it only **previews** — the proposal appears on your
 canvas with Apply and Cancel, and the agent is told what it would change — and
 it writes the cleanup as one undo step only when it passes `apply: true`. It
-refuses a key or a breakdown unless the agent passes `includeKeys: true`, so an
-agent cannot reach your own drawings by pointing at the wrong frame.
+refuses a key or a breakdown unless the agent passes `includeKeys: true`, and
+even then it only previews it — **Apply on your own drawing is always yours**.
+While you have a cleanup preview open, an agent's call is refused rather than
+replacing it.
 
 **An agent can organise layers into folders too**, with the same folders the
 docker shows (`get_scene` lists them, topmost first, and says which folder each

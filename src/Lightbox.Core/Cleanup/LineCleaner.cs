@@ -32,6 +32,9 @@ public sealed record CleanupResult(List<Stroke> Strokes, List<CleanupChange> Cha
 {
     public bool Changed => Changes.Count > 0;
 
+    /// <summary>The drawing was past the size a cleanup is bounded to, and nothing was looked at.</summary>
+    public bool TooLarge { get; init; }
+
     /// <summary>The changes of one kind.</summary>
     public int Count(CleanupKind kind) => Changes.Count(c => c.Kind == kind);
 }
@@ -62,6 +65,13 @@ public sealed record CleanupResult(List<Stroke> Strokes, List<CleanupChange> Cha
 /// a line.
 /// </para>
 /// <para>
+/// <b>Same machine, same bits.</b> <c>Math.Exp</c>, <c>Acos</c> and
+/// <c>Atan2</c> are not promised bit-identical across x64 and ARM64, so a
+/// comparison sitting exactly on a threshold could fall the other way on
+/// another processor. Rendering is unaffected: a cleanup is written into
+/// the record once, and the record is what renders.
+/// </para>
+/// <para>
 /// <b>Only plain drawn lines are touched.</b> Erasers, fills, groups, lines
 /// with an authored path (moving their points would break the path's agreement
 /// with them), lines bound to bones (their rest pose counts points) and baked
@@ -88,11 +98,14 @@ public static class LineCleaner
     /// <summary>Clean one drawing on its own (per-frame mode).</summary>
     public static CleanupResult Clean(IReadOnlyList<Stroke> record, CleanupStrength strength = CleanupStrength.Medium)
     {
+        // A sketch that overshoots its junctions as a style keeps doing so: the
+        // drawing's own habit decides, the way the keys' habit does when guided.
+        var habit = JunctionHabits(Lines(StrokeRecordCleaner.EffectiveStrokes(record)));
         var style = new Style(
             Passes: [new Pass(strength switch { CleanupStrength.Light => 2.5, CleanupStrength.Strong => 8, _ => 5 }, 0)],
             Opacity: StrongestOpacity(Lines(record)),
-            TrimOvershoots: true,
-            CloseGaps: true,
+            TrimOvershoots: Clean(habit.Overshoot, habit.Near),
+            CloseGaps: Clean(habit.Gap, habit.Near),
             ReferenceCorners: null);
         return Run(record, style);
     }
@@ -101,22 +114,69 @@ public static class LineCleaner
     /// Clean a drawing toward the hand-drawn frames around it (guided mode).
     /// With no usable reference it does nothing rather than guess.
     /// </summary>
-    public static CleanupResult CleanGuided(IReadOnlyList<Stroke> record, IReadOnlyList<IReadOnlyList<Stroke>> references)
+    public static CleanupResult CleanGuided(IReadOnlyList<Stroke> record, IReadOnlyList<IReadOnlyList<Stroke>> references) =>
+        Measure(references) is { } guide ? CleanGuided(record, guide) : new CleanupResult([.. record], []);
+
+    /// <summary>Clean a drawing toward references already measured — one measurement serves every inbetween of a gap.</summary>
+    public static CleanupResult CleanGuided(IReadOnlyList<Stroke> record, CleanupGuide guide) => Run(record, guide.Style);
+
+    /// <summary>
+    /// What a guided clean reads off its references — their smoothness, how
+    /// their lines meet, where they bend — measured once, so the inbetweens
+    /// of one gap do not each measure the same two keys again (perf review).
+    /// Null when no reference has a line.
+    /// </summary>
+    public static CleanupGuide? Measure(IReadOnlyList<IReadOnlyList<Stroke>> references)
     {
         var refs = references.Select(r => Lines(StrokeRecordCleaner.EffectiveStrokes(r))).Where(r => r.Count > 0).ToList();
-        if (refs.Count == 0) return new CleanupResult([.. record], []);
+        if (refs.Count == 0) return null;
 
         var refLines = refs.SelectMany(r => r).ToList();
-        var meeting = refs.Select(JunctionHabits).Aggregate((x, y) => (x.Overshoot + y.Overshoot, x.Gap + y.Gap, x.Near + y.Near));
-        var corners = refs.SelectMany(r => r.Where(s => s.Points.Count > 1).SelectMany(s => CornersOf(new Course(s.Points).Dense).Select(c => (c.P, c.Turn)))).ToList();
+        // Either key's habit is enough to keep one: if one key overshoots its
+        // junctions, an inbetween between it and a tidier key may too.
+        var habits = refs.Select(JunctionHabits).ToList();
+        var corners = refs.SelectMany(r => r.Where(s => s.Points.Count > 1)
+            .SelectMany(s => CornersOf(new Course(s.Points).Dense, Arm(s.Brush.Size)).Select(c => (c.P, c.Turn)))).ToList();
         var style = new Style(
             Passes: [.. KinkSigmas.Select(sigma => new Pass(sigma, Stray(refLines, sigma, 0.95)))],
             Opacity: StrongestOpacity(refLines),
-            TrimOvershoots: meeting.Near == 0 || meeting.Overshoot * 2 < meeting.Near,
-            CloseGaps: meeting.Near == 0 || meeting.Gap * 2 < meeting.Near,
+            TrimOvershoots: habits.All(h => Clean(h.Overshoot, h.Near)),
+            CloseGaps: habits.All(h => Clean(h.Gap, h.Near)),
             ReferenceCorners: corners,
-            ReferenceLines: refLines);
-        return Run(record, style);
+            ReferenceLines: refLines,
+            OrphanReach: Math.Max(MinOrphanReach, Motion(refs)),
+            ReferenceGapSeams: [.. refs.SelectMany(GapSeamsOf)]);
+        return new CleanupGuide(style);
+    }
+
+    /// <summary>A measured set of references, for <see cref="CleanGuided(IReadOnlyList{Stroke}, CleanupGuide)"/>.</summary>
+    public sealed class CleanupGuide
+    {
+        internal CleanupGuide(Style style) => Style = style;
+        internal Style Style { get; }
+    }
+
+    /// <summary>A habit is "meets cleanly" unless at least half the ends that come near a line do the other thing.</summary>
+    private static bool Clean(int count, int near) => near == 0 || count * 2 < near;
+
+    /// <summary>How far the drawing travels between the first and last reference: the distance between their centres.</summary>
+    private static double Motion(List<List<Stroke>> refs)
+    {
+        if (refs.Count < 2) return 0;
+        static (double X, double Y) Centre(List<Stroke> lines)
+        {
+            double x = 0, y = 0;
+            var n = 0;
+            foreach (var p in lines.SelectMany(l => l.Points))
+            {
+                if (!double.IsFinite(p.X) || !double.IsFinite(p.Y)) continue;
+                x += p.X; y += p.Y; n++;
+            }
+            return n == 0 ? (0, 0) : (x / n, y / n);
+        }
+        var a = Centre(refs[0]);
+        var b = Centre(refs[^1]);
+        return Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
     }
 
     /// <summary>
@@ -135,28 +195,46 @@ public static class LineCleaner
     /// how far the references' own lines stray, so only what they never do —
     /// a kink, a jog — is corrected and the line keeps the keys' character.
     /// </param>
-    private sealed record Pass(double Sigma, double Tolerance);
+    internal sealed record Pass(double Sigma, double Tolerance);
 
     /// <summary>How a clean behaves: the measured or chosen character it cleans toward.</summary>
     /// <param name="Passes">The smoothing passes, in order; the total move is capped once, after all of them.</param>
-    private sealed record Style(
+    /// <param name="OrphanReach">How far from a short mark a reference must have one like it, in pixels.</param>
+    /// <param name="ReferenceGapSeams">
+    /// Where the references themselves draw a line broken in two — a dash, a
+    /// stitch, a sketch line left open. A seam near one of these is the style,
+    /// not an artefact, and is left open.
+    /// </param>
+    internal sealed record Style(
         IReadOnlyList<Pass> Passes, double Opacity, bool TrimOvershoots, bool CloseGaps,
         List<(StrokePoint P, double Turn)>? ReferenceCorners,
-        List<Stroke>? ReferenceLines = null);
+        List<Stroke>? ReferenceLines = null,
+        double OrphanReach = MinOrphanReach,
+        List<StrokePoint>? ReferenceGapSeams = null);
 
     private static CleanupResult Run(IReadOnlyList<Stroke> record, Style style)
     {
         var changes = new List<CleanupChange>();
+        // Bounded work: the searches below compare ends with ends and marks
+        // with lines, so a drawing past these sizes is refused, not cleaned
+        // slowly on the thread the artist is drawing on.
+        if (record.Count > MaxLines || record.Sum(s => (long)s.Points.Count) > MaxPoints)
+        {
+            return new CleanupResult([.. record], changes) { TooLarge = true };
+        }
+        // A broken file can carry two strokes with one id; every lookup here
+        // is by id, so those are left exactly as they are.
+        var shared = record.GroupBy(s => s.Id).Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet();
         var effective = StrokeRecordCleaner.EffectiveStrokes(record);
         var visible = effective.Select(s => s.Id).ToHashSet();
 
         // 1. Specks and faint orphans. Only what is actually on the drawing
         //    counts as a neighbour, and an erased line is not removed twice.
         var removed = new HashSet<string>();
-        var neighbours = effective.Where(s => s.Tool == ToolKind.Brush && s.Points.Count > 0).ToList();
+        var neighbours = new SegmentGrid([.. effective.Where(s => s.Tool == ToolKind.Brush && s.Points.Count > 0).Select(s => (s, s.Points))]);
         foreach (var s in record)
         {
-            if (!Cleanable(s) || !visible.Contains(s.Id)) continue;
+            if (!Cleanable(s) || shared.Contains(s.Id) || !visible.Contains(s.Id)) continue;
             if (IsOrphan(s, neighbours, style))
             {
                 removed.Add(s.Id);
@@ -168,14 +246,15 @@ public static class LineCleaner
         //    another end to end, as one line. An inbetween is rebuilt from
         //    pieces, and its kinks sit where two pieces meet: smoothing each
         //    piece alone holds both ends still and never sees them.
-        var candidates = record.Where(s => Cleanable(s) && !removed.Contains(s.Id) && s.Points.Count > 1).ToList();
-        var (chains, linked) = Chains(candidates);
+        var candidates = record.Where(s => Cleanable(s) && !shared.Contains(s.Id) && !removed.Contains(s.Id) && s.Points.Count > 1).ToList();
+        var byId = candidates.ToDictionary(c => c.Id);
+        var (chains, linked) = Chains(candidates, style);
         var working = new Dictionary<string, List<StrokePoint>>();
         foreach (var chain in chains)
         {
             foreach (var (id, points, seamClosed) in SmoothChain(chain, style))
             {
-                var before = candidates.First(c => c.Id == id).Points;
+                var before = byId[id].Points;
                 var moved = MaxMove(before, points);
                 if (moved < Noticeable) continue;
                 working[id] = points;
@@ -191,10 +270,10 @@ public static class LineCleaner
             .Select(s => (s, Pts: working.TryGetValue(s.Id, out var w) ? w : s.Points))
             .ToList();
         var ends = new Dictionary<string, List<StrokePoint>>();
+        var grid = new SegmentGrid(lines.Select(l => (l.s, l.Pts)).ToList());
         foreach (var (s, pts) in lines)
         {
-            if (!Cleanable(s) || pts.Count < 2) continue;
-            var others = lines.Where(l => l.s.Id != s.Id).ToList();
+            if (!Cleanable(s) || shared.Contains(s.Id) || pts.Count < 2) continue;
             var cap = Cap(s);
             var result = pts;
             var kind = (CleanupKind?)null;
@@ -202,7 +281,7 @@ public static class LineCleaner
             {
                 if (linked.Contains((s.Id, atStart))) continue;
                 var oriented = atStart ? result.AsEnumerable().Reverse().ToList() : result;
-                var (fixedEnd, k) = FixEnd(oriented, s, others, cap, style);
+                var (fixedEnd, k) = FixEnd(oriented, s, grid, cap, style);
                 if (k is null) continue;
                 result = atStart ? fixedEnd.AsEnumerable().Reverse().ToList() : fixedEnd;
                 kind ??= k;
@@ -235,45 +314,86 @@ public static class LineCleaner
     /// A plain drawn line whose points can move without breaking anything that
     /// is stored beside them.
     /// </summary>
+    /// <remarks>
+    /// A line carrying a coordinate or a size that is not a number is left
+    /// alone rather than cleaned: one NaN averages into every neighbour within
+    /// reach and slips past every bound, because a comparison with NaN is
+    /// always false. So is a line too long to clean in bounded time.
+    /// </remarks>
     public static bool Cleanable(Stroke s) =>
         s.Tool == ToolKind.Brush
         && s.Group is null && s.Path is null
         && s.Weights is null && s.RestPoints is null
         && s.Baked is null && s.SimId is null && s.TextId is null
-        && s.Points.Count > 0;
+        && s.Points.Count > 0 && s.Points.Count <= MaxPointsPerLine
+        && double.IsFinite(s.Brush.Size) && s.Brush.Size > 0
+        && s.Points.All(p => double.IsFinite(p.X) && double.IsFinite(p.Y) && double.IsFinite(p.Pressure));
+
+    /// <summary>The most points one line may have and still be cleaned.</summary>
+    public const int MaxPointsPerLine = 20_000;
+
+    /// <summary>The most lines, and points in all, a drawing may have and still be cleaned in one go.</summary>
+    public const int MaxLines = 3_000, MaxPoints = 200_000;
 
     private static List<Stroke> Lines(IReadOnlyList<Stroke> strokes) =>
         strokes.Where(s => s.Tool == ToolKind.Brush && s.Points.Count > 0).ToList();
 
-    /// <summary>No point moves further than the line is wide.</summary>
-    private static double Cap(Stroke s) => Math.Clamp(s.Brush.Size, 1.5, 12);
+    /// <summary>No point moves further than the line is wide (never less than half a pixel, never more than twelve).</summary>
+    private static double Cap(Stroke s) => Math.Clamp(s.Brush.Size, 0.5, 12);
 
     // ---------------------------------------------------------------- orphans
 
     /// <summary>
-    /// A speck — a blip of ink stuck to another line, a pen tap at a junction
-    /// — or a faint short mark. An isolated dot is not one: it may be a pupil
-    /// or a star. Guided, a short mark is also an orphan when neither
-    /// reference has a mark like it anywhere near.
+    /// A speck — a blip of ink lying on another line's ink, a pen tap at a
+    /// junction. A dot that merely sits near a line is not one: a pupil beside
+    /// the iris, a nostril, a stitch along a seam. Guided, a faint short mark
+    /// is one (an unmatched line fading out), and so is a short mark no
+    /// reference has anything like within the distance the drawing travels —
+    /// unless a reference has a stroke of the same name.
     /// </summary>
-    private static bool IsOrphan(Stroke s, List<Stroke> neighbours, Style style)
+    /// <remarks>
+    /// The faint rule is guided only. On a drawing of the artist's own, a light
+    /// short mark is hatching, blush or construction, and is theirs.
+    /// </remarks>
+    private static bool IsOrphan(Stroke s, SegmentGrid neighbours, Style style)
     {
         var length = GeometryOps.PathLength(s.Points);
         var size = s.Brush.Size;
         var shortest = Math.Max(4 * size, 16);
         if (length >= shortest) return false;
+        if (length <= Math.Max(size, 3) && OnInk(s, neighbours)) return true;
+        if (style.ReferenceLines is not { } refs) return false;
         if (s.Brush.Opacity < 0.5 * style.Opacity) return true;
-        if (length <= Math.Max(size, 3) && Near(s, neighbours.Where(n => n.Id != s.Id), 2 * size)) return true;
-        if (style.ReferenceLines is { } refs)
+        if (s.Label is { Length: > 0 } label && refs.Any(r => r.Label == label)) return false;
+        var similar = refs.Where(r => GeometryOps.PathLength(r.Points) <= Math.Max(2 * length, shortest));
+        return !Near(s, similar, style.OrphanReach);
+    }
+
+    /// <summary>The least reach a short mark's look-alike is searched for in, in pixels.</summary>
+    private const double MinOrphanReach = 60;
+
+    /// <summary>Whether every point of a mark lies on another line's ink.</summary>
+    private static bool OnInk(Stroke s, SegmentGrid grid)
+    {
+        // Only lines with a segment near the mark can carry it.
+        var nearby = grid.Near(s.Points[0], grid.MaxSize / 2 + 1, s.Id).Select(x => x.S).Distinct().ToList();
+        foreach (var o in nearby)
         {
-            var similar = refs.Where(r => GeometryOps.PathLength(r.Points) <= Math.Max(2 * length, shortest));
-            return !Near(s, similar, OrphanReach);
+            if (o.Points.Count < 2) continue;
+            var inside = true;
+            foreach (var p in s.Points)
+            {
+                var hit = false;
+                for (var j = 1; j < o.Points.Count && !hit; j++)
+                {
+                    if (GeometryOps.DistToSegment(p, o.Points[j - 1], o.Points[j]) <= o.Brush.Size / 2) hit = true;
+                }
+                if (!hit) { inside = false; break; }
+            }
+            if (inside) return true;
         }
         return false;
     }
-
-    /// <summary>How far from a short mark a reference must have one like it, in pixels.</summary>
-    private const double OrphanReach = 60;
 
     private static bool Near(Stroke s, IEnumerable<Stroke> others, double within)
     {
@@ -303,11 +423,11 @@ public static class LineCleaner
     /// line around it — never across a corner, never further than the cap,
     /// ends fixed. Pressure, tilt and speed stay with their points.
     /// </summary>
-    private static List<StrokePoint> Smooth(List<StrokePoint> pts, double cap, Style style)
+    private static List<StrokePoint> Smooth(List<StrokePoint> pts, double cap, double size, Style style)
     {
         if (pts.Count < 3) return pts;
         var current = pts;
-        foreach (var pass in style.Passes) current = SmoothPass(current, pass, style);
+        foreach (var pass in style.Passes) current = SmoothPass(current, pass, size, style);
         if (ReferenceEquals(current, pts)) return pts;
 
         // However many passes, no point ends up further than the cap from
@@ -318,13 +438,13 @@ public static class LineCleaner
             var dx = current[i].X - pts[i].X;
             var dy = current[i].Y - pts[i].Y;
             var d = Math.Sqrt(dx * dx + dy * dy);
-            var k = d > cap ? cap / d : 1;
+            var k = d <= cap ? 1 : cap / d;
             output.Add(pts[i] with { X = pts[i].X + dx * k, Y = pts[i].Y + dy * k });
         }
         return output;
     }
 
-    private static List<StrokePoint> SmoothPass(List<StrokePoint> pts, Pass pass, Style style)
+    private static List<StrokePoint> SmoothPass(List<StrokePoint> pts, Pass pass, double size, Style style)
     {
         if (pass.Sigma <= 0) return pts;
         var course = new Course(pts);
@@ -333,7 +453,7 @@ public static class LineCleaner
         // Segment bounds, as distances along the line: the ends and every
         // corner that is kept.
         var bounds = new List<double> { 0 };
-        bounds.AddRange(CornersOf(course.Dense)
+        bounds.AddRange(CornersOf(course.Dense, Arm(size))
             .Where(c => Keeps(c, pass, style))
             .Select(c => c.Index * course.DenseStep));
         bounds.Add(course.Length);
@@ -425,9 +545,41 @@ public static class LineCleaner
             var mx = points[i].X + dx * w - drawn[i].X;
             var my = points[i].Y + dy * w - drawn[i].Y;
             var d = Math.Sqrt(mx * mx + my * my);
-            var k = d > cap ? cap / d : 1;
+            var k = d <= cap ? 1 : cap / d;
             points[i] = points[i] with { X = drawn[i].X + mx * k, Y = drawn[i].Y + my * k };
         }
+    }
+
+    /// <summary>
+    /// The Gaussian weights of one smoothing scale and their moments, worked
+    /// out once per scale rather than per sample (perf review). The same
+    /// numbers as computing them in place, so the result is unchanged.
+    /// </summary>
+    private sealed class Kernel
+    {
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<double, Kernel> Made = new();
+
+        public int Reach { get; }
+        public double[] Weights { get; }
+        public double S0 { get; }
+        public double S2 { get; }
+        public double S4 { get; }
+
+        private Kernel(double sigma)
+        {
+            Reach = (int)Math.Ceiling(3 * sigma / Step);
+            Weights = new double[2 * Reach + 1];
+            for (var k = -Reach; k <= Reach; k++)
+            {
+                var t = k * Step;
+                var t2 = t * t;
+                var w = Math.Exp(-0.5 * t2 / (sigma * sigma));
+                Weights[k + Reach] = w;
+                S0 += w; S2 += w * t2; S4 += w * t2 * t2;
+            }
+        }
+
+        public static Kernel For(double sigma) => Made.GetOrAdd(sigma, s => new Kernel(s));
     }
 
     /// <summary>
@@ -498,21 +650,19 @@ public static class LineCleaner
         /// </remarks>
         public (double X, double Y) SmoothAt(double at, double sigma, double lo, double hi)
         {
-            var reach = (int)Math.Ceiling(3 * sigma / Step);
-            double s0 = 0, s2 = 0, s4 = 0, px = 0, py = 0, qx = 0, qy = 0;
-            for (var k = -reach; k <= reach; k++)
+            var kernel = Kernel.For(sigma);
+            double px = 0, py = 0, qx = 0, qy = 0;
+            for (var k = -kernel.Reach; k <= kernel.Reach; k++)
             {
                 var t = k * Step;
-                var t2 = t * t;
-                var w = Math.Exp(-0.5 * t2 / (sigma * sigma));
+                var w = kernel.Weights[k + kernel.Reach];
                 var (x, y) = Reflected(at + t, lo, hi);
-                s0 += w; s2 += w * t2; s4 += w * t2 * t2;
                 px += w * x; py += w * y;
-                qx += w * t2 * x; qy += w * t2 * y;
+                qx += w * t * t * x; qy += w * t * t * y;
             }
-            var det = s0 * s4 - s2 * s2;
-            if (det <= 1e-12) return (px / s0, py / s0);
-            return ((s4 * px - s2 * qx) / det, (s4 * py - s2 * qy) / det);
+            var det = kernel.S0 * kernel.S4 - kernel.S2 * kernel.S2;
+            if (det <= 1e-12) return (px / kernel.S0, py / kernel.S0);
+            return ((kernel.S4 * px - kernel.S2 * qx) / det, (kernel.S4 * py - kernel.S2 * qy) / det);
         }
 
         /// <summary>
@@ -553,45 +703,28 @@ public static class LineCleaner
     /// pass is never fused. Each end links at most once, closest first, ties
     /// broken by the record's order — so the runs never depend on luck.
     /// </remarks>
-    private static (List<List<(Stroke S, bool Reversed)>> Chains, HashSet<(string, bool)> Linked) Chains(List<Stroke> strokes)
+    private static (List<List<(Stroke S, bool Reversed)>> Chains, HashSet<(string, bool)> Linked) Chains(List<Stroke> strokes, Style style)
     {
-        var endsOf = new List<(int Stroke, bool AtStart, StrokePoint P, double Dx, double Dy)>();
-        for (var i = 0; i < strokes.Count; i++)
+        // How far apart two ends may be and still be one line: touching ink
+        // on a drawing of the artist's own — a line restroked over itself —
+        // because a gap there may be a dash, a stitch or a line left open on
+        // purpose. Guided, a visible gap is an artefact of the pieces an
+        // inbetween is rebuilt from, and is closed — unless the keys do not
+        // meet their lines cleanly, or draw a broken line near the same place.
+        var guided = style.ReferenceLines is not null && style.CloseGaps;
+        var (endsOf, pairs) = EndPairs(strokes, (a, b) => guided ? SeamReach(a, b) : Touching(a, b));
+        if (style.ReferenceGapSeams is { Count: > 0 } broken)
         {
-            var pts = strokes[i].Points;
-            var length = GeometryOps.PathLength(pts);
-            if (length <= 0) continue;
-            foreach (var atStart in new[] { false, true })
+            pairs = [.. pairs.Where(p =>
             {
-                var oriented = atStart ? pts.AsEnumerable().Reverse().ToList() : pts;
-                var back = PointBack(oriented, Math.Min(6, length / 2));
-                var end = oriented[^1];
-                var len = GeometryOps.Dist(back, end);
-                if (len <= 0) continue;
-                endsOf.Add((i, atStart, end, (end.X - back.X) / len, (end.Y - back.Y) / len));
-            }
-        }
-
-        var pairs = new List<(double Score, int A, int B)>();
-        for (var a = 0; a < endsOf.Count; a++)
-        for (var b = a + 1; b < endsOf.Count; b++)
-        {
-            var ea = endsOf[a];
-            var eb = endsOf[b];
-            if (ea.Stroke == eb.Stroke) continue;
-            var reach = Math.Max(2 * Math.Max(strokes[ea.Stroke].Brush.Size, strokes[eb.Stroke].Brush.Size), 8);
-            var d = GeometryOps.Dist(ea.P, eb.P);
-            if (d > reach) continue;
-            // Leaving one end must be arriving at the other: the two outward
-            // directions point at each other.
-            var dot = -(ea.Dx * eb.Dx + ea.Dy * eb.Dy);
-            var angle = Math.Acos(Math.Clamp(dot, -1, 1)) * 180 / Math.PI;
-            if (angle > SeamDeg) continue;
-            pairs.Add((d + angle / 10, a, b));
+                if (p.D <= Touching(strokes[endsOf[p.A].Stroke], strokes[endsOf[p.B].Stroke])) return true;
+                var mid = GeometryOps.LerpPoint(endsOf[p.A].P, endsOf[p.B].P, 0.5);
+                return !broken.Any(g => GeometryOps.Dist(g, mid) <= style.OrphanReach);
+            })];
         }
 
         var link = new Dictionary<int, int>();
-        foreach (var (_, a, b) in pairs.OrderBy(p => p.Score).ThenBy(p => p.A).ThenBy(p => p.B))
+        foreach (var (_, a, b, _) in pairs.OrderBy(p => p.Score).ThenBy(p => p.A).ThenBy(p => p.B))
         {
             if (link.ContainsKey(a) || link.ContainsKey(b)) continue;
             link[a] = b;
@@ -648,6 +781,64 @@ public static class LineCleaner
         return (chains, linked);
     }
 
+    /// <summary>Two lines' ink touches across a gap this small, in pixels.</summary>
+    private static double Touching(Stroke a, Stroke b) => 0.25 * (a.Brush.Size + b.Brush.Size) + 0.5;
+
+    /// <summary>The widest gap a guided clean treats as one line drawn in two pieces, in pixels.</summary>
+    private static double SeamReach(Stroke a, Stroke b) => Math.Max(2 * Math.Max(a.Brush.Size, b.Brush.Size), 8);
+
+    /// <summary>
+    /// Every pair of ends, on different strokes, that are within reach and
+    /// point at each other — leaving one is arriving at the other — scored
+    /// closest and straightest first.
+    /// </summary>
+    private static (List<(int Stroke, bool AtStart, StrokePoint P, double Dx, double Dy)> Ends, List<(double Score, int A, int B, double D)> Pairs)
+        EndPairs(List<Stroke> strokes, Func<Stroke, Stroke, double> reachOf)
+    {
+        var endsOf = new List<(int Stroke, bool AtStart, StrokePoint P, double Dx, double Dy)>();
+        for (var i = 0; i < strokes.Count; i++)
+        {
+            var pts = strokes[i].Points;
+            var length = GeometryOps.PathLength(pts);
+            if (!(length > 0) || !double.IsFinite(length)) continue;
+            foreach (var atStart in new[] { false, true })
+            {
+                var oriented = atStart ? pts.AsEnumerable().Reverse().ToList() : pts;
+                var back = PointBack(oriented, Math.Min(6, length / 2));
+                var end = oriented[^1];
+                var len = GeometryOps.Dist(back, end);
+                if (!(len > 0)) continue;
+                endsOf.Add((i, atStart, end, (end.X - back.X) / len, (end.Y - back.Y) / len));
+            }
+        }
+
+        var pairs = new List<(double Score, int A, int B, double D)>();
+        for (var a = 0; a < endsOf.Count; a++)
+        for (var b = a + 1; b < endsOf.Count; b++)
+        {
+            var ea = endsOf[a];
+            var eb = endsOf[b];
+            if (ea.Stroke == eb.Stroke) continue;
+            var d = GeometryOps.Dist(ea.P, eb.P);
+            if (!(d <= reachOf(strokes[ea.Stroke], strokes[eb.Stroke]))) continue;
+            var dot = -(ea.Dx * eb.Dx + ea.Dy * eb.Dy);
+            var angle = Math.Acos(Math.Clamp(dot, -1, 1)) * 180 / Math.PI;
+            if (angle > SeamDeg) continue;
+            pairs.Add((d + angle / 10, a, b, d));
+        }
+        return (endsOf, pairs);
+    }
+
+    /// <summary>Where a drawing breaks a line in two on purpose: end pairs that face each other across a visible gap.</summary>
+    private static IEnumerable<StrokePoint> GapSeamsOf(List<Stroke> lines)
+    {
+        var (ends, pairs) = EndPairs(lines, SeamReach);
+        foreach (var (_, a, b, d) in pairs)
+        {
+            if (d > Touching(lines[ends[a].Stroke], lines[ends[b].Stroke])) yield return GeometryOps.LerpPoint(ends[a].P, ends[b].P, 0.5);
+        }
+    }
+
     /// <summary>
     /// Smooth one run as a single line, then hand each stroke its own points
     /// back in its own direction. Ends inside the run are free to move, and
@@ -665,7 +856,7 @@ public static class LineCleaner
             all.AddRange(reversed ? s.Points.AsEnumerable().Reverse() : s.Points);
         }
         var cap = chain.Min(c => Cap(c.S));
-        var smoothed = Smooth(all, cap, style);
+        var smoothed = Smooth(all, cap, chain.Min(c => c.S.Brush.Size), style);
         if (ReferenceEquals(smoothed, all)) smoothed = [.. all];
 
         var closed = new bool[chain.Count];
@@ -711,15 +902,21 @@ public static class LineCleaner
         return refs.Any(r => r.Turn >= 0.5 * c.Turn && GeometryOps.Dist(r.P, c.P) <= radius);
     }
 
-    /// <summary>Arm over which a corner is measured, in dense samples (~24px).</summary>
-    private const int CornerArm = 24;
+    /// <summary>
+    /// Arm over which a corner is measured, in dense samples (~pixels): four
+    /// line widths, between 8 and 24. A thin pen's small notch or fold is a
+    /// corner at its own scale; measured over a thick brush's arm it would be
+    /// ironed out as wobble.
+    /// </summary>
+    private static int Arm(double size) => (int)Math.Clamp(Math.Round(4 * size), 8, 24);
 
     /// <summary>
     /// Corners measured over a long arm: a turn the line keeps, not a jog it
     /// recovers from. Each is the sharpest point of its own turn.
     /// </summary>
-    private static List<(int Index, StrokePoint P, double Turn)> CornersOf(List<StrokePoint> dense)
+    private static List<(int Index, StrokePoint P, double Turn)> CornersOf(List<StrokePoint> dense, int arm)
     {
+        var CornerArm = arm;
         var found = new List<(int, StrokePoint, double)>();
         var n = dense.Count;
         if (n < 2 * CornerArm + 1) return found;
@@ -760,11 +957,15 @@ public static class LineCleaner
     /// one it is heading for.
     /// </summary>
     private static (List<StrokePoint> Points, CleanupKind? Kind) FixEnd(
-        List<StrokePoint> pts, Stroke s, List<(Stroke s, List<StrokePoint> Pts)> others, double cap, Style style)
+        List<StrokePoint> pts, Stroke s, SegmentGrid grid, double cap, Style style)
     {
         var size = s.Brush.Size;
         var overshootMax = Math.Max(3 * size, 8);
         var length = GeometryOps.PathLength(pts);
+        // Everything an end can meet lies within reach of it, so only the
+        // segments in the cells around it are looked at (perf review: every
+        // end against every segment was 1.5 s on a 300-line drawing).
+        var nearby = grid.Near(pts[^1], overshootMax + 1, s.Id).ToList();
 
         // Overshoot: the nearest crossing to the end, within reach of it.
         if (style.TrimOvershoots)
@@ -774,18 +975,17 @@ public static class LineCleaner
             {
                 var a = pts[i - 1];
                 var b = pts[i];
-                foreach (var (o, op) in others)
+                foreach (var (o, c, d) in nearby)
                 {
-                    for (var j = 1; j < op.Count; j++)
                     {
-                        if (Cross(a, b, op[j - 1], op[j]) is not { } hit) continue;
-                        if (Angle(a, b, op[j - 1], op[j]) < ShallowDeg) continue;
+                        if (Cross(a, b, c, d) is not { } hit) continue;
+                        if (Angle(a, b, c, d) < ShallowDeg) continue;
                         var tail = walked + GeometryOps.Dist(hit.P, b);
                         if (tail <= o.Brush.Size * 0.5 + 0.5 || tail > overshootMax) continue;
                         if (length - tail < 3 * tail) continue;
                         var cut = pts.GetRange(0, i);
                         cut.Add(GeometryOps.LerpPoint(a, b, hit.T) with { TiltX = b.TiltX, TiltY = b.TiltY, Speed = b.Speed });
-                        return (cut, CleanupKind.Trimmed);
+                        return (Tapered(cut, pts[^1].Pressure, tail), CleanupKind.Trimmed);
                     }
                 }
                 walked += GeometryOps.Dist(a, b);
@@ -797,15 +997,15 @@ public static class LineCleaner
         {
             var end = pts[^1];
             var back = PointBack(pts, Math.Min(6, length / 2));
-            var gapMax = Math.Min(Math.Max(2 * size, 6), cap * 2);
+            // No further than the line is wide: the same bound every move keeps.
+            var gapMax = Math.Min(Math.Max(2 * size, 6), cap);
             StrokePoint? best = null;
             var bestD = double.MaxValue;
             var bestSize = 0.0;
-            foreach (var (o, op) in others)
+            foreach (var (o, c0, c1) in nearby)
             {
-                for (var j = 1; j < op.Count; j++)
                 {
-                    var q = Nearest(end, op[j - 1], op[j]);
+                    var q = Nearest(end, c0, c1);
                     var d = GeometryOps.Dist(end, q);
                     if (d < bestD)
                     {
@@ -830,6 +1030,25 @@ public static class LineCleaner
     }
 
     /// <summary>
+    /// The line's lift-off moved onto its new end: the end takes the pressure
+    /// the drawn end had, eased in over the length that was cut, so a trimmed
+    /// line still tapers rather than stopping blunt.
+    /// </summary>
+    private static List<StrokePoint> Tapered(List<StrokePoint> cut, double endPressure, double over)
+    {
+        cut[^1] = cut[^1] with { Pressure = endPressure };
+        var walked = 0.0;
+        for (var q = cut.Count - 2; q >= 0; q--)
+        {
+            walked += GeometryOps.Dist(cut[q], cut[q + 1]);
+            if (!(walked < over)) break;
+            var w = 1 - walked / over;
+            cut[q] = cut[q] with { Pressure = cut[q].Pressure + (endPressure - cut[q].Pressure) * w };
+        }
+        return cut;
+    }
+
+    /// <summary>
     /// How a set of lines tends to meet: of the ends that come near another
     /// line, how many run past it and how many stop short.
     /// </summary>
@@ -837,32 +1056,104 @@ public static class LineCleaner
     {
         int over = 0, gap = 0, near = 0;
         var style = new Style([], 1, true, true, null);
+        var grid = new SegmentGrid([.. lines.Select(l => (l, l.Points))]);
         foreach (var s in lines)
         {
             if (s.Points.Count < 2) continue;
-            var others = lines.Where(o => o.Id != s.Id).Select(o => (o, o.Points)).ToList();
             foreach (var atStart in new[] { false, true })
             {
                 var pts = atStart ? s.Points.AsEnumerable().Reverse().ToList() : s.Points;
-                var (_, kind) = FixEnd(pts, s, others, Cap(s), style);
+                var (_, kind) = FixEnd(pts, s, grid, Cap(s), style);
                 if (kind == CleanupKind.Trimmed) over++;
                 if (kind == CleanupKind.Joined) gap++;
-                if (kind is not null || TouchesAnother(pts[^1], others)) near++;
+                if (kind is not null || TouchesAnother(pts[^1], s, grid)) near++;
             }
         }
         return (over, gap, near);
     }
 
-    private static bool TouchesAnother(StrokePoint end, List<(Stroke s, List<StrokePoint> Points)> others)
+    private static bool TouchesAnother(StrokePoint end, Stroke s, SegmentGrid grid)
     {
-        foreach (var (o, op) in others)
+        foreach (var (o, a, b) in grid.Near(end, Math.Max(grid.MaxSize, 2) + 1, s.Id))
         {
-            for (var j = 1; j < op.Count; j++)
-            {
-                if (GeometryOps.DistToSegment(end, op[j - 1], op[j]) <= Math.Max(o.Brush.Size, 2)) return true;
-            }
+            if (GeometryOps.DistToSegment(end, a, b) <= Math.Max(o.Brush.Size, 2)) return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// The segments of a set of lines, filed by the square cells they cross,
+    /// so "what is near this point" looks at a few cells instead of every line.
+    /// </summary>
+    /// <remarks>
+    /// Deterministic: cells are visited in a fixed order and segments within
+    /// a cell in the order they were filed, so a query gives the same list in
+    /// the same order on every run. A segment longer than a couple of hundred
+    /// cells — a broken file's — is kept on a list every query returns rather
+    /// than filed in all of them. Non-finite segments are not filed at all.
+    /// </remarks>
+    private sealed class SegmentGrid
+    {
+        private const double Cell = 16;
+        private const int MaxCellsPerSegment = 256;
+        private readonly Dictionary<(long, long), List<int>> _cells = [];
+        private readonly List<(Stroke S, StrokePoint A, StrokePoint B)> _segments = [];
+        private readonly List<int> _everywhere = [];
+
+        public double MaxSize { get; }
+
+        public SegmentGrid(List<(Stroke S, List<StrokePoint> Pts)> lines)
+        {
+            foreach (var (s, pts) in lines)
+            {
+                MaxSize = Math.Max(MaxSize, double.IsFinite(s.Brush.Size) ? s.Brush.Size : 0);
+                for (var j = 1; j < pts.Count; j++)
+                {
+                    var a = pts[j - 1];
+                    var b = pts[j];
+                    if (!double.IsFinite(a.X) || !double.IsFinite(a.Y) || !double.IsFinite(b.X) || !double.IsFinite(b.Y)) continue;
+                    var index = _segments.Count;
+                    _segments.Add((s, a, b));
+                    var (x0, x1) = (Key(Math.Min(a.X, b.X)), Key(Math.Max(a.X, b.X)));
+                    var (y0, y1) = (Key(Math.Min(a.Y, b.Y)), Key(Math.Max(a.Y, b.Y)));
+                    if ((x1 - x0 + 1) * (y1 - y0 + 1) > MaxCellsPerSegment)
+                    {
+                        _everywhere.Add(index);
+                        continue;
+                    }
+                    for (var x = x0; x <= x1; x++)
+                    for (var y = y0; y <= y1; y++)
+                    {
+                        if (!_cells.TryGetValue((x, y), out var cell)) _cells[(x, y)] = cell = [];
+                        cell.Add(index);
+                    }
+                }
+            }
+        }
+
+        private static long Key(double v) => (long)Math.Floor(v / Cell);
+
+        /// <summary>Segments of lines other than <paramref name="skipId"/> in the cells within <paramref name="reach"/> of a point.</summary>
+        public IEnumerable<(Stroke S, StrokePoint A, StrokePoint B)> Near(StrokePoint p, double reach, string skipId)
+        {
+            if (!double.IsFinite(p.X) || !double.IsFinite(p.Y) || !double.IsFinite(reach)) yield break;
+            var seen = new HashSet<int>();
+            foreach (var index in _everywhere)
+            {
+                if (seen.Add(index) && _segments[index].S.Id != skipId) yield return _segments[index];
+            }
+            var (x0, x1) = (Key(p.X - reach), Key(p.X + reach));
+            var (y0, y1) = (Key(p.Y - reach), Key(p.Y + reach));
+            for (var x = x0; x <= x1; x++)
+            for (var y = y0; y <= y1; y++)
+            {
+                if (!_cells.TryGetValue((x, y), out var cell)) continue;
+                foreach (var index in cell)
+                {
+                    if (seen.Add(index) && _segments[index].S.Id != skipId) yield return _segments[index];
+                }
+            }
+        }
     }
 
     private static (StrokePoint P, double T)? Cross(StrokePoint a, StrokePoint b, StrokePoint c, StrokePoint d)
@@ -927,6 +1218,12 @@ public static class LineCleaner
     internal static double Stray(IReadOnlyList<Stroke> lines, double sigma, double quantile)
     {
         var all = new List<double>();
+        // A quantile is read as well off an even sample as off every pixel;
+        // a dense key has hundreds of thousands (perf review). Every
+        // stride-th sample along the lines, the same ones on every run.
+        var total = lines.Sum(l => l.Points.Count < 2 ? 0 : GeometryOps.PathLength(l.Points) / Step);
+        var stride = double.IsFinite(total) ? Math.Max(1, (int)Math.Ceiling(total / StraySamples)) : 1;
+        var index = 0;
         foreach (var s in lines)
         {
             if (s.Points.Count < 2) continue;
@@ -939,6 +1236,7 @@ public static class LineCleaner
             foreach (var p in course.Dense.Select((q, k) => (q, At: k * course.DenseStep)))
             {
                 if (p.At < margin || p.At > course.Length - margin) continue;
+                if (index++ % stride != 0) continue;
                 var (cx, cy) = course.SmoothAt(p.At, sigma, 0, course.Length);
                 all.Add(Math.Sqrt(Math.Pow(cx - p.q.X, 2) + Math.Pow(cy - p.q.Y, 2)));
             }
@@ -947,6 +1245,9 @@ public static class LineCleaner
         all.Sort();
         return Math.Max(all[(int)Math.Min(all.Count - 1, quantile * all.Count)], 0.25);
     }
+
+    /// <summary>The most samples a stray estimate reads.</summary>
+    private const int StraySamples = 20_000;
 
     private static double MaxMove(IReadOnlyList<StrokePoint> before, IReadOnlyList<StrokePoint> after)
     {

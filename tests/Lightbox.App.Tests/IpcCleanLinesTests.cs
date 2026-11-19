@@ -59,13 +59,33 @@ public sealed class IpcCleanLinesTests : BrushStateIsolated
         var json = resp.Payload!.Value;
         Assert.False(json.GetProperty("applied").GetBoolean());
         Assert.True(json.GetProperty("pending").GetBoolean());
-        Assert.NotEqual(0, json.GetProperty("changes").GetArrayLength());
+        Assert.NotEqual(0, json.GetProperty("strokes").GetArrayLength());
+        Assert.Equal(0, json.GetProperty("truncated").GetInt32());
         Assert.Equal(before, PointsAt(vm, 0));
         Assert.True(vm.IsCleanupPending);
     }
 
     [AvaloniaFact]
-    public void ApplyWritesOneUndoStep()
+    public void ApplyOnAnInbetweenWritesOneUndoStep()
+    {
+        var vm = KeysAndAnInbetween();
+        var api = new IpcDocumentApi(vm);
+        var before = PointsAt(vm, 1);
+
+        var resp = api.Handle(Req("clean_lines", new { frameIndex = 1, mode = "frame", strength = "strong", apply = true }));
+
+        Assert.True(resp.Ok, resp.Error);
+        var json = resp.Payload!.Value;
+        Assert.True(json.GetProperty("applied").GetBoolean());
+        Assert.Equal("inbetween", json.GetProperty("role").GetString());
+        Assert.True(json.GetProperty("smoothed").GetInt32() > 0);
+        Assert.NotEqual(before, PointsAt(vm, 1));
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(before, PointsAt(vm, 1));
+    }
+
+    [AvaloniaFact]
+    public void AnAgentCanPreviewAKeyButNeverApplyIt()
     {
         var vm = KeysAndAnInbetween();
         var api = new IpcDocumentApi(vm);
@@ -73,11 +93,24 @@ public sealed class IpcCleanLinesTests : BrushStateIsolated
 
         var resp = api.Handle(Req("clean_lines", new { frameIndex = 0, mode = "frame", includeKeys = true, apply = true }));
 
-        Assert.True(resp.Ok, resp.Error);
-        Assert.True(resp.Payload!.Value.GetProperty("applied").GetBoolean());
-        Assert.NotEqual(before, PointsAt(vm, 0));
-        vm.UndoCommand.Execute(null);
+        Assert.False(resp.Ok);
+        Assert.Contains("artist applies it", resp.Error);
         Assert.Equal(before, PointsAt(vm, 0));
+    }
+
+    [AvaloniaFact]
+    public void AnAgentDoesNotReplaceAPreviewTheArtistHasOpen()
+    {
+        var vm = KeysAndAnInbetween();
+        vm.CurrentFrameIndex = 0;
+        Assert.True(vm.PreviewCleanup(guided: false) > 0);
+        var api = new IpcDocumentApi(vm);
+
+        var resp = api.Handle(Req("clean_lines", new { frameIndex = 1 }));
+
+        Assert.False(resp.Ok);
+        Assert.Contains("artist has a cleanup preview open", resp.Error);
+        Assert.True(vm.IsCleanupPendingFromArtist);
     }
 
     [AvaloniaFact]

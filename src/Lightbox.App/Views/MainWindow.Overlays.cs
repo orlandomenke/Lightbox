@@ -58,8 +58,7 @@ public partial class MainWindow
         _vm.CleanupChanged += overlay => Canvas.Cleanup = overlay;
         _vm.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName is nameof(MainViewModel.CurrentFrameIndex) or nameof(MainViewModel.ActiveLayerIndex)
-                && _vm.IsCleanupPending)
+            if (args.PropertyName is nameof(MainViewModel.CurrentFrameIndex) && _vm.IsCleanupPending)
             {
                 _vm.RefreshCleanupView();
             }

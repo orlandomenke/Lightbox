@@ -99,13 +99,16 @@ public class LineCleanerTests
         Assert.True(GeometryOps.Dist(at, new StrokePoint(100, 100, 0)) < 0.5, $"corner at {at.X:0.0},{at.Y:0.0}");
     }
 
+    /// <summary>Two posts that meet the bar cleanly: a drawing whose junctions are mostly clean.</summary>
+    private static Stroke[] CleanJunctions() => [Along(30, 40, 30, 100), Along(170, 40, 170, 100)];
+
     [Fact]
     public void AnEndThatRunsPastTheLineItMeetsIsCutBackToIt()
     {
         var bar = Along(0, 100, 200, 100);
         var post = Along(100, 40, 100, 106); // 6px past the bar
 
-        var result = LineCleaner.Clean([bar, post]);
+        var result = LineCleaner.Clean([bar, post, .. CleanJunctions()]);
 
         var trimmed = result.Strokes.Single(s => s.Id == post.Id);
         Assert.InRange(trimmed.Points[^1].Y, 99.5, 100.5);
@@ -116,9 +119,9 @@ public class LineCleanerTests
     public void AnEndThatStopsJustShortOfALineIsCarriedOntoIt()
     {
         var bar = Along(0, 100, 200, 100);
-        var post = Along(100, 40, 100, 95); // stops 5px short, heading straight at it
+        var post = Along(100, 40, 100, 97.5); // stops 2.5px short, heading straight at it
 
-        var result = LineCleaner.Clean([bar, post]);
+        var result = LineCleaner.Clean([bar, post, .. CleanJunctions()]);
 
         var joined = result.Strokes.Single(s => s.Id == post.Id);
         Assert.InRange(joined.Points[^1].Y, 99.5, 100.5);
@@ -152,7 +155,7 @@ public class LineCleanerTests
     public void ABlipOfInkOnALineIsRemovedButAnIsolatedDotIsKept()
     {
         var line = Along(0, 100, 200, 100);
-        var blip = Drawn([(80, 101), (81, 102)]);
+        var blip = Drawn([(80, 100.5), (81, 101)]);   // on the line's ink
         var pupil = Drawn([(80, 30), (81, 31)]);
 
         var result = LineCleaner.Clean([line, blip, pupil]);
@@ -163,18 +166,130 @@ public class LineCleanerTests
     }
 
     [Fact]
-    public void AFaintShortMarkIsRemovedAndAFaintLongLineIsNot()
+    public void OnTheArtistsOwnDrawingALightShortMarkIsLeftAlone()
     {
+        // Hatching, a blush tick, a construction mark: light and short, and theirs.
         var line = Along(0, 100, 200, 100);
-        var faintMark = Along(50, 40, 58, 40);
+        var tick = Along(50, 40, 58, 40);
+        tick.Brush.Opacity = 0.2;
+
+        var result = LineCleaner.Clean([line, tick], CleanupStrength.Strong);
+
+        Assert.Contains(result.Strokes, s => s.Id == tick.Id);
+    }
+
+    [Fact]
+    public void AFaintShortMarkInAnInbetweenIsRemovedAndAFaintLongLineIsNot()
+    {
+        var keyA = new[] { Along(0, 95, 200, 95), Along(50, 35, 58, 35) };
+        var keyB = new[] { Along(0, 105, 200, 105) };
+        var line = Along(0, 100, 200, 100);
+        var faintMark = Along(50, 40, 58, 40);      // fading out: only key A has it
         faintMark.Brush.Opacity = 0.2;
         var faintLine = Along(0, 60, 200, 60);
         faintLine.Brush.Opacity = 0.2;
 
-        var result = LineCleaner.Clean([line, faintMark, faintLine]);
+        var result = LineCleaner.CleanGuided([line, faintMark, faintLine], [keyA, keyB]);
 
         Assert.DoesNotContain(result.Strokes, s => s.Id == faintMark.Id);
         Assert.Contains(result.Strokes, s => s.Id == faintLine.Id);
+    }
+
+    [Fact]
+    public void ADotBesideALineIsKept()
+    {
+        // A pupil against the iris: close to the ink, not on it.
+        var iris = Drawn(Enumerable.Range(0, 126).Select(i => (100 + 20 * Math.Cos(i / 20.0), 100 + 20 * Math.Sin(i / 20.0))));
+        var pupil = Drawn([(100, 116), (100.5, 116)]);
+
+        var result = LineCleaner.Clean([iris, pupil], CleanupStrength.Strong);
+
+        Assert.Contains(result.Strokes, s => s.Id == pupil.Id);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ADashedLineStaysDashed(bool guided)
+    {
+        // Ten dashes along one line, 4px apart: a hem, a fold line, a stitch.
+        Stroke[] Dashes(double y) => [.. Enumerable.Range(0, 10).Select(k => Along(k * 14, y, k * 14 + 10, y))];
+        var drawing = Dashes(100);
+
+        var result = guided ? LineCleaner.CleanGuided(drawing, [Dashes(90), Dashes(110)]) : LineCleaner.Clean(drawing, CleanupStrength.Strong);
+
+        Assert.Equal(10, result.Strokes.Count);
+        Assert.DoesNotContain(result.Changes, c => c.Kind == CleanupKind.Joined);
+        for (var k = 0; k < 10; k++)
+        {
+            Assert.InRange(result.Strokes[k].Points[0].X, k * 14 - 0.01, k * 14 + 0.01);
+            Assert.InRange(result.Strokes[k].Points[^1].X, k * 14 + 10 - 0.01, k * 14 + 10 + 0.01);
+        }
+    }
+
+    [Fact]
+    public void ATrimmedOvershootKeepsItsTaper()
+    {
+        var bar = Along(0, 100, 200, 100);
+        var post = Along(100, 40, 100, 106);
+        post.Points = [.. post.Points.Select((p, i) => p with { Pressure = i < post.Points.Count - 12 ? 0.9 : 0.15 })];
+
+        var result = LineCleaner.Clean([bar, post, .. CleanJunctions()]);
+
+        var trimmed = result.Strokes.Single(s => s.Id == post.Id);
+        Assert.InRange(trimmed.Points[^1].Y, 99.5, 100.5);
+        Assert.Equal(0.15, trimmed.Points[^1].Pressure, 6);
+    }
+
+    [Fact]
+    public void ALoneOvershootOnASketchThatOvershootsEverywhereIsKept()
+    {
+        // The drawing's own habit: every junction runs past, so that is the style.
+        var bar = Along(0, 100, 200, 100);
+        Stroke[] posts = [Along(30, 40, 30, 106), Along(100, 40, 100, 106), Along(170, 40, 170, 106)];
+
+        var result = LineCleaner.Clean([bar, .. posts]);
+
+        Assert.DoesNotContain(result.Changes, c => c.Kind == CleanupKind.Trimmed);
+    }
+
+    [Fact]
+    public void ALineCarryingANonNumberIsLeftExactlyAsItIs()
+    {
+        var broken = Along(0, 100, 200, 100, d => 1.5 * Math.Sin(d / 2.0));
+        broken.Points[50] = broken.Points[50] with { X = double.NaN };
+        var bad = Along(0, 150, 200, 150, d => 1.5 * Math.Sin(d / 2.0));
+        bad.Brush.Size = double.NaN;
+
+        var result = LineCleaner.Clean([broken, bad], CleanupStrength.Strong);
+
+        Assert.Same(broken, result.Strokes[0]);
+        Assert.Same(bad, result.Strokes[1]);
+        Assert.False(result.Changed);
+    }
+
+    [Fact]
+    public void TwoStrokesSharingAnIdAreLeftAlone()
+    {
+        var one = Along(0, 100, 200, 100, d => 1.5 * Math.Sin(d / 2.0));
+        var two = Along(0, 150, 200, 150, d => 1.5 * Math.Sin(d / 2.0));
+        two.Id = one.Id;
+
+        var result = LineCleaner.Clean([one, two], CleanupStrength.Strong);
+
+        Assert.Same(one, result.Strokes[0]);
+        Assert.Same(two, result.Strokes[1]);
+    }
+
+    [Fact]
+    public void ADrawingTooBigToCleanPromptlyIsRefusedNotCleanedSlowly()
+    {
+        var many = Enumerable.Range(0, LineCleaner.MaxLines + 1).Select(i => Along(0, i, 10, i)).ToList();
+
+        var result = LineCleaner.Clean(many);
+
+        Assert.True(result.TooLarge);
+        Assert.False(result.Changed);
     }
 
     [Fact]
@@ -318,6 +433,36 @@ public class LineCleanerTests
         var result = LineCleaner.CleanGuided([bar, post], [Key(90), Key(110)]);
 
         Assert.DoesNotContain(result.Changes, c => c.Kind == CleanupKind.Trimmed);
+    }
+
+    [Fact]
+    public void AGuidedCleanOfTheSameDrawingGivesTheSameBits()
+    {
+        var (u1, l1) = Seam(jog: 3);
+        var (u2, l2) = Seam(jog: 3);
+        Stroke[] keyA = [Along(0, 80, 200, 80, d => 0.3 * Math.Sin(d / 5.0))];
+        Stroke[] keyB = [Along(0, 120, 200, 120, d => 0.3 * Math.Sin(d / 5.0))];
+
+        var one = LineCleaner.CleanGuided([u1, l1], [keyA, keyB]);
+        var two = LineCleaner.CleanGuided([u2, l2], [keyA, keyB]);
+
+        Assert.Equal(
+            one.Strokes.SelectMany(s => s.Points).Select(p => (BitConverter.DoubleToInt64Bits(p.X), BitConverter.DoubleToInt64Bits(p.Y))),
+            two.Strokes.SelectMany(s => s.Points).Select(p => (BitConverter.DoubleToInt64Bits(p.X), BitConverter.DoubleToInt64Bits(p.Y))));
+    }
+
+    [Fact]
+    public void AGuideMeasuredOnceCleansExactlyAsMeasuringEachTimeDoes()
+    {
+        var (upper, lower) = Seam(jog: 3);
+        Stroke[] keyA = [Along(0, 80, 200, 80)];
+        Stroke[] keyB = [Along(0, 120, 200, 120)];
+
+        var guide = LineCleaner.Measure([keyA, keyB])!;
+        var once = LineCleaner.CleanGuided([upper, lower], guide);
+        var each = LineCleaner.CleanGuided([upper, lower], [keyA, keyB]);
+
+        Assert.Equal(each.Strokes.SelectMany(s => s.Points), once.Strokes.SelectMany(s => s.Points));
     }
 
     [Fact]
