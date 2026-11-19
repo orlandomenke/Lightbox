@@ -60,8 +60,10 @@ public class LineCleanerPerformanceTests(ITestOutputHelper output)
 
         // Loose, as the suite's budgets are, and in a Debug build: the quadratic
         // version this guards against took 1.5 s plain and 6 s guided in Release.
-        Assert.True(plain < 1500, $"plain clean took {plain:F0} ms");
-        Assert.True(guided < 4000, $"guided clean took {guided:F0} ms");
+        // Core runs as one leg beside every other, so these only catch the
+        // order of magnitude; the scaling test below catches the shape.
+        Assert.True(plain < 4000, $"plain clean took {plain:F0} ms");
+        Assert.True(guided < 10000, $"guided clean took {guided:F0} ms");
     }
 
     [Fact]

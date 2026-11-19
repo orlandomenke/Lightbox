@@ -292,7 +292,9 @@ public class LineReviewTests
         var ms = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
 
         // Debug, loose: the version the perf review measured took 7.6 s in Release.
-        Assert.True(ms < 3000, $"the listing took {ms:F0} ms");
+        // Loose on purpose: Core runs as one leg, beside every other leg, and
+        // the version this guards against took 7.6 s in Release (~4x in Debug).
+        Assert.True(ms < 10000, $"the listing took {ms:F0} ms");
         Assert.True(listing.Length < 400_000, $"the listing is {listing.Length} characters");
     }
 
