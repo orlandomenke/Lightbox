@@ -407,8 +407,15 @@ public class AiIntegrationTests
     {
         var methods = typeof(IAiArtist).GetMethods().Select(m => m.Name).Order().ToList();
 
+        // Q296: a line review starts from the artist's own keys and the
+        // inbetween between them — inside this interface's one promise — and
+        // TakesImages is a capability, not a request.
         Assert.Equal(
-            [nameof(IAiArtist.GenerateInbetweensAsync), nameof(IAiArtist.ReadSubjectAsync)],
+            [.. new[]
+            {
+                nameof(IAiArtist.GenerateInbetweensAsync), nameof(IAiArtist.ReadSubjectAsync),
+                nameof(IAiArtist.ReviewLinesAsync), "get_" + nameof(IAiArtist.TakesImages),
+            }.Order()],
             methods);
         Assert.Null(typeof(MainViewModel).GetProperty("AiDrawCommand"));
         Assert.Null(typeof(MainViewModel).GetProperty("AiPrompt"));

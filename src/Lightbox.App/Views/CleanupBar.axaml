@@ -29,6 +29,19 @@
                     ToolTip.Tip="Clean toward the key or breakdown either side: as smooth as they are, lines meeting the way theirs meet" />
             <CheckBox Content="Clean new inbetweens" IsChecked="{Binding CleanNewInbetweens}"
                       ToolTip.Tip="Clean each inbetween toward its keys as it is made, in the same undo step. Keys and breakdowns are never touched" />
+            <!-- Q296-Q299: the optional AI review. Gone, not greyed, when AI is
+                 off; when there is no provider, it says why. -->
+            <StackPanel Spacing="{StaticResource Space8}" IsVisible="{Binding AiEnabled}">
+              <TextBlock Text="AI review" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}" />
+              <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Opacity="0.6"
+                         Text="The AI compares the inbetween with its keys and names what neither key has — lines running past a joint, ends that miss. The fixes are previewed; nothing changes until you apply." />
+              <TextBlock TextWrapping="Wrap" FontSize="{StaticResource TypeHint}" Text="{Binding AiUnavailableHint}"
+                         IsVisible="{Binding !IsAiAvailable}" />
+              <Button Content="Review lines with AI…" Command="{Binding ReviewLinesWithAiCommand}" IsEnabled="{Binding CanUseAi}"
+                      ToolTip.Tip="Send this inbetween and its keys to your AI provider for a review" />
+              <CheckBox Content="Review new inbetweens with AI" IsChecked="{Binding ReviewNewInbetweensWithAi}"
+                        ToolTip.Tip="After ＋ Inbetween, send each new inbetween for an AI review; what comes back waits as a preview" />
+            </StackPanel>
           </StackPanel>
         </Flyout>
       </Button.Flyout>

@@ -690,6 +690,12 @@ public partial class MainWindow
             case "timeline.cleanNewInbetweens":
                 _vm.CleanNewInbetweens = !_vm.CleanNewInbetweens;
                 break;
+            case "ai.reviewLines":
+                _vm.ReviewLinesWithAiCommand.Execute(null);
+                break;
+            case "ai.reviewNewInbetweens":
+                _vm.ReviewNewInbetweensWithAi = !_vm.ReviewNewInbetweensWithAi;
+                break;
             case "docker.splitGroup":
                 _vm.SplitGroupCommand.Execute(null);
                 break;

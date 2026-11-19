@@ -87,6 +87,15 @@ public sealed class ClaudeCliArtist(
         return StrokeParsing.Subject(call, "Claude Code");
     }
 
+    public async Task<AiResult<List<Core.Cleanup.ReviewFix>>> ReviewLinesAsync(
+        LineReviewRequest request, CancellationToken ct)
+    {
+        var call = await CallAsync(
+            LineReviewing.System, LineReviewing.User(request), LineReviewing.Schema,
+            request.Picture is null ? null : [request.Picture], ct);
+        return LineReviewing.Parse(call, "Claude Code");
+    }
+
     private async Task<AiResult<string>> CallAsync(
         string system, string user, string schemaJson, IReadOnlyList<string>? referenceImages, CancellationToken ct)
     {

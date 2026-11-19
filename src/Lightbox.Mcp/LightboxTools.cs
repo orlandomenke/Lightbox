@@ -257,6 +257,51 @@ public static class LightboxTools
         [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null) =>
         Text("clean_lines", new { frameIndex, layerId, mode, strength, apply, includeKeys }, ct);
 
+    [McpServerTool(Name = "render_line_review"), Description(
+        "Read an inbetween for mistakes the inbetweener made: returns a picture of key A, the inbetween " +
+        "and key B side by side with every line labelled (A1…, L1…, B1…), a listing that says at each end " +
+        "of each line which lines are near, how far, and how far they run alongside, and a sheet token for " +
+        "fix_lines. THE KEYS DECIDE what is a mistake: a feature is one only when neither key has it at the " +
+        "matching place (two lines running on past a joint side by side where both keys meet them at one " +
+        "point; an end that stops short where both keys join; a leftover mark neither key has). Anything both " +
+        "keys share is the artist's style. Inbetweens only.")]
+    public static async Task<IEnumerable<ContentBlock>> RenderLineReview(
+        [Description("Timeline frame index of the inbetween, 0-based")] int frameIndex,
+        CancellationToken ct,
+        [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null)
+    {
+        var result = await PipeBridge.CallAsync("render_line_review", new { frameIndex, layerId }, ct);
+        var sheet = result.TryGetProperty("sheet", out var t) ? t.GetString() : null;
+        var listing = result.TryGetProperty("listing", out var l) ? l.GetString() : null;
+        return
+        [
+            new TextContentBlock { Text = $"sheet: {sheet}\n\n{listing}" },
+            ImageBlock(result),
+        ];
+    }
+
+    [McpServerTool(Name = "fix_lines"), Description(
+        "Name fixes for the mistakes you found with render_line_review; the engine makes them and they " +
+        "appear as a preview on the artist's canvas with Apply and Cancel. fixesJson is a JSON array of " +
+        "{kind:\"trim\"|\"join\"|\"remove\", line, end:\"start\"|\"end\", other (line number or null), " +
+        "otherEnd:\"start\"|\"end\", cites:[\"A3\",\"B5\"…], reason}. trim cuts line's end back to where it " +
+        "meets other (at most half the line); join carries two ends onto one point (at most 40 px apart); " +
+        "remove takes out a short mark. Every fix must cite the key lines it was judged against or it is " +
+        "refused. Pass the sheet token render_line_review gave; if the drawing changed since, read it again. " +
+        "apply:true writes the fixes as one undo step instead of previewing them. Refused while the artist " +
+        "has a preview open.")]
+    public static Task<string> FixLines(
+        [Description("Timeline frame index of the inbetween, 0-based")] int frameIndex,
+        [Description("The sheet token from render_line_review")] string sheet,
+        [Description("JSON array of fixes")] string fixesJson,
+        CancellationToken ct,
+        [Description("Write the fixes as one undo step instead of previewing them")] bool apply = false,
+        [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null)
+    {
+        var fixes = ParseJsonArg(fixesJson, "fixesJson");
+        return Text("fix_lines", new { frameIndex, layerId, sheet, fixes, apply }, ct);
+    }
+
     [McpServerTool(Name = "set_key"), Description(
         "Make a timeline frame a key on a layer, creating an empty drawing if " +
         "that frame is currently a hold, or re-marking the role of the drawing " +
