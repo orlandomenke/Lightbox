@@ -232,6 +232,27 @@ public static class LightboxTools
         return await Text("draw_strokes", new { frameIndex, layerId, strokes }, ct);
     }
 
+    [McpServerTool(Name = "clean_lines"), Description(
+        "Tidy the lines of the drawing exposed at a frame without redrawing it: " +
+        "wobble and kinks smoothed, overshoots trimmed, small gaps closed where " +
+        "lines meet, specks and faint orphan marks removed. No point moves " +
+        "further than its line is wide; strokes are never merged or added. " +
+        "mode \"keys\" (default) cleans toward the key or breakdown either side " +
+        "— use it on generated inbetweens; \"frame\" cleans the drawing on its " +
+        "own at a strength. By default the cleanup is only previewed on the " +
+        "artist's canvas, with Apply and Cancel, and the reply says what it " +
+        "would change; apply:true writes it as one undo step. Keys and " +
+        "breakdowns are refused unless includeKeys:true. Deterministic.")]
+    public static Task<string> CleanLines(
+        [Description("Timeline frame index, 0-based")] int frameIndex,
+        CancellationToken ct,
+        [Description("keys (default) or frame")] string? mode = null,
+        [Description("light, medium (default) or strong; frame mode only")] string? strength = null,
+        [Description("Write the cleanup as one undo step instead of previewing it")] bool apply = false,
+        [Description("Allow cleaning a key or breakdown, which are the artist's own drawings")] bool includeKeys = false,
+        [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null) =>
+        Text("clean_lines", new { frameIndex, layerId, mode, strength, apply, includeKeys }, ct);
+
     [McpServerTool(Name = "set_key"), Description(
         "Make a timeline frame a key on a layer, creating an empty drawing if " +
         "that frame is currently a hold, or re-marking the role of the drawing " +

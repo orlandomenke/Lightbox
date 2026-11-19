@@ -86,6 +86,9 @@ public partial class MainViewModel
 
     private PendingCleanup? _pendingCleanup;
 
+    /// <summary>What the most recent preview proposed, stroke by stroke, for the MCP surface's answer.</summary>
+    public IReadOnlyList<CleanupChange> LastCleanupChanges { get; private set; } = [];
+
     /// <summary>Preview a cleanup of the picked drawings, or the one under the playhead, on their own.</summary>
     [RelayCommand]
     private void CleanLines() => PreviewCleanup(guided: false);
@@ -103,9 +106,15 @@ public partial class MainViewModel
         CancelCleanup();
         var layer = ActiveLayer;
         if (layer is null) return 0;
+        return PreviewCleanup(layer, CleanupTargets(layer), guided, CleanupStrength);
+    }
+
+    /// <summary>The same, for named drawings of a named layer — the MCP surface's way in.</summary>
+    public int PreviewCleanup(Layer layer, IReadOnlyList<int> indices, bool guided, CleanupStrength strength)
+    {
+        CancelCleanup();
         if (!CanEdit(layer, "clean its lines")) return 0;
 
-        var indices = CleanupTargets(layer);
         var drawings = new List<(string, List<Stroke>, List<Stroke>)>();
         var changes = new List<CleanupChange>();
         var seen = new HashSet<string>();
@@ -126,7 +135,7 @@ public partial class MainViewModel
             }
             else
             {
-                result = LineCleaner.Clean(frame.Strokes, CleanupStrength);
+                result = LineCleaner.Clean(frame.Strokes, strength);
             }
             if (!result.Changed) continue;
             drawings.Add((frame.Id, [.. frame.Strokes.Select(s => s.Clone(newId: false))], [.. result.Strokes.Select(s => s.Clone(newId: false))]));
@@ -142,6 +151,7 @@ public partial class MainViewModel
         }
 
         _pendingCleanup = new PendingCleanup(_editor, layer.Id, drawings);
+        LastCleanupChanges = changes;
         CleanupSummary = Describe(changes, drawings.Count) + " Apply, or Cancel to leave the drawing as it is.";
         AiStatus = CleanupSummary;
         RefreshCleanupView();

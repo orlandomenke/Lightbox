@@ -65,6 +65,7 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 "render_reference_view" => RenderReferenceView(request),
                 "import_character" => ImportCharacter(request),
                 "set_key" => SetKey(request),
+                "clean_lines" => CleanLines(request),
                 "extend_exposure" => ExtendExposure(request),
                 "reduce_exposure" => ReduceExposure(request),
                 "set_exposure_step" => SetExposureStep(request),
@@ -637,6 +638,81 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         public int FrameIndex { get; set; }
         public string? LayerId { get; set; }
         public List<StrokeWire.StrokeDto> Strokes { get; set; } = [];
+    }
+
+    private sealed class CleanRef
+    {
+        public int FrameIndex { get; set; }
+        public string? LayerId { get; set; }
+        public string? Mode { get; set; }
+        public string? Strength { get; set; }
+        public bool Apply { get; set; }
+        public bool IncludeKeys { get; set; }
+    }
+
+    /// <summary>
+    /// Clean the drawing exposed at a frame (Q292–Q295): previewed on the
+    /// artist's canvas by default, written as one undo step only when asked.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A preview is the default even for an agent</b>, because the owner's
+    /// rule is that a cleanup is shown before it is written: the proposal goes
+    /// on the canvas with Apply and Cancel, and the reply says what it would
+    /// do, so the agent and the artist read the same thing.
+    /// </para>
+    /// <para>
+    /// <b>Keys and breakdowns are refused unless named (Q294).</b> They are
+    /// the artist's drawing; an agent cleaning one has to say it means to, in
+    /// the call, rather than reach it by pointing at the wrong frame.
+    /// </para>
+    /// </remarks>
+    private IpcProtocol.Response CleanLines(IpcProtocol.Request request)
+    {
+        var p = Payload<CleanRef>(request);
+        var layer = ResolveLayer(p.LayerId);
+        if (p.FrameIndex < 0) return IpcProtocol.Response.Fail("frameIndex must be 0 or greater.");
+        var guided = p.Mode?.Trim().ToLowerInvariant() switch
+        {
+            null or "" or "keys" => true,
+            "frame" => false,
+            _ => (bool?)null,
+        };
+        if (guided is null) return IpcProtocol.Response.Fail($"Unknown mode \"{p.Mode}\" — use keys or frame.");
+        var strength = p.Strength?.Trim().ToLowerInvariant() switch
+        {
+            null or "" or "medium" => Lightbox.Core.Cleanup.CleanupStrength.Medium,
+            "light" => Lightbox.Core.Cleanup.CleanupStrength.Light,
+            "strong" => Lightbox.Core.Cleanup.CleanupStrength.Strong,
+            _ => (Lightbox.Core.Cleanup.CleanupStrength?)null,
+        };
+        if (strength is null) return IpcProtocol.Response.Fail($"Unknown strength \"{p.Strength}\" — use light, medium or strong.");
+        if (ExposureSheet.ExposedFrame(layer, p.FrameIndex) is not { } frame)
+            return IpcProtocol.Response.Fail($"No drawing at or before frame {p.FrameIndex} on layer \"{layer.Name}\".");
+        if (frame.Role != FrameRole.Inbetween && !p.IncludeKeys)
+            return IpcProtocol.Response.Fail(
+                $"The drawing at frame {p.FrameIndex} is a {frame.Role.ToString().ToLowerInvariant()} — the artist's own. "
+                + "Pass includeKeys:true to clean it anyway.");
+
+        var drawings = Vm.PreviewCleanup(layer, [p.FrameIndex], guided.Value, strength.Value);
+        var changes = drawings == 0 ? [] : Vm.LastCleanupChanges;
+        var summary = drawings == 0 ? Vm.AiStatus : Vm.CleanupSummary;
+        var applied = drawings > 0 && p.Apply && Vm.TryApplyCleanup();
+        return IpcProtocol.Response.Success(new
+        {
+            p.FrameIndex,
+            LayerId = layer.Id,
+            Mode = guided.Value ? "keys" : "frame",
+            Applied = applied,
+            Pending = Vm.IsCleanupPending,
+            Summary = applied ? Vm.AiStatus : summary,
+            Changes = changes.Select(c => new
+            {
+                c.StrokeId,
+                Kind = c.Kind.ToString().ToLowerInvariant(),
+                Moved = Math.Round(c.Moved, 2),
+            }),
+        });
     }
 
     private sealed class KeyRef

@@ -127,6 +127,57 @@ a matched part (a crease on a knee), only where that part carried it. A line onl
 sock the other key hides behind a leg, a speck — fades out (or in) where you
 drew it; it is never turned into a mark that neither key has.
 
+### Cleaning up lines
+
+A generated inbetween can come out with small irregularities: a little kink
+where two pieces of a line meet (often at a knee or an elbow), an end that
+stops just short of the line it should meet or runs a little past it, a faint
+leftover mark from a line only one key had. The **line cleaner** tidies those
+without redrawing anything, and it works on your own drawings too.
+
+**Clean ▾** on the timeline bar, or the Animation menu, has two ways in:
+
+- **Clean this drawing** (*Clean lines…*) tidies one drawing on its own:
+  wobble and small kinks smoothed, overshoots trimmed, small gaps closed where
+  lines meet, specks removed. **Light**, **Medium** or **Strong** sets how hard
+  it smooths.
+- **Clean toward keys** (*Clean lines toward keys…*) tidies a drawing toward
+  the key or breakdown on either side of it: it smooths only what the keys
+  never do — a kink, a sideways jog — so the inbetween keeps the keys'
+  character rather than coming out smoother than they are. It closes gaps and
+  trims overshoots only if your keys' lines meet cleanly (if you overshoot your
+  junctions as a style, it leaves them), keeps a corner where the keys bend,
+  and removes a faint short mark that neither key has nearby. This is the one
+  for generated inbetweens.
+
+Both work on the cels you have picked on the active layer's timeline, or on the
+drawing under the playhead when none are picked.
+
+**Nothing changes until you apply it.** The cleanup is shown first: each line
+it would change is drawn in its new place, in the accent colour, over your
+drawing as it is; each mark it would remove is dashed in amber. The bar says
+what it found — how many lines smoothed, ends trimmed or joined, specks
+removed, and the furthest anything would move. **Apply** writes it as one undo
+step; **Cancel** leaves the drawing exactly as it was. If the drawing changes
+while the preview is up, Apply refuses rather than writing a cleanup of
+something that is no longer there — run it again.
+
+**What it will never do.** No point moves further than its line is wide.
+Lines are never merged, split or added — a doubled sketch pass stays doubled.
+Pressure, brush and colour stay with the line. Erasers, fills, lines you shaped
+with the pen tool, lines bound to bones and merged groups are left exactly as
+they are. As with any edit that moves a line, a textured brush's grain shifts
+where the line moved (the grain belongs to the canvas).
+
+**Cleaning new inbetweens as they are made.** Tick **Clean new inbetweens**
+(under Clean ▾, in the Animation menu, or in *Configure ▸ Timeline*) and ＋
+Inbetween and Redraw inbetweens clean each drawing they make toward the keys
+either side, in the same undo step as the insert. It is off until you turn it
+on, and it never touches a key or a breakdown.
+
+It is plain geometry — no model, nothing sent anywhere, and the same drawing
+always cleans the same way.
+
 ## AI inbetweens
 
 **✦ AI Inbetween** asks the model for the frames between two keys. It needs a
@@ -594,6 +645,14 @@ AI inbetween. If it only changes the role of a drawing you made, the frame stays
 yours and unmarked — the timing changed, not the art.
 
 A locked or hidden layer refuses all four, and says which.
+
+**An agent can tidy lines as well**, with `clean_lines`: the same cleaner as
+*Clean lines toward keys* (the default) or *Clean this drawing* (`mode:
+"frame"`). By default it only **previews** — the proposal appears on your
+canvas with Apply and Cancel, and the agent is told what it would change — and
+it writes the cleanup as one undo step only when it passes `apply: true`. It
+refuses a key or a breakdown unless the agent passes `includeKeys: true`, so an
+agent cannot reach your own drawings by pointing at the wrong frame.
 
 **An agent can organise layers into folders too**, with the same folders the
 docker shows (`get_scene` lists them, topmost first, and says which folder each
