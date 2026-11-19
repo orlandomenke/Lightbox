@@ -188,6 +188,42 @@ on, and it never touches a key or a breakdown.
 It is plain geometry — no model, nothing sent anywhere, and the same drawing
 always cleans the same way.
 
+### Reviewing lines with AI
+
+Some mistakes are not wobble. On a generated inbetween the front of a knee and
+the top of the shin can run on past the joint, side by side, where both your
+keys meet them at one point. Within the drawing that is just two lines near
+each other — doubled sketch passes look the same — so the cleaner cannot call
+it wrong. An AI can, by comparing with your keys.
+
+**Review with AI…** (under Clean ▾) sends the inbetween under the playhead and
+the key or breakdown on either side to your AI provider. It needs AI on and a
+provider chosen; without one it says so and sends nothing.
+
+**Your keys decide what is a mistake.** Something in the inbetween counts as a
+mistake only when neither key has it at the matching place. Anything both keys
+share — doubled passes, overshooting corners, a line you leave broken — is
+your style, and is left alone. Each fix the AI names has to say which of your
+key lines it compared against, and a fix that does not is not made.
+
+**The AI names; Lightbox draws.** The AI can only ask for three things, by
+line: trim an end back to where it meets another line, join two ends that
+should meet, or remove a short leftover mark. Lightbox makes the edit itself,
+within limits of its own: a trim never takes more than half a line, a join
+closes at most 40 px, and only a short mark is ever removed. These can go
+further than the cleaner's one-line-width limit, because each one comes with
+the AI's reason.
+
+What comes back is a **preview**, like any cleanup: the changed lines over your
+drawing, the AI's reasons in the bar, and **Apply** or **Cancel**. Nothing is
+written until you apply it. A key or breakdown is never sent to be fixed.
+
+**Reviewing new inbetweens as they are made.** Tick **Review new inbetweens
+with AI** (under Clean ▾, or in *Configure ▸ Timeline*) and each inbetween ＋
+Inbetween makes is sent for review straight away; the findings wait as a
+preview. It is off until you turn it on, and each review is one request to
+your provider.
+
 ## AI inbetweens
 
 **✦ AI Inbetween** asks the model for the frames between two keys. It needs a
@@ -665,6 +701,12 @@ refuses a key or a breakdown unless the agent passes `includeKeys: true`, and
 even then it only previews it — **Apply on your own drawing is always yours**.
 While you have a cleanup preview open, an agent's call is refused rather than
 replacing it.
+
+**An agent can review lines too**, without an AI provider in Lightbox:
+`render_line_review` gives it the numbered picture and listing of an
+inbetween beside its keys, and `fix_lines` takes the fixes it names, by those
+numbers, each citing your key lines. They arrive as the same preview, and are
+refused if the drawing changed after the agent read it.
 
 **An agent can organise layers into folders too**, with the same folders the
 docker shows (`get_scene` lists them, topmost first, and says which folder each
