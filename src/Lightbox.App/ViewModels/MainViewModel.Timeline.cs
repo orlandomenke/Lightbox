@@ -1898,7 +1898,7 @@ public partial class MainViewModel
                 gap.AIndex,
                 Frames: (IReadOnlyList<Frame?>)Inbetweener
                     .InbetweenRun(stops, gap.Times, easing)
-                    .Select(strokes => (Frame?)NewFrameFor(layer, strokes, FrameRole.Inbetween))
+                    .Select((strokes, k) => (Frame?)NewFrameFor(layer, CleanedIfAsked(strokes, gap.Times[k], stops), FrameRole.Inbetween))
                     .ToList()))
             .Where(gap => gap.Frames.Count > 0)
             .ToList();
@@ -1906,6 +1906,8 @@ public partial class MainViewModel
 
         _editor.InsertRunInbetweens(layer.Id, filled);
         CurrentFrameIndex = Math.Min(aIndex + 1, Scene.FrameCount - 1);
+        // Q299: the opt-in AI review, after the insert has landed as its own step.
+        ReviewAfterInsert = ReviewInsertedIfAskedAsync(layer.Id, [.. filled.SelectMany(g => g.Frames).OfType<Frame>().Select(f => f.Id)]);
     }
 
     /// <summary>

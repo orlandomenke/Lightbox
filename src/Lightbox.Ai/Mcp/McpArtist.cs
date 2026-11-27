@@ -52,6 +52,17 @@ public sealed class McpArtist(IMcpChannel channel, string toolName) : IAiArtist,
         return StrokeParsing.Subject(call, $"The \u201C{toolName}\u201D tool");
     }
 
+    /// <summary>An MCP provider takes no picture here; it reviews from the listing.</summary>
+    public bool TakesImages => false;
+
+    public async Task<AiResult<List<Core.Cleanup.ReviewFix>>> ReviewLinesAsync(
+        LineReviewRequest request, CancellationToken ct)
+    {
+        var call = await CallAsync(
+            LineReviewing.System, LineReviewing.User(request with { Picture = null }), LineReviewing.Schema, ct);
+        return LineReviewing.Parse(call, $"The “{toolName}” tool");
+    }
+
     /// <summary>Names of the tools the server offers — what the Configure window checks against.</summary>
     public async Task<IReadOnlyList<string>> ListToolsAsync(CancellationToken ct)
     {

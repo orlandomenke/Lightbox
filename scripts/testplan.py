@@ -63,6 +63,9 @@ Usage
         Run the plan locally, legs in parallel, then check each leg ran
         everything it was given. What you want instead of `dotnet test` while
         working.
+    testplan.py quick [--base REF] [--class NAME]... [--list] [--perf]
+        Only the test classes that name what you changed, in one testhost.
+        A fast loop for small edits, and NOT a gate: CI still runs the plan.
     testplan.py audit
         Every repo path a test reads, and whether a rule covers it. Exit 1 if
         one is unaccounted for.
@@ -395,6 +398,20 @@ def test_classes(project: Project, root: Path = ROOT) -> dict[str, int]:
     still runs. It only has to be roughly right, or the shards are uneven.
     """
     found: dict[str, int] = {}
+    for qualified, _, section in class_sections(project, root):
+        count = len(TEST_ATTRIBUTE.findall(section))
+        if count:
+            found[qualified] = found.get(qualified, 0) + count
+    return found
+
+
+def class_sections(project: Project, root: Path = ROOT):
+    """Every class declared in a project's sources: (qualified name, repo path, its text).
+
+    Split on class declarations so each class is read with its own body and
+    attributes rather than the whole file's. A partial class yields once per
+    file it is spread over.
+    """
     sources = [p for p in (root / project.directory).glob("**/*.cs")
                if not any(part in ("obj", "bin") for part in p.parts)]
     sources += [root / linked for linked in sorted(project.linked)]
@@ -406,15 +423,11 @@ def test_classes(project: Project, root: Path = ROOT) -> dict[str, int]:
         if not namespace_match:
             continue
         namespace = namespace_match.group(1)
-        # Split on class declarations so each class is counted with its own
-        # attributes rather than the file's.
+        relative = source.resolve().relative_to(root.resolve()).as_posix()
         positions = [(m.start(), m.group(1)) for m in CLASS.finditer(text)]
         for i, (start, name) in enumerate(positions):
             end = positions[i + 1][0] if i + 1 < len(positions) else len(text)
-            count = len(TEST_ATTRIBUTE.findall(text[start:end]))
-            if count:
-                found[f"{namespace}.{name}"] = found.get(f"{namespace}.{name}", 0) + count
-    return found
+            yield f"{namespace}.{name}", relative, text[start:end]
 
 
 PERFORMANCE_TRAIT = re.compile(r'\[\s*Trait\(\s*"Category"\s*,\s*"Performance"\s*\)\s*\]')
@@ -1134,6 +1147,179 @@ def cmd_run(args) -> int:
 
 
 # ---------------------------------------------------------------------------
+# quick — the tests that name what you changed, and nothing else. NOT A GATE.
+#
+# Selection above is per assembly, and has to be: a skipped test reads exactly
+# like a passing one, so `run` and CI never guess. The price is that a one-line
+# change to a style file runs all of App.Tests — six legs, up to 2 GB each — on
+# a laptop that is also running the app and an IDE. The owner asked for a
+# lighter loop on 2026-11-27, after a 14 px chevron change.
+#
+# So this is a different question, asked out loud: not "is this change safe"
+# but "do the tests that obviously care still pass". It suggests the test
+# classes whose own text names a changed file (by its stem, as a whole word),
+# plus every class in a changed test file, and runs those in ONE testhost, Debug,
+# below normal priority, budgets left out. Every run says it is not a gate,
+# because the pull request's CI still runs the full plan — that is what makes
+# this safe to have, and why it must never be wired into CI itself.
+#
+# A stem named by more than QUICK_BROAD classes is too common to narrow
+# anything (MainWindow is named by hundreds): it is reported and dropped, and
+# `--class` is how you say what you meant.
+# ---------------------------------------------------------------------------
+
+QUICK_BROAD = 12
+
+
+def quick_needles(path: str) -> list[str]:
+    """The words a test would use to name a changed file: its stem, extensions off.
+
+    `Views/MainWindow.axaml.cs` and `Views/MainWindow.axaml` are both
+    `MainWindow`; `Styles/Density.axaml` is `Density`.
+    """
+    name = path.replace("\\", "/").rsplit("/", 1)[-1]
+    stem = name.split(".", 1)[0]
+    return [stem] if len(stem) >= 3 else []
+
+
+def quick_suggest(changed: list[str], projects: dict[str, Project],
+                  broad: int = QUICK_BROAD) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """Classes worth running for a change, per test project, each with its reason.
+
+    Returns ({test project: {qualified class: reason}}, notes). Only test
+    projects the change can reach are searched, so a suggestion is always a
+    subset of what `run` would have run.
+    """
+    selected, _ = select(changed, projects)
+    found: dict[str, dict[str, str]] = {}
+    notes: list[str] = []
+    sections = {name: [(q, f, s) for q, f, s in class_sections(projects[name])
+                       if TEST_ATTRIBUTE.search(s)]
+                for name in sorted(selected)}
+    needles: dict[str, str] = {}
+    for path in changed:
+        path = path.strip().replace("\\", "/")
+        if not path:
+            continue
+        # A changed test file runs its own classes. A changed helper in a test
+        # project holds none, so it falls through and is searched for by name.
+        own = False
+        for name in sections:
+            for qualified, source, _ in sections[name]:
+                if source == path:
+                    found.setdefault(name, {})[qualified] = f"is in {path}"
+                    own = True
+        if not own:
+            for needle in quick_needles(path):
+                needles.setdefault(needle, path)
+    for needle, path in sorted(needles.items()):
+        word = re.compile(rf"\b{re.escape(needle)}\b")
+        hits = [(name, q) for name in sections for q, _, s in sections[name] if word.search(s)]
+        distinct = sorted(set(hits))
+        if not distinct:
+            notes.append(f"{path}: no test class names '{needle}'")
+        elif len(distinct) > broad:
+            notes.append(f"{path}: '{needle}' is named by {len(distinct)} classes — too common "
+                         f"to narrow anything; name the ones you mean with --class")
+        else:
+            for name, qualified in distinct:
+                found.setdefault(name, {}).setdefault(qualified, f"names '{needle}' ({path})")
+    return found, notes
+
+
+def quick_resolve(wanted: list[str], projects: dict[str, Project]) -> dict[str, set[str]]:
+    """`--class` names, short or qualified, to {test project: qualified classes}.
+
+    Raises ValueError for a name that matches no class or more than one, rather
+    than running a guess.
+    """
+    known = [(name, q) for name in test_projects(projects) for q in test_classes(projects[name])]
+    out: dict[str, set[str]] = {}
+    for item in wanted:
+        hits = [(n, q) for n, q in known if q == item or q.endswith("." + item)]
+        if not hits:
+            raise ValueError(f"no test class is called {item!r}")
+        if len(hits) > 1:
+            raise ValueError(f"{item!r} is ambiguous: {', '.join(q for _, q in hits)}")
+        out.setdefault(hits[0][0], set()).add(hits[0][1])
+    return out
+
+
+def quick_filter(classes: set[str], perf: bool = False) -> str:
+    """One VSTest filter for a set of whole classes, budgets out unless asked.
+
+    The grouping is VSTest's own grammar; `matches_filter` deliberately does
+    not read it, because nothing here is checked against a partition.
+    """
+    either = "|".join(f"FullyQualifiedName~{name}." for name in sorted(classes))
+    return either if perf else f"({either})&Category!=Performance"
+
+
+def cmd_quick(args) -> int:
+    projects = load_projects()
+    notes: list[str] = []
+    picked: dict[str, dict[str, str]] = {}
+
+    if args.classes:
+        try:
+            for name, classes in quick_resolve(args.classes, projects).items():
+                for q in classes:
+                    picked.setdefault(name, {})[q] = "named with --class"
+        except ValueError as error:
+            print(f"quick: {error}")
+            return 2
+    else:
+        changed = changed_files(args.base, None)
+        if changed is None:
+            print(f"quick: cannot diff against {args.base!r}; name classes with --class")
+            return 2
+        picked, notes = quick_suggest(changed, projects)
+
+    for note in notes:
+        print(f"  {note}")
+    total = sum(len(c) for c in picked.values())
+    if not total:
+        print("\nquick: nothing to suggest. Name the classes you mean with --class, "
+              "or run the real plan: testplan.py run --base main")
+        return 2
+
+    print(f"\nQUICK — {total} test class(es). NOT A GATE: the pull request's CI runs the full plan.")
+    for name, classes in sorted(picked.items()):
+        print(f"  {name}")
+        for q, why in sorted(classes.items()):
+            print(f"    {q.rsplit('.', 1)[-1]:<48} {why}")
+    # Flushed, or the build's output overtakes it and the banner lands last.
+    sys.stdout.flush()
+    if args.list:
+        return 0
+
+    failures: list[str] = []
+    for name, classes in sorted(picked.items()):
+        csproj = projects[name].csproj
+        build = subprocess.run(["dotnet", "build", csproj, "-c", args.configuration, *BUILD_FLAGS],
+                               cwd=ROOT, **below_normal())
+        if build.returncode != 0:
+            return build.returncode
+        results = ROOT / projects[name].directory / "TestResults" / "quick"
+        results.mkdir(parents=True, exist_ok=True)
+        command = test_command(csproj, args.configuration, quick_filter(set(classes), args.perf), results)
+        process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   text=True, encoding="utf-8", errors="replace", **below_normal())
+        ran_nothing = False
+        for line in process.stdout:
+            print(line, end="")
+            ran_nothing |= "No test matches" in line or "No test is available" in line
+        if process.wait() != 0 or ran_nothing:
+            failures.append(name + (" (ran nothing)" if ran_nothing else ""))
+
+    if failures:
+        print(f"\nquick: FAILED in {', '.join(failures)}")
+        return 1
+    print("\nquick: passed. Not a gate — open the pull request and let CI run the full plan.")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # audit — the rules have to cover what the tests actually read
 # ---------------------------------------------------------------------------
 
@@ -1559,6 +1745,34 @@ def cmd_selftest(args) -> int:
               longest < WINDOWS_COMMAND_LINE)
         check("every leg's filter reaches the runner unchanged", carried)
 
+    # -- quick: a lighter loop, never a narrower gate -------------------------
+    check("quick reads a file's stem through every extension",
+          quick_needles("src/Lightbox.App/Views/MainWindow.axaml.cs") == ["MainWindow"]
+          and quick_needles("src/Lightbox.App/Styles/Density.axaml") == ["Density"])
+    own_file = "tests/Lightbox.App.Tests/WorkspaceTests.cs"
+    picked, _ = quick_suggest([own_file], projects)
+    check("quick runs every class in a changed test file",
+          "Lightbox.App.Tests.WorkspaceTests" in picked.get("Lightbox.App.Tests", {}))
+    picked, quick_notes = quick_suggest(["src/Lightbox.App/Views/MainWindow.axaml"], projects)
+    check("quick drops a stem too common to narrow anything, and says so",
+          not picked and any("too common" in n for n in quick_notes))
+    picked, _ = quick_suggest(["src/Lightbox.App/Styles/Density.axaml"], projects)
+    check("quick finds the suite that reads a style file",
+          any(q.endswith(".DensityScaleTests") for q in picked.get("Lightbox.App.Tests", {})))
+    check("quick never suggests outside what run would have run",
+          set(quick_suggest(["src/Lightbox.App/Styles/Density.axaml"], projects)[0])
+          <= select(["src/Lightbox.App/Styles/Density.axaml"], projects)[0])
+    picked, _ = quick_suggest(["docs/DESIGN-ai-payload.md"], projects)
+    check("quick suggests nothing for a change nothing reaches", not picked)
+    check("quick resolves a short class name",
+          quick_resolve(["WorkspaceTests"], projects)
+          == {"Lightbox.App.Tests": {"Lightbox.App.Tests.WorkspaceTests"}})
+    check("quick refuses a class that does not exist", _raises(
+        lambda: quick_resolve(["NoSuchTestsAnywhere"], projects)))
+    check("quick leaves the budgets out unless asked",
+          quick_filter({"A.B"}) == "(FullyQualifiedName~A.B.)&Category!=Performance"
+          and quick_filter({"A.B"}, perf=True) == "FullyQualifiedName~A.B.")
+
     failed = [label for label, ok in checks if not ok]
     for label, ok in checks:
         print(f"  {'ok  ' if ok else 'FAIL'} {label}")
@@ -1604,6 +1818,15 @@ def main() -> int:
     run.add_argument("--skip-verify", action="store_true",
                      help="do not check each leg against discovery afterwards")
 
+    quick = sub.add_parser("quick", help="run only the test classes that name what you changed (NOT a gate)")
+    quick.add_argument("--base", default="main", help="the ref to diff against (default: main)")
+    quick.add_argument("--class", dest="classes", action="append", default=[], metavar="NAME",
+                       help="run this test class instead of suggesting; repeatable, short or qualified name")
+    quick.add_argument("--list", action="store_true", help="print the suggestion and stop")
+    quick.add_argument("-c", "--configuration", default="Debug",
+                       help="Debug by default: incremental with the IDE's build, unlike run's Release")
+    quick.add_argument("--perf", action="store_true", help="include the performance budgets")
+
     sub.add_parser("audit", help="prove the rules cover what the tests read")
     sub.add_parser("selftest", help="feed the rules the cases they exist to get right")
 
@@ -1611,7 +1834,7 @@ def main() -> int:
     return {
         "plan": cmd_plan, "explain": cmd_explain, "shards": cmd_shards,
         "filter": cmd_filter, "run": cmd_run, "audit": cmd_audit,
-        "selftest": cmd_selftest,
+        "selftest": cmd_selftest, "quick": cmd_quick,
     }[args.command](args)
 
 

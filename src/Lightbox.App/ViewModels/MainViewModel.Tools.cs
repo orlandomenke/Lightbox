@@ -454,8 +454,33 @@ public partial class MainViewModel
     /// is raised when a resize changes it — and every pointer conversion in the
     /// canvas reads it. Without this the tools would keep converting against the
     /// old corner, which lands strokes exactly one resize out of place.
+    /// <para>
+    /// <b>A resize is not the only way the corner moves (B502).</b> Opening a
+    /// grown document, switching to its tab, and undoing or redoing a resize
+    /// all change it too, and none of them came here — so the canvas drew on a
+    /// grown document with the previous one's corner, and every stroke was
+    /// recorded the grown distance from the pen. <see cref="OnDocumentChanged"/>
+    /// is where every one of those lands, and it asks
+    /// <see cref="SyncDocumentOrigin"/>.
+    /// </para>
     /// </remarks>
-    public void RefreshDocumentOrigin() => OnPropertyChanged(nameof(DocumentOrigin));
+    public void RefreshDocumentOrigin()
+    {
+        _announcedOrigin = DocumentOrigin;
+        OnPropertyChanged(nameof(DocumentOrigin));
+    }
+
+    /// <summary>The corner the canvas was last told about.</summary>
+    private Avalonia.PixelPoint _announcedOrigin;
+
+    /// <summary>
+    /// Announce the corner only when it differs from the one the canvas holds —
+    /// a comparison, because this runs on every edit including each stroke commit.
+    /// </summary>
+    private void SyncDocumentOrigin()
+    {
+        if (DocumentOrigin != _announcedOrigin) RefreshDocumentOrigin();
+    }
 
     /// <summary>
     /// Apply a resize the artist confirmed, as one undo step — more when type

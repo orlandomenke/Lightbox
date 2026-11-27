@@ -139,6 +139,116 @@ a matched part (a crease on a knee), only where that part carried it. A line onl
 sock the other key hides behind a leg, a speck — fades out (or in) where you
 drew it; it is never turned into a mark that neither key has.
 
+### Cleaning up lines
+
+A generated inbetween can come out with small irregularities: a little kink
+where two pieces of a line meet (often at a knee or an elbow), an end that
+stops just short of the line it should meet or runs a little past it, a faint
+leftover mark from a line only one key had. The **line cleaner** tidies those
+without redrawing anything, and it works on your own drawings too.
+
+**Clean ▾** on the timeline bar, or the Animation menu, has two ways in:
+
+- **Clean lines…** tidies one drawing on its own:
+  wobble and small kinks smoothed, overshoots trimmed, small gaps closed where
+  lines meet, specks removed. **Light** (the default), **Medium** or
+  **Strong** sets how hard it smooths. It trims overshoots and closes gaps only
+  if your drawing's lines mostly meet cleanly — if you overshoot your junctions
+  as a style, it leaves them — and it leaves a light short mark alone.
+- **Clean lines toward keys…** tidies a drawing toward
+  the key or breakdown on either side of it: it smooths only what the keys
+  never do — a kink, a sideways jog — so the inbetween keeps the keys'
+  character rather than coming out smoother than they are. It closes gaps and
+  trims overshoots only if both keys' lines meet cleanly, keeps a corner where
+  the keys bend, joins the pieces a generated line is made of unless your keys
+  break a line near the same place, and removes a faint short mark, or a short
+  mark neither key has anywhere near (a mark carrying the same name as one in
+  a key is kept). This is the one for generated inbetweens.
+
+Both work on the cels you have picked on the active layer's timeline, or on the
+drawing under the playhead when none are picked — except that *Clean lines
+toward keys…* will not clean a key or breakdown under the playhead: pick its
+cel if that is what you mean.
+
+**Nothing changes until you apply it.** The cleanup is shown first: each line
+it would change is drawn in its new place, in the accent colour, over your
+drawing as it is; each mark it would remove is dashed in amber. The bar says
+what it found — how many lines smoothed, ends trimmed or joined, specks
+removed, and the furthest anything would move. **Apply** writes it as one undo
+step; **Cancel** (or Esc) leaves the drawing exactly as it was. If the drawing changes
+while the preview is up, Apply refuses rather than writing a cleanup of
+something that is no longer there — run it again.
+
+**What it will never do.** Smoothing moves no point further than its line is
+wide, and a gap is closed only across less than a line width; a trim cuts off
+only a short overshoot, and the line keeps its taper. Lines are never merged,
+split or added — a doubled sketch pass stays doubled, and on your own drawing
+two lines are smoothed as one only where their ink already touches. A dot is
+removed only where it sits on another line's ink, never one that is merely
+close (a pupil, a stitch).
+Pressure, brush and colour stay with the line. Erasers, fills, lines you shaped
+with the pen tool, lines bound to bones and merged groups are left exactly as
+they are, and so is a drawing too big to clean promptly (it says so). As with any edit that moves a line, a textured brush's grain shifts
+where the line moved (the grain belongs to the canvas).
+
+**Cleaning new inbetweens as they are made.** Tick **Clean new inbetweens**
+(under Clean ▾, or in *Configure ▸ Timeline*) and ＋
+Inbetween and Redraw inbetweens clean each drawing they make toward the keys
+either side, in the same undo step as the insert. It is off until you turn it
+on, and it never touches a key or a breakdown.
+
+It is plain geometry — no model, nothing sent anywhere, and the same drawing
+always cleans the same way.
+
+### Reviewing lines with AI
+
+Some mistakes are not wobble. On a generated inbetween the front of a knee and
+the top of the shin can run on past the joint, side by side, where both your
+keys meet them at one point. Within the drawing that is just two lines near
+each other — doubled sketch passes look the same — so the cleaner cannot call
+it wrong. An AI can, by comparing with your keys.
+
+**Review lines with AI…** (under Clean ▾) sends the inbetween under the
+playhead and the key or breakdown on either side to your AI provider: a
+picture of the three with every line labelled, and a list of where each line's
+ends are and what runs near them. Nothing else goes — no file, layer or brush
+names. With AI off the section is not shown; with AI on and no provider chosen
+it says where to choose one.
+
+**Your keys decide what is a mistake.** Something in the inbetween counts as a
+mistake only when neither key has it at the matching place. If either key has
+it — even in another amount or shape, because the pose is moving — it is your
+style or the motion, and is left alone: doubled passes, overshooting corners, a
+line you leave broken, a hook that changes shape. Each fix the AI names has to
+say which of your key lines it compared against; a fix that names none is not
+made. (Lightbox checks that the lines it names exist, not that the AI compared
+them well — that judgement is the AI's, which is why everything is a preview.)
+
+**The AI names; Lightbox draws.** The AI can only ask for three things, by
+line: trim an end back to where it meets another line, join two ends that
+should meet, or remove a short leftover mark. Lightbox makes the edit itself,
+within limits of its own, counted against the line as you drew it however
+many fixes name it: trims never take more than half a line in all, a join
+closes at most 40 px and never folds a line back on itself, each end joins
+once, and only a short mark is removed — never one a key has its own version
+of nearby. A trimmed line keeps the taper its end was drawn with. These can go
+further than the cleaner's one-line-width limit, because each one comes with
+the AI's reason.
+
+What comes back is a **preview**, like any cleanup: the changed lines over your
+drawing, the AI's reasons in the bar (in drawing terms — "the knee's front runs
+on past the shin"), and **Apply** or **Cancel**. Nothing is written until you
+apply it, and the undo step is named *AI line review*. A key or breakdown is
+never sent to be fixed.
+
+**Reviewing new inbetweens as they are made.** Tick **Review new inbetweens
+with AI** (under Clean ▾, or in *Configure ▸ Timeline*) and each inbetween ＋
+Inbetween makes is sent for review straight away; the findings wait as a
+preview. It is off until you turn it on, and each review is one request to
+your provider. If you open a cleanup of your own while it is asking, yours
+stays and the review's findings are not shown — run *Review lines with AI…*
+when you are ready.
+
 ## AI inbetweens
 
 **✦ AI Inbetween** asks the model for the frames between two keys. It needs a
@@ -652,6 +762,25 @@ AI inbetween. If it only changes the role of a drawing you made, the frame stays
 yours and unmarked — the timing changed, not the art.
 
 A locked or hidden layer refuses all four, and says which.
+
+**An agent can tidy lines as well**, with `clean_lines`: the same cleaner as
+*Clean lines toward keys…* (the default) or *Clean lines…* (`mode:
+"frame"`). By default it only **previews** — the proposal appears on your
+canvas with Apply and Cancel, and the agent is told what it would change — and
+it writes the cleanup as one undo step only when it passes `apply: true`. It
+refuses a key or a breakdown unless the agent passes `includeKeys: true`, and
+even then it only previews it — **Apply on your own drawing is always yours**.
+While you have a cleanup preview open, an agent's call is refused rather than
+replacing it.
+
+**An agent can review lines too**, without an AI provider in Lightbox:
+`render_line_review` gives it the numbered picture and listing of an
+inbetween beside its keys, and `fix_lines` takes the fixes it names, by those
+numbers, each citing your key lines. They arrive as the same preview — unless
+the agent passes `apply: true`, which writes them as one undo step named for an
+agent's AI line review, the way `clean_lines` can on an inbetween. They are
+refused if any line of the inbetween or its keys changed after the agent read
+the sheet, and while you have a preview open.
 
 **An agent can organise layers into folders too**, with the same folders the
 docker shows (`get_scene` lists them, topmost first, and says which folder each

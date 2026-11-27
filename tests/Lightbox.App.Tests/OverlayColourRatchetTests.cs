@@ -60,6 +60,9 @@ public partial class OverlayColourRatchetTests(ITestOutputHelper output)
         // A diagram for a model, on white whatever the theme: paper, ink, a
         // white halo for labels, a faint underlay and the divider.
         ["MatchPiecesPicture.cs"] = 5,
+        // The AI line review's picture (Q296): paper, ink and two label
+        // colours for a model to read, not chrome on the canvas — one line.
+        ["LineReviewPicture.cs"] = 1,
         ["AttachmentOverlay.cs"] = 1,
     };
 

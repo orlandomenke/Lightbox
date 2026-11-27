@@ -118,4 +118,23 @@ public interface IAiArtist
     /// </summary>
     Task<AiResult<SubjectTaxonomy>> ReadSubjectAsync(
         SubjectRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// Review an inbetween for mistakes the inbetweener made, judged against
+    /// its keys, and name fixes for the engine to make (Q296–Q298). Optional:
+    /// a provider that cannot do it says so, and nothing is changed.
+    /// </summary>
+    /// <remarks>
+    /// Still starts from what the artist drew — the two keys are the rule a
+    /// mistake is judged by — so it sits inside this interface's one promise.
+    /// A default rather than an obligation, because a scripted test artist or
+    /// the free engine has nothing to say about a drawing.
+    /// </remarks>
+    /// <summary>Whether this provider looks at the review's picture; when it does not, none is drawn or sent.</summary>
+    bool TakesImages => true;
+
+    Task<AiResult<List<Lightbox.Core.Cleanup.ReviewFix>>> ReviewLinesAsync(
+        LineReviewRequest request, CancellationToken ct) =>
+        Task.FromResult(AiResult<List<Lightbox.Core.Cleanup.ReviewFix>>.Error(
+            "This AI provider cannot review lines.", retryable: false));
 }
