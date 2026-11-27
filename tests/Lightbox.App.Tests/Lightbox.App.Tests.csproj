@@ -63,6 +63,7 @@
   <ItemGroup>
     <Compile Include="..\Lightbox.Raster.Tests\PsdFixture.cs" Link="PsdFixture.cs" />
     <Compile Include="..\Lightbox.Raster.Tests\PsdLayerFixture.cs" Link="PsdLayerFixture.cs" />
+    <Compile Include="..\Lightbox.Raster.Tests\UnityFixture.cs" Link="UnityFixture.cs" />
   </ItemGroup>
 
 </Project>

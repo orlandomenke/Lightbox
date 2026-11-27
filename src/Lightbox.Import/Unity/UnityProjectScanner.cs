@@ -287,7 +287,8 @@ public static class UnityProjectScanner
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return true; }
     }
 
-    internal static bool IsLink(string path)
+    /// <summary>True when <paramref name="path"/> is a symbolic link or junction (or cannot be checked).</summary>
+    public static bool IsLink(string path)
     {
         try
         {

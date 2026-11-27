@@ -831,6 +831,12 @@ public class ImageResizeTests
                 // Sources with a pixel space of their own: a sheet's cells and
                 // a board's tiles are places on *them*, not on the paper.
                 nameof(Doc.ReferenceSheets), nameof(Doc.ReferenceBoard),
+                // The game-clip record's offsets are places on the canvas size
+                // it records, deliberately left alone: a game's cell is a fixed
+                // size, so a scaled frame cannot go back into it, and write-back
+                // refuses a canvas that no longer matches rather than landing
+                // every frame shifted (docs/DESIGN-unity-link.md, the link record).
+                nameof(Doc.GameSource),
                 // A symbol is drawn in its own space and placed by a
                 // SymbolPlacement, which is what scales (ImageResize says why).
                 nameof(Doc.Symbols),

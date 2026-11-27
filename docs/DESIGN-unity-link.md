@@ -103,6 +103,70 @@ nearest frame and the import reports each one moved.
   the project, named after the clip. One clip per document keeps write-back
   one-to-one and lets clips that share an atlas be finished one at a time.
 
+**Built 2026-11-27 (step 2): `UnityClipImport.Open`.** What the build settled
+that the plan above did not:
+
+- **Offsets are whole pixels, and a half-pixel pivot rounds down.** A fractional
+  offset would resample the art on the way in and again on the way out. A
+  centred pivot on an odd-width cell sits on a pixel's middle (10.5 of 21);
+  rounding it up put that cell's feet a pixel left of every even-width cell's —
+  found by the alignment test, not by reading. Rounding halves down
+  (`PivotPixel`) keeps them on one pixel. The record holds the offset actually
+  used, so write-back inverts what was done rather than recomputing it.
+- **An atlas is read a row at a time, and only as far down as its lowest
+  needed cell**, keeping just the cells' spans — by Lightbox's own reader
+  (`PngRows`, Q301), because the SkiaSharp build it ships cannot decode a PNG by
+  rows (`StartScanlineDecode` is unimplemented; the first cut assumed it worked,
+  and every atlas was silently decoded whole until review measured it). One real
+  character atlas is 12 288 × 5 120: a quarter of a gigabyte whole, one 48 KB row
+  this way. The reader takes 8-bit RGB/RGBA non-interlaced PNGs, checks every
+  chunk's CRC (including the one reading stopped in), and inflates no further
+  than the rows asked for. Any other PNG is decoded whole by Skia under a
+  64-megapixel budget; its frames open but carry **no pixel hash**, so step 3
+  will not rewrite them — Skia keeps only the high byte of a 16-bit PNG, and a
+  hash of that would miss an edit to the low one.
+- **The drawing layer is timed like the first renderer**: a new empty drawing
+  wherever the placeholder shows a new sprite, holds between. Write-back then
+  has an unambiguous drawing for every exposure.
+- **A blank key is an empty drawing, not a hold**; a clip that starts late gets
+  an empty first frame. A sprite shown twice is encoded once and shared.
+- **Refusals, each before the cost it prevents.** The canvas and the cells'
+  total size are computed from the slicing alone, in 64-bit arithmetic with
+  every pivot bounded, before a pixel is decoded (review found a pivot of 1e9
+  wrapping a 32-bit canvas bound into a plausible wrong document, and an 8 000 px
+  cell decoded in full before the canvas refusal). Refused: more than 5 000
+  frames, a pivot more than a canvas outside its cell, a canvas over 8 192 a
+  side, cells totalling more than 64 megapixels, a texture whose size no longer
+  matches its slicing, a texture that became a link, a clip none of whose
+  sprites can be found. A clip with *some* missing sprites opens, those frames
+  blank, and says which. Every failure is a `FormatException` with the reason,
+  a texture deleted or locked since the scan included.
+- **Resizing or cropping the canvas leaves the record alone, on purpose**
+  (`ImageResizeTests` classifies `Doc.GameSource` and says why): a game's cell
+  is a fixed size, so a scaled frame cannot go back into it, and write-back
+  refuses a canvas that no longer matches its recorded size rather than landing
+  every frame shifted. Growing the canvas around a character that needs more
+  room is a fair wish; it would shift the offsets with the anchor, and is left
+  until someone asks.
+- **A renderer whose keys stop early stops showing there** (an empty drawing at
+  its end) rather than holding past what its record says.
+- **The placeholder is not byte-exact at soft edges** — it is stored
+  premultiplied, like every layer — and nothing reads it back: write-back works
+  from the file and the hash.
+- **More than one renderer** gets a placeholder layer each, all at the same
+  pivot, with a note: where a child renderer sits is in the prefab, which this
+  does not read.
+- **Old files (W2, W8):** `Doc.GameSource` is null and absent on every document
+  not opened from a clip, so an older file loads and saves byte-for-byte as
+  before; a committed fixture (`game-source-v1.lightbox.json`) guards the
+  record's shape and that keys from a newer build survive (Q230). Nothing is
+  migrated (W5 does not apply). The import only reads the game project (W6).
+- **Measured on a real game project (Release):** all 64 sprite clips open in
+  0.1–6 s each, almost all of it encoding the placeholder frames (about 18 ms a
+  frame; a 119-frame clip is the slowest). Reading the largest atlas, all
+  12 288 × 5 120 of it, takes 0.54 s against Skia's 0.32 s whole decode. Contact sheets of
+  three characters were checked by eye: feet stay on the pivot line.
+
 ## The link record
 
 On the **project** manifest, absent until set (optional-settings rule):
