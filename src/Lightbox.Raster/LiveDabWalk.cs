@@ -73,7 +73,44 @@ public sealed class LiveDabWalk
     public int Kept { get; private set; }
 
     /// <summary>The dabs that stood after <see cref="Kept"/> before the last call.</summary>
-    public IReadOnlyList<BrushEngine.Dab> Replaced => _replaced;
+    public IReadOnlyList<BrushEngine.Dab> Replaced => _origin == default ? _replaced : _shiftedReplaced;
+
+    /// <summary>
+    /// The paper's corner in stroke coordinates. Non-zero and the dabs come back
+    /// in surface pixels, each seeded from its stroke position (B422).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The walk itself stays in stroke coordinates.</b> Heading and paint load
+    /// are read from differences between dab positions, and taking those after
+    /// the shift would round differently and walk a mark that is not the
+    /// commit's. So the walk runs exactly as it always has and a second list
+    /// holds its dabs moved: <see cref="BrushEngine.Dab.Pos"/> less the corner,
+    /// <see cref="BrushEngine.Dab.Seed"/> the place every dynamic hashes from —
+    /// the same split a posed stroke already makes, and the commit path's
+    /// <c>ToSurface</c> made per dab. Everything downstream of the walk then
+    /// draws and measures in the space of the bitmap it is drawing into.
+    /// </para>
+    /// <para>
+    /// Kept incrementally, like the walk: the <see cref="Kept"/> leading dabs are
+    /// the very same, so only the tail is moved again. Changing the corner
+    /// forgets the stroke.
+    /// </para>
+    /// </remarks>
+    public SKPointI Origin
+    {
+        get => _origin;
+        set
+        {
+            if (value == _origin) return;
+            _origin = value;
+            Reset();
+        }
+    }
+
+    private SKPointI _origin;
+    private readonly List<BrushEngine.Dab> _shifted = [];
+    private readonly List<BrushEngine.Dab> _shiftedReplaced = [];
 
     /// <summary>
     /// How many densified points the last call walked - the work it did, in a
@@ -87,6 +124,8 @@ public sealed class LiveDabWalk
         _densify.Reset();
         _dabs.Clear();
         _replaced.Clear();
+        _shifted.Clear();
+        _shiftedReplaced.Clear();
         _afterSpan.Clear();
         _brush = null;
         Kept = 0;
@@ -94,7 +133,29 @@ public sealed class LiveDabWalk
     }
 
     /// <summary>Every dab of the stroke so far, in order.</summary>
+    /// <remarks>In surface pixels when <see cref="Origin"/> is set.</remarks>
     public List<BrushEngine.Dab> Of(Stroke stroke)
+    {
+        var dabs = Walk(stroke);
+        if (_origin == default) return dabs;
+
+        var keep = Math.Min(Kept, _shifted.Count);
+        _shifted.RemoveRange(keep, _shifted.Count - keep);
+        for (var i = keep; i < dabs.Count; i++) _shifted.Add(Shifted(dabs[i]));
+        _shiftedReplaced.Clear();
+        foreach (var dab in _replaced) _shiftedReplaced.Add(Shifted(dab));
+        return _shifted;
+    }
+
+    /// <summary>A dab drawn the corner's distance over, and seeded where it was.</summary>
+    private BrushEngine.Dab Shifted(BrushEngine.Dab dab) =>
+        dab with
+        {
+            Pos = new SKPoint(dab.Pos.X - _origin.X, dab.Pos.Y - _origin.Y),
+            Seed = dab.Seed ?? dab.Pos,
+        };
+
+    private List<BrushEngine.Dab> Walk(Stroke stroke)
     {
         _replaced.Clear();
 

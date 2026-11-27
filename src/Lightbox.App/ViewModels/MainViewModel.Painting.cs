@@ -2422,6 +2422,11 @@ public partial class MainViewModel
         _live.Dabs = null;
         _live.Walk.Reset();
         _live.HorizonWalk.Reset();
+        // B422: the live walks hand back dabs in the scratch's own pixels, which
+        // start at the paper's corner, seeded from where they are in the record.
+        // Both walks, because the settle rule compares one with the other.
+        _live.Walk.Origin = PaperCorner;
+        _live.HorizonWalk.Origin = PaperCorner;
         _live.HorizonAgreed = 0;
         _live.WalkWork = 0;
         _live.EffectDabs = null;
@@ -2624,7 +2629,7 @@ public partial class MainViewModel
         var beneath = preview.Brush.Mixing is not null && PaintTarget() is { } shapeFrame
             ? _cache.Get(shapeFrame, Scene.Width, Scene.Height)
             : null;
-        BrushEngine.StampStroke(_live.ScratchCanvas, preview, info, beneath);
+        BrushEngine.StampStroke(_live.ScratchCanvas, preview, info, beneath, origin: PaperCorner);
         _live.ScratchCanvas.Flush();
         _live.ScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
         _publish.InvalidateWholeCanvas();
@@ -2670,7 +2675,7 @@ public partial class MainViewModel
             Brush = new BrushSettings { Opacity = 1, AntiAlias = stroke.Brush.AntiAlias },
             Points = [.. stroke.Points],
         };
-        BrushEngine.StampStroke(_live.ScratchCanvas, preview, info);
+        BrushEngine.StampStroke(_live.ScratchCanvas, preview, info, origin: PaperCorner);
         _live.ScratchCanvas.Flush();
         _live.ScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
         GradientAxisChanged?.Invoke(
@@ -2764,7 +2769,8 @@ public partial class MainViewModel
         // copies[0] is always the drawn mark and always null, so `segment` is
         // exactly the call that was here before symmetry existed.
         var copies = BrushEngine.SymmetryCopies(live);
-        var segment = BrushEngine.DraftSegmentBounds(tail, info);
+        // B422: in surface pixels, like the scratch and the picture it dirties.
+        var segment = BrushEngine.DraftSegmentBounds(tail, info, PaperCorner);
 
         // Null for the overwhelmingly common case: no array, no loop, nothing.
         SKRectI?[]? copyRegions = null;
@@ -2773,7 +2779,7 @@ public partial class MainViewModel
             copyRegions = new SKRectI?[copies.Length - 1];
             for (var i = 1; i < copies.Length; i++)
             {
-                copyRegions[i - 1] = BrushEngine.DraftSegmentBounds(tail, info, default, copies[i]);
+                copyRegions[i - 1] = BrushEngine.DraftSegmentBounds(tail, info, PaperCorner, copies[i]);
             }
         }
 
@@ -3257,7 +3263,7 @@ public partial class MainViewModel
     {
         if (_live.ScratchCanvas is null || to <= from) return;
 
-        var copies = BrushEngine.SymmetryCopies(live);
+        var copies = SurfaceSymmetryCopies(live);
         if (copies.Length <= 1) return;
 
         foreach (var copy in copies)
@@ -3485,7 +3491,7 @@ public partial class MainViewModel
             //     until step 4, when every copy's coverage is final — coverage
             //     is a running maximum, so converting early in a region another
             //     copy still has to touch would read a half-built value.
-            foreach (var copy in BrushEngine.SymmetryCopies(live))
+            foreach (var copy in SurfaceSymmetryCopies(live))
             {
                 if (copy is not { } m) continue;
                 // Off the page, nothing to accumulate — see StampSettledCopies.
@@ -3565,7 +3571,7 @@ public partial class MainViewModel
             //     at 2c. Separate bands rather than one enclosing them: the
             //     copies of a radial order ring the centre, and their union is
             //     most of the page.
-            foreach (var copy in BrushEngine.SymmetryCopies(live))
+            foreach (var copy in SurfaceSymmetryCopies(live))
             {
                 if (copy is not { } m) continue;
                 if (BrushEngine.RangeBounds(dabs, coverageFrom, settledCut, live.Brush, info, m)
@@ -4785,7 +4791,7 @@ public partial class MainViewModel
             // CommitRegion, not CommitBounds: a mirrored or wrapped copy lands
             // outside the authored mark's rectangle, and the committed layer
             // has to repaint there too once the live layer lets go (B424).
-            if (BrushEngine.CommitRegion(shown, commitInfo) is { } touched) _publish.MarkDirty(touched);
+            if (BrushEngine.CommitRegion(shown, commitInfo, PaperCorner) is { } touched) _publish.MarkDirty(touched);
             else _publish.InvalidateWholeCanvas();
         }
         PublishSnapshot();
@@ -4882,7 +4888,7 @@ public partial class MainViewModel
         TakeBackUnusedKey();
 
         var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) _publish.MarkDirty(touched);
+        if (BrushEngine.CommitBounds(stroke, commitInfo, PaperCorner) is { } touched) _publish.MarkDirty(touched);
         else _publish.InvalidateWholeCanvas();
         PublishSnapshot();
 
