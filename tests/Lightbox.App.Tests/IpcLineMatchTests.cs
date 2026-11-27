@@ -309,14 +309,14 @@ public sealed class IpcLineMatchTests(ITestOutputHelper output) : BrushStateIsol
                 Points = [new(0, 0, 0.5), new(30, bend, 0.5), new(60, 0, 0.5), new(90, 0, 0.5), new(120, 0, 0.5)],
             }]);
 
-        var token = MainViewModel.CutToken(Cut(0), Cut(0));
+        var stamp = MainViewModel.CutToken(Cut(0), Cut(0));
 
-        Assert.Equal(token, MainViewModel.CutToken(Cut(0), Cut(0)));
-        Assert.NotEqual(token, MainViewModel.CutToken(Cut(4), Cut(0)));
+        Assert.Equal(stamp, MainViewModel.CutToken(Cut(0), Cut(0)));
+        Assert.NotEqual(stamp, MainViewModel.CutToken(Cut(4), Cut(0)));
         // A fixed value: SHA-256 is not seeded per process, so a restart of
         // Lightbox does not refuse a cut that has not changed.
-        output.WriteLine($"token {token}");
-        Assert.Matches("^[0-9a-f]{24}$", token);
+        output.WriteLine($"token {stamp}");
+        Assert.Matches("^[0-9a-f]{24}$", stamp);
     }
 
     [AvaloniaFact]
