@@ -137,6 +137,17 @@ public class DocCloneTests(ITestOutputHelper output)
             ["sym_1"] = new() { Name = "Sword", Tags = ["prop"], Layers = Symbol.Flat("Sword", [new Frame()]) },
         };
         doc.Features = new Dictionary<string, bool> { ["camera"] = true };
+        doc.GameSource = new GameSource
+        {
+            Clip = "Assets/Hero/Run.anim",
+            Tracks =
+            [
+                new GameSourceTrack
+                {
+                    Frames = [new GameSourceFrame { Cell = [0, 0, 8, 8], Pivot = [0.5, 0], CanvasOffset = [1, 2], SourceHash = "ab" }],
+                },
+            ],
+        };
         doc.ReferenceSheets.Add(new ReferenceSheet
         {
             Views = [new ReferenceView { Layers = [new Layer { Cels = [new Cel { Frame = new Frame() }] }] }],

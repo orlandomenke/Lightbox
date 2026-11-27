@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "scene": {
+    "id": "scene_1a21d016479_1",
+    "name": "Run",
+    "width": 10,
+    "height": 12,
+    "fps": 12,
+    "frameCount": 4,
+    "backgroundColor": "#ffffff",
+    "transparentBackground": true,
+    "ppi": 72,
+    "layers": [
+      {
+        "id": "layer_1a21d01647b_2",
+        "name": "Placeholder",
+        "kind": "painted",
+        "visible": true,
+        "locked": true,
+        "alphaLocked": false,
+        "isBackground": false,
+        "omitFromExport": true,
+        "onionEnabled": false,
+        "opacity": 0.4,
+        "blendMode": "normal",
+        "cels": [
+          {
+            "frame": {
+              "id": "f_1a21d016488_4",
+              "role": "key",
+              "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAMCAYAAABbayygAAAABHNCSVQICAgIfAhkiAAAACBJREFUGJVjYBj8gBGZc4KB4T8y3wJJnolYE4eCQuoDAHrEAgwJXoTHAAAAAElFTkSuQmCC",
+              "strokes": []
+            }
+          },
+          {},
+          {
+            "frame": {
+              "id": "f_1a21d016488_5",
+              "role": "key",
+              "pngBase64": "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAMCAYAAABbayygAAAABHNCSVQICAgIfAhkiAAAACFJREFUGJVjYKA2YEQwT/zHrsSCkYGBgYGJWBNHpkLqAwAozwIQs3jOUwAAAABJRU5ErkJggg==",
+              "strokes": []
+            }
+          },
+          {}
+        ]
+      },
+      {
+        "id": "layer_1a21d01648b_6",
+        "name": "Drawing",
+        "kind": "painted",
+        "visible": true,
+        "locked": false,
+        "alphaLocked": false,
+        "isBackground": false,
+        "onionEnabled": false,
+        "opacity": 1,
+        "blendMode": "normal",
+        "cels": [
+          {
+            "frame": {
+              "id": "f_1a21d01648c_8",
+              "role": "key",
+              "strokes": []
+            }
+          },
+          {},
+          {
+            "frame": {
+              "id": "f_1a21d01648c_9",
+              "role": "key",
+              "strokes": []
+            }
+          },
+          {}
+        ]
+      }
+    ],
+    "markers": [],
+    "layerGroups": [],
+    "pivot": {
+      "x": 5,
+      "y": 10
+    }
+  },
+  "referenceSheets": [],
+  "brushTips": {},
+  "clipRegions": {},
+  "palettes": [
+    {
+      "id": "pal_1a21d01648d_b",
+      "name": "Default",
+      "columns": 8,
+      "swatches": [
+        {
+          "id": "swatch_black",
+          "color": "#000000",
+          "name": "Black"
+        },
+        {
+          "id": "swatch_white",
+          "color": "#ffffff",
+          "name": "White"
+        }
+      ]
+    }
+  ],
+  "gradients": {},
+  "activeLayerId": "layer_1a21d01648b_6",
+  "gameSource": {
+    "engine": "unity",
+    "clip": "Assets/Hero/Run.anim",
+    "canvasWidth": 10,
+    "canvasHeight": 12,
+    "tracks": [
+      {
+        "path": "",
+        "classId": 212,
+        "placeholderLayerId": "layer_1a21d01647b_2",
+        "drawingLayerId": "layer_1a21d01648b_6",
+        "frames": [
+          {
+            "start": 0,
+            "length": 2,
+            "texture": "000000000000000000000000000000a1",
+            "sprite": 11,
+            "name": "Hero_1",
+            "texturePath": "Assets/Hero.png",
+            "cell": [
+              0,
+              2,
+              4,
+              6
+            ],
+            "pivot": [
+              0.5,
+              0
+            ],
+            "canvasOffset": [
+              3,
+              4
+            ],
+            "sourceHash": "8ae5336d2ebc343003bd6f3301f6b4b682ac74ade9d0671b0ab2df501e357983",
+            "alsoNewer": 7
+          },
+          {
+            "start": 2,
+            "length": 2,
+            "texture": "000000000000000000000000000000a1",
+            "sprite": 12,
+            "name": "Hero_2",
+            "texturePath": "Assets/Hero.png",
+            "cell": [
+              6,
+              0,
+              6,
+              8
+            ],
+            "pivot": [
+              0.5,
+              0
+            ],
+            "canvasOffset": [
+              2,
+              2
+            ],
+            "sourceHash": "817dfe335bcad2e1dc517717e9183738325c951b9aa2887180bcde90637fc66d"
+          }
+        ]
+      }
+    ],
+    "fromANewerBuild": {
+      "kept": true
+    }
+  }
+}

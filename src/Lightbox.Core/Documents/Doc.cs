@@ -525,6 +525,13 @@ public sealed class Doc
     /// </remarks>
     public Dictionary<string, bool>? Features { get; set; }
 
+    /// <summary>
+    /// The game clip this document was opened from, and where each frame goes
+    /// back to — or null, and absent from the file, for every document that was
+    /// not. See <see cref="Documents.GameSource"/>.
+    /// </summary>
+    public GameSource? GameSource { get; set; }
+
     /// <summary>Get the effective feature state, considering project defaults.</summary>
     /// <remarks>
     /// This is a helper for reading; the actual resolution logic lives in the
@@ -632,6 +639,7 @@ public sealed class Doc
         copy.LineTreatments = LineTreatments?.ToDictionary(e => e.Key, e => e.Value.Clone());
         copy.Armatures = Armatures?.Select(a => a.Clone()).ToList();
         copy.Features = Features is null ? null : new Dictionary<string, bool>(Features);
+        copy.GameSource = GameSource?.Clone();
         return copy;
     }
 }
