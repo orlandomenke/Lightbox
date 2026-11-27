@@ -282,6 +282,33 @@ upgrade, the Claude Desktop config below being the case it was added for. Pass
 </details>
 
 <details>
+<summary><b>Code signing policy</b></summary>
+
+Free code signing is provided by [SignPath.io](https://about.signpath.io),
+with a certificate from the [SignPath Foundation](https://signpath.org).
+
+- **What is signed:** `Lightbox.App.exe` and `mcp/Lightbox.Mcp.exe` in the
+  Windows bundle, built by GitHub Actions (`.github/workflows/release.yml`)
+  from this repository, for `v*` tags and for manual builds of `main`. Bundles
+  built from any other branch are not signed. The native libraries shipped
+  beside the executables are third-party and keep their own publishers'
+  signatures, if any.
+- **Who approves:** every signing request is approved by hand by the project
+  owner, [@orlandomenke](https://github.com/orlandomenke), who is also the only
+  committer and reviewer.
+- **Privacy:** Lightbox collects no telemetry and has no account. It goes to
+  the network only when you ask it to: the AI features call the provider you
+  set up (Anthropic, OpenAI, OpenRouter or a local Ollama) with the drawings you
+  send, under that provider's terms; choosing a Google Font downloads it from
+  Google; and an image dragged in from a browser is fetched from its address.
+  The MCP server talks to the app over a local named pipe, not the network.
+
+Signing does not silence SmartScreen at once: Windows builds reputation for a
+publisher from downloads, so the first signed releases can still warn. The
+unblocking steps above work either way.
+</details>
+
+<details>
 <summary><b>Version numbers</b></summary>
 
 The base version is `<VersionPrefix>` in `Directory.Build.props`, and names the
