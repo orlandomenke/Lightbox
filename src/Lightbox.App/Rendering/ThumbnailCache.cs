@@ -93,13 +93,57 @@ public sealed class ThumbnailCache
     }
 
     /// <summary>Drop one drawing's thumbnail — its pixels changed.</summary>
-    public void Invalidate(string frameId) => _thumbs.Remove(frameId);
+    /// <remarks>
+    /// <b>And every picture composed from it (B503).</b> A key such as the
+    /// navigator's names several drawings at once, so dropping the key that is
+    /// the drawing's id left those standing — and whatever else the key held
+    /// to tell a stale one apart, the record can come back to.
+    /// </remarks>
+    public void Invalidate(string frameId)
+    {
+        _thumbs.Remove(frameId);
+        if (_dependents.Remove(frameId, out var keys))
+        {
+            foreach (var key in keys) _thumbs.Remove(key);
+        }
+    }
+
+    /// <summary>
+    /// A picture composed from several drawings, rendered only if not already
+    /// held, and dropped when any of <paramref name="dependsOn"/> is invalidated.
+    /// </summary>
+    /// <remarks>
+    /// The navigator's picture (B503). Its freshness is then exactly the
+    /// timeline thumbnails' — the same <see cref="Invalidate"/> calls serve both —
+    /// rather than a proxy in the key that an undo or a clear can repeat.
+    /// </remarks>
+    public Bitmap Get(string key, Func<Bitmap> render, IEnumerable<string> dependsOn)
+    {
+        var held = _thumbs.ContainsKey(key);
+        var made = Get(key, render);
+        if (!held)
+        {
+            foreach (var frameId in dependsOn)
+            {
+                if (!_dependents.TryGetValue(frameId, out var keys)) _dependents[frameId] = keys = [];
+                keys.Add(key);
+            }
+        }
+        return made;
+    }
+
+    /// <summary>
+    /// Each drawing's composed pictures, by key. A key evicted by the cap stays
+    /// listed until its drawing is next invalidated, which removes nothing.
+    /// </summary>
+    private readonly Dictionary<string, HashSet<string>> _dependents = [];
 
     /// <summary>Drop everything — a document-wide change, or a new document.</summary>
     public void Clear()
     {
         _thumbs.Clear();
         _order.Clear();
+        _dependents.Clear();
     }
 
     internal void ResetTraffic()

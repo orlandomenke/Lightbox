@@ -198,6 +198,23 @@ public sealed partial class CanvasControl
     private ViewModels.LineMatchOverlay? _lineMatch;
 
     /// <summary>
+    /// A line cleanup's preview (Q292), or null when none is pending: pushed
+    /// from the window when the view model says it changed, like <see cref="LineMatch"/>.
+    /// </summary>
+    public ViewModels.CleanupOverlay? Cleanup
+    {
+        get => _cleanup;
+        set
+        {
+            if (ReferenceEquals(_cleanup, value)) return;
+            _cleanup = value;
+            InvalidateVisual();
+        }
+    }
+
+    private ViewModels.CleanupOverlay? _cleanup;
+
+    /// <summary>
     /// Whether a press matches lines instead of drawing (Q271). A mode for the
     /// rig's reason: every modifier already means something on the canvas.
     /// </summary>

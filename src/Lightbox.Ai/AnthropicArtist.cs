@@ -60,6 +60,15 @@ public sealed class AnthropicArtist : IAiArtist
         return StrokeParsing.Subject(call, "The model");
     }
 
+    public async Task<AiResult<List<Core.Cleanup.ReviewFix>>> ReviewLinesAsync(
+        LineReviewRequest request, CancellationToken ct)
+    {
+        var call = await CallAsync(
+            LineReviewing.System, LineReviewing.User(request), LineReviewing.Schema,
+            request.Picture is null ? null : [request.Picture], ct);
+        return LineReviewing.Parse(call, "The model");
+    }
+
     // ---- shared call path ----------------------------------------------------
 
     /// <summary>Run one structured-output request; returns the raw JSON text.</summary>

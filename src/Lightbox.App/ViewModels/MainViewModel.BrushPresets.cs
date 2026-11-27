@@ -191,6 +191,9 @@ public partial class MainViewModel
         // them cleared this. A tab switch puts its own selection back
         // immediately afterwards; every other path wants the empty one.
         ClearSelectionState();
+        // A cleanup preview is of the outgoing document's drawing, and holds
+        // copies of it: it goes with the document (leak review).
+        CancelCleanup();
         // ClearFrameRenders subsumes the _cache.Clear() this used to be: it
         // empties the tile cache alongside it, through the one funnel.
         //

@@ -192,7 +192,21 @@ dotnet run --project src/Lightbox.App  # launch
 python3 scripts/testplan.py run --base main   # only what your change reaches
 python3 scripts/testplan.py explain <path>    # why that path selects what it does
 python3 scripts/testplan.py plan              # the legs a full run would use
+python3 scripts/testplan.py quick             # only the classes that name what you changed — NOT a gate
 ```
+
+**For a small edit, `quick` is the lighter loop.** `run` selects whole suites, so
+a one-line change to a style file still runs all of App.Tests in six legs. `quick`
+instead suggests the test classes whose own text names a changed file (by its
+stem, `Density.axaml` → `Density`), plus every class in a changed test file, and
+runs only those — one testhost, Debug, below normal priority, budgets left out.
+A stem named by more than a dozen classes (`MainWindow`) narrows nothing and is
+dropped with a note; say what you meant with `--class WorkspaceTests`
+(repeatable). `--list` prints the suggestion without running it.
+
+It is **not a gate**, and says so on every run: a suggestion can miss a test
+that depends on the change without naming the file. The pull request's CI runs
+the full plan regardless, which is what makes a quick local loop safe to have.
 
 `testplan.py run` works out which suites your change can reach, splits the slow
 ones into balanced pieces, and runs them in parallel — about three minutes
