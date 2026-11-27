@@ -112,6 +112,14 @@ public partial class MainViewModel
     /// that moves existing points rather than adding or removing a stroke) and
     /// heals on the next one that does not.
     /// </para>
+    /// <para>
+    /// <b>It did not heal when the count came back (B503).</b> A clear, an undo
+    /// or an erasure returns a drawing to a count it has had before, and the next
+    /// stroke found the picture composed at that count — strokes that no longer
+    /// existed, in their old places. The picture is now also dropped whenever a
+    /// drawing it shows is invalidated, which is the signal the timeline
+    /// thumbnails already trust; the count stays as a second line.
+    /// </para>
     /// </remarks>
     private void RefreshNavigatorThumb()
     {
@@ -151,7 +159,11 @@ public partial class MainViewModel
         var key = string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
             $"nav:{scene.Width}x{scene.Height}:{string.Join(',', exposed.Select(e => $"{e.Frame.Id}:{e.Frame.Strokes.Count}"))}:{CarveStamp(scene, CurrentFrameIndex)}");
-        NavigatorThumb = _thumbs.Get(key, () => ComposeNavigatorThumb(scene, exposed));
+        // B503: dropped with any drawing it shows. The stroke count in the key
+        // cannot do that alone — a clear or an undo brings a count back, and
+        // with it the picture composed the last time the drawing had that many.
+        NavigatorThumb = _thumbs.Get(
+            key, () => ComposeNavigatorThumb(scene, exposed), exposed.Select(e => e.Frame.Id));
     }
 
     /// <summary>
