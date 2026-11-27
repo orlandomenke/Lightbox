@@ -106,6 +106,10 @@ public partial class MainViewModel
         // scene entirely (AttachEditor ends by calling this). The axis in use
         // follows the scene here, where every one of those lands.
         ResyncSymmetry();
+        // B502: the paper's corner is the document's too. An opened, switched-to
+        // or undone document can arrive with a different one, and the canvas
+        // converts every pen point against its own copy of it.
+        SyncDocumentOrigin();
         // The playback range is the document's too (Scene.PlaybackStart): an
         // undo, a ripple or another document's arrival moves it the same way.
         ResyncPlaybackRange();
