@@ -1,6 +1,6 @@
 # src/Lightbox.App/Views/MainWindow.axaml
 
-budget: 4433
+budget: 4434
 
 ## Why it is here despite being XAML
 
@@ -352,3 +352,4 @@ leaves a number nobody can account for. So every reason above stays, and
   `SizeAiBusyBar`), so the literal budget drops 251 → 248 with it.
 
 - **4,423 → 4,433** (2026-10-15): the *Mark as* submenu, in the X-sheet cel menu and the Animation menu (five lines each). Re-marking a drawing's role used to hide behind *Insert frame*; once Insert started adding a drawing after the hold, it needed its own item. Menu items have nowhere else to live, and the handlers went to `MainWindow.Timeline.cs`.
+- **→ 4,434** (2026-11-27): Animation ▸ *Accept suggested matches* — one `MenuItem` line beside *Match lines between keys*, whose matches it accepts; the command lives on the view model (`MainViewModel.Matches.cs`). The branch alone was 4,431, under budget; the line cleaner reached 4,433 on main first, so the merge is the one line over.
