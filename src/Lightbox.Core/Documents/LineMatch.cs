@@ -45,7 +45,16 @@ public sealed class LineMatch
     /// </summary>
     public bool? Solid { get; set; }
 
-    public LineMatch Clone() => new() { Unknown = Unknown, A = [.. A], B = [.. B], Solid = Solid };
+    /// <summary>
+    /// Who suggested this match when it was not the artist — "MCP agent" for
+    /// one an agent saved with <c>set_line_matches</c> — until the artist
+    /// accepts it. Null, and no key in the file, for the artist's own: their
+    /// documents do not change. An agent's next answer replaces only matches
+    /// carrying this, never the artist's (the art-director, G12).
+    /// </summary>
+    public string? SuggestedBy { get; set; }
+
+    public LineMatch Clone() => new() { Unknown = Unknown, A = [.. A], B = [.. B], Solid = Solid, SuggestedBy = SuggestedBy };
 
     /// <summary>
     /// What a file's match list can be trusted to say: a null match, a null

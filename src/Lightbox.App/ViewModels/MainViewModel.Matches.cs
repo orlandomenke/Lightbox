@@ -9,7 +9,8 @@ namespace Lightbox.App.ViewModels;
 
 /// <summary>One piece of a key in the Match lines overlay: its points, which key (0 for A, 1 for B), the match it is in, and whether it is in the match being made.</summary>
 /// <param name="Solid">The artist's word on the line's match - solid object or bending - or null where the engine decides.</param>
-public sealed record LineMatchLine(IReadOnlyList<StrokePoint> Points, int Key, int? Match, bool Pending, bool? Solid = null);
+/// <param name="Suggested">The line's match was suggested by an agent and the artist has not accepted it yet.</param>
+public sealed record LineMatchLine(IReadOnlyList<StrokePoint> Points, int Key, int? Match, bool Pending, bool? Solid = null, bool Suggested = false);
 
 /// <summary>What the Match lines mode shows: both keys' pieces, and the onion colours an unmatched piece of each key is drawn in.</summary>
 public sealed record LineMatchOverlay(IReadOnlyList<LineMatchLine> Lines, string TintA, string TintB);
@@ -116,9 +117,11 @@ public partial class MainViewModel
     /// inbetweens — the keys and breakdowns a gap runs between — on the active
     /// layer, or null when there is no such pair.
     /// </summary>
-    private (string Layer, int A, int B)? MatchGapAt(int frameIndex)
+    private (string Layer, int A, int B)? MatchGapAt(int frameIndex) => MatchGapAt(ActiveLayer, frameIndex);
+
+    /// <summary>The gap on <paramref name="layer"/> that <paramref name="frameIndex"/> is in, as <see cref="MatchGapAt(int)"/> finds it on the active layer.</summary>
+    private static (string Layer, int A, int B)? MatchGapAt(Layer layer, int frameIndex)
     {
-        var layer = ActiveLayer;
         bool Drawn(int i) => layer.Cels[i].Frame is { Role: not FrameRole.Inbetween };
         var a = -1;
         for (var i = Math.Min(frameIndex, layer.Cels.Count - 1); i >= 0 && a < 0; i--)
@@ -178,6 +181,17 @@ public partial class MainViewModel
         var reference = new PieceRef(piece.Source, piece.Ordinal);
         var owner = matches.FindIndex(m => (key == 0 ? m.A : m.B).Contains(reference));
 
+        // A click on a line of an agent's match, with no match open, accepts
+        // that match as it is: the artist's word, so the next agent answer
+        // leaves it alone. A second click then edits it as any other.
+        if (_pending is null && !shift && owner >= 0 && matches[owner].SuggestedBy is not null)
+        {
+            matches[owner].SuggestedBy = null;
+            SaveMatches(gap, matches);
+            return;
+        }
+        var touched = owner >= 0 ? matches[owner] : null;
+
         if (key == 0)
         {
             if (shift && _pending is not null && owner < 0)
@@ -223,6 +237,8 @@ public partial class MainViewModel
         }
 
         matches.RemoveAll(m => m.A.Count == 0 || m.B.Count == 0);
+        // Whatever the artist's click changed is theirs now.
+        if (touched is not null) touched.SuggestedBy = null;
         SaveMatches(gap, matches);
     }
 
@@ -262,14 +278,14 @@ public partial class MainViewModel
     /// Save the gap's matches on its first drawing and redraw the run's
     /// inbetweens from them, as one undo step.
     /// </summary>
-    private void SaveMatches((string Layer, int A, int B) gap, List<LineMatch> matches)
+    private (int Redrawn, int Kept) SaveMatches((string Layer, int A, int B) gap, List<LineMatch> matches)
     {
         var layer = Scene.Layers.First(l => l.Id == gap.Layer);
         var saved = matches.Count == 0 ? null : matches;
         if (SameMatches(layer.Cels[gap.A].Frame!.Matches, saved))
         {
             RefreshLineMatch();
-            return;
+            return (0, 0);
         }
         // Only what the engine drew and nobody changed is redrawn: an inbetween
         // the artist drew or touched up, or one the AI drew, differs from what
@@ -298,6 +314,93 @@ public partial class MainViewModel
             _savingMatches = false;
         }
         RefreshLineMatch();
+        return (replacements.Count, kept);
+    }
+
+    /// <summary>
+    /// Every match an agent suggested on the gap under the playhead becomes the
+    /// artist's, as one undo step: the shapes are kept, only the mark goes, so
+    /// the agent's next answer leaves them alone.
+    /// </summary>
+    [RelayCommand]
+    private void AcceptSuggestedMatches()
+    {
+        var layer = ActiveLayer;
+        if (!CanEdit(layer, "accept its matches")) return;
+        if (MatchGapAt(CurrentFrameIndex) is not { } gap) return;
+        var current = layer.Cels[gap.A].Frame!.Matches;
+        if (current is null || current.All(m => m.SuggestedBy is null))
+        {
+            AiStatus = "There are no suggested matches between these keys.";
+            return;
+        }
+        var accepted = current.Select(m => m.Clone()).ToList();
+        foreach (var m in accepted) m.SuggestedBy = null;
+        _editor.Perform(doc =>
+            doc.Scene.Layers.First(l => l.Id == gap.Layer).Cels[gap.A].Frame!.Matches = accepted,
+            "Accept suggested matches");
+        RefreshLineMatch();
+    }
+
+    /// <summary>A gap's two keys cut into pieces, for an agent to match (render_match_pieces).</summary>
+    internal sealed record PiecedGap(Layer Layer, int A, int B, List<LinePiece> PiecesA, List<LinePiece> PiecesB, string Cut);
+
+    /// <summary>
+    /// The gap on <paramref name="layer"/> that <paramref name="frameIndex"/> is
+    /// in, with both keys cut the way the Match lines mode cuts them, or null
+    /// where there is no such gap. <see cref="PiecedGap.Cut"/> names this cut,
+    /// so a reply naming pieces can be refused if the keys changed in between.
+    /// </summary>
+    internal PiecedGap? PiecedGapAt(Layer layer, int frameIndex)
+    {
+        if (MatchGapAt(layer, frameIndex) is not { } gap) return null;
+        var a = StrokeRecordCleaner.EffectiveStrokes(StrokesOf(layer.Cels[gap.A].Frame!));
+        var b = StrokeRecordCleaner.EffectiveStrokes(StrokesOf(layer.Cels[gap.B].Frame!));
+        var (piecesA, piecesB) = (LinePieces.Cut(a), LinePieces.Cut(b));
+        return new PiecedGap(layer, gap.A, gap.B, piecesA, piecesB, CutToken(piecesA, piecesB));
+    }
+
+    /// <summary>
+    /// A name for exactly this cut: every piece's stroke, place and points, in
+    /// order, hashed with SHA-256. Not <see cref="Fingerprint"/>: that samples
+    /// three points per stroke and is seeded per process, which is fine for a
+    /// cache and wrong for the check that guards a write (the ai-engineer,
+    /// G12). An interior nudge that moves a cut, or a restart, must not let a
+    /// stale A3 resolve to a different piece — and a restart must not refuse a
+    /// cut that is still the same.
+    /// </summary>
+    internal static string CutToken(IReadOnlyList<LinePiece> a, IReadOnlyList<LinePiece> b)
+    {
+        using var sha = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
+        var number = new byte[8];
+        void Add(double v)
+        {
+            System.Buffers.Binary.BinaryPrimitives.WriteDoubleLittleEndian(number, v);
+            sha.AppendData(number);
+        }
+        foreach (var (side, pieces) in new[] { ('A', a), ('B', b) })
+        {
+            foreach (var p in pieces)
+            {
+                sha.AppendData(System.Text.Encoding.UTF8.GetBytes($"{side}|{p.Source}|{p.Ordinal}|{p.Stroke.Points.Count}|"));
+                foreach (var q in p.Stroke.Points) { Add(q.X); Add(q.Y); }
+            }
+        }
+        return Convert.ToHexString(sha.GetHashAndReset(), 0, 12).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Save matches an agent proposed on a gap, through the same path as the
+    /// artist's clicks: one undo step, and the engine's untouched inbetweens
+    /// redrawn from them. Returns how many inbetweens were redrawn and how many
+    /// the artist had changed and were left alone.
+    /// </summary>
+    internal (int Redrawn, int Kept) SaveMatchesFromAgent(PiecedGap gap, List<LineMatch> matches)
+    {
+        if (!CanEdit(gap.Layer, "match lines on it"))
+            throw new InvalidOperationException(string.IsNullOrEmpty(AiStatus) ? $"Layer \"{gap.Layer.Name}\" cannot be edited." : AiStatus);
+        _pending = null;
+        return SaveMatches((gap.Layer.Id, gap.A, gap.B), matches);
     }
 
     /// <summary>Two match lists that say the same thing, line for line.</summary>
@@ -306,7 +409,7 @@ public partial class MainViewModel
         if ((a?.Count ?? 0) != (b?.Count ?? 0)) return false;
         for (var i = 0; i < (a?.Count ?? 0); i++)
         {
-            if (!a![i].A.SequenceEqual(b![i].A) || !a[i].B.SequenceEqual(b[i].B) || a[i].Solid != b[i].Solid) return false;
+            if (!a![i].A.SequenceEqual(b![i].A) || !a[i].B.SequenceEqual(b[i].B) || a[i].Solid != b[i].Solid || a[i].SuggestedBy != b[i].SuggestedBy) return false;
         }
         return true;
     }
@@ -354,6 +457,7 @@ public partial class MainViewModel
         var match = matches[owner];
         var solid = match.Solid ?? MatchedInbetween.SolidByDefault(Side(_piecesA, match.A), Side(_piecesB, match.B));
         match.Solid = !solid;
+        match.SuggestedBy = null;
         var pending = _pending;
         SaveMatches(gap, matches);
         _pending = pending;
@@ -417,12 +521,13 @@ public partial class MainViewModel
             return i < 0 ? null : i;
         }
         bool? SolidOf(LinePiece p, int key) => MatchOf(p, key) is { } i ? matches[i].Solid : null;
+        bool SuggestedOf(LinePiece p, int key) => MatchOf(p, key) is { } i && matches[i].SuggestedBy is not null;
         bool Pending(LinePiece p, int key) =>
             _pending is not null && (key == 0 ? _pending.A : _pending.B).Contains(new PieceRef(p.Source, p.Ordinal));
         LineMatchView = new LineMatchOverlay(
         [
-            .. _piecesA.Select(p => new LineMatchLine(p.Stroke.Points, 0, MatchOf(p, 0), Pending(p, 0), SolidOf(p, 0))),
-            .. _piecesB.Select(p => new LineMatchLine(p.Stroke.Points, 1, MatchOf(p, 1), Pending(p, 1), SolidOf(p, 1))),
+            .. _piecesA.Select(p => new LineMatchLine(p.Stroke.Points, 0, MatchOf(p, 0), Pending(p, 0), SolidOf(p, 0), SuggestedOf(p, 0))),
+            .. _piecesB.Select(p => new LineMatchLine(p.Stroke.Points, 1, MatchOf(p, 1), Pending(p, 1), SolidOf(p, 1), SuggestedOf(p, 1))),
         ], Onion.PreviousTint, Onion.NextTint);
         LineMatchChanged?.Invoke(LineMatchView);
     }

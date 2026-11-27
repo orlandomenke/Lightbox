@@ -99,6 +99,9 @@ public static class LineMatchPainter
             }
             paint.PathEffect = line.Key == 1 ? dash : null;
             paint.Color = line.Match is { } m ? MatchColour(m) : line.Key == 0 ? tintA : tintB;
+            // An agent's match the artist has not accepted reads as a proposal:
+            // its colour at half strength, full once a click makes it theirs.
+            if (line.Suggested && line.Match is not null) paint.Color = paint.Color.WithAlpha((byte)(paint.Color.Alpha / 2));
             paint.StrokeWidth = width;
             canvas.DrawPath(path, paint);
         }

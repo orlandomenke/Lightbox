@@ -342,6 +342,76 @@ public class MatchedInbetweenTests(ITestOutputHelper output)
         Assert.True(Worst(frame, L(20)) < 4);
     }
 
+    [Fact]
+    public void OneLineCutIntoManyPiecesIsNotASolidObject()
+    {
+        // A traced outline is cut at every junction. The underside of a traced
+        // leg came back as six pieces and, moved rigidly as an object, stuck
+        // straight out across the other leg (the art-director, G12).
+        var pieces = Enumerable.Range(0, 6).Select(i => Path((100, 100 + i * 50), (100, 150 + i * 50))).ToList();
+
+        Assert.False(MatchedInbetween.SolidByDefault(pieces, [Path((140, 100), (140, 400))]));
+        // A shoe of as many lines still is one.
+        Assert.True(MatchedInbetween.SolidByDefault(Shoe(0, 0, 0, redrawn: false), Shoe(40, 80, 30, redrawn: true)));
+    }
+
+    [Fact]
+    public void ADoubleLineBecomesTheOtherKeysOneLineWithoutAKnot()
+    {
+        // A sketch's double line, two passes the other way round from each
+        // other, against one line in the next key. Strung end to end the two
+        // passes ran down one and back up the other and tweened into a knot.
+        List<Stroke> a = [Path((100, 100), (100, 300)), Path((106, 302), (106, 98))];
+        List<Stroke> b = [Path((160, 100), (160, 300))];
+
+        Assert.False(MatchedInbetween.SolidByDefault(a, b));
+        var half = MatchedInbetween.Inbetween(a, b, [new PartMatch([0, 1], [0])], 0.5, Easing.Linear);
+
+        var worst = Worst(half, Path((131.5, 100), (131.5, 300)));
+        output.WriteLine($"furthest from the halfway line: {worst:0.0}px");
+        Assert.True(worst < 6, $"{worst:0.0}px");
+        // A knot folds back on itself and still lies on that line, so also:
+        // every line runs one way down the leg, never back up it.
+        foreach (var line in half)
+        {
+            var ys = line.Points.Select(p => p.Y).ToList();
+            var travelled = ys.Zip(ys.Skip(1), (y0, y1) => Math.Abs(y1 - y0)).Sum();
+            var back = travelled - Math.Abs(ys[^1] - ys[0]);
+            Assert.True(back < 4, $"a line turns back on itself for {back / 2:0}px");
+        }
+    }
+
+    [Fact]
+    public void AShoeTheOtherKeyMostlyHidesTravelsWholeWithItsLine()
+    {
+        // A shoe whole in key A and three heel marks below a coat in key B. As
+        // a solid object it was drawn from the nearer key: three marks from
+        // halfway on (the art-director, G12). It now stays whole and goes
+        // where the shin it hangs from goes.
+        var shoe = Shoe(0, 0, 0, redrawn: false);                       // 100..200 x 100..160
+        List<Stroke> a = [Path((150, 400), (150, 160)), .. shoe];
+        List<Stroke> b = [Path((150, 400), (390, 400)), Path((385, 395), (392, 402))];
+        List<PartMatch> parts = [new([0], [0]), new([1, 2, 3, 4, 5, 6], [1], Solid: true)];
+
+        var half = MatchedInbetween.Inbetween(a, b, parts, 0.5, Easing.Linear);
+        var late = MatchedInbetween.Inbetween(a, b, parts, 0.9, Easing.Linear);
+
+        var drawnShoe = half.TakeLast(shoe.Count).ToList();
+        for (var i = 0; i < shoe.Count; i++)
+        {
+            Assert.Equal(GeometryOps.PathLength(shoe[i].Points), GeometryOps.PathLength(drawnShoe[i].Points), 1);
+            Assert.Equal(shoe[i].Brush.Opacity, drawnShoe[i].Brush.Opacity);
+        }
+        // Hanging from the shin's free end, wherever that end has swung to.
+        var shin = half.Where(s => !drawnShoe.Contains(s)).SelectMany(s => s.Points).ToList();
+        var end = shin.MaxBy(p => GeometryOps.Dist(p, new StrokePoint(150, 400, 0)));
+        var centre = GeometryOps.Centroid([.. drawnShoe.SelectMany(s => s.Points)]);
+        output.WriteLine($"shin end ({end.X:0},{end.Y:0}), shoe centre ({centre.X:0},{centre.Y:0})");
+        Assert.True(GeometryOps.Dist(end, centre) < 60, $"{GeometryOps.Dist(end, centre):0}px");
+        // And fading out over the last quarter, as the other key's marks fade in.
+        Assert.Contains(late, s => s.Brush.Opacity is > 0 and < 1);
+    }
+
     /// <summary>Key A: the L, matched, and a long line only key A has (a sock the other key hides). Key B: the L, and a small unrelated mark elsewhere.</summary>
     private static (List<Stroke> A, List<Stroke> B) WithAnUnrelatedLeftover()
     {

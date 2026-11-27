@@ -675,6 +675,9 @@ public partial class MainWindow
             case "timeline.redrawInbetweens":
                 _vm.RedrawInbetweensCommand.Execute(null);
                 break;
+            case "timeline.acceptSuggestedMatches":
+                _vm.AcceptSuggestedMatchesCommand.Execute(null);
+                break;
             case "timeline.cleanLines":
                 _vm.CleanLinesCommand.Execute(null);
                 break;

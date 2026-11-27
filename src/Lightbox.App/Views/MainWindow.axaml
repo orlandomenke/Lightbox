@@ -515,6 +515,7 @@
           <MenuItem Header="Inbetween" Click="OnMenuMarkAsInbetween" />
         </MenuItem>
         <MenuItem Header="_Match lines between keys" ToggleType="CheckBox" IsChecked="{Binding LineMatchMode}" ToolTip.Tip="Click a line of the first key, then the lines it becomes in the second; the inbetweens follow" />
+        <MenuItem Header="Accept su_ggested matches" Command="{Binding AcceptSuggestedMatchesCommand}" ToolTip.Tip="Make the matches an agent suggested between the keys under the playhead your own, so its next answer leaves them alone" />
         <MenuItem Header="_Redraw inbetweens" Command="{Binding RedrawInbetweensCommand}" ToolTip.Tip="Redraw this run's inbetweens from its keys and matches. Replaces touched-up ones; Undo restores them" />
         <MenuItem Header="C_lean lines…" Command="{Binding CleanLinesCommand}" ToolTip.Tip="Preview a tidy of this drawing (or the picked cels): wobble and kinks smoothed, ends met, specks removed. Nothing changes until you apply it" />
         <MenuItem Header="Clean lines toward _keys…" Command="{Binding CleanLinesTowardKeysCommand}" ToolTip.Tip="Preview a tidy of this drawing toward the key or breakdown either side: as smooth as they are, its lines meeting the way theirs meet. For generated inbetweens" />

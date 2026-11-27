@@ -412,6 +412,65 @@ public static class LightboxTools
         [Description("true to keep the layers above inside it (default), false to release the folder")] bool keepInside = true) =>
         Text("set_folder_shape", new { layerId, keepInside }, ct);
 
+    [McpServerTool(Name = "render_match_pieces"), Description(
+        "See the two keys of an inbetween gap with every line numbered, to say which " +
+        "line of key A becomes which line of key B. frameIndex is any frame from key " +
+        "A up to (not including) key B; key A is the key or breakdown at or before it, " +
+        "key B the next one. Strokes are cut where another line ends against them and " +
+        "at sharp corners, exactly as Lightbox's Match lines mode cuts them, and each " +
+        "piece is labelled A1, A2... on the left panel and B1, B2... on the right. Both " +
+        "panels share one crop, so a line that did not move is in the same place in " +
+        "both; the other key is drawn faintly underneath. Pieces already matched share " +
+        "a colour across the panels. The text block lists each piece's box [x,y,w,h] " +
+        "and length in scene pixels, the gap's existing matches, and the cut token " +
+        "set_line_matches needs; each existing match says by artist or agent. Read the picture as an animator would: the same part " +
+        "of the subject (thigh, shin, heel, cuff) in its new pose, not the nearest line.")]
+    public static async Task<IEnumerable<ContentBlock>> RenderMatchPieces(
+        [Description("Any frame of the gap, 0-based")] int frameIndex,
+        CancellationToken ct,
+        [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null,
+        [Description("Long edge of one panel in px; omit for 640, at most 778")] int? longEdge = null)
+    {
+        var result = await PipeBridge.CallAsync("render_match_pieces", new { frameIndex, layerId, longEdge }, ct);
+        return [new TextContentBlock { Text = WithoutImage(result) }, ImageBlock(result)];
+    }
+
+    /// <summary>The payload as text with its image taken out, which travels as its own block.</summary>
+    internal static string WithoutImage(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object) return Raw(payload);
+        var node = JsonNode.Parse(payload.GetRawText())!.AsObject();
+        node.Remove("pngBase64");
+        return node.ToJsonString();
+    }
+
+    [McpServerTool(Name = "set_line_matches"), Description(
+        "Say which lines of key A are which lines of key B in a gap, using the piece " +
+        "names from render_match_pieces. matchesJson is a JSON array like " +
+        "[{\"a\":[\"A1\"],\"b\":[\"B3\"]},{\"a\":[\"A2\",\"A3\"],\"b\":[\"B1\"],\"solid\":true}]: " +
+        "a line may become several, several may become one. Give the direction-free " +
+        "correspondence only; Lightbox works out order and direction. solid:true marks " +
+        "a part that moves as one rigid object (a shoe, a cuff), solid:false lines that " +
+        "bend; omit it to let Lightbox decide. Leave a piece out of every match when it " +
+        "appears or disappears between the keys. Pass the cut token you were given; a " +
+        "key changed since is refused. Your matches are saved as suggestions and replace " +
+        "your earlier suggestions on this gap; matches the artist made (by:\"artist\" in " +
+        "render_match_pieces) are kept, and naming one of their pieces is refused. Saved as " +
+        "one undo step; the gap's inbetweens Lightbox drew and nobody changed are redrawn " +
+        "from the matches, and the artist accepts or corrects them in the Match lines mode. " +
+        "Prefer matches that pair similar amounts of line: many pieces onto one long line, " +
+        "or a whole shoe onto a few marks, draws badly.")]
+    public static async Task<string> SetLineMatches(
+        [Description("Any frame of the gap, 0-based")] int frameIndex,
+        [Description("cut from render_match_pieces")] string cut,
+        [Description("JSON array of {a:[names], b:[names], solid?}")] string matchesJson,
+        CancellationToken ct,
+        [Description("Layer id from get_scene; omit for the active layer")] string? layerId = null)
+    {
+        var matches = ParseJsonArg(matchesJson, "matchesJson");
+        return await Text("set_line_matches", new { frameIndex, layerId, cut, matches }, ct);
+    }
+
     [McpServerTool(Name = "list_reference_views"), Description(
         "List the document's character sheets and their views (id, name, size). " +
         "Character sheets are reference art of the subject (front/side/…) that " +

@@ -393,6 +393,7 @@ public sealed class ShortcutMap
             // left with Esc, and a redraw replaces drawings.
             new("timeline.matchLines", "Match lines between keys", "Timeline", null),
             new("timeline.redrawInbetweens", "Redraw inbetweens", "Timeline", null),
+            new("timeline.acceptSuggestedMatches", "Accept suggested matches", "Timeline", null),
             // Q292-Q295. No default gestures: a cleanup is asked for, previewed
             // and applied, and none of the three should fire by a stray key.
             new("timeline.cleanLines", "Clean lines…", "Timeline", null),
