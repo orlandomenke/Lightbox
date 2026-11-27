@@ -225,4 +225,106 @@ public class GrownPaperLiveTests(ITestOutputHelper output) : BrushStateIsolated
         Assert.NotNull(committed);
         Assert.Equal(committed, inFlight);
     }
+
+    /// <summary>
+    /// Every brush whose look is seeded from where it lies — paper grain,
+    /// granulation, a wet edge, water's clouds — shows the same look under the
+    /// pen as it commits, on grown paper as on unmoved.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Found by the adversary on the first version of this fix.</b> Moving the
+    /// live dabs into surface pixels put every mark in the right place, and then
+    /// slid the paper underneath the textured ones: the live finish and water
+    /// seeded their fields from the surface rectangle they were handed, the
+    /// commit from document coordinates. Pencil's tooth and water's clouds
+    /// differed from in flight to committed by up to the whole range of a
+    /// channel, and only on grown paper.
+    /// </para>
+    /// <para>
+    /// <b>Compared with the same stroke on paper that has not moved</b>, not with
+    /// zero: some presets differ in flight by a pixel or two anyway, which is
+    /// their business and not this bug's. Grown must not be worse than unmoved.
+    /// </para>
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData("builtin-water")]
+    [InlineData("builtin-watercolor-wet")]
+    [InlineData("builtin-watercolor")]
+    [InlineData("builtin-ink-wash")]
+    [InlineData("builtin-gouache")]
+    [InlineData("builtin-gouache-body")]
+    [InlineData("builtin-pencil")]
+    [InlineData("builtin-oil")]
+    public void ATexturedBrushOnGrownPaperShowsTheGrainItCommits(string presetId)
+    {
+        var unmoved = InFlightAgainstCommitted(presetId, grow: false);
+        var grown = InFlightAgainstCommitted(presetId, grow: true);
+        output.WriteLine($"{presetId}: pixels differing in flight from committed — unmoved {unmoved}, grown {grown}");
+        Assert.True(grown <= unmoved + 2, $"{presetId}: {grown} pixels differ on grown paper against {unmoved} on unmoved");
+    }
+
+    /// <summary>
+    /// How many pixels of the whole picture differ by more than 8 between the
+    /// stroke in flight, every live pass landed, and the stroke committed.
+    /// </summary>
+    private static int InFlightAgainstCommitted(string presetId, bool grow)
+    {
+        var vm = new MainViewModel();
+        vm.NewDocument(new NewDocumentSettings("Grain", 160, 120, 12, 72, "#ffffff", true));
+        vm.LivePostRunner = work => { work(); return Task.CompletedTask; };
+        RenderSnapshot? latest = null;
+        vm.SnapshotChanged += x => latest = x;
+        if (grow)
+        {
+            var choice = new ResizeDialogViewModel(vm.Doc.Scene, ResizeMode.Canvas) { Anchor = ResizeAnchor.BottomRight };
+            choice.Width = 160 + GrewX;
+            choice.Height = 120 + GrewY;
+            Assert.True(vm.ApplyResize(choice));
+        }
+        var scene = vm.Doc.Scene;
+        // A ground with edges to rewet and mix: three hard stripes, placed in
+        // stroke coordinates so both papers carry the same drawing.
+        string[] colours = ["#c03020", "#2060c0", "#30a040"];
+        var ground = new Frame();
+        for (var i = 0; i < 3; i++)
+        {
+            ground.Strokes.Add(new Stroke
+            {
+                Tool = ToolKind.Fill,
+                Color = colours[i],
+                Brush = new BrushSettings { Opacity = 1, AntiAlias = false },
+                Points = [new(10, 20 + i * 30, 1), new(150, 20 + i * 30, 1), new(150, 40 + i * 30, 1), new(10, 40 + i * 30, 1)],
+            });
+        }
+        scene.Layers[vm.ActiveLayerIndex].Cels[0].Frame = ground;
+        vm.PublishSnapshot();
+        Pump();
+
+        vm.SmoothStrokes = false;
+        vm.ApplyPreset(vm.BrushPresetChoices.Single(p => p.Id == presetId));
+        vm.ColorHex = "#202020";
+        vm.BeginStroke(20, 30, 1);
+        for (var k = 1; k <= 12; k++) vm.MoveStroke(20 + k * 10, 30 + Math.Sin(k / 2.0) * 25, 1);
+        for (var i = 0; i < 8; i++) Pump();
+        vm.PublishSnapshot();
+        for (var i = 0; i < 4; i++) Pump();
+        using var inFlight = SKBitmap.FromImage(latest!.Image);
+
+        vm.EndStroke();
+        vm.PublishSnapshot();
+        for (var i = 0; i < 4; i++) Pump();
+        using var committed = SKBitmap.FromImage(latest!.Image);
+
+        var differing = 0;
+        for (var y = 0; y < committed.Height; y++)
+            for (var x = 0; x < committed.Width; x++)
+            {
+                SKColor a = inFlight.GetPixel(x, y), b = committed.GetPixel(x, y);
+                var d = Math.Max(Math.Max(Math.Abs(a.Red - b.Red), Math.Abs(a.Green - b.Green)),
+                    Math.Max(Math.Abs(a.Blue - b.Blue), Math.Abs(a.Alpha - b.Alpha)));
+                if (d > 8) differing++;
+            }
+        return differing;
+    }
 }

@@ -109,6 +109,14 @@ public sealed class LiveDabWalk
     }
 
     private SKPointI _origin;
+
+    /// <summary>
+    /// The last call's dabs in stroke coordinates, whatever <see cref="Origin"/>
+    /// says — for a consumer that, like the commit, takes stroke positions and
+    /// the corner separately (B422). Changed in place by the next call.
+    /// </summary>
+    public IReadOnlyList<BrushEngine.Dab> InStrokeSpace => _dabs;
+
     private readonly List<BrushEngine.Dab> _shifted = [];
     private readonly List<BrushEngine.Dab> _shiftedReplaced = [];
 

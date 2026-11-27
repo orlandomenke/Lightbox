@@ -45,18 +45,27 @@ public sealed class WetStroke
     private int _settled;
     private SKRectI _touched = SKRectI.Empty;
 
-    public WetStroke(int width, int height, BrushSettings brush)
+    /// <param name="origin">
+    /// The paper's corner in stroke coordinates (B422). The dabs and the layer
+    /// are in surface pixels; the clouds and the paper's grain are fixed to the
+    /// document, as <see cref="WetBleed.Render"/> fixes them for the commit, so
+    /// they are sampled the corner's distance over.
+    /// </param>
+    public WetStroke(int width, int height, BrushSettings brush, SKPointI origin = default)
     {
         _width = width;
         _height = height;
         _brush = brush;
+        _origin = origin;
         _look = new WetBleed.Look(brush);
         _spread = new WetBleed.Spread(width, height, WetBleed.SpreadRadius(brush));
     }
 
     /// <summary>Whether this was made for a layer of this size and this brush.</summary>
-    public bool Fits(int width, int height, BrushSettings brush) =>
-        width == _width && height == _height && ReferenceEquals(brush, _brush);
+    public bool Fits(int width, int height, BrushSettings brush, SKPointI origin = default) =>
+        width == _width && height == _height && ReferenceEquals(brush, _brush) && origin == _origin;
+
+    private readonly SKPointI _origin;
 
     /// <summary>How many pixels the last update recombined: the work it did, for a test to bound.</summary>
     public int PixelsRedone { get; private set; }
@@ -170,7 +179,7 @@ public sealed class WetStroke
         if (_look.Settle > 0)
         {
             paper = ArrayPool<float>.Shared.Rent(bw * bh);
-            Media.PaperField.Fill(paper.AsSpan(0, bw * bh), bw, bh, box2.Left, box2.Top,
+            Media.PaperField.Fill(paper.AsSpan(0, bw * bh), bw, bh, box2.Left + _origin.X, box2.Top + _origin.Y,
                 _brush.TextureSurface!.Value, Math.Max(1.5, _brush.TextureScale));
         }
         var coarse = _look.Coarse;
@@ -178,7 +187,7 @@ public sealed class WetStroke
         var redone = 0;
         for (var y = box2.Top; y < box2.Bottom; y++)
         {
-            var docY = y + 0.5;
+            var docY = y + 0.5 + _origin.Y;
             coarse.Row(docY);
             fine.Row(docY);
             var src = pre.Slice(y * preRowBytes, _width * 4);
@@ -194,7 +203,7 @@ public sealed class WetStroke
                     src.Slice(x * 4, 4).CopyTo(into.Slice(x * 4, 4));
                     continue;
                 }
-                var docX = x + 0.5;
+                var docX = x + 0.5 + _origin.X;
                 var c = _look.Clouds > 0 ? Math.Clamp((coarse.At(docX) * 0.68f) + (fine.At(docX) * 0.32f), 0f, 1f) : 0.5f;
                 var b = ((y - box2.Top) * bw) + (x - box2.Left);
                 WetBleed.Pixel(src.Slice(x * 4, 4), blurred.AsSpan(b * 4, 4), m, cover[i], c, paper is null ? -1f : paper[b], _look, into.Slice(x * 4, 4));
