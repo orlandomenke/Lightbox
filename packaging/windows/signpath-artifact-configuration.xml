@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What SignPath signs inside the bundle release.yml hands it.
+
+  SignPath reads its artifact configuration from its own project settings, not
+  from this repository: this file is the copy that is reviewed with the code,
+  and the one to paste into SignPath (Project > Artifact configurations) when it
+  changes. The two must match. release.yml asks for the configuration with the
+  slug in vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG, or "initial" if unset.
+
+  Only the two executables. Both are single-file publishes, so all of Lightbox's
+  own code is inside them; the native DLLs beside them are third-party, and
+  SignPath Foundation signs a project's own binaries only.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="Lightbox.App.exe">
+      <authenticode-sign />
+    </pe-file>
+    <pe-file path="mcp/Lightbox.Mcp.exe">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

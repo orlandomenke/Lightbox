@@ -41,7 +41,15 @@ jobs:
     runs-on: ubuntu-latest
     # A green run takes about 20 minutes. Without a limit a hung test holds
     # the runner for GitHub's default six hours, and says nothing while it does.
-    timeout-minutes: 60
+    # Raised from 60 for the signing step, which waits on a person approving the
+    # request in SignPath and is allowed 30 minutes of its own.
+    timeout-minutes: 90
+    # Whether SignPath is set up, worked out once. `secrets` cannot be read in a
+    # step's `if:`, so the test happens here and the steps read the result.
+    # Until the secret and the variable both exist every signing step is
+    # skipped and the bundle ships unsigned, exactly as it did before.
+    env:
+      SIGNPATH_CONFIGURED: ${{ secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -201,6 +209,70 @@ jobs:
           -p:PublishTrimmed=false -p:DebugType=embedded
           -p:Version=${{ steps.version.outputs.version }}
           -o publish/win-x64/mcp
+
+      # ---- code signing (SignPath Foundation) ---------------------------------
+      #
+      # Unsigned, a downloaded Lightbox.App.exe is stopped by SmartScreen as "an
+      # unrecognized app", and on a machine whose policy hides "Run anyway" it
+      # cannot be started at all without the unblocking workaround in the
+      # README. A signature does not lift that on day one: SmartScreen builds
+      # reputation per publisher from downloads, so the first signed releases
+      # can still warn. Unsigned, the warning never goes away.
+      #
+      # SignPath Foundation signs open-source projects for free with its own
+      # certificate, on two conditions this file has to honour: the binary is
+      # built here, by GitHub Actions on this repository (SignPath checks the
+      # run's origin), and only the project's own code is signed. So:
+      #
+      #   * Only the two executables are signed — the artifact configuration in
+      #     packaging/windows/signpath-artifact-configuration.xml names them. The
+      #     native DLLs beside them (SkiaSharp, HarfBuzz, ANGLE) are other
+      #     people's code, and SmartScreen judges the file that is launched.
+      #   * Only builds that could be releases are signed: a `v*` tag, or a
+      #     manual run on main. A manual run off a branch is an experiment, and
+      #     the certificate is not ours to put on one.
+      #
+      # The request waits for a person to approve it in SignPath — the release
+      # signing policy requires that — and a request nobody approves fails the
+      # run rather than shipping something unsigned under a signed name.
+      - name: Hand the unsigned build to the signing service
+        id: unsigned
+        if: >
+          env.SIGNPATH_CONFIGURED == 'true'
+          && (github.ref_type == 'tag' || github.ref == 'refs/heads/main')
+        uses: actions/upload-artifact@v5
+        with:
+          name: unsigned-win-x64-${{ github.run_number }}
+          path: publish/win-x64
+          retention-days: 1
+
+      - name: Sign the executables
+        if: steps.unsigned.outcome == 'success'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'Lightbox' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG || 'initial' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: publish/win-x64-signed
+
+      # The signed copy replaces the unsigned one wholesale, so every step after
+      # this — the zip, the Release, the manual artifact — ships what SignPath
+      # returned and cannot pick up the unsigned folder by accident.
+      - name: Ship the signed build
+        if: steps.unsigned.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f publish/win-x64-signed/Lightbox.App.exe
+          test -f publish/win-x64-signed/mcp/Lightbox.Mcp.exe
+          rm -rf publish/win-x64
+          mv publish/win-x64-signed publish/win-x64
+          echo "Signed by SignPath: Lightbox.App.exe, mcp/Lightbox.Mcp.exe" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Name the bundle
         id: name
