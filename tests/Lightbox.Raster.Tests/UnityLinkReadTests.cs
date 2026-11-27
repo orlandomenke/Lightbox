@@ -561,9 +561,14 @@ public class UnityLinkReadTests(ITestOutputHelper output)
         p.Clip("Assets/cvs/Run.anim", clip, 10);
         p.Clip("Assets/Animation/.Run.anim", clip, 11);
         p.Clip("Assets/Animation/Run.anim.tmp", clip, 12);
-        p.Clip("Assets/Secret/Run.anim", clip, 13);
-        var secret = new DirectoryInfo(Path.Combine(p.Root, "Assets", "Secret"));
-        secret.Attributes |= FileAttributes.Hidden;
+        // The Hidden attribute exists only on Windows: elsewhere setting it is a
+        // no-op and "hidden" means the leading dot, which the clip above covers.
+        if (OperatingSystem.IsWindows())
+        {
+            p.Clip("Assets/Secret/Run.anim", clip, 13);
+            var secret = new DirectoryInfo(Path.Combine(p.Root, "Assets", "Secret"));
+            secret.Attributes |= FileAttributes.Hidden;
+        }
 
         var index = UnityProjectScanner.Scan(p.Root);
 
