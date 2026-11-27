@@ -2623,8 +2623,13 @@ public static class BrushEngine
     /// </summary>
     /// <param name="mark">The dabs, document-sized, premultiplied; finished in place.</param>
     /// <param name="footprint">The brush's footprint buffer at <paramref name="ceilingScale"/>, or null when it keeps none.</param>
+    /// <param name="origin">
+    /// Where <paramref name="mark"/>'s (0,0) sits in document space (B422). The
+    /// band is in the mark's pixels; its grain and paper are the document's.
+    /// </param>
     public static void FinishBand(
-        SKBitmap mark, SKBitmap? footprint, SKRectI band, BrushSettings brush, double ceilingScale)
+        SKBitmap mark, SKBitmap? footprint, SKRectI band, BrushSettings brush, double ceilingScale,
+        SKPointI origin = default)
     {
         band = SKRectI.Intersect(band, new SKRectI(0, 0, mark.Width, mark.Height));
         if (band.Width <= 0 || band.Height <= 0) return;
@@ -2642,12 +2647,20 @@ public static class BrushEngine
 
         using var canvas = new SKCanvas(mark);
         canvas.ClipRect(band);
-        if (grain) ApplyGranulation(canvas, brush, band);
+        // Seeded from the band in document coordinates, drawn at it in the mark's.
+        var seededAt = new SKRectI(band.Left + origin.X, band.Top + origin.Y, band.Right + origin.X, band.Bottom + origin.Y);
+        if (grain)
+        {
+            canvas.Save();
+            canvas.Translate(-origin.X, -origin.Y);
+            ApplyGranulation(canvas, brush, seededAt);
+            canvas.Restore();
+        }
         if (paper)
         {
             canvas.Translate(band.Left, band.Top);
             ApplyTexture(
-                canvas, brush, band,
+                canvas, brush, seededAt,
                 new SKImageInfo(band.Width, band.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
         }
         canvas.Flush();
@@ -3837,9 +3850,16 @@ public static class BrushEngine
     /// without a whole-mark fill on every pointer event.
     /// </para>
     /// </remarks>
+    /// <param name="paperOrigin">
+    /// Where the canvas's (0,0) sits in document space, for a canvas that is not
+    /// itself moved there: the live scratch on grown paper, whose dabs arrive in
+    /// surface pixels (B422). The paper a tooth bites is fixed to the document,
+    /// so it is laid that far over. Zero for every canvas already in document space.
+    /// </param>
     public static void StampDabRange(
         SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
-        SKCanvas? footprint = null, bool footprintOnly = false, IReadOnlyList<MixDeposit>? replay = null)
+        SKCanvas? footprint = null, bool footprintOnly = false, IReadOnlyList<MixDeposit>? replay = null,
+        SKPointI paperOrigin = default)
     {
         // The silhouette is the colour draw; a pass that only records the
         // footprint or the press map walks the dabs like any other brush.
@@ -3864,7 +3884,7 @@ public static class BrushEngine
             MixDeposit? mix = replay is not null && i < replay.Count ? replay[i] : null;
             StampDab(
                 canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load,
-                dab.Seed, footprint, footprintOnly, dab.Fidelity, mix);
+                dab.Seed, footprint, footprintOnly, dab.Fidelity, mix, paperOrigin);
         }
     }
 
@@ -3918,7 +3938,8 @@ public static class BrushEngine
     /// </param>
     public static MixCarry StampMixedDabRange(
         SKCanvas canvas, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
-        in MixGround ground, MixCarry carry, List<MixDeposit>? deposits, SKCanvas? footprint = null)
+        in MixGround ground, MixCarry carry, List<MixDeposit>? deposits, SKCanvas? footprint = null,
+        SKPointI paperOrigin = default)
     {
         var brush = stroke.Brush;
         if (brush.Mixing is not { } mixing)
@@ -3975,7 +3996,7 @@ public static class BrushEngine
 
             StampDab(
                 canvas, dab.Pos, dab.Pressure, brush, color, tip, dab.Heading, tipImage, dab.Load,
-                dab.Seed, footprint, false, dab.Fidelity, deposit);
+                dab.Seed, footprint, false, dab.Fidelity, deposit, paperOrigin);
         }
         return carry;
     }
@@ -4115,8 +4136,9 @@ public static class BrushEngine
     /// </para>
     /// </remarks>
     public static void AccumulateFootprint(
-        SKCanvas footprint, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to) =>
-        StampDabRange(footprint, stroke, dabs, from, to, footprint, footprintOnly: true);
+        SKCanvas footprint, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to,
+        SKPointI paperOrigin = default) =>
+        StampDabRange(footprint, stroke, dabs, from, to, footprint, footprintOnly: true, paperOrigin: paperOrigin);
 
     /// <summary>
     /// The same, into a buffer smaller than the document by
@@ -4138,11 +4160,12 @@ public static class BrushEngine
     /// </para>
     /// </remarks>
     public static void AccumulateFootprint(
-        SKCanvas footprint, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to, double scale)
+        SKCanvas footprint, Stroke stroke, IReadOnlyList<Dab> dabs, int from, int to, double scale,
+        SKPointI paperOrigin = default)
     {
         if (scale >= 1.0)
         {
-            AccumulateFootprint(footprint, stroke, dabs, from, to);
+            AccumulateFootprint(footprint, stroke, dabs, from, to, paperOrigin);
             return;
         }
 
@@ -4150,7 +4173,7 @@ public static class BrushEngine
         try
         {
             footprint.Scale((float)scale);
-            StampDabRange(footprint, stroke, dabs, from, to, footprint, footprintOnly: true);
+            StampDabRange(footprint, stroke, dabs, from, to, footprint, footprintOnly: true, paperOrigin: paperOrigin);
         }
         finally
         {
@@ -4586,7 +4609,8 @@ public static class BrushEngine
         SKCanvas canvas, SKPoint pos, double pressure, BrushSettings brush, SKColor color,
         SKBitmap? tip, double directionDeg = double.NaN, SKImage? tipImage = null,
         double load = 1, SKPoint? seed = null, SKCanvas? footprint = null,
-        bool footprintOnly = false, int fidelity = 1, MixDeposit? mix = null)
+        bool footprintOnly = false, int fidelity = 1, MixDeposit? mix = null,
+        SKPointI paperOrigin = default)
     {
         var radius = (float)(RadiusAt(brush, pressure));
         if (radius <= 0) return;
@@ -4702,7 +4726,7 @@ public static class BrushEngine
             {
                 // The tip's bounding disc, under the tip's own transform: close
                 // enough for a gate whose grain is the paper's, not the tip's.
-                StampTooth(footprint, pos, radius, HardnessAt(brush, pressure), (float)rotation, (float)roundness, brush, ToothPress(brush, pressure, load), directionDeg);
+                StampTooth(footprint, pos, radius, HardnessAt(brush, pressure), (float)rotation, (float)roundness, brush, ToothPress(brush, pressure, load), directionDeg, paperOrigin);
             }
             else if (footprint is not null)
             {
@@ -4752,7 +4776,7 @@ public static class BrushEngine
             {
                 if (NeedsToothCeiling(brush))
                 {
-                    StampTooth(footprint, pos, radius, hardness, (float)rotation, (float)roundness, brush, ToothPress(brush, pressure, load), directionDeg);
+                    StampTooth(footprint, pos, radius, hardness, (float)rotation, (float)roundness, brush, ToothPress(brush, pressure, load), directionDeg, paperOrigin);
                 }
                 else
                 {
@@ -4775,7 +4799,7 @@ public static class BrushEngine
         }
         if (footprint is not null)
         {
-            if (NeedsToothCeiling(brush)) StampTooth(footprint, pos, radius, hardness, 0f, 1f, brush, ToothPress(brush, pressure, load), directionDeg);
+            if (NeedsToothCeiling(brush)) StampTooth(footprint, pos, radius, hardness, 0f, 1f, brush, ToothPress(brush, pressure, load), directionDeg, paperOrigin);
             else StampFootprint(footprint, pos, radius, hardness, brush.AntiAlias);
         }
     }
@@ -4837,7 +4861,7 @@ public static class BrushEngine
     /// </remarks>
     private static void StampTooth(
         SKCanvas footprint, SKPoint pos, float radius, float hardness, float rotation, float roundness,
-        BrushSettings brush, double pressure, double headingDeg = double.NaN)
+        BrushSettings brush, double pressure, double headingDeg = double.NaN, SKPointI paperOrigin = default)
     {
         var tile = ToothTile(brush);
         if (tile is null) return;
@@ -4849,6 +4873,12 @@ public static class BrushEngine
         if (rotation != 0f) dab = dab.PreConcat(SKMatrix.CreateRotationDegrees(rotation));
         if (roundness != 1f) dab = dab.PreConcat(SKMatrix.CreateScale(1f, roundness));
         if (!dab.TryInvert(out var toPaper)) toPaper = SKMatrix.Identity;
+        // The tile is in document pixels: a canvas point c bites the paper at
+        // c + paperOrigin (B422), which is c itself on a canvas in document space.
+        if (paperOrigin.X != 0 || paperOrigin.Y != 0)
+        {
+            toPaper = toPaper.PreConcat(SKMatrix.CreateTranslation(-paperOrigin.X, -paperOrigin.Y));
+        }
 
         using var paper = SKShader.CreateImage(tile, SKShaderTileMode.Repeat, SKShaderTileMode.Repeat, toPaper);
         using var gated = paper.WithColorFilter(table);

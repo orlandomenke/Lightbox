@@ -1013,6 +1013,32 @@ public partial class MainViewModel
     /// </remarks>
     private bool PaperHasMoved => Scene.Left != 0 || Scene.Top != 0;
 
+    /// <summary>The paper's corner in stroke coordinates, as the brush engine takes it.</summary>
+    private SKPointI PaperCorner => new(Scene.Left, Scene.Top);
+
+    /// <summary>
+    /// A stroke's mirror and wrap copies, for the live dabs — which are in surface
+    /// pixels (B422) while the copies are reflections in stroke coordinates.
+    /// </summary>
+    /// <remarks>
+    /// Each copy conjugated by the corner: a surface point goes back to stroke
+    /// coordinates, through the reflection, and out to surface pixels again. On
+    /// paper that has not moved this is exactly <see cref="BrushEngine.SymmetryCopies"/>.
+    /// </remarks>
+    private SKMatrix?[] SurfaceSymmetryCopies(Stroke live)
+    {
+        var copies = BrushEngine.SymmetryCopies(live);
+        if (!PaperHasMoved) return copies;
+        var toStroke = SKMatrix.CreateTranslation(Scene.Left, Scene.Top);
+        var toSurface = SKMatrix.CreateTranslation(-Scene.Left, -Scene.Top);
+        var moved = new SKMatrix?[copies.Length];
+        for (var i = 0; i < copies.Length; i++)
+        {
+            moved[i] = copies[i] is { } m ? toSurface.PreConcat(m).PreConcat(toStroke) : null;
+        }
+        return moved;
+    }
+
     /// <summary>
     /// Commit one stroke's pixels incrementally — onto the cached bitmap, and
     /// into the cached tiles when playback holds this frame as tiles. Both
