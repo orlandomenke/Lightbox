@@ -1762,11 +1762,11 @@ public partial class MainViewModel
                 // loan and re-stamped from the same carry next event.
                 BrushEngine.StampMixedDabRange(
                     _live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count, mixGround, _live.MixCarry,
-                    _live.MixDeposits);
+                    _live.MixDeposits, paperOrigin: PaperCorner);
             }
             else
             {
-                BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count);
+                BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, dabs.Count, paperOrigin: PaperCorner);
             }
             // Counted HERE and not from the tail's size below, because the tail
             // is only re-stamped when RangeBounds gives it a rectangle. Counting
@@ -1817,7 +1817,7 @@ public partial class MainViewModel
                 var tailFootprintAt = System.Diagnostics.Stopwatch.GetTimestamp();
                 BrushEngine.AccumulateFootprint(
                     _live.CoverageCanvas!, live, dabs, _live.StableDabs, dabs.Count,
-                    _live.CoverageScale);
+                    _live.CoverageScale, paperOrigin: PaperCorner);
                 _live.CoverageCanvas!.Flush();
                 StampFootprintMs.Add(Ms(tailFootprintAt));
             }
@@ -1912,7 +1912,7 @@ public partial class MainViewModel
         // mark - the wet edge's rim, the grain, the paper - by the one call a
         // replay makes (docs/DESIGN-paint-path.md, phase 2).
         BrushEngine.FinishBand(
-            capped, carriesFootprint ? _live.Coverage : null, band, live.Brush, _live.CoverageScale);
+            capped, carriesFootprint ? _live.Coverage : null, band, live.Brush, _live.CoverageScale, origin: PaperCorner);
         LiveFinishes++;
         _live.PostUsed = _live.PostUsed is { } prior
             ? LivePaintSession.UnionRect(prior, band)
@@ -2422,6 +2422,11 @@ public partial class MainViewModel
         _live.Dabs = null;
         _live.Walk.Reset();
         _live.HorizonWalk.Reset();
+        // B422: the live walks hand back dabs in the scratch's own pixels, which
+        // start at the paper's corner, seeded from where they are in the record.
+        // Both walks, because the settle rule compares one with the other.
+        _live.Walk.Origin = PaperCorner;
+        _live.HorizonWalk.Origin = PaperCorner;
         _live.HorizonAgreed = 0;
         _live.WalkWork = 0;
         _live.EffectDabs = null;
@@ -2624,7 +2629,7 @@ public partial class MainViewModel
         var beneath = preview.Brush.Mixing is not null && PaintTarget() is { } shapeFrame
             ? _cache.Get(shapeFrame, Scene.Width, Scene.Height)
             : null;
-        BrushEngine.StampStroke(_live.ScratchCanvas, preview, info, beneath);
+        BrushEngine.StampStroke(_live.ScratchCanvas, preview, info, beneath, origin: PaperCorner);
         _live.ScratchCanvas.Flush();
         _live.ScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
         _publish.InvalidateWholeCanvas();
@@ -2670,7 +2675,7 @@ public partial class MainViewModel
             Brush = new BrushSettings { Opacity = 1, AntiAlias = stroke.Brush.AntiAlias },
             Points = [.. stroke.Points],
         };
-        BrushEngine.StampStroke(_live.ScratchCanvas, preview, info);
+        BrushEngine.StampStroke(_live.ScratchCanvas, preview, info, origin: PaperCorner);
         _live.ScratchCanvas.Flush();
         _live.ScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
         GradientAxisChanged?.Invoke(
@@ -2764,7 +2769,8 @@ public partial class MainViewModel
         // copies[0] is always the drawn mark and always null, so `segment` is
         // exactly the call that was here before symmetry existed.
         var copies = BrushEngine.SymmetryCopies(live);
-        var segment = BrushEngine.DraftSegmentBounds(tail, info);
+        // B422: in surface pixels, like the scratch and the picture it dirties.
+        var segment = BrushEngine.DraftSegmentBounds(tail, info, PaperCorner);
 
         // Null for the overwhelmingly common case: no array, no loop, nothing.
         SKRectI?[]? copyRegions = null;
@@ -2773,7 +2779,7 @@ public partial class MainViewModel
             copyRegions = new SKRectI?[copies.Length - 1];
             for (var i = 1; i < copies.Length; i++)
             {
-                copyRegions[i - 1] = BrushEngine.DraftSegmentBounds(tail, info, default, copies[i]);
+                copyRegions[i - 1] = BrushEngine.DraftSegmentBounds(tail, info, PaperCorner, copies[i]);
             }
         }
 
@@ -3013,9 +3019,11 @@ public partial class MainViewModel
             // redone. The dabs it may treat as final are the ones the paint path
             // stamps for good - the same with the newest points taken away.
             var settled = HorizonSettled(live, dabs, first);
-            if (_live.Wet is not { } wet || !wet.Fits(width, height, live.Brush))
+            // B422: the dabs are in the layer's pixels; the water's clouds and
+            // paper are the document's, so the stroke is told the corner.
+            if (_live.Wet is not { } wet || !wet.Fits(width, height, live.Brush, PaperCorner))
             {
-                _live.Wet = wet = new WetStroke(width, height, live.Brush);
+                _live.Wet = wet = new WetStroke(width, height, live.Brush, PaperCorner);
             }
             var changed = wet.Update(before.GetPixelSpan(), before.RowBytes, dabs, settled, composite.GetPixelSpan(), composite.RowBytes);
             if (changed.Width > 0 && changed.Height > 0)
@@ -3047,9 +3055,12 @@ public partial class MainViewModel
             {
                 _live.WetSpread = spread = new WetBleed.Spread(before.Width, before.Height, radius);
             }
+            // B422: as the commit calls it — stroke positions and the corner apart,
+            // so the dabs land in the layer's pixels and the clouds and paper
+            // stay the document's. `dabs` is this same walk, moved.
             WetBleed.Render(
-                before.GetPixelSpan(), before.Width, before.Height, before.RowBytes, dabs, live.Brush, region,
-                rendered.AsSpan(0, bytes), spread: spread);
+                before.GetPixelSpan(), before.Width, before.Height, before.RowBytes, _live.Walk.InStrokeSpace, live.Brush, region,
+                rendered.AsSpan(0, bytes), origin: PaperCorner, spread: spread);
             var into = composite.GetPixelSpan();
             var rowBytes = composite.RowBytes;
             if (live.ClipId is null)
@@ -3257,7 +3268,7 @@ public partial class MainViewModel
     {
         if (_live.ScratchCanvas is null || to <= from) return;
 
-        var copies = BrushEngine.SymmetryCopies(live);
+        var copies = SurfaceSymmetryCopies(live);
         if (copies.Length <= 1) return;
 
         foreach (var copy in copies)
@@ -3275,7 +3286,7 @@ public partial class MainViewModel
             _live.ScratchCanvas.Save();
             _live.ScratchCanvas.Concat(m);
             // A mixing stroke's copies lay the drawn mark's colours (Q232).
-            BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, from, to, null, false, _live.MixDeposits);
+            BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, from, to, null, false, _live.MixDeposits, paperOrigin: PaperCorner);
             _live.ScratchCanvas.Restore();
 
             if (carriesFootprint && _live.CoverageCanvas is { } cover)
@@ -3286,7 +3297,7 @@ public partial class MainViewModel
                 // then through the scale.
                 cover.Save();
                 cover.Concat(m);
-                BrushEngine.StampDabRange(cover, live, dabs, from, to, cover, footprintOnly: true);
+                BrushEngine.StampDabRange(cover, live, dabs, from, to, cover, footprintOnly: true, paperOrigin: PaperCorner);
                 cover.Restore();
             }
         }
@@ -3485,7 +3496,7 @@ public partial class MainViewModel
             //     until step 4, when every copy's coverage is final — coverage
             //     is a running maximum, so converting early in a region another
             //     copy still has to touch would read a half-built value.
-            foreach (var copy in BrushEngine.SymmetryCopies(live))
+            foreach (var copy in SurfaceSymmetryCopies(live))
             {
                 if (copy is not { } m) continue;
                 // Off the page, nothing to accumulate — see StampSettledCopies.
@@ -3565,7 +3576,7 @@ public partial class MainViewModel
             //     at 2c. Separate bands rather than one enclosing them: the
             //     copies of a radial order ring the centre, and their union is
             //     most of the page.
-            foreach (var copy in BrushEngine.SymmetryCopies(live))
+            foreach (var copy in SurfaceSymmetryCopies(live))
             {
                 if (copy is not { } m) continue;
                 if (BrushEngine.RangeBounds(dabs, coverageFrom, settledCut, live.Brush, info, m)
@@ -3653,11 +3664,11 @@ public partial class MainViewModel
         {
             _live.MixCarry = BrushEngine.StampMixedDabRange(
                 _live.ScratchCanvas, live, dabs, _live.StableDabs, stable, mixGround, _live.MixCarry,
-                _live.MixDeposits ??= new List<BrushEngine.MixDeposit>());
+                _live.MixDeposits ??= new List<BrushEngine.MixDeposit>(), paperOrigin: PaperCorner);
         }
         else
         {
-            BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, stable);
+            BrushEngine.StampDabRange(_live.ScratchCanvas, live, dabs, _live.StableDabs, stable, paperOrigin: PaperCorner);
         }
         _live.StableDabs = Math.Max(_live.StableDabs, Math.Min(stable, dabs.Count));
         StampColourMs.Add(Ms(settledAt));
@@ -3672,7 +3683,7 @@ public partial class MainViewModel
             // difference is what this says.
             var footprintAt = System.Diagnostics.Stopwatch.GetTimestamp();
             BrushEngine.AccumulateFootprint(
-                _live.CoverageCanvas!, live, dabs, settledFrom, stable, _live.CoverageScale);
+                _live.CoverageCanvas!, live, dabs, settledFrom, stable, _live.CoverageScale, paperOrigin: PaperCorner);
             _live.CoverageCanvas!.Flush();
             StampFootprintMs.Add(Ms(footprintAt));
         }
@@ -4028,6 +4039,15 @@ public partial class MainViewModel
                 (rect.Top * _live.CoverageScale) - cropRect.Top);
         }
 
+        // B422: the pass works in surface pixels, like the scratch it crops, but
+        // the paper's grain and the medium's fields are seeded from document
+        // coordinates — the commit's — so the region and both crops' corners
+        // are handed over in stroke coordinates. On unmoved paper the two agree.
+        var corner = PaperCorner;
+        var documentRect = new SKRectI(
+            rect.Left + corner.X, rect.Top + corner.Y, rect.Right + corner.X, rect.Bottom + corner.Y);
+        var dabsAt = new SKPointI(rect.Left + corner.X, rect.Top + corner.Y);
+        var beneathAt = new SKPointI(beneathOrigin.X + corner.X, beneathOrigin.Y + corner.Y);
         var generation = _live.PostGeneration;
         // For the lab: how much of the mark this pass reads, which is the number
         // B313 changed and B331 is about. Built here, on the UI thread, and only
@@ -4074,7 +4094,7 @@ public partial class MainViewModel
                 // over them rather than re-stamping every dab — the cost stops
                 // growing with the length of the stroke.
                 processed = BrushEngine.PostProcessRegion(
-                    dabsCrop, whole, rect, beneathCrop, rect.Location, beneathOrigin,
+                    dabsCrop, whole, documentRect, beneathCrop, dabsAt, beneathAt,
                     footprintCrop, footprintSpace);
             }
             catch
@@ -4785,7 +4805,7 @@ public partial class MainViewModel
             // CommitRegion, not CommitBounds: a mirrored or wrapped copy lands
             // outside the authored mark's rectangle, and the committed layer
             // has to repaint there too once the live layer lets go (B424).
-            if (BrushEngine.CommitRegion(shown, commitInfo) is { } touched) _publish.MarkDirty(touched);
+            if (BrushEngine.CommitRegion(shown, commitInfo, PaperCorner) is { } touched) _publish.MarkDirty(touched);
             else _publish.InvalidateWholeCanvas();
         }
         PublishSnapshot();
@@ -4882,7 +4902,7 @@ public partial class MainViewModel
         TakeBackUnusedKey();
 
         var commitInfo = new SKImageInfo(Scene.Width, Scene.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        if (BrushEngine.CommitBounds(stroke, commitInfo) is { } touched) _publish.MarkDirty(touched);
+        if (BrushEngine.CommitBounds(stroke, commitInfo, PaperCorner) is { } touched) _publish.MarkDirty(touched);
         else _publish.InvalidateWholeCanvas();
         PublishSnapshot();
 

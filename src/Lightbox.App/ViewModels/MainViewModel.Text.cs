@@ -1001,15 +1001,27 @@ public partial class MainViewModel
         paint.Brush.Opacity = 1;
         var layout = TextLayout.Of(text, face);
 
+        // B422: the layout is in stroke coordinates and the scratch in surface
+        // pixels. The glyphs go through the brush engine, which takes the
+        // corner itself; the highlight and the box are plain drawing, so they
+        // draw through a canvas moved by it.
+        var corner = PaperCorner;
+        var scratch = _live.ScratchCanvas;
+        scratch.Save();
+        scratch.Translate(-corner.X, -corner.Y);
         // Under the glyphs, which is the whole reason it is drawn first: a
         // highlight over the letters would hide what is selected.
         DrawTextSelection(layout);
+        scratch.Restore();
         foreach (var glyph in TextBaker.Bake(text, face, paint))
         {
-            BrushEngine.StampStroke(_live.ScratchCanvas, glyph, info);
+            BrushEngine.StampStroke(scratch, glyph, info, origin: corner);
         }
 
+        scratch.Save();
+        scratch.Translate(-corner.X, -corner.Y);
         DrawTextBox(layout);
+        scratch.Restore();
         DrawTextCaret(text, layout);
         _live.ScratchCanvas.Flush();
         _live.ScratchUsed = new SKRectI(0, 0, Scene.Width, Scene.Height);
