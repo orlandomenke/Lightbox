@@ -393,6 +393,13 @@ public sealed class ShortcutMap
             // left with Esc, and a redraw replaces drawings.
             new("timeline.matchLines", "Match lines between keys", "Timeline", null),
             new("timeline.redrawInbetweens", "Redraw inbetweens", "Timeline", null),
+            // Q292-Q295. No default gestures: a cleanup is asked for, previewed
+            // and applied, and none of the three should fire by a stray key.
+            new("timeline.cleanLines", "Clean lines…", "Timeline", null),
+            new("timeline.cleanLinesTowardKeys", "Clean lines toward keys…", "Timeline", null),
+            new("timeline.applyCleanup", "Apply the cleanup preview", "Timeline", null),
+            new("timeline.cancelCleanup", "Cancel the cleanup preview", "Timeline", null),
+            new("timeline.cleanNewInbetweens", "Clean new inbetweens (on or off)", "Timeline", null),
             // Pinning (Q227). No default gestures: which rows the sheet shows
             // is set up once per scene, not reached for mid-stroke, and a key
             // spent here is a key the drawing verbs cannot have.
