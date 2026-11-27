@@ -69,6 +69,15 @@ public sealed class OpenAiArtist : IAiArtist
         return StrokeParsing.Subject(call, _label);
     }
 
+    public async Task<AiResult<List<Core.Cleanup.ReviewFix>>> ReviewLinesAsync(
+        LineReviewRequest request, CancellationToken ct)
+    {
+        var call = await CallAsync(
+            LineReviewing.System, LineReviewing.User(request),
+            "line_review", LineReviewing.Schema, request.Picture is null ? null : [request.Picture], ct);
+        return LineReviewing.Parse(call, _label);
+    }
+
     private sealed class Choice
     {
         [JsonPropertyName("message")] public Message? Message { get; set; }

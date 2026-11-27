@@ -864,6 +864,7 @@ public partial class ConfigureWindow : Window
         LoopBox.IsChecked = _vm.LoopPlayback;
         OffSheetKeyBox.IsChecked = _vm.MarkOffSheetKeys;
         CleanNewInbetweensBox.IsChecked = _vm.CleanNewInbetweens;
+        ReviewNewInbetweensBox.IsChecked = _vm.ReviewNewInbetweensWithAi;
         XsheetCellStyleBox.ItemsSource = _vm.XsheetCellStyles;
         XsheetCellStyleBox.SelectedItem = _vm.XsheetCellStyle;
         AnimateRigBox.IsChecked = _vm.AnimateRigDuringPlayback;
@@ -1022,6 +1023,12 @@ public partial class ConfigureWindow : Window
     {
         if (_loadingTimeline || _vm is null || XsheetCellStyleBox.SelectedItem is not Controls.XsheetCellStyle style) return;
         _vm.XsheetCellStyle = style;
+    }
+
+    private void OnReviewNewInbetweensChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_loadingTimeline || _vm is null || ReviewNewInbetweensBox.IsChecked is not { } on) return;
+        _vm.ReviewNewInbetweensWithAi = on;
     }
 
     private void OnCleanNewInbetweensChanged(object? sender, RoutedEventArgs e)

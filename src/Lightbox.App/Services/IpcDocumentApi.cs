@@ -66,6 +66,8 @@ public sealed class IpcDocumentApi(MainViewModel vm)
                 "import_character" => ImportCharacter(request),
                 "set_key" => SetKey(request),
                 "clean_lines" => CleanLines(request),
+                "render_line_review" => RenderLineReview(request),
+                "fix_lines" => FixLines(request),
                 "extend_exposure" => ExtendExposure(request),
                 "reduce_exposure" => ReduceExposure(request),
                 "set_exposure_step" => SetExposureStep(request),
@@ -638,6 +640,105 @@ public sealed class IpcDocumentApi(MainViewModel vm)
         public int FrameIndex { get; set; }
         public string? LayerId { get; set; }
         public List<StrokeWire.StrokeDto> Strokes { get; set; } = [];
+    }
+
+    private sealed class ReviewRef
+    {
+        public int FrameIndex { get; set; }
+        public string? LayerId { get; set; }
+        public string? Sheet { get; set; }
+        public JsonElement? Fixes { get; set; }
+        public bool Apply { get; set; }
+    }
+
+    /// <summary>
+    /// The inbetween at a frame beside its keys, every line numbered, as a
+    /// picture and a listing, with a token naming exactly this drawing (Q296).
+    /// </summary>
+    private IpcProtocol.Response RenderLineReview(IpcProtocol.Request request)
+    {
+        var p = Payload<ReviewRef>(request);
+        var layer = ResolveLayer(p.LayerId);
+        if (p.FrameIndex < 0) return IpcProtocol.Response.Fail("frameIndex must be 0 or greater.");
+        var (target, why) = Vm.ReviewTargetAt(layer, p.FrameIndex);
+        if (target is null) return IpcProtocol.Response.Fail(why!);
+        return IpcProtocol.Response.Success(new
+        {
+            p.FrameIndex,
+            LayerId = layer.Id,
+            Sheet = SheetToken(target),
+            Lines = target.Sheet.Lines.Count,
+            Listing = target.Sheet.Listing(),
+            PngBase64 = Rendering.LineReviewPicture.Png(target.Sheet),
+        });
+    }
+
+    /// <summary>
+    /// Fixes an agent names on a sheet it read (Q296–Q298): made by the engine,
+    /// shown as a preview, written only with apply:true — and refused when the
+    /// drawing is no longer the one the sheet numbered.
+    /// </summary>
+    private IpcProtocol.Response FixLines(IpcProtocol.Request request)
+    {
+        var p = Payload<ReviewRef>(request);
+        var layer = ResolveLayer(p.LayerId);
+        if (p.FrameIndex < 0) return IpcProtocol.Response.Fail("frameIndex must be 0 or greater.");
+        if (!Vm.Doc.Scene.IsLayerVisible(layer) || !Vm.Doc.Scene.IsLayerEditable(layer))
+            return IpcProtocol.Response.Fail($"Layer \"{layer.Name}\" is hidden or locked and cannot be fixed.");
+        if (Vm.IsCleanupPendingFromArtist)
+            return IpcProtocol.Response.Fail("The artist has a cleanup preview open — it is theirs to apply or cancel first.");
+        var (target, why) = Vm.ReviewTargetAt(layer, p.FrameIndex);
+        if (target is null) return IpcProtocol.Response.Fail(why!);
+        if (p.Sheet != SheetToken(target))
+            return IpcProtocol.Response.Fail("The drawing changed since its sheet was read — call render_line_review again; line numbers may have moved.");
+        if (p.Fixes is not { } fixesJson)
+            return IpcProtocol.Response.Fail("fixes is required: {\"fixes\":[...]} as render_line_review describes.");
+        var parsed = Lightbox.Ai.LineReviewing.Parse(
+            Lightbox.Ai.AiResult<string>.Success(fixesJson.ValueKind == JsonValueKind.Array
+                ? $"{{\"fixes\":{fixesJson.GetRawText()}}}"
+                : fixesJson.GetRawText()),
+            "The fixes");
+        if (parsed.Value is not { } fixes) return IpcProtocol.Response.Fail(parsed.Message ?? "The fixes could not be read.");
+
+        var outcome = Lightbox.Core.Cleanup.LineReview.Apply(target.Before, target.Sheet, fixes);
+        var drawings = Vm.ProposeReview([(target, outcome)], byAgent: true);
+        var applied = drawings > 0 && p.Apply && Vm.TryApplyCleanup();
+        return IpcProtocol.Response.Success(new
+        {
+            p.FrameIndex,
+            LayerId = layer.Id,
+            Applied = applied,
+            Pending = Vm.IsCleanupPending,
+            Summary = Vm.AiStatus,
+            Made = outcome.Made.Select(f => new { f.Line, Kind = f.Kind.ToString().ToLowerInvariant(), f.Reason }),
+            Refused = outcome.Refused.Select(r => new { r.Fix.Line, Kind = r.Fix.Kind.ToString().ToLowerInvariant(), r.Why }),
+        });
+    }
+
+    /// <summary>
+    /// A short name for exactly what a sheet numbered: every numbered line of
+    /// the inbetween and of both keys, by id, tool, width and every point
+    /// (adversary review: ids and counts alone let a moved line through).
+    /// </summary>
+    private static string SheetToken(MainViewModel.ReviewTarget target)
+    {
+        var text = new System.Text.StringBuilder();
+        foreach (var (tag, lines) in new[] { ("L", target.Sheet.Lines), ("A", target.Sheet.KeyA), ("B", target.Sheet.KeyB) })
+        {
+            foreach (var s in lines)
+            {
+                text.Append(tag).Append(s.Id).Append(':').Append(s.Tool).Append(':')
+                    .Append(s.Brush.Size.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+                foreach (var pt in s.Points)
+                {
+                    text.Append(';').Append(BitConverter.DoubleToInt64Bits(pt.X)).Append(',')
+                        .Append(BitConverter.DoubleToInt64Bits(pt.Y)).Append(',')
+                        .Append(BitConverter.DoubleToInt64Bits(pt.Pressure));
+                }
+                text.Append('|');
+            }
+        }
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text.ToString())))[..16];
     }
 
     private sealed class CleanRef

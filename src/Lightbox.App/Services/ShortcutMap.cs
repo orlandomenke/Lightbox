@@ -400,6 +400,9 @@ public sealed class ShortcutMap
             new("timeline.applyCleanup", "Apply the cleanup preview", "Timeline", null),
             new("timeline.cancelCleanup", "Cancel the cleanup preview", "Timeline", null),
             new("timeline.cleanNewInbetweens", "Clean new inbetweens (on or off)", "Timeline", null),
+            // Q296-Q299. No default gesture: an AI request is not fired by a stray key.
+            new("ai.reviewLines", "Review lines with AI…", "Timeline", null),
+            new("ai.reviewNewInbetweens", "Review new inbetweens with AI (on or off)", "Timeline", null),
             // Pinning (Q227). No default gestures: which rows the sheet shows
             // is set up once per scene, not reached for mid-stroke, and a key
             // spent here is a key the drawing verbs cannot have.
